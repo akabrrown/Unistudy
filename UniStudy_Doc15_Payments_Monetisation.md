@@ -1,0 +1,37 @@
+**UniStudy AI**  
+**Doc 15: Payments & Monetisation**
+
+**Table of Contents**
+=====================
+
+**PLAN STRUCTURE**
+
+<table><tbody><tr><td><strong>Feature</strong></td><td><strong>Free</strong></td><td><strong>Pro (GHS 49/mo)</strong></td><td><strong>Enterprise (GHS 149/mo)</strong></td></tr><tr><td>Courses</td><td>3</td><td>Unlimited</td><td>Unlimited</td></tr><tr><td>Lectures per course</td><td>5</td><td>Unlimited</td><td>Unlimited</td></tr><tr><td>AI explanations/day</td><td>30</td><td>Unlimited</td><td>Unlimited</td></tr><tr><td>Flashcard decks/month</td><td>2</td><td>Unlimited</td><td>Unlimited</td></tr><tr><td>Past paper attempts/month</td><td>3</td><td>Unlimited</td><td>Unlimited</td></tr><tr><td>AI Calculator calls/day</td><td>20</td><td>Unlimited</td><td>Unlimited</td></tr><tr><td>Textbook Q&amp;A</td><td>No</td><td><strong>Yes</strong></td><td><strong>Yes</strong></td></tr><tr><td>Community bank access</td><td>View only</td><td>Full</td><td>Full</td></tr><tr><td>Study groups</td><td>1</td><td>10</td><td>Unlimited</td></tr><tr><td>Analytics dashboard</td><td>Basic</td><td>Full</td><td>Full + export</td></tr><tr><td>Priority AI responses</td><td>No</td><td>No</td><td><strong>Yes</strong></td></tr><tr><td>Institutional SSO</td><td>No</td><td>No</td><td><strong>Yes</strong></td></tr><tr><td>Dedicated support</td><td>No</td><td>No</td><td><strong>Yes</strong></td></tr><tr><td>Custom branding</td><td>No</td><td>No</td><td><strong>Yes</strong></td></tr></tbody></table>
+
+<table><tbody><tr><td><strong>15.1</strong></td><td><strong>Paystack Subscription Setup</strong><br><em>Create Plans in Paystack dashboard, store plan codes in env vars</em></td></tr></tbody></table>
+
+### **Environment Variables**
+
+<table><tbody><tr><td>PAYSTACK_SECRET_KEY=sk_live_xxx<br>NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_xxx<br>PAYSTACK_WEBHOOK_SECRET=your_webhook_secret<br>PAYSTACK_PRO_PLAN_CODE=PLN_xxxxxxxxxx<br>PAYSTACK_ENTERPRISE_PLAN_CODE=PLN_xxxxxxxxxx<br>NEXT_PUBLIC_PAYSTACK_PRO_PLAN_CODE=PLN_xxxxxxxxxx<br>NEXT_PUBLIC_PAYSTACK_ENTERPRISE_PLAN_CODE=PLN_xxxxxxxxxx</td></tr></tbody></table>
+
+### **Initialize Subscription**
+
+<table><tbody><tr><td>// /app/api/payments/initialize/route.ts<br>export async function POST(req: NextRequest) {<br>const { plan } = await req.json();<br>const planCode = plan === 'pro'<br>? process.env.PAYSTACK_PRO_PLAN_CODE<br>: process.env.PAYSTACK_ENTERPRISE_PLAN_CODE;<br>// Ensure Paystack customer exists<br>let customerCode = await getOrCreatePaystackCustomer(session.user.id, session.user.email);<br>const res = await axios.post('https://api.paystack.co/subscription',<br>{ customer: customerCode, plan: planCode },<br>{ headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` } }<br>);<br>return NextResponse.json({ authorization_url: res.data.data.authorization_url });<br>}</td></tr></tbody></table>
+
+### **Webhook Handler — All Events**
+
+<table><tbody><tr><td>// /app/api/webhooks/paystack/route.ts<br>export async function POST(req: NextRequest) {<br>const body = await req.text();<br>const sig = req.headers.get('x-paystack-signature')!;<br>const hash = crypto.createHmac('sha512', process.env.PAYSTACK_WEBHOOK_SECRET!)<br>.update(body).digest('hex');<br>if (hash !== sig) return new Response('Invalid', { status: 401 });<br>const event = JSON.parse(body);<br>switch (event.event) {<br>case 'charge.success':<br>await supabase.from('profiles').update({ plan: event.data.plan.name }).eq('email', event.data.customer.email);<br>await supabase.from('subscriptions').upsert({ /* sub details */ });<br>await supabase.from('payment_transactions').insert({ /* txn record */ });<br>break;<br>case 'subscription.disable':<br>await supabase.from('profiles').update({ plan: 'free' }).eq('email', event.data.customer.email);<br>await supabase.from('subscriptions').update({ status: 'cancelled' }).eq('paystack_sub_code', event.data.subscription_code);<br>break;<br>case 'invoice.payment_failed':<br>await resend.emails.send({ to: event.data.customer.email, subject: 'Payment failed', html: buildFailedPaymentEmail() });<br>break;<br>}<br>return new Response('OK', { status: 200 });<br>}</td></tr></tbody></table>
+
+<table><tbody><tr><td><strong>15.2</strong></td><td><strong>Referral Programme</strong><br><em>1 free month Pro for every paid referral — no cap</em></td></tr></tbody></table>
+
+<table><tbody><tr><td>// On signup with referral code<br>export async function POST(req: NextRequest) {<br>const { email, referralCode } = await req.json();<br>if (referralCode) {<br>const { data: ref } = await supabase.from('referrals')<br>.select('*').eq('referral_code', referralCode).eq('status', 'pending').single();<br>if (ref) {<br>await supabase.from('referrals').update({ status: 'signed_up', referred_email: email }).eq('id', ref.id);<br>}<br>}<br>// ... rest of signup<br>}<br>// On first successful payment by referred user (in webhook handler)<br>const ref = await supabase.from('referrals').select('*').eq('referred_email', event.data.customer.email).eq('status','signed_up').single();<br>if (ref.data) {<br>await supabase.from('referrals').update({ status: 'paid', months_awarded: 1 }).eq('id', ref.data.id);<br>// Credit 1 free month to referrer — extend their current_period_end by 30 days<br>await supabase.from('subscriptions').update({<br>current_period_end: new Date(Date.now() + 30*86400000)<br>}).eq('user_id', ref.data.referrer_id);<br>await resend.emails.send({ to: referrerEmail, subject: 'You earned a free month!', html: buildReferralEmail() });<br>}</td></tr></tbody></table>
+
+<table><tbody><tr><td><strong>15.3</strong></td><td><strong>Free 7-Day Pro Trial</strong><br><em>New signups get 7 days of full Pro — no card required</em></td></tr></tbody></table>
+
+<table><tbody><tr><td>// On profile creation (after auth callback)<br>await supabase.from('profiles').update({<br>plan: 'pro',<br>trial_ends_at: new Date(Date.now() + 7*86400000)<br>}).eq('id', userId);<br>// Cron job checks trials daily<br>// /app/api/cron/expire-trials/route.ts<br>const { data: expiredTrials } = await supabase.from('profiles')<br>.select('id').eq('plan','pro')<br>.lt('trial_ends_at', new Date().toISOString())<br>.is('subscriptions.id', null); // no paid subscription<br>for (const u of expiredTrials) {<br>await supabase.from('profiles').update({ plan: 'free' }).eq('id', u.id);<br>}</td></tr></tbody></table>
+
+<table><tbody><tr><td><strong>15.4</strong></td><td><strong>Gift Subscriptions</strong><br><em>Buy Pro for a friend — gift code emailed, redeemed on signup or in settings</em></td></tr></tbody></table>
+
+<table><tbody><tr><td>// /app/api/payments/gift/route.ts<br>const giftCode = nanoid(12).toUpperCase();<br>await supabase.from('gift_subscriptions').insert({<br>gifter_id: session.user.id,<br>recipient_email: recipientEmail,<br>gift_code: giftCode,<br>months: months, // 1 or 3<br>expires_at: new Date(Date.now() + 90*86400000), // 90 days to redeem<br>status: 'pending'<br>});<br>await resend.emails.send({<br>to: recipientEmail,<br>subject: `${gifterName} gifted you ${months} month(s) of UniStudy AI Pro!`,<br>html: buildGiftEmail(giftCode, months)<br>});</td></tr></tbody></table>
+
+UniStudy AI · Doc 15: Payments & Monetisation · Phase 5

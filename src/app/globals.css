@@ -1,0 +1,237 @@
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+}
+
+@utility container {
+  margin-inline: auto;
+  padding-inline: 2rem;
+  @media (width >= --theme(--breakpoint-sm)) {
+    max-width: none;
+  }
+  @media (width >= 1400px) {
+    max-width: 1400px;
+  }
+}
+
+@utility perspective-1000 {
+  perspective: 1000px;
+}
+
+@utility transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+@utility backface-hidden {
+  backface-visibility: hidden;
+}
+
+@utility rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+.emoji-text {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Segoe UI Symbol", "Android Emoji", EmojiSymbols, sans-serif;
+}
+
+/*
+  The default border color has changed to `currentColor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+}
+
+@layer base {
+  :root {
+    --bg-page: #FAF8FF;
+    --bg-card: #F5F3FA;
+    --bg-subtle: #EDE7F6;
+    --color-plum-500: #5B2D8E;
+    --color-plum-600: #3D1A6E;
+    --text-muted: #6B5A8A;
+    --text-primary: #3D2B5E;
+
+    --background: 268 33% 97%;
+    --foreground: 268 40% 10%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 268 40% 10%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 268 40% 10%;
+    
+    --primary: 268 52% 37%;
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 268 53% 85%;
+    --secondary-foreground: 268 52% 37%;
+    
+    --muted: 268 20% 93%;
+    --muted-foreground: 268 20% 40%;
+    
+    --accent: 268 53% 85%;
+    --accent-foreground: 268 52% 37%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 268 30% 88%;
+    --input: 268 30% 88%;
+    --ring: 268 52% 37%;
+    
+    --radius: 1rem;
+  }
+
+  .dark {
+    --bg-page: #0F0520;
+    --bg-card: #1C0A3A;
+    --bg-subtle: #2A1050;
+    --color-plum-500: #9B72CF;
+    --color-plum-600: #7B4DB5;
+    --text-muted: #9B72CF;
+    --text-primary: #D1C4E9;
+
+    --background: 268 76% 7%;
+    --foreground: 268 20% 90%;
+    
+    --card: 263 70% 13%;
+    --card-foreground: 268 20% 90%;
+    
+    --popover: 263 70% 13%;
+    --popover-foreground: 268 20% 90%;
+    
+    --primary: 268 52% 60%;
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 268 40% 25%;
+    --secondary-foreground: 268 20% 90%;
+    
+    --muted: 268 40% 20%;
+    --muted-foreground: 268 20% 70%;
+    
+    --accent: 268 40% 25%;
+    --accent-foreground: 268 20% 90%;
+    
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 268 20% 90%;
+    
+    --border: 268 40% 25%;
+    --input: 268 40% 25%;
+    --ring: 268 52% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Accessibility Classes */
+.font-dyslexic, .font-dyslexic * {
+  font-family: 'OpenDyslexic', 'Comic Sans MS', sans-serif !important;
+  letter-spacing: 0.05em !important;
+  word-spacing: 0.1em !important;
+}
+
+.contrast-more {
+  --background: 0 0% 0%;
+  --foreground: 0 0% 100%;
+  --card: 0 0% 5%;
+  --card-foreground: 0 0% 100%;
+  --popover: 0 0% 5%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 60 100% 50%; /* High contrast yellow */
+  --primary-foreground: 0 0% 0%;
+  --secondary: 0 0% 20%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 0 0% 20%;
+  --muted-foreground: 0 0% 80%;
+  --accent: 60 100% 50%;
+  --accent-foreground: 0 0% 0%;
+  --destructive: 0 100% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 100%;
+  --input: 0 0% 100%;
+  --ring: 60 100% 50%;
+}
+
+.text-lg {
+  font-size: 1.125rem !important;
+  line-height: 1.75rem !important;
+}
+
+.text-xl {
+  font-size: 1.25rem !important;
+  line-height: 1.8rem !important;
+}
+

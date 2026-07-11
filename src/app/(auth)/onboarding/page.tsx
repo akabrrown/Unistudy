@@ -1,0 +1,10 @@
+import { OnboardingForm } from './OnboardingForm'
+
+export default function OnboardingPage() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background p-4 overflow-hidden relative">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background -z-10" />
+      <OnboardingForm />
+    </div>
+  )
+}
