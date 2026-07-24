@@ -1,17 +1,25 @@
-FROM python:3.11-slim
+# Use the official Ollama image (has the server + models)
+FROM ollama/ollama:0.3.6
 
-RUN apt-get update && apt-get install -y \
-  libreoffice poppler-utils tesseract-ocr tesseract-ocr-eng \
-  && rm -rf /var/lib/apt/lists/*
+# Install Python + needed libs
+RUN apt-get update && apt-get install -y python3-pip poppler-utils tesseract-ocr \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
+# Copy Python requirements and install them
 COPY requirements.txt .
-
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy the Python script
 COPY main.py .
 
-EXPOSE 8000
+# Expose both FastAPI (8000) and Ollama (11434)
+EXPOSE 8000 11434
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start Ollama, pull the model, then launch FastAPI
+CMD ["sh", "-c", "\
+  ollama serve & \
+  sleep 5 && \
+  ollama pull ${OLLAMA_MODEL:-phi3} && \
+  uvicorn main:app --host 0.0.0.0 --port 8000"]

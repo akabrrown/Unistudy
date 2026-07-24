@@ -8,8 +8,8 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const CACHE_PATH = FileSystem.cacheDirectory + 'flashcards.json';
-const PENDING_PATH = FileSystem.cacheDirectory + 'pending_ratings.json';
+const CACHE_PATH = ((FileSystem as any).documentDirectory || '') + 'flashcards.json';
+const PENDING_PATH = ((FileSystem as any).documentDirectory || '') + 'pending_ratings.json';
 
 export function useOfflineFlashcards() {
   

@@ -4,9 +4,14 @@
     "slug": "unistudy-mobile",
     "version": "1.0.0",
     "scheme": "unistudy",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-new.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAFAFA"
+    },
     "ios": {
       "supportsTablet": true
     },
@@ -26,7 +31,8 @@
       "expo-router",
       "expo-secure-store",
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      "expo-sqlite"
     ]
   }
 }

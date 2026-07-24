@@ -1,20 +1,82 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { useAuth } from '../../lib/AuthContext';
+import { supabase } from '../../lib/supabase';
+import { Colors } from '../../constants/Colors';
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const theme = useColorScheme() ?? 'light';
+  const colors = Colors[theme];
+  const styles = getStyles(colors, theme === 'dark');
+  const { user, loading: authLoading } = useAuth();
+  
+  const [profile, setProfile] = useState<any>(null);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [randomQuote] = useState(() => {
+    const quotes = [
+      "Ready for another productive session?",
+      "Every study session counts!",
+      "Keep up the great work!",
+      "Time to level up your knowledge.",
+      "Let's make today count."
+    ];
+    return quotes[Math.floor(Math.random() * quotes.length)];
+  });
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+
+    async function fetchData() {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user?.id)
+        .single();
+      
+      setProfile(profileData);
+
+      const { data: coursesData } = await supabase
+        .from('courses')
+        .select('*, lectures(id)')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false })
+        .limit(3);
+        
+      setCourses(coursesData || []);
+      setLoading(false);
+    }
+
+    fetchData();
+  }, [user, authLoading]);
+
+  if (loading || authLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.tint} />
+      </View>
+    );
+  }
+
+  const displayUsername = profile?.username ? `@${profile.username}` : (profile?.full_name?.split(' ')[0] || 'Student');
+  
+  const hour = new Date().getHours();
+  const timeEmoji = hour >= 6 && hour < 18 ? '☀️' : '🌙';
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Hello, Alex 👋</Text>
-          <Text style={styles.subtitle}>Let's crush those exams!</Text>
-        </View>
-        <View style={styles.streakBadge}>
-          <Ionicons name="flame" size={20} color="#FF9800" />
-          <Text style={styles.streakText}>5 Day Streak</Text>
+        <View style={styles.leftHeader}>
+          <Text style={styles.greeting}>Greetings, {displayUsername} {timeEmoji}</Text>
+          <Text style={styles.subtitle}>{randomQuote}</Text>
         </View>
       </View>
 
@@ -37,11 +99,11 @@ export default function DashboardScreen() {
       <View style={styles.dueCard}>
         <View style={styles.dueLeft}>
           <View style={styles.iconBox}>
-            <Ionicons name="albums" size={24} color="#5B2D8E" />
+            <Ionicons name="albums" size={24} color={colors.tint} />
           </View>
           <View>
-            <Text style={styles.dueTitle}>Advanced Mathematics</Text>
-            <Text style={styles.dueSubtitle}>24 Flashcards • ~15 mins</Text>
+            <Text style={styles.dueTitle}>Daily Reviews</Text>
+            <Text style={styles.dueSubtitle}>Check Flashcards tab</Text>
           </View>
         </View>
         <TouchableOpacity 
@@ -55,26 +117,34 @@ export default function DashboardScreen() {
       <Text style={styles.sectionTitle}>Recent Courses</Text>
       
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-        {[1, 2].map((i) => (
-          <View key={i} style={styles.courseCard}>
-            <View style={[styles.courseIcon, { backgroundColor: i === 1 ? '#E8DEF8' : '#D3E3FD' }]}>
-              <Ionicons name={i === 1 ? 'flask' : 'code'} size={24} color={i === 1 ? '#5B2D8E' : '#0B57D0'} />
-            </View>
-            <Text style={styles.courseTitle}>{i === 1 ? 'Organic Chemistry' : 'Algorithms'}</Text>
-            <Text style={styles.courseSubtitle}>4 Modules</Text>
+        {courses.length === 0 ? (
+          <View style={styles.emptyCourseCard}>
+            <Text style={styles.emptyCourseText}>No courses created yet.</Text>
+            <Text style={styles.emptyCourseSubtext}>Create one on the web app!</Text>
           </View>
-        ))}
+        ) : (
+          courses.map((course, i) => (
+            <View key={course.id} style={styles.courseCard}>
+              <View style={[styles.courseIcon, { backgroundColor: i % 2 === 0 ? (theme === 'dark' ? '#3B1D5E' : '#E8DEF8') : (theme === 'dark' ? '#0B2D70' : '#D3E3FD') }]}>
+                <Ionicons name={i % 2 === 0 ? 'flask' : 'code'} size={24} color={i % 2 === 0 ? (theme === 'dark' ? '#B39DDB' : '#5B2D8E') : (theme === 'dark' ? '#90CAF9' : '#0B57D0')} />
+              </View>
+              <Text style={styles.courseTitle} numberOfLines={1}>{course.course_code || course.title}</Text>
+              <Text style={styles.courseSubtitle}>{course.lectures?.length || 0} Lectures</Text>
+            </View>
+          ))
+        )}
       </ScrollView>
       <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
     padding: 20,
+    paddingTop: 60,
   },
   header: {
     flexDirection: 'row',
@@ -82,36 +152,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
+  leftHeader: {
+    alignItems: 'flex-start',
+  },
+  rightHeader: {
+    alignItems: 'flex-end',
+  },
   greeting: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.text,
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: colors.textMuted,
     marginTop: 4,
   },
   streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF3E0',
+    backgroundColor: isDark ? '#4E342E' : '#FFF3E0',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
+    marginBottom: 8,
   },
   streakText: {
-    color: '#E65100',
+    color: colors.warning,
     fontWeight: 'bold',
     marginLeft: 4,
   },
   captureCard: {
-    backgroundColor: '#5B2D8E',
+    backgroundColor: colors.tint,
     borderRadius: 16,
     padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#5B2D8E',
+    shadowColor: colors.tint,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -143,11 +220,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.text,
     marginBottom: 16,
   },
   dueCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 16,
     flexDirection: 'row',
@@ -155,7 +232,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: isDark ? 0.3 : 0.05,
     shadowRadius: 8,
     elevation: 2,
     marginBottom: 32,
@@ -167,7 +244,7 @@ const styles = StyleSheet.create({
   iconBox: {
     width: 48,
     height: 48,
-    backgroundColor: '#F3E5F5',
+    backgroundColor: colors.accent,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -176,15 +253,15 @@ const styles = StyleSheet.create({
   dueTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: colors.text,
     marginBottom: 4,
   },
   dueSubtitle: {
     fontSize: 14,
-    color: '#888',
+    color: colors.textMuted,
   },
   studyBtn: {
-    backgroundColor: '#5B2D8E',
+    backgroundColor: colors.tint,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
@@ -197,16 +274,34 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   courseCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 20,
     marginRight: 16,
     width: 160,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: isDark ? 0.3 : 0.05,
     shadowRadius: 8,
     elevation: 2,
+  },
+  emptyCourseCard: {
+    backgroundColor: colors.input,
+    borderRadius: 16,
+    padding: 20,
+    marginRight: 16,
+    width: 250,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyCourseText: {
+    color: colors.textMuted,
+    fontWeight: 'bold',
+  },
+  emptyCourseSubtext: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 4,
   },
   courseIcon: {
     width: 48,
@@ -219,11 +314,11 @@ const styles = StyleSheet.create({
   courseTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.text,
     marginBottom: 4,
   },
   courseSubtitle: {
     fontSize: 14,
-    color: '#888',
+    color: colors.textMuted,
   }
 });

@@ -1,0 +1,57 @@
+-- Migration: Seed Ghanaian Universities
+-- Ignoring duplicates if they already exist
+
+INSERT INTO public.institutions (name, abbreviation, domain, country, city, type, verified)
+SELECT * FROM (VALUES
+  ('University of Ghana', 'UG', 'ug.edu.gh', 'Ghana', 'Accra (Legon)', 'Public University', TRUE),
+  ('Kwame Nkrumah University of Science and Technology', 'KNUST', 'knust.edu.gh', 'Ghana', 'Kumasi', 'Public University', TRUE),
+  ('University of Cape Coast', 'UCC', 'ucc.edu.gh', 'Ghana', 'Cape Coast', 'Public University', TRUE),
+  ('University for Development Studies', 'UDS', 'uds.edu.gh', 'Ghana', 'Tamale', 'Public University', TRUE),
+  ('University of Education, Winneba', 'UEW', 'uew.edu.gh', 'Ghana', 'Winneba', 'Public University', TRUE),
+  ('University of Mines and Technology', 'UMaT', 'umat.edu.gh', 'Ghana', 'Tarkwa', 'Public University', TRUE),
+  ('University of Professional Studies, Accra', 'UPSA', 'upsa.edu.gh', 'Ghana', 'Accra', 'Public University', TRUE),
+  ('Ghana Institute of Management and Public Administration', 'GIMPA', 'gimpa.edu.gh', 'Ghana', 'Accra', 'Public University', TRUE),
+  ('University of Energy and Natural Resources', 'UENR', 'uenr.edu.gh', 'Ghana', 'Sunyani', 'Public University', TRUE),
+  ('University of Health and Allied Sciences', 'UHAS', 'uhas.edu.gh', 'Ghana', 'Ho', 'Public University', TRUE),
+  ('C.K. Tedam University of Technology and Applied Sciences', 'CK-TUAS', 'cktutas.edu.gh', 'Ghana', 'Navrongo', 'Public University', TRUE),
+  ('Simon Diedong Dombo University of Business and Integrated Development Studies', 'SD Dombo University', 'sddubids.edu.gh', 'Ghana', 'Wa', 'Public University', TRUE),
+  ('Akenten Appiah-Menka University of Skills Training and Entrepreneurial Development', 'AAMUSTED', 'aamusted.edu.gh', 'Ghana', 'Kumasi', 'Public University', TRUE),
+  ('Ghana Communication Technology University', 'GCTU', 'gctu.edu.gh', 'Ghana', 'Accra', 'Public University', TRUE),
+  ('Accra Technical University', 'ATU', 'atu.edu.gh', 'Ghana', 'Accra', 'Technical University', TRUE),
+  ('Kumasi Technical University', 'KTU', 'kstu.edu.gh', 'Ghana', 'Kumasi', 'Technical University', TRUE),
+  ('Takoradi Technical University', 'TTU', 'ttu.edu.gh', 'Ghana', 'Takoradi', 'Technical University', TRUE),
+  ('Cape Coast Technical University', 'CCTU', 'cctu.edu.gh', 'Ghana', 'Cape Coast', 'Technical University', TRUE),
+  ('Koforidua Technical University', 'KTU', 'ktu.edu.gh', 'Ghana', 'Koforidua', 'Technical University', TRUE),
+  ('Sunyani Technical University', 'STU', 'stu.edu.gh', 'Ghana', 'Sunyani', 'Technical University', TRUE),
+  ('Ho Technical University', 'HTU', 'htu.edu.gh', 'Ghana', 'Ho', 'Technical University', TRUE),
+  ('Tamale Technical University', 'TaTU', 'ttu.edu.gh', 'Ghana', 'Tamale', 'Technical University', TRUE),
+  ('Bolgatanga Technical University', 'BTU', 'btu.edu.gh', 'Ghana', 'Bolgatanga', 'Technical University', TRUE),
+  ('Wa Technical University', 'WaTU', 'watu.edu.gh', 'Ghana', 'Wa', 'Technical University', TRUE),
+  ('Ashesi University', 'Ashesi', 'ashesi.edu.gh', 'Ghana', 'Berekuso', 'Private University', TRUE),
+  ('Central University', 'CU', 'central.edu.gh', 'Ghana', 'Accra', 'Private University', TRUE),
+  ('Academic City University', 'Academic City', 'acity.edu.gh', 'Ghana', 'Accra', 'Private University', TRUE),
+  ('Regent University College of Science and Technology', 'Regent', 'regent.edu.gh', 'Ghana', 'Accra', 'Private University', TRUE),
+  ('Valley View University', 'VVU', 'vvu.edu.gh', 'Ghana', 'Oyibi', 'Private University', TRUE),
+  ('Methodist University Ghana', 'MUCG', 'mucg.edu.gh', 'Ghana', 'Accra', 'Private University', TRUE),
+  ('Presbyterian University, Ghana', 'PUG', 'pugc.edu.gh', 'Ghana', 'Abetifi', 'Private University', TRUE),
+  ('All Nations University', 'ANU', 'anu.edu.gh', 'Ghana', 'Koforidua', 'Private University', TRUE),
+  ('Accra Institute of Technology', 'AIT', 'ait.edu.gh', 'Ghana', 'Accra', 'Private University', TRUE),
+  ('Ghana Christian University College', 'GCUC', 'gcuc.edu.gh', 'Ghana', 'Accra', 'Private University', TRUE),
+  ('Lancaster University Ghana', 'LUG', 'lancaster.edu.gh', 'Ghana', 'Accra', 'Private University', TRUE),
+  ('Wisconsin International University College', 'WIUC', 'wiuc-ghana.edu.gh', 'Ghana', 'Accra', 'Private University', TRUE),
+  ('Garden City University College', 'GCUC', 'gcuc.edu.gh', 'Ghana', 'Kumasi', 'Private University', TRUE),
+  ('KAAF University College', 'KAAF', 'kaafuniversity.edu.gh', 'Ghana', 'Gomoa Fetteh', 'Private University', TRUE),
+  ('Radford University College', 'RUC', 'radford.edu.gh', 'Ghana', 'Accra', 'Private University', TRUE),
+  ('BlueCrest University College', 'BlueCrest', 'bluecrest.edu.gh', 'Ghana', 'Accra', 'Private University', TRUE),
+  ('Zenith University College', 'ZUC', 'zenithuniversity.edu.gh', 'Ghana', 'Accra', 'Private University', TRUE),
+  ('Islamic University College Ghana', 'IUCG', 'iucg.edu.gh', 'Ghana', 'Accra', 'Private University', TRUE),
+  ('Dominion University College', 'DUC', 'duc.edu.gh', 'Ghana', 'Accra', 'Private University', TRUE),
+  ('Christ Apostolic University College', 'CAUC', 'cauc.edu.gh', 'Ghana', 'Kumasi', 'Private University', TRUE),
+  ('Catholic University College of Ghana', 'CUG', 'cug.edu.gh', 'Ghana', 'Fiapre', 'Private University', TRUE),
+  ('Ghana Baptist University College', 'GBUC', 'gbuc.edu.gh', 'Ghana', 'Kumasi', 'Private University', TRUE),
+  ('Anglican University College of Technology', 'Anglican UCT', 'auct.edu.gh', 'Ghana', 'Accra', 'Private University', TRUE),
+  ('Accra Metropolitan University', 'AMU', 'amu.edu.gh', 'Ghana', 'Accra', 'Private University', TRUE)
+) AS v(name, abbreviation, domain, country, city, type, verified)
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.institutions i WHERE i.name = v.name OR i.domain = v.domain
+);

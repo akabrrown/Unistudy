@@ -1,0 +1,11 @@
+:root {
+  --color-plum: #6b21a8; /* plum */
+  --color-lavender: #e0e7ff; /* light lavender */
+  --gradient-primary: linear-gradient(135deg, var(--color-plum), var(--color-lavender));
+  --font-inter: 'Inter', sans-serif;
+}
+
+/* Global font */
+html, body {
+  font-family: var(--font-inter);
+}

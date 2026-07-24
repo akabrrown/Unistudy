@@ -1,13 +1,18 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Colors } from '../constants/Colors';
 
 export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<any>(null);
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const theme = useColorScheme() ?? 'light';
+  const colors = Colors[theme];
+  const styles = getStyles(colors);
 
   if (!permission) {
     return <View />;
@@ -16,7 +21,7 @@ export default function CameraScreen() {
   if (!permission.granted) {
     return (
       <View style={styles.container}>
-        <Text style={{ textAlign: 'center' }}>We need your permission to show the camera</Text>
+        <Text style={{ textAlign: 'center', color: colors.text }}>We need your permission to show the camera</Text>
         <TouchableOpacity onPress={requestPermission} style={styles.button}>
           <Text style={styles.buttonText}>Grant Permission</Text>
         </TouchableOpacity>
@@ -64,10 +69,11 @@ export default function CameraScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
+    backgroundColor: colors.background,
   },
   camera: {
     flex: 1,
@@ -103,7 +109,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   button: {
-    backgroundColor: '#5B2D8E',
+    backgroundColor: colors.tint,
     padding: 10,
     borderRadius: 8,
     marginTop: 20,

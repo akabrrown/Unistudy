@@ -1,13 +1,53 @@
 import os
+import json
+import requests
 import subprocess
 import shutil
 import uuid
 import cloudinary
 import cloudinary.uploader
-from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks
+from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, HTTPException
+from pydantic import BaseModel
+from typing import Optional, List
+from ai_utils import execute_ai_task, openrouter_low_priority, gemini_vision, groq70b, huggingface_search, cohere_rerank, RerankRequest, supabase
+import base64
 from pdf2image import convert_from_path
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
+
+# ---------------------------------------------------------------------------
+# Request models (JSON body instead of Form data)
+# ---------------------------------------------------------------------------
+class VisionRequest(BaseModel):
+    user_id: str
+    prompt: str
+    mime_type: str = "application/pdf"
+    base64pdf: str
+
+class StreamRequest(BaseModel):
+    user_id: str
+    messages: List[dict]  # [{"role": "user", "content": "…"}]
+
+class GenerateRequest(BaseModel):
+    user_id: str
+    prompt: str
+
+class LowPriorityRequest(BaseModel):
+    user_id: str
+    prompt: str
+
+class EmbedRequest(BaseModel):
+    user_id: str
+    query: str
 
 # Cloudinary Config
 cloudinary.config(
@@ -22,38 +62,117 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
         
         pdf_path = file_path
         if is_pptx:
-            # Convert PPTX to PDF using LibreOffice
-            print(f"Converting PPTX to PDF: {file_path}")
-            subprocess.run([
-                "libreoffice", "--headless", "--convert-to", "pdf", 
-                file_path, "--outdir", temp_dir
-            ], check=True)
-            pdf_path = file_path.rsplit('.', 1)[0] + '.pdf'
+            print(f"Converting PPTX to PDF using PowerPoint COM: {file_path}")
+            import comtypes.client
+            comtypes.CoInitialize()
+            try:
+                abs_file_path = os.path.abspath(file_path).replace('/', '\\')
+                pdf_path = abs_file_path.rsplit('.', 1)[0] + '.pdf'
+                
+                ppt = comtypes.client.CreateObject('Powerpoint.Application')
+                # For PowerPoint, we can't completely hide the window sometimes, but we can minimize
+                doc = ppt.Presentations.Open(abs_file_path, WithWindow=False)
+                doc.SaveAs(pdf_path, 32) # 32 is the enum for PDF format
+                doc.Close()
+                ppt.Quit()
+            finally:
+                comtypes.CoUninitialize()
 
-        # Convert PDF to Images
+        # Convert PDF to Images using PyMuPDF (fitz)
+        import fitz
         print(f"Converting PDF to Images: {pdf_path}")
-        images = convert_from_path(pdf_path, dpi=200)
+        doc = fitz.open(pdf_path)
 
-        uploaded_urls = []
-        for i, image in enumerate(images):
-            slide_number = i + 1
-            image_path = os.path.join(temp_dir, f"slide_{slide_number}.png")
-            image.save(image_path, "PNG")
+        slides_to_process = []
+        try:
+            for i in range(len(doc)):
+                page = doc.load_page(i)
+                # Matrix(2, 2) scales by 2x for better resolution
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                slide_number = i + 1
+                image_path = os.path.join(temp_dir, f"slide_{slide_number}.png")
+                pix.save(image_path)
+                slides_to_process.append({
+                    "slide_number": slide_number,
+                    "image_path": image_path
+                })
+        finally:
+            doc.close() # Close the document to release the file lock on Windows
 
-            # Upload to Cloudinary
-            response = cloudinary.uploader.upload(
-                image_path,
-                folder=f"unistudy/{user_id}/slides/{lecture_id}/"
-            )
-            uploaded_urls.append({
-                "slide_number": slide_number,
-                "url": response["secure_url"]
-            })
+        print(f"Extracted {len(slides_to_process)} slide images. Processing with AI concurrently...")
 
-        print(f"Successfully processed {len(uploaded_urls)} slides for lecture {lecture_id}")
+        def process_single_slide(slide_info):
+            sn = slide_info["slide_number"]
+            img_path = slide_info["image_path"]
+            
+            # 1. Upload to Cloudinary with retry for transient Windows socket errors
+            image_url = ""
+            for attempt in range(4):
+                try:
+                    response = cloudinary.uploader.upload(
+                        img_path,
+                        folder=f"unistudy/{user_id}/slides/{lecture_id}/"
+                    )
+                    image_url = response["secure_url"]
+                    break
+                except Exception as upload_err:
+                    if attempt == 3:
+                        raise upload_err
+                    import time
+                    time.sleep(1 * (attempt + 1))
+
+            # 2. Extract AI
+            with open(img_path, 'rb') as f:
+                img_b64 = base64.b64encode(f.read()).decode('utf-8')
+                
+            vision_payload = {
+                "base64_image": img_b64,
+                "prompt": "Extract all text precisely from this slide. Also provide a detailed, easy-to-understand explanation of the slide's content, including descriptions of any charts or diagrams. Return the result as a JSON object with two keys: 'raw_text' and 'explanation'."
+            }
+            
+            print(f"Processing slide {sn}...")
+            try:
+                vision_result = execute_ai_task(
+                    user_id=user_id,
+                    category="vision",
+                    payload=vision_payload,
+                    provider_func=gemini_vision,
+                )
+                resp = vision_result.get("response", {})
+                raw_text = resp.get("raw_text", "")
+                explanation = resp.get("explanation", "")
+            except Exception as e:
+                print(f"Error processing slide {sn}: {e}")
+                raw_text = ""
+                explanation = ""
+                
+            return {
+                "lecture_id": lecture_id,
+                "slide_number": sn,
+                "raw_text": raw_text,
+                "explanation": explanation,
+                "image_url": image_url
+            }
+
+        slides_to_insert = []
+        import concurrent.futures
         
-        # Here we would normally ping the main Next.js API to let it know the images are ready.
-        # e.g., requests.post("MAIN_API_URL/api/lectures/callback", json={...})
+        # Max 5 workers to parallelize significantly without causing instant massive API rate limits
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_slide = {executor.submit(process_single_slide, slide): slide for slide in slides_to_process}
+            for future in concurrent.futures.as_completed(future_to_slide):
+                try:
+                    result = future.result()
+                    slides_to_insert.append(result)
+                except Exception as exc:
+                    print(f"Slide processing generated an exception: {exc}")
+
+        if slides_to_insert:
+            print("Inserting slides into Supabase...")
+            supabase.table("slides").insert(slides_to_insert).execute()
+            print("Slides inserted successfully!")
+        else:
+            print("No slides to insert.")
 
     except Exception as e:
         print(f"Error processing file: {str(e)}")
@@ -94,3 +213,141 @@ async def convert_document(
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+# Low-priority free-tier endpoint (e.g., quotes, nudges)
+
+@app.post("/low-priority")
+async def low_priority_endpoint(body: LowPriorityRequest):
+    """Handle low-priority free-tier text tasks via OpenRouter.
+    Uses the free Llama-3-8B model by default. Quota is tracked under the
+    `low_priority` category.
+    """
+    payload = {
+        "model": "meta-llama/llama-3-8b-instruct:free",
+        "messages": [{"role": "user", "content": body.prompt}],
+    }
+    return execute_ai_task(
+        user_id=body.user_id,
+        category="low_priority",
+        payload=payload,
+        provider_func=openrouter_low_priority,
+    )
+
+# ------------------------------------------------------------
+# Vision endpoint – uses Gemini Flash (layer 1)
+# ------------------------------------------------------------
+@app.post("/vision")
+async def vision_endpoint(body: VisionRequest):
+    """Handle vision tasks (slide-explanation, PDF parsing, etc.).
+    The caller must supply a base64-encoded PDF or image and a prompt.
+    """
+    payload = {
+        "prompt": body.prompt,
+        "mime_type": body.mime_type,
+        "base64pdf": body.base64pdf,
+    }
+    try:
+        return execute_ai_task(
+            user_id=body.user_id,
+            category="vision",
+            payload=payload,
+            provider_func=gemini_vision,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+    except Exception as exc:
+        import traceback
+        trace = traceback.format_exc()
+        print("VISION ENDPOINT ERROR:", trace)
+        raise HTTPException(status_code=500, detail={"error": str(exc), "trace": trace})
+
+# ------------------------------------------------------------
+# Streaming endpoint – uses Groq 70B (real‑time)
+# ------------------------------------------------------------
+@app.post("/stream")
+async def stream_endpoint(body: StreamRequest):
+    """Real-time chat / calculator via Groq 70B.
+    ``messages`` should be a list of ``{"role":…, "content":…}`` objects.
+    """
+    payload = {"messages": body.messages}
+    try:
+        return execute_ai_task(
+            user_id=body.user_id,
+            category="streaming",
+            payload=payload,
+            provider_func=groq70b,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+
+# ------------------------------------------------------------
+# Generate endpoint – batch text generation (uses Gemini Flash)
+# ------------------------------------------------------------
+@app.post("/generate")
+async def generate_endpoint(body: GenerateRequest):
+    """Batch text generation (flashcards, summaries, etc.)."""
+    payload = {"prompt": body.prompt}
+    try:
+        return execute_ai_task(
+            user_id=body.user_id,
+            category="generation",
+            payload=payload,
+            provider_func=gemini_vision,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+
+# ------------------------------------------------------------
+# Rerank endpoint – uses Cohere for relevance scoring (internal only)
+# ------------------------------------------------------------
+@app.post("/rerank")
+async def rerank_endpoint(body: RerankRequest):
+    """Rerank a list of candidate documents using Cohere.
+    Returns the reordered list (top_n) with scores.
+    """
+    payload = {
+        "query": body.query,
+        "documents": body.documents,
+        "model": body.model,
+        "top_n": body.top_n,
+    }
+    try:
+        return execute_ai_task(
+            user_id=body.user_id,
+            category="rerank",
+            payload=payload,
+            provider_func=cohere_rerank,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+
+# ------------------------------------------------------------
+# Embed / search endpoint – uses HuggingFace (no quota limit)
+# ------------------------------------------------------------
+@app.post("/embed")
+async def embed_endpoint(
+    user_id: str = Form(...),
+    model: str = Form(...),
+    inputs: str = Form(...),
+):
+    """Call HuggingFace for embeddings or other feature‑extraction tasks.
+    ``inputs`` is a JSON‑encoded value compatible with the selected model.
+    """
+    try:
+        payload = {
+            "model": model,
+            "inputs": json.loads(inputs),
+            "url": "https://api-inference.huggingface.co/pipeline/feature-extraction",
+        }
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON in inputs field")
+    return execute_ai_task(
+        user_id=user_id,
+        category="search",
+        payload=payload,
+        provider_func=huggingface_search,
+    )
+
+# Ollama extraction helper – can be used by other services
+# Vision extraction moved to Gemini. The function is no longer needed.
+# If required, a similar wrapper can be implemented using the appropriate provider.

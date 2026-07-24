@@ -1,0 +1,4 @@
+-- Migration: Add semester and year to courses
+ALTER TABLE courses
+  ADD COLUMN IF NOT EXISTS semester INTEGER DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS year INTEGER DEFAULT EXTRACT(YEAR FROM CURRENT_DATE);

@@ -1,18 +1,37 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '../constants/Colors';
 
 export default function LandingScreen() {
   const router = useRouter();
+  const theme = useColorScheme() ?? 'light';
+  const colors = Colors[theme];
+  const styles = getStyles(colors);
 
   return (
     <View style={styles.container}>
       <View style={styles.content}>
         <View style={styles.iconContainer}>
-          <Ionicons name="school" size={80} color="#5B2D8E" />
+          <Image 
+            source={require('../assets/app-icon.jpeg')} 
+            style={{ width: 100, height: 100, borderRadius: 20 }} 
+            resizeMode="contain" 
+          />
         </View>
         
-        <Text style={styles.title}>UniStudy AI</Text>
+        {theme === 'dark' ? (
+          <Image 
+            source={require('../assets/logo-dark.jpeg')} 
+            style={{ width: 200, height: 40, marginBottom: 12 }} 
+            resizeMode="contain" 
+          />
+        ) : (
+          <Image 
+            source={require('../assets/logo-secondary.jpeg')} 
+            style={{ width: 200, height: 40, marginBottom: 12 }} 
+            resizeMode="contain" 
+          />
+        )}
         <Text style={styles.subtitle}>
           Your ultimate AI study companion. Turn slides into flashcards, master past papers, and ace your exams.
         </Text>
@@ -32,15 +51,22 @@ export default function LandingScreen() {
         >
           <Text style={styles.secondaryButtonText}>Log In</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={{ marginTop: 24, alignItems: 'center' }}
+          onPress={() => router.push('/contact')}
+        >
+          <Text style={{ color: colors.textMuted, fontSize: 14, fontWeight: '600' }}>Contact Us</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.background,
     justifyContent: 'space-between',
     padding: 24,
   },
@@ -52,12 +78,12 @@ const styles = StyleSheet.create({
   iconContainer: {
     width: 140,
     height: 140,
-    backgroundColor: '#F3E5F5',
+    backgroundColor: colors.accent,
     borderRadius: 70,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 32,
-    shadowColor: '#5B2D8E',
+    shadowColor: colors.tint,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 16,
@@ -66,13 +92,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 40,
     fontWeight: '900',
-    color: '#333',
+    color: colors.text,
     marginBottom: 16,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 18,
-    color: '#666',
+    color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 28,
     paddingHorizontal: 20,
@@ -81,12 +107,12 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   primaryButton: {
-    backgroundColor: '#5B2D8E',
+    backgroundColor: colors.tint,
     paddingVertical: 18,
     borderRadius: 16,
     alignItems: 'center',
     marginBottom: 16,
-    shadowColor: '#5B2D8E',
+    shadowColor: colors.tint,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -98,15 +124,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   secondaryButton: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     paddingVertical: 18,
     borderRadius: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#EAEAEA',
+    borderColor: colors.border,
   },
   secondaryButtonText: {
-    color: '#333',
+    color: colors.text,
     fontSize: 18,
     fontWeight: 'bold',
   }
