@@ -1,3 +1,6 @@
+import { useColorScheme } from 'react-native';
+import { useSettings } from '../lib/SettingsContext';
+
 const tintColorLight = '#5B2D8E';
 const tintColorDark = '#9B72CF';
 
@@ -33,3 +36,32 @@ export const Colors = {
     input: 'rgba(255,255,255,0.05)',
   },
 };
+
+export const HighContrastColors = {
+  light: {
+    ...Colors.light,
+    textMuted: '#1A0A2E', // Stark black for muted text
+    border: '#000000',
+    tint: '#000000',
+    tabIconDefault: '#1A0A2E',
+    tabIconSelected: '#000000',
+  },
+  dark: {
+    ...Colors.dark,
+    textMuted: '#FFFFFF', // Stark white for muted text
+    border: '#FFFFFF',
+    tint: '#FFFFFF',
+    tabIconDefault: '#FFFFFF',
+    tabIconSelected: '#FFFFFF',
+  }
+};
+
+export function useThemeColors() {
+  const theme = useColorScheme() ?? 'light';
+  const { settings } = useSettings();
+  
+  if (settings.contrast === 'high') {
+    return HighContrastColors[theme];
+  }
+  return Colors[theme];
+}

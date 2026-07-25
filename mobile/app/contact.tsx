@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors } from '../constants/Colors';
+import { Colors, useThemeColors } from '../constants/Colors';
 
 export default function ContactScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
-  const colors = Colors[theme];
+  const colors = useThemeColors();
   const styles = getStyles(colors, theme === 'dark');
 
   const [name, setName] = useState('');

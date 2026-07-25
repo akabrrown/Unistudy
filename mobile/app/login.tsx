@@ -1,20 +1,73 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, useColorScheme } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, useColorScheme, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Colors } from '../constants/Colors';
+import { Colors, useThemeColors } from '../constants/Colors';
+import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
 
 export default function LoginScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
-  const colors = Colors[theme];
+  const colors = useThemeColors();
   const styles = getStyles(colors);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
+  const [hasSavedCredentials, setHasSavedCredentials] = useState(false);
+  
+  useEffect(() => {
+    async function checkBiometrics() {
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      const savedEmail = await SecureStore.getItemAsync('biometric_email');
+      const savedPassword = await SecureStore.getItemAsync('biometric_password');
+      
+      if (compatible && enrolled) {
+        setIsBiometricSupported(true);
+      }
+      if (savedEmail && savedPassword) {
+        setHasSavedCredentials(true);
+      }
+    }
+    checkBiometrics();
+  }, []);
+
+  const handleBiometricLogin = async () => {
+    try {
+      const auth = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Login with Biometrics',
+        fallbackLabel: 'Use Password',
+      });
+
+      if (auth.success) {
+        const savedEmail = await SecureStore.getItemAsync('biometric_email');
+        const savedPassword = await SecureStore.getItemAsync('biometric_password');
+        
+        if (savedEmail && savedPassword) {
+          setLoading(true);
+          const { error } = await supabase.auth.signInWithPassword({
+            email: savedEmail,
+            password: savedPassword,
+          });
+
+          if (error) {
+            Alert.alert('Login Failed', error.message);
+            setLoading(false);
+          } else {
+            router.replace('/(tabs)');
+          }
+        }
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   const handleLogin = async () => {
     setLoading(true);
@@ -27,7 +80,29 @@ export default function LoginScreen() {
       Alert.alert('Login Failed', error.message);
       setLoading(false);
     } else {
-      router.replace('/(tabs)');
+      if (isBiometricSupported && !hasSavedCredentials) {
+        Alert.alert(
+          'Enable Biometric Login',
+          'Would you like to use your fingerprint/Face ID to login faster next time?',
+          [
+            { text: 'No Thanks', onPress: () => router.replace('/(tabs)'), style: 'cancel' },
+            { 
+              text: 'Enable', 
+              onPress: async () => {
+                await SecureStore.setItemAsync('biometric_email', email);
+                await SecureStore.setItemAsync('biometric_password', password);
+                router.replace('/(tabs)');
+              }
+            }
+          ]
+        );
+      } else {
+        if (isBiometricSupported) {
+          await SecureStore.setItemAsync('biometric_email', email);
+          await SecureStore.setItemAsync('biometric_password', password);
+        }
+        router.replace('/(tabs)');
+      }
     }
   };
 
@@ -86,8 +161,23 @@ export default function LoginScreen() {
           onPress={handleLogin}
           disabled={loading}
         >
-          <Text style={styles.primaryButtonText}>{loading ? 'Logging in...' : 'Log In'}</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.primaryButtonText}>Log In</Text>
+          )}
         </TouchableOpacity>
+        
+        {isBiometricSupported && hasSavedCredentials && (
+          <TouchableOpacity 
+            style={styles.biometricBtn}
+            onPress={handleBiometricLogin}
+            disabled={loading}
+          >
+            <Ionicons name="finger-print" size={24} color={colors.tint} />
+            <Text style={styles.biometricBtnText}>Login with Biometrics</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.footer}>
@@ -168,10 +258,27 @@ const getStyles = (colors: any) => StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
+    marginBottom: 20,
   },
   primaryButtonText: {
     color: '#fff',
     fontSize: 18,
+    fontWeight: 'bold',
+  },
+  biometricBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.tint,
+    backgroundColor: 'transparent',
+  },
+  biometricBtnText: {
+    color: colors.tint,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   footer: {

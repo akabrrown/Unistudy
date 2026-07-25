@@ -1,20 +1,22 @@
-import { View, Text, StyleSheet, Image, TouchableOpacity, ActivityIndicator, useColorScheme, Dimensions, ScrollView, useWindowDimensions, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ActivityIndicator, useColorScheme, Dimensions, ScrollView, useWindowDimensions, TouchableWithoutFeedback, Modal, TextInput, KeyboardAvoidingView, Platform, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../lib/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { Colors } from '../../constants/Colors';
+import { Colors, useThemeColors } from '../../constants/Colors';
 import NetInfo from '@react-native-community/netinfo';
 import { getDb } from '../../lib/db';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import Constants from 'expo-constants';
+import * as Speech from 'expo-speech';
+import Svg, { Path } from 'react-native-svg';
 
 export default function LectureViewerScreen() {
   const router = useRouter();
   const { lectureId } = useLocalSearchParams<{ lectureId: string }>();
   const theme = useColorScheme() ?? 'light';
-  const colors = Colors[theme];
+  const colors = useThemeColors();
   const isDark = theme === 'dark';
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const styles = getStyles(colors, isDark, screenWidth, screenHeight);
@@ -28,12 +30,37 @@ export default function LectureViewerScreen() {
   const [explanation, setExplanation] = useState<string>('');
   const [loadingAI, setLoadingAI] = useState(false);
 
+  // New features state
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  
+  // Modals state
+  const [isNotesOpen, setIsNotesOpen] = useState(false);
+  const [notes, setNotes] = useState('');
+  
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{role: string, content: string}[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
+  const [isSongOpen, setIsSongOpen] = useState(false);
+  const [songContent, setSongContent] = useState('');
+  const [isSongLoading, setIsSongLoading] = useState(false);
+
+  const [isTranslated, setIsTranslated] = useState(false);
+  const [translatedExplanation, setTranslatedExplanation] = useState('');
+
+  // Drawing state
+  const [isDrawMode, setIsDrawMode] = useState(false);
+  const [paths, setPaths] = useState<any[]>([]);
+  const [currentPath, setCurrentPath] = useState<string>('');
+
   // Force landscape on mount, restore portrait on unmount
   useEffect(() => {
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT);
 
     return () => {
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      Speech.stop();
     };
   }, []);
 
@@ -91,7 +118,11 @@ export default function LectureViewerScreen() {
         return;
       }
       if (currentSlide.explanation) {
-        if (active) setExplanation(currentSlide.explanation);
+        if (active) {
+          setExplanation(currentSlide.explanation);
+          setIsTranslated(false);
+          setTranslatedExplanation('');
+        }
         return;
       }
 
@@ -132,7 +163,29 @@ export default function LectureViewerScreen() {
         const json = await res.json();
         if (active) {
           if (res.ok && json.explanation) {
-            setExplanation(json.explanation.replace(/<[^>]+>/g, '').trim());
+            const cleanExpl = json.explanation.replace(/<[^>]+>/g, '').trim();
+            setExplanation(cleanExpl);
+            setIsTranslated(false);
+            setTranslatedExplanation('');
+
+            // Save back to state
+            currentSlide.explanation = cleanExpl;
+
+            // Save to local DB if downloaded
+            getDb().then(db => {
+              db.runAsync('UPDATE downloaded_slides SET explanation = ? WHERE id = ?', [cleanExpl, currentSlide.id])
+                .catch(e => console.log('Not downloaded locally', e));
+            });
+
+            // Save to Supabase if online
+            NetInfo.fetch().then(state => {
+              if (state.isConnected) {
+                supabase.from('slides').update({ explanation: cleanExpl }).eq('id', currentSlide.id)
+                  .then(({ error }) => {
+                    if (error) console.error('Failed to save explanation to Supabase:', error);
+                  });
+              }
+            });
           } else {
             setExplanation(`API Error: ${json.error || res.statusText || 'Unknown error'}`);
           }
@@ -145,6 +198,13 @@ export default function LectureViewerScreen() {
     }
 
     fetchExplanation();
+    // Reset drawings when slide changes
+    setPaths([]);
+    setCurrentPath('');
+    setIsDrawMode(false);
+    // Stop speaking when slide changes
+    Speech.stop();
+    setIsSpeaking(false);
 
     return () => { active = false; };
   }, [slideIndex, currentSlide, lecture]);
@@ -153,11 +213,14 @@ export default function LectureViewerScreen() {
     let timeout: NodeJS.Timeout;
     if (showControls) {
       timeout = setTimeout(() => {
-        setShowControls(false);
+        // don't hide controls if we are drawing or a modal is open
+        if (!isDrawMode && !isNotesOpen && !isChatOpen && !isSongOpen) {
+          setShowControls(false);
+        }
       }, 3000);
     }
     return () => clearTimeout(timeout);
-  }, [showControls, slideIndex]);
+  }, [showControls, slideIndex, isDrawMode, isNotesOpen, isChatOpen, isSongOpen]);
 
   const goNext = () => {
     if (slideIndex < totalSlides - 1) {
@@ -177,6 +240,129 @@ export default function LectureViewerScreen() {
     await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
     router.back();
   };
+
+  const handleSpeak = () => {
+    if (isSpeaking) {
+      Speech.stop();
+      setIsSpeaking(false);
+    } else {
+      const textToRead = explanation || currentSlide?.raw_text;
+      if (textToRead) {
+        Speech.speak(textToRead, {
+          onDone: () => setIsSpeaking(false),
+          onStopped: () => setIsSpeaking(false),
+          onError: () => setIsSpeaking(false)
+        });
+        setIsSpeaking(true);
+      }
+    }
+  };
+
+  const handleTranslate = async () => {
+    if (!explanation) return;
+    if (isTranslated) {
+      setIsTranslated(false);
+      return;
+    }
+    try {
+      const debuggerHost = Constants.expoConfig?.hostUri;
+      const localIp = debuggerHost?.split(':')[0];
+      const apiUrl = localIp ? `http://${localIp}:3000/api/translate` : 'https://unistudy-ai.vercel.app/api/translate';
+      
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: explanation, targetLanguage: 'fr' })
+      });
+      const data = await res.json();
+      if (data.translatedText) {
+        setTranslatedExplanation(data.translatedText);
+        setIsTranslated(true);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSendChat = async () => {
+    if (!chatInput.trim()) return;
+    const userMsg = { role: 'user', content: chatInput };
+    setChatMessages([...chatMessages, userMsg]);
+    setChatInput('');
+    setIsChatLoading(true);
+
+    try {
+      const debuggerHost = Constants.expoConfig?.hostUri;
+      const localIp = debuggerHost?.split(':')[0];
+      const apiUrl = localIp ? `http://${localIp}:3000/api/ai/ask` : 'https://unistudy-ai.vercel.app/api/ai/ask';
+      
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feature: 'chat_message',
+          payload: { 
+            stream: false, 
+            systemPrompt: `Slide Text: ${currentSlide?.raw_text}. Answer the student's question concisely.`,
+            messages: [...chatMessages, userMsg]
+          }
+        })
+      });
+      const data = await res.json();
+      const content = data.result?.choices?.[0]?.message?.content || "No response";
+      setChatMessages(prev => [...prev, { role: 'assistant', content }]);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  const handleGenerateSong = async () => {
+    setIsSongOpen(true);
+    setIsSongLoading(true);
+    try {
+      const debuggerHost = Constants.expoConfig?.hostUri;
+      const localIp = debuggerHost?.split(':')[0];
+      const apiUrl = localIp ? `http://${localIp}:3000/api/ai/ask` : 'https://unistudy-ai.vercel.app/api/ai/ask';
+      
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feature: 'revision_song',
+          payload: { prompt: currentSlide?.raw_text, stream: false }
+        })
+      });
+      const data = await res.json();
+      const content = data.result?.choices?.[0]?.message?.content || "Failed to generate song.";
+      setSongContent(content);
+    } catch (e) {
+      setSongContent("Error generating song.");
+    } finally {
+      setIsSongLoading(false);
+    }
+  };
+
+  // Drawing PanResponder
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        const { locationX, locationY } = evt.nativeEvent;
+        setCurrentPath(`M${locationX},${locationY}`);
+      },
+      onPanResponderMove: (evt) => {
+        const { locationX, locationY } = evt.nativeEvent;
+        setCurrentPath((prev) => `${prev} L${locationX},${locationY}`);
+      },
+      onPanResponderRelease: () => {
+        setPaths((prev) => [...prev, currentPath]);
+        setCurrentPath('');
+      },
+    })
+  ).current;
 
   if (loading) {
     return (
@@ -218,12 +404,34 @@ export default function LectureViewerScreen() {
             Slide {slideIndex + 1} of {totalSlides}
           </Text>
         </View>
-        <TouchableOpacity
-          style={styles.topBarBtn}
-          onPress={() => setShowExplanation(!showExplanation)}
-        >
-          <Ionicons name={showExplanation ? 'eye-off-outline' : 'bulb-outline'} size={22} color={showExplanation ? colors.tint : colors.text} />
-        </TouchableOpacity>
+        
+        {/* Horizontal Toolbar on Top Right */}
+        <View style={styles.toolbar}>
+          <TouchableOpacity style={styles.toolbarBtn} onPress={handleSpeak}>
+            <Ionicons name={isSpeaking ? "volume-high" : "volume-medium"} size={20} color={isSpeaking ? colors.tint : colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.toolbarBtn} onPress={() => setIsNotesOpen(true)}>
+            <Ionicons name="create-outline" size={20} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.toolbarBtn} onPress={() => setIsChatOpen(true)}>
+            <Ionicons name="chatbubbles-outline" size={20} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.toolbarBtn} onPress={() => setIsDrawMode(!isDrawMode)}>
+            <Ionicons name="brush-outline" size={20} color={isDrawMode ? colors.tint : colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.toolbarBtn} onPress={handleGenerateSong}>
+            <Ionicons name="musical-notes-outline" size={20} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.toolbarBtn} onPress={handleTranslate}>
+            <Ionicons name="language-outline" size={20} color={isTranslated ? colors.tint : colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.toolbarBtn}
+            onPress={() => setShowExplanation(!showExplanation)}
+          >
+            <Ionicons name={showExplanation ? 'eye-off-outline' : 'bulb-outline'} size={20} color={showExplanation ? colors.tint : colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Main content area */}
@@ -232,11 +440,28 @@ export default function LectureViewerScreen() {
         <TouchableWithoutFeedback onPress={() => setShowControls(true)}>
           <View style={[styles.slideArea, showExplanation && { flex: 3 }]}>
           {currentSlide?.image_local_uri || currentSlide?.image_url ? (
-            <Image
-              source={{ uri: currentSlide.image_local_uri || currentSlide.image_url }}
-              style={styles.slideImage}
-              resizeMode="contain"
-            />
+            <View style={{width: '100%', height: '100%'}}>
+              <Image
+                source={{ uri: currentSlide.image_local_uri || currentSlide.image_url }}
+                style={styles.slideImage}
+                resizeMode="contain"
+              />
+              {isDrawMode && (
+                <View style={styles.drawOverlay} {...panResponder.panHandlers}>
+                  <Svg style={StyleSheet.absoluteFill}>
+                    {paths.map((p, i) => (
+                      <Path key={i} d={p} stroke="red" strokeWidth={3} fill="none" />
+                    ))}
+                    {currentPath ? (
+                      <Path d={currentPath} stroke="red" strokeWidth={3} fill="none" />
+                    ) : null}
+                  </Svg>
+                  <TouchableOpacity style={styles.clearDrawBtn} onPress={() => {setPaths([]); setCurrentPath('');}}>
+                    <Text style={styles.clearDrawText}>Clear</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           ) : (
             <View style={styles.slideTextFallback}>
               <ScrollView contentContainerStyle={{ padding: 20 }}>
@@ -248,7 +473,7 @@ export default function LectureViewerScreen() {
           )}
 
           {/* Navigation arrows overlaid on slide */}
-          {showControls && (
+          {showControls && !isDrawMode && (
             <>
               <TouchableOpacity
                 style={[styles.navArrow, styles.navArrowLeft]}
@@ -272,7 +497,7 @@ export default function LectureViewerScreen() {
         {/* Explanation panel (toggleable) */}
         {showExplanation && (
           <View style={styles.explanationPanel}>
-            <Text style={styles.explanationTitle}>Explanation</Text>
+            <Text style={styles.explanationTitle}>Explanation {isTranslated && '(Translated)'}</Text>
             {loadingAI ? (
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                 <ActivityIndicator size="small" color={colors.tint} />
@@ -281,7 +506,7 @@ export default function LectureViewerScreen() {
             ) : (
               <ScrollView showsVerticalScrollIndicator={false}>
                 <Text style={styles.explanationText}>
-                  {explanation || currentSlide?.raw_text || 'No explanation available for this slide.'}
+                  {isTranslated ? translatedExplanation : (explanation || currentSlide?.raw_text || 'No explanation available for this slide.')}
                 </Text>
               </ScrollView>
             )}
@@ -290,25 +515,103 @@ export default function LectureViewerScreen() {
       </View>
 
       {/* Bottom slide thumbnails */}
-      <View style={styles.bottomBar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbnailRow}>
-          {slides.map((slide, i) => (
-            <TouchableOpacity
-              key={slide.id || i}
-              style={[styles.thumbnail, i === slideIndex && styles.thumbnailActive]}
-              onPress={() => { setSlideIndex(i); setShowExplanation(false); }}
-            >
-              {slide.image_url ? (
-                <Image source={{ uri: slide.image_url }} style={styles.thumbnailImage} resizeMode="cover" />
-              ) : (
-                <View style={styles.thumbnailPlaceholder}>
-                  <Text style={styles.thumbnailNumber}>{i + 1}</Text>
-                </View>
-              )}
+      {showControls && !isDrawMode && (
+        <View style={styles.bottomBar}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbnailRow}>
+            {slides.map((slide, i) => (
+              <TouchableOpacity
+                key={slide.id || i}
+                style={[styles.thumbnail, i === slideIndex && styles.thumbnailActive]}
+                onPress={() => { setSlideIndex(i); setShowExplanation(false); }}
+              >
+                {slide.image_url ? (
+                  <Image source={{ uri: slide.image_url }} style={styles.thumbnailImage} resizeMode="cover" />
+                ) : (
+                  <View style={styles.thumbnailPlaceholder}>
+                    <Text style={styles.thumbnailNumber}>{i + 1}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Slide Notes Modal */}
+      <Modal visible={isNotesOpen} animationType="slide" transparent={true}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Slide Notes</Text>
+              <TouchableOpacity onPress={() => setIsNotesOpen(false)}><Ionicons name="close" size={24} color={colors.text}/></TouchableOpacity>
+            </View>
+            <TextInput
+              style={[styles.textInput, {height: 150}]}
+              multiline
+              placeholder="Jot down notes for this slide..."
+              placeholderTextColor={colors.textMuted}
+              value={notes}
+              onChangeText={setNotes}
+            />
+            <TouchableOpacity style={styles.modalBtn} onPress={() => setIsNotesOpen(false)}>
+              <Text style={styles.modalBtnText}>Save Notes</Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* AI Chat Modal */}
+      <Modal visible={isChatOpen} animationType="slide" transparent={true}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>AI Tutor Chat</Text>
+              <TouchableOpacity onPress={() => setIsChatOpen(false)}><Ionicons name="close" size={24} color={colors.text}/></TouchableOpacity>
+            </View>
+            <ScrollView style={styles.chatScroll} contentContainerStyle={{paddingBottom: 16}}>
+              {chatMessages.map((m, i) => (
+                <View key={i} style={m.role === 'user' ? styles.chatMsgUser : styles.chatMsgAi}>
+                  <Text style={m.role === 'user' ? styles.chatTextUser : styles.chatTextAi}>{m.content}</Text>
+                </View>
+              ))}
+              {isChatLoading && <ActivityIndicator size="small" color={colors.tint} style={{marginTop: 8}}/>}
+            </ScrollView>
+            <View style={styles.chatInputRow}>
+              <TextInput
+                style={[styles.textInput, {flex: 1, marginBottom: 0}]}
+                placeholder="Ask about this slide..."
+                placeholderTextColor={colors.textMuted}
+                value={chatInput}
+                onChangeText={setChatInput}
+                onSubmitEditing={handleSendChat}
+              />
+              <TouchableOpacity style={styles.chatSendBtn} onPress={handleSendChat} disabled={isChatLoading}>
+                <Ionicons name="send" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Revision Song Modal */}
+      <Modal visible={isSongOpen} animationType="fade" transparent={true}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Revision Song</Text>
+              <TouchableOpacity onPress={() => setIsSongOpen(false)}><Ionicons name="close" size={24} color={colors.text}/></TouchableOpacity>
+            </View>
+            <ScrollView style={{flex: 1, paddingVertical: 16}}>
+              {isSongLoading ? (
+                <ActivityIndicator size="large" color={colors.tint} style={{marginTop: 40}}/>
+              ) : (
+                <Text style={styles.songText}>{songContent}</Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -350,6 +653,7 @@ const getStyles = (colors: any, isDark: boolean, screenW: number, screenH: numbe
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: 'rgba(0,0,0,0.6)',
+    zIndex: 50,
   },
   topBarBtn: {
     width: 40,
@@ -372,6 +676,18 @@ const getStyles = (colors: any, isDark: boolean, screenW: number, screenH: numbe
     color: 'rgba(255,255,255,0.6)',
     fontSize: 12,
     marginTop: 2,
+  },
+  toolbar: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  toolbarBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   // Main content
   mainContent: {
@@ -397,6 +713,27 @@ const getStyles = (colors: any, isDark: boolean, screenW: number, screenH: numbe
     color: '#ddd',
     fontSize: 15,
     lineHeight: 24,
+  },
+  drawOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 40,
+  },
+  clearDrawBtn: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  clearDrawText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
   // Nav arrows
   navArrow: {
@@ -440,8 +777,13 @@ const getStyles = (colors: any, isDark: boolean, screenW: number, screenH: numbe
   },
   // Bottom thumbnails
   bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: 'rgba(0,0,0,0.7)',
     paddingVertical: 8,
+    zIndex: 50,
   },
   thumbnailRow: {
     paddingHorizontal: 12,
@@ -472,5 +814,103 @@ const getStyles = (colors: any, isDark: boolean, screenW: number, screenH: numbe
     color: '#999',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  // Modals
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: screenW * 0.5, // 50% of screen width since it's landscape
+    minWidth: 320,
+    maxHeight: screenH * 0.8,
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  textInput: {
+    backgroundColor: isDark ? '#2a2a2a' : '#f0f0f0',
+    borderRadius: 8,
+    padding: 12,
+    color: colors.text,
+    textAlignVertical: 'top',
+    marginBottom: 16,
+  },
+  modalBtn: {
+    backgroundColor: colors.tint,
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalBtnText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  chatScroll: {
+    flex: 1,
+    marginBottom: 16,
+  },
+  chatMsgUser: {
+    alignSelf: 'flex-end',
+    backgroundColor: colors.tint,
+    padding: 10,
+    borderRadius: 12,
+    borderBottomRightRadius: 2,
+    maxWidth: '80%',
+    marginBottom: 8,
+  },
+  chatTextUser: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  chatMsgAi: {
+    alignSelf: 'flex-start',
+    backgroundColor: isDark ? '#2a2a2a' : '#e0e0e0',
+    padding: 10,
+    borderRadius: 12,
+    borderBottomLeftRadius: 2,
+    maxWidth: '90%',
+    marginBottom: 8,
+  },
+  chatTextAi: {
+    color: colors.text,
+    fontSize: 14,
+  },
+  chatInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  chatSendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.tint,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  songText: {
+    fontSize: 16,
+    color: colors.text,
+    lineHeight: 24,
+    textAlign: 'center',
   },
 });

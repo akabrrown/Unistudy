@@ -3,10 +3,10 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Colors } from '../constants/Colors';
-import { isPasswordLeaked } from './utils/passwordLeak';
+import { Colors, useThemeColors } from '../constants/Colors';
+import { isPasswordLeaked } from '../utils/passwordLeak';
 import Constants from 'expo-constants';
-import { uploadAvatar } from './utils/avatarUpload';
+import { uploadAvatar } from '../utils/avatarUpload';
 import * as ImagePicker from 'expo-image-picker';
 
 const STUDY_FREQUENCIES = [
@@ -22,7 +22,7 @@ const YEAR_LEVELS = ['100', '200', '300', '400', '500', '600', '700', '800'];
 export default function SignupScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
-  const colors = Colors[theme];
+  const colors = useThemeColors();
   const isDark = theme === 'dark';
   const styles = getStyles(colors, isDark);
 

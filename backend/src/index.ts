@@ -28,6 +28,7 @@ import cronRoutes from './routes/cron';
 import searchRoutes from './routes/search';
 import pastPapersRoutes from './routes/past-papers';
 import translateRoutes from './routes/translate';
+import billingRoutes from './routes/billing';
 
 const app = express();
 app.disable('x-powered-by');
@@ -66,6 +67,7 @@ app.use('/api/quizzes', quizzesRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/quota', quotaRoutes);
 app.use('/api/payments', paymentsRoutes);
+app.use('/api/billing', billingRoutes);
 app.use('/api/cards', cardsRoutes);
 app.use('/api/users/me', avatarRoutes);
 

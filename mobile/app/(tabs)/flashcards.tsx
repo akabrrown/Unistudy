@@ -1,9 +1,9 @@
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, useColorScheme } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, useColorScheme, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../lib/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { Colors } from '../../constants/Colors';
+import { Colors, useThemeColors } from '../../constants/Colors';
 import Constants from 'expo-constants';
 
 // Simplified SM2 constants for mobile offline-first
@@ -44,7 +44,7 @@ export default function FlashcardsScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   const theme = useColorScheme() ?? 'light';
-  const colors = Colors[theme];
+  const colors = useThemeColors();
   const styles = getStyles(colors, theme === 'dark');
 
   useEffect(() => {
@@ -52,23 +52,41 @@ export default function FlashcardsScreen() {
     
     async function fetchCards() {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
         const debuggerHost = Constants.expoConfig?.hostUri;
         const localIp = debuggerHost?.split(':')[0];
-        const baseUrl = localIp ? `http://${localIp}:8000` : 'https://unistudy-ai.vercel.app';
         
+        let baseUrl = 'https://unistudy-ai.vercel.app';
+        if (localIp) {
+          if (localIp.includes('exp.direct') || localIp.includes('ngrok')) {
+            // Tunneling Metro, but backend is separate. Fallback to 10.0.2.2 for emulator
+            baseUrl = Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
+          } else {
+            baseUrl = `http://${localIp}:8000`;
+          }
+        }
+
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData?.session?.access_token;
 
         const res = await fetch(`${baseUrl}/api/cards`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` },
+          signal: controller.signal
         });
         
-        if (res.ok) {
+        clearTimeout(timeoutId);
+        
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.indexOf("application/json") !== -1) {
           const json = await res.json();
           setCards(json.data || []);
+        } else {
+          console.log('Flashcards API returned non-JSON or error status', res.status);
         }
       } catch (err) {
-        console.error('Error fetching cards:', err);
+        console.log('Error fetching cards (timeout or offline):', err);
       } finally {
         setLoading(false);
       }
@@ -88,7 +106,16 @@ export default function FlashcardsScreen() {
       // For quizzes, just record attempt
       const debuggerHost = Constants.expoConfig?.hostUri;
       const localIp = debuggerHost?.split(':')[0];
-      const baseUrl = localIp ? `http://${localIp}:8000` : 'https://unistudy-ai.vercel.app';
+      
+      let baseUrl = 'https://unistudy-ai.vercel.app';
+      if (localIp) {
+        if (localIp.includes('exp.direct') || localIp.includes('ngrok')) {
+          baseUrl = Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
+        } else {
+          baseUrl = `http://${localIp}:8000`;
+        }
+      }
+
       const { data: sessionData } = await supabase.auth.getSession();
       
       await fetch(`${baseUrl}/api/quizzes/attempt`, {

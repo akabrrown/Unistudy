@@ -67,4 +67,35 @@ router.patch('/accessibility', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/settings/daily-quote
+// Returns a single global daily quote based on the current date
+router.get('/daily-quote', (req: Request, res: Response) => {
+  const quotes = [
+    { quote: "Education is the most powerful weapon which you can use to change the world.", author: "Nelson Mandela" },
+    { quote: "The mind is not a vessel to be filled, but a fire to be kindled.", author: "Plutarch" },
+    { quote: "Develop a passion for learning. If you do, you will never cease to grow.", author: "Anthony J. D'Angelo" },
+    { quote: "An investment in knowledge pays the best interest.", author: "Benjamin Franklin" },
+    { quote: "The beautiful thing about learning is that no one can take it away from you.", author: "B.B. King" },
+    { quote: "The expert in anything was once a beginner.", author: "Helen Hayes" },
+    { quote: "Learning never exhausts the mind.", author: "Leonardo da Vinci" },
+    { quote: "You don't have to be great to start, but you have to start to be great.", author: "Zig Ziglar" },
+    { quote: "There are no shortcuts to any place worth going.", author: "Beverly Sills" },
+    { quote: "Success is the sum of small efforts, repeated day in and day out.", author: "Robert Collier" },
+    { quote: "The only place where success comes before work is in the dictionary.", author: "Vidal Sassoon" },
+    { quote: "Strive for progress, not perfection.", author: "Unknown" },
+    { quote: "I find that the harder I work, the more luck I seem to have.", author: "Thomas Jefferson" },
+    { quote: "Don't let what you cannot do interfere with what you can do.", author: "John Wooden" }
+  ];
+
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const diff = now.getTime() - start.getTime();
+  const oneDay = 1000 * 60 * 60 * 24;
+  const dayOfYear = Math.floor(diff / oneDay);
+  
+  const dailyQuote = quotes[dayOfYear % quotes.length];
+
+  res.json(dailyQuote);
+});
+
 export default router;

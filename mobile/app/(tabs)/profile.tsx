@@ -1,12 +1,12 @@
 import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, useColorScheme, Appearance, ActivityIndicator, Modal, FlatList, TextInput, Alert, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
-import { Colors } from '../../constants/Colors';
+import { Colors, useThemeColors } from '../../constants/Colors';
 import { useAuth } from '../../lib/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { uploadAvatar } from '../utils/avatarUpload';
+import { uploadAvatar } from '../../utils/avatarUpload';
 import Constants from 'expo-constants';
 
 export default function ProfileScreen() {
@@ -14,7 +14,7 @@ export default function ProfileScreen() {
   const systemColorScheme = useColorScheme();
   const isDark = systemColorScheme === 'dark';
   const theme = systemColorScheme ?? 'light';
-  const colors = Colors[theme];
+  const colors = useThemeColors();
   const styles = getStyles(colors, isDark);
 
   const { user } = useAuth();
@@ -143,10 +143,6 @@ export default function ProfileScreen() {
           <Text style={styles.username}>@{profile?.username || 'user'}</Text>
           <Text style={styles.institution}>{institutionName || 'Unistudy'}</Text>
           
-          <View style={styles.streakBadge}>
-            <Ionicons name="flame" size={20} color={colors.warning} />
-            <Text style={styles.streakText}>{profile?.study_streak || 0} Day Streak</Text>
-          </View>
         </View>
 
         <Text style={styles.sectionTitle}>Academic Details</Text>
@@ -182,24 +178,38 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionTitle}>Community & Achievements</Text>
+        <Text style={styles.sectionTitle}>App Settings</Text>
         <View style={styles.settingsGroup}>
-          <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/leaderboard')}>
+          <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/billing')}>
             <View style={styles.settingLeft}>
-              <View style={[styles.iconBox, { backgroundColor: isDark ? '#FFD54F20' : '#FFF8E1' }]}>
-                <Ionicons name="trophy" size={20} color={isDark ? '#FFD54F' : '#FFA000'} />
+              <View style={[styles.iconBox, { backgroundColor: isDark ? '#1A237E' : '#E3F2FD' }]}>
+                <Ionicons name="card" size={20} color={isDark ? '#90CAF9' : '#1976D2'} />
               </View>
               <View>
-                <Text style={styles.settingText}>Leaderboard</Text>
-                <Text style={styles.settingSub}>View your ranking among peers</Text>
+                <Text style={styles.settingText}>Billing & Subscription</Text>
+                <Text style={styles.settingSub}>Manage your payment plan</Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
-        </View>
 
-        <Text style={styles.sectionTitle}>App Settings</Text>
-        <View style={styles.settingsGroup}>
+          <View style={styles.divider} />
+
+          <TouchableOpacity style={styles.settingRow} onPress={() => router.push('/accessibility')}>
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconBox, { backgroundColor: isDark ? '#311B92' : '#EDE7F6' }]}>
+                <Ionicons name="accessibility" size={20} color={isDark ? '#B39DDB' : '#6b21a8'} />
+              </View>
+              <View>
+                <Text style={styles.settingText}>Accessibility</Text>
+                <Text style={styles.settingSub}>Visual, reading, and contrast preferences</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
               <View style={[styles.iconBox, { backgroundColor: isDark ? '#1A237E' : '#E3F2FD' }]}>
@@ -348,20 +358,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.background,
   },
-  streakBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: isDark ? '#4E342E' : '#FFF3E0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginTop: 12,
-  },
-  streakText: {
-    color: colors.warning,
-    fontWeight: 'bold',
-    marginLeft: 4,
-  },
+
   name: {
     fontSize: 24,
     fontWeight: 'bold',

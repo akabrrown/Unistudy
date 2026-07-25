@@ -1,11 +1,11 @@
 import { View, Text, StyleSheet, TouchableOpacity, Image, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors } from '../constants/Colors';
+import { Colors, useThemeColors } from '../constants/Colors';
 
 export default function LandingScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
-  const colors = Colors[theme];
+  const colors = useThemeColors();
   const styles = getStyles(colors);
 
   return (

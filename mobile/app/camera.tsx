@@ -2,7 +2,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors } from '../constants/Colors';
+import { Colors, useThemeColors } from '../constants/Colors';
 
 export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -11,7 +11,7 @@ export default function CameraScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const theme = useColorScheme() ?? 'light';
-  const colors = Colors[theme];
+  const colors = useThemeColors();
   const styles = getStyles(colors);
 
   if (!permission) {

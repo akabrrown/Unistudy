@@ -21,7 +21,8 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "package": "com.anonymous.unistudymobile"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -33,6 +34,12 @@
       "expo-asset",
       "expo-font",
       "expo-sqlite"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ae43c841-6601-4173-85aa-2002dc1761bd"
+      }
+    }
   }
 }

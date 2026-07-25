@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Colors } from '../constants/Colors';
+import { Colors, useThemeColors } from '../constants/Colors';
 
 const LEARNING_STYLES = [
   { id: 'adaptive', label: 'Adaptive (AI decides)', icon: 'sparkles-outline' as const },
@@ -23,7 +23,7 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const theme = useColorScheme() ?? 'light';
-  const colors = Colors[theme];
+  const colors = useThemeColors();
   const isDark = theme === 'dark';
   const styles = getStyles(colors, isDark);
 
