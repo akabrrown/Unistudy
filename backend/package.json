@@ -6,7 +6,7 @@
     "dev": "tsx watch src/index.ts",
     "dev:backend": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/src/index.js"
+    "start": "node dist/backend/src/index.js"
   },
   "dependencies": {
     "@google/genai": "^2.11.0",
