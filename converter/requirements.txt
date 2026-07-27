@@ -9,3 +9,4 @@ pydantic
 google-generativeai
 groq
 python-dotenv
+python-multipart
