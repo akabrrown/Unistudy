@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge'
 type Institution = {
   id: string
   name: string
-  student_count?: number
 }
 
 export function InstitutionSelect() {
@@ -27,20 +26,13 @@ export function InstitutionSelect() {
       // Fetch institutions and their student counts
       const { data, error } = await supabase
         .from('institutions')
-        .select(`
-          id,
-          name,
-          institution_student_counts (
-            student_count
-          )
-        `)
+        .select('id, name')
         .order('name')
 
       if (!error && data) {
         const formatted = data.map((inst: any) => ({
           id: inst.id,
-          name: inst.name,
-          student_count: inst.institution_student_counts?.[0]?.student_count || 0
+          name: inst.name
         }))
         setInstitutions(formatted)
       } else {
@@ -101,6 +93,7 @@ export function InstitutionSelect() {
             setTimeout(() => setIsDropdownOpen(false), 200)
           }}
         />
+        
       </div>
 
       <input type="hidden" name="institution_id" value={selectedId} required />
@@ -125,12 +118,7 @@ export function InstitutionSelect() {
                     <Building2 className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{inst.name}</span>
                   </div>
-                  {inst.student_count && inst.student_count > 0 && (
-                    <Badge variant="secondary" className="text-xs">
-                      <Users className="h-3 w-3 mr-1" />
-                      {inst.student_count}
-                    </Badge>
-                  )}
+                    
                 </div>
               ))}
             </div>

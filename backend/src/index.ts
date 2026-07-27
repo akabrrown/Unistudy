@@ -81,7 +81,7 @@ app.use('/api/translate', translateRoutes);
 // Global Error Handler
 app.use(errorHandler);
 
-const PORT = env.PORT || 8000;
-app.listen(PORT, () => {
-  logger.info(`Backend server is running on port ${PORT} in ${env.NODE_ENV} mode.`);
+const PORT = Number(env.PORT) || 8000;
+app.listen(PORT, '0.0.0.0', () => {
+  logger.info(`Backend server is running on http://0.0.0.0:${PORT} in ${env.NODE_ENV} mode.`);
 });

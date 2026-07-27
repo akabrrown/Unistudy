@@ -12,7 +12,8 @@ export const corsMiddleware = cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, Postman, webhooks)
     if (!origin) return callback(null, true);
-    
+    // Allow any localhost origin (dev environments) regardless of port
+    if (origin && origin.includes('localhost')) return callback(null, true);
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }

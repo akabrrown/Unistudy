@@ -7,6 +7,7 @@ import { useColorScheme } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect } from 'react';
+import { useKeepAwake } from 'expo-keep-awake';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -74,7 +75,7 @@ function RootLayoutNav() {
           <Stack.Screen name="notes-scanner" options={{ title: 'Notes Scanner', headerShown: true, headerStyle: { backgroundColor: colorScheme === 'dark' ? '#1E1E1E' : '#FFFFFF' }, headerTintColor: colorScheme === 'dark' ? '#FFFFFF' : '#000000' }} />
           <Stack.Screen name="essay-grader" options={{ title: 'Essay Grader', headerShown: true, headerStyle: { backgroundColor: colorScheme === 'dark' ? '#1E1E1E' : '#FFFFFF' }, headerTintColor: colorScheme === 'dark' ? '#FFFFFF' : '#000000' }} />
           <Stack.Screen name="youtube-study" options={{ title: 'YouTube Study', headerShown: true, headerStyle: { backgroundColor: colorScheme === 'dark' ? '#1E1E1E' : '#FFFFFF' }, headerTintColor: colorScheme === 'dark' ? '#FFFFFF' : '#000000' }} />
-          <Stack.Screen name="leaderboard" options={{ title: 'Leaderboard', headerShown: true, headerStyle: { backgroundColor: colorScheme === 'dark' ? '#1E1E1E' : '#FFFFFF' }, headerTintColor: colorScheme === 'dark' ? '#FFFFFF' : '#000000' }} />
+
         </Stack>
       </ThemeProvider>
     </SafeAreaProvider>
@@ -104,6 +105,8 @@ const styles = StyleSheet.create({
 });
 
 export default function RootLayout() {
+  // Prevent the device from sleeping while the app is active
+  useKeepAwake();
   return (
     <AuthProvider>
       <RootLayoutNav />

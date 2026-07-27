@@ -1,4 +1,15 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, useColorScheme, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, useColorScheme, Platform } from 'react-native';
+import Constants from 'expo-constants';
+
+// Resolve backend URL for both emulator and physical device
+function getBaseUrl(): string {
+  const hostUri = Constants?.expoConfig?.hostUri;
+  if (hostUri) {
+    const ip = hostUri.split('://')[1].split(':')[0];
+    return `http://${ip}:8000`;
+  }
+  return Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
+}
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -6,7 +17,6 @@ import { useAuth } from '../../lib/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useQuery, usePowerSync } from '@powersync/react-native';
 import { Colors, useThemeColors } from '../../constants/Colors';
-import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function DashboardScreen() {
@@ -56,33 +66,33 @@ export default function DashboardScreen() {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
-          const debuggerHost = Constants.expoConfig?.hostUri;
-          const localIp = debuggerHost?.split(':')[0];
-          // Try both 8005 (old) and 3000 (standard) to be safe
-          const baseUrl = localIp 
-            ? `http://${localIp}:3000` 
-            : (Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000');
-          
-          const { data: { session } } = await supabase.auth.getSession();
-          const token = session?.access_token;
+          // Determine backend URL (backend runs on port 8000)
+          const baseUrl = getBaseUrl();
 
-          const res = await fetch(`${baseUrl}/api/settings/daily-quote`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            },
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.quote) {
-              setQuote({ quote: data.quote, author: data.author });
+          try {
+            const res = await fetch(`${baseUrl}/api/settings/daily-quote`, {
+              signal: controller.signal,
+            });
+
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.quote) {
+                setQuote({ quote: data.quote, author: data.author });
+              } else {
+                setQuote({ quote: 'Stay motivated!', author: 'Unistudy' });
+              }
+            } else {
+              console.error('Quote fetch error:', res.status);
+              setQuote({ quote: 'Stay motivated!', author: 'Unistudy' });
             }
+          } catch (err) {
+            console.error('Cards fetch error (exception):', err);
+            setQuote({ quote: 'Stay motivated!', author: 'Unistudy' });
           }
         } catch (err) {
-          console.log('Quote fetch timed out or failed (offline mode)');
+          console.log('Dashboard fetch failed (offline mode)');
         }
       } catch (err) {
         console.log('Dashboard fetch failed (offline mode)');
@@ -118,8 +128,14 @@ export default function DashboardScreen() {
     return `${datePart} at ${timeFormatted}`;
   };
 
+  // Parse YYYY-MM-DD as local date without timezone shift
+  const parseDate = (dateStr: string) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
   const getCountdownText = (dateString: string, timeString?: string) => {
-    const eventDate = new Date(dateString);
+    const eventDate = parseDate(dateString);
     if (timeString) {
       const [h, m] = timeString.split(':');
       eventDate.setHours(parseInt(h), parseInt(m), 0, 0);
@@ -324,6 +340,12 @@ const getStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.crea
   captureSubtitle: {
     color: 'rgba(255,255,255,0.8)',
     fontSize: 14,
+  },
+  deleteBtn: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    padding: 4,
   },
   sectionHeaderRow: {
     flexDirection: 'row',

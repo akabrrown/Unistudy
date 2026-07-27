@@ -26,7 +26,7 @@ export async function updateAcademicProfile(data: { year_of_study: number, degre
     }
 
     revalidatePath('/dashboard/settings/profile')
-    revalidatePath('/dashboard/leaderboard')
+
     return { success: true }
   } catch (error: any) {
     console.error('updateAcademicProfile exception:', error)

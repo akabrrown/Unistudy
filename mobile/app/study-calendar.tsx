@@ -23,10 +23,12 @@ export default function StudyCalendarScreen() {
   const [adding, setAdding] = useState(false);
 
   const fetchCalendarData = async () => {
+    // existing fetch logic remains unchanged
     if (!session?.user?.id) return;
     try {
       setLoading(true);
-      const today = new Date().toISOString().split('T')[0];
+      // Use local date to avoid UTC offset issues
+      const today = new Date().toLocaleDateString('en-CA');
       
       const { data, error } = await supabase
         .from('calendar_events')
@@ -80,6 +82,30 @@ export default function StudyCalendarScreen() {
     }
   };
 
+  // Utility to parse a YYYY-MM-DD date string as a local Date (no timezone shift)
+  const parseDate = (dateStr: string) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  const handleDelete = async (eventId: string) => {
+    Alert.alert('Confirm Delete', 'Remove this event?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const { error } = await supabase.from('calendar_events').delete().eq('id', eventId);
+            if (error) throw error;
+            fetchCalendarData();
+          } catch (e: any) {
+            Alert.alert('Error', e.message);
+          }
+        },
+      },
+    ]);
+  };
   const getEventIcon = (type: string) => {
     switch (type) {
       case 'exam': return 'document-text';
@@ -88,6 +114,7 @@ export default function StudyCalendarScreen() {
       default: return 'calendar';
     }
   };
+
 
   const getEventColor = (type: string) => {
     switch (type) {
@@ -153,6 +180,9 @@ export default function StudyCalendarScreen() {
                         <Ionicons name={getEventIcon(event.type)} size={20} color={eventColor} />
                       </View>
                       <View style={styles.cardContent}>
+                        <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(event.id)}>
+                          <Ionicons name="trash" size={20} color={eventColor} />
+                        </TouchableOpacity>
                         <Text style={styles.cardTitle}>{event.title}</Text>
                         <View style={styles.eventTypeBadge}>
                           <Text style={styles.eventTypeText}>{event.type}</Text>

@@ -1,6 +1,6 @@
 import { requireAdmin } from '@/lib/security/adminGuard'
 import Link from 'next/link'
-import { LogOut, Users, LayoutDashboard, Settings, Activity, ShieldAlert, Cpu, Mail, UserPlus, Key, Database } from 'lucide-react'
+import { LogOut, Users, LayoutDashboard, Settings, Activity, ShieldAlert, Cpu, Mail, UserPlus, Key, Database, BarChart2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
@@ -34,6 +34,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/settings" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted transition-colors font-medium text-sm text-muted-foreground hover:text-foreground">
             <Settings className="w-5 h-5" />
             Platform Settings
+          </Link>
+          <Link href="/admin/institution-counts" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted transition-colors font-medium text-sm text-muted-foreground hover:text-foreground">
+            <BarChart2 className="w-5 h-5" />
+            Institution Counts
           </Link>
           <Link href="/admin/ai-infrastructure" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted transition-colors font-medium text-sm text-muted-foreground hover:text-foreground">
             <Cpu className="w-5 h-5" />

@@ -42,7 +42,7 @@ const tabData = [
       ["Level Up System", "Earn XP and climb ranks from Beginner to Legendary"],
       ["Custom Profiles", "Showcase your avatar, titles, and study stats"],
       ["Study Groups", "Join cohorts taking the exact same modules"],
-      ["Leaderboards", "Stay motivated by competing with classmates"],
+
     ]
   }
 ];

@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api/client';
 import { NextIntlClientProvider } from 'next-intl';
+import { createClient } from '@/lib/supabase/client';
 
 export type DisplayTheme = 'light' | 'dark';
 export type FontFamily = 'inter' | 'opendyslexic';
@@ -90,9 +91,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (data && data.settings) {
           setSettings(data.settings);
           applyDOMChanges(data.settings);
+          return;
         }
       } catch (err) {
-        console.error("Failed to load user settings:", err);
+        // If the backend complains about a missing auth header, skip auth and use default settings
+        if (err instanceof Error && err.message.includes('Missing')) {
+          console.warn('Missing auth header; using default client settings');
+          // Apply default settings defined earlier in this file
+          setSettings(defaultSettings);
+          applyDOMChanges(defaultSettings);
+        } else {
+          console.error('Failed to load user settings:', err);
+        }
       } finally {
         setLoading(false);
       }
