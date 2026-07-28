@@ -10,6 +10,34 @@ import { createClient } from '@/lib/supabase/client'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+const OPTION_LETTER_STYLES: Record<string, string> = {
+  A: 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300',
+  B: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300',
+  C: 'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300',
+  D: 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300',
+  E: 'bg-violet-100 text-violet-700 dark:bg-violet-900/60 dark:text-violet-300',
+}
+
+const OPTION_ROW_STYLES: Record<string, string> = {
+  A: 'border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20',
+  B: 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20',
+  C: 'border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20',
+  D: 'border-rose-200 bg-rose-50/50 dark:border-rose-800 dark:bg-rose-950/20',
+  E: 'border-violet-200 bg-violet-50/50 dark:border-violet-800 dark:bg-violet-950/20',
+}
+
+function parseMcqContent(text: string): { stem: string; options: { letter: string; text: string }[] } {
+  const optionRx = /(?:^|\n)[ \t]*([A-Ea-e])[.)][ \t]+(.+)/g
+  const firstOptionIdx = text.search(/(?:^|\n)[ \t]*[A-Ea-e][.)][ \t]+\S/)
+  const stem = firstOptionIdx > -1 ? text.slice(0, firstOptionIdx).trim() : text.trim()
+  const options: { letter: string; text: string }[] = []
+  let m: RegExpExecArray | null
+  while ((m = optionRx.exec(text)) !== null) {
+    options.push({ letter: m[1].toUpperCase(), text: m[2].trim() })
+  }
+  return { stem, options }
+}
+
 export default function ExamAttempt() {
   const params = useParams()
   const searchParams = useSearchParams()
@@ -40,13 +68,10 @@ export default function ExamAttempt() {
         let sortedQs = [...qData].sort((a, b) => 
           a.question_number.localeCompare(b.question_number, undefined, { numeric: true })
         )
-        // Pre-process MCQs to assign 1 mark if missing
+        // Detect MCQs by presence of labelled options; always override to 1 mark
         sortedQs = sortedQs.map(q => {
-          const isMcq = /\\b[A-E][\\.\\)]\\s/i.test(q.text_content) || /\\n\\s*[A-E][\\.\\)]\\s/i.test(q.text_content)
-          if (isMcq && (!q.marks_available || q.marks_available === 0)) {
-            return { ...q, marks_available: 1, isMcq: true }
-          }
-          return { ...q, isMcq }
+          const isMcq = /(?:^|\n)[ \t]*[A-Ea-e][.)][ \t]+\S/m.test(q.text_content)
+          return isMcq ? { ...q, marks_available: 1, isMcq: true } : { ...q, isMcq: false }
         })
         setQuestions(sortedQs)
       }
@@ -150,23 +175,45 @@ export default function ExamAttempt() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-6">
-                  <div className="prose prose-sm dark:prose-invert max-w-none mb-6 [&_table]:border-collapse [&_table]:w-full [&_table]:border [&_table]:border-border [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:p-2 [&_td]:border [&_td]:border-border [&_td]:p-2">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {q.text_content}
-                    </ReactMarkdown>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <label className="text-sm font-medium text-muted-foreground flex items-center justify-between">
-                      Your Answer
-                    </label>
-                    <Textarea 
-                      placeholder="Type your answer here (e.g. A, B, C, D)..."
-                      className="min-h-[60px] font-mono text-sm resize-y"
-                      value={answers[q.id] || ''}
-                      onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                    />
-                  </div>
+                  {(() => {
+                    const { stem, options } = parseMcqContent(q.text_content)
+                    return (
+                      <>
+                        {stem && (
+                          <div className="prose prose-sm dark:prose-invert max-w-none mb-5 [&_table]:border-collapse [&_table]:w-full [&_table]:border [&_table]:border-border [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:p-2 [&_td]:border [&_td]:border-border [&_td]:p-2">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{stem}</ReactMarkdown>
+                          </div>
+                        )}
+
+                        {options.length > 0 && (
+                          <div className="space-y-2 mb-6">
+                            {options.map(opt => (
+                              <div
+                                key={opt.letter}
+                                className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${OPTION_ROW_STYLES[opt.letter] ?? 'border-border bg-muted/20'}`}
+                              >
+                                <span className={`shrink-0 flex h-6 w-6 items-center justify-center rounded font-bold text-xs ${OPTION_LETTER_STYLES[opt.letter] ?? 'bg-muted text-foreground'}`}>
+                                  {opt.letter}
+                                </span>
+                                <span className="text-foreground/90 leading-relaxed">{opt.text}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-muted-foreground">Your answer</label>
+                          <Textarea
+                            placeholder="Enter the letter of your choice (e.g. A)"
+                            className="min-h-[56px] font-mono text-sm resize-none uppercase"
+                            maxLength={1}
+                            value={answers[q.id] || ''}
+                            onChange={(e) => handleAnswerChange(q.id, e.target.value.toUpperCase())}
+                          />
+                        </div>
+                      </>
+                    )
+                  })()}
                 </CardContent>
               </Card>
             ))}
