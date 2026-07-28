@@ -1,18 +1,17 @@
 import os
 import json
 import requests
-import subprocess
 import shutil
 import uuid
+import base64
+import fitz  # PyMuPDF
 import cloudinary
 import cloudinary.uploader
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
 from ai_utils import execute_ai_task, openrouter_low_priority, gemini_vision, groq70b, huggingface_search, cohere_rerank, RerankRequest, supabase
-import base64
-from pdf2image import convert_from_path
-from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
@@ -57,37 +56,29 @@ cloudinary.config(
 )
 
 def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bool):
+    temp_dir = os.path.dirname(file_path)
     try:
-        temp_dir = os.path.dirname(file_path)
-        
         pdf_path = file_path
         if is_pptx:
-            print(f"Converting PPTX to PDF using PowerPoint COM: {file_path}")
-            import comtypes.client
-            comtypes.CoInitialize()
-            try:
-                abs_file_path = os.path.abspath(file_path).replace('/', '\\')
-                pdf_path = abs_file_path.rsplit('.', 1)[0] + '.pdf'
-                
-                ppt = comtypes.client.CreateObject('Powerpoint.Application')
-                # For PowerPoint, we can't completely hide the window sometimes, but we can minimize
-                doc = ppt.Presentations.Open(abs_file_path, WithWindow=False)
-                doc.SaveAs(pdf_path, 32) # 32 is the enum for PDF format
-                doc.Close()
-                ppt.Quit()
-            finally:
-                comtypes.CoUninitialize()
+            # PPTX-to-PDF conversion requires LibreOffice on Linux.
+            # Run: `libreoffice --headless --convert-to pdf <file> --outdir <dir>`
+            import subprocess
+            print(f"Converting PPTX to PDF via LibreOffice: {file_path}")
+            result = subprocess.run(
+                ["libreoffice", "--headless", "--convert-to", "pdf", file_path, "--outdir", temp_dir],
+                capture_output=True, text=True, timeout=120
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"LibreOffice conversion failed: {result.stderr}")
+            pdf_path = os.path.join(temp_dir, os.path.splitext(os.path.basename(file_path))[0] + ".pdf")
 
-        # Convert PDF to Images using PyMuPDF (fitz)
-        import fitz
-        print(f"Converting PDF to Images: {pdf_path}")
+        print(f"Extracting slides from PDF: {pdf_path}")
         doc = fitz.open(pdf_path)
 
         slides_to_process = []
         try:
             for i in range(len(doc)):
                 page = doc.load_page(i)
-                # Matrix(2, 2) scales by 2x for better resolution
                 pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                 slide_number = i + 1
                 image_path = os.path.join(temp_dir, f"slide_{slide_number}.png")
@@ -97,7 +88,7 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
                     "image_path": image_path
                 })
         finally:
-            doc.close() # Close the document to release the file lock on Windows
+            doc.close()
 
         print(f"Extracted {len(slides_to_process)} slide images. Processing with AI concurrently...")
         try:
@@ -184,15 +175,16 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
 
     except Exception as e:
         print(f"Error processing file: {str(e)}")
+        import traceback
+        traceback.print_exc()
     finally:
-        # Cleanup temp directory
-        if os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)
-        # Always mark lecture processing as false, even on error
+        # Always mark processing done first, then clean up
         try:
             supabase.table("lectures").update({"processing": False}).eq("id", lecture_id).execute()
         except Exception as e:
             print(f"Failed to update processing status: {e}")
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
 
 
 @app.post("/convert")

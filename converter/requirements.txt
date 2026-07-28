@@ -2,8 +2,7 @@ fastapi
 uvicorn[standard]
 cloudinary
 requests
-pdf2image
-Pillow
+PyMuPDF
 supabase
 pydantic
 google-generativeai
