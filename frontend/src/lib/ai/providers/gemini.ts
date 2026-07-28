@@ -16,7 +16,7 @@ export async function getGeminiModel() {
   if (!key) throw new Error('GEMINI_API_KEY is not set')
   
   const genAI = new GoogleGenerativeAI(key)
-  return genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+  return genAI.getGenerativeModel({ model: 'gemini-flash-latest' })
 }
 
 export async function explainSlide(slideId: string, imageBase64: string, studentContext: any) {

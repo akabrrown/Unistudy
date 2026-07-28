@@ -3,8 +3,8 @@ import { setCache } from '../cache'
 import { AIRequest } from '../router'
 
 const GEMINI_MODELS = [
-  'gemini-2.0-flash',
-  'gemini-2.0-flash',
+  'gemini-flash-latest',
+  'gemini-flash-latest',
   'gemini-1.5-pro'
 ]
 

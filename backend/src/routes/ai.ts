@@ -17,8 +17,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const upload = multer({ storage: multer.memoryStorage() });
 
 const GEMINI_VISION_MODELS = [
-  'gemini-2.0-flash',
-  'gemini-2.0-flash',
+  'gemini-flash-latest',
+  'gemini-flash-latest',
   'gemini-1.5-pro',
 ];
 
