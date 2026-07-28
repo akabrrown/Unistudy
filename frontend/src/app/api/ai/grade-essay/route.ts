@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     const { prompt, essay } = RequestSchema.parse(body);
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
     const systemPrompt = `
       You are a strict but fair university professor grading an essay.

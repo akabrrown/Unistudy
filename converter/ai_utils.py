@@ -288,7 +288,7 @@ def gemini_vision(payload: Dict[str, Any]) -> Dict[str, Any]:
     MAX_503_RETRIES = 3
 
     def _run(api_key):
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
         headers = {
             "Content-Type": "application/json",
         }
