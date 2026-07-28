@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const apiUrl = 'https://list-of-universities-in-ghana.onrender.com/universities'
