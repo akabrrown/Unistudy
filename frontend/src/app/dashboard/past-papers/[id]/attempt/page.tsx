@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Clock, Check, Loader2, Save, UploadCloud } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 export default function ExamAttempt() {
   const params = useParams()
@@ -129,8 +131,10 @@ export default function ExamAttempt() {
               </div>
             </CardHeader>
             <CardContent className="pt-6">
-              <div className="prose prose-sm dark:prose-invert max-w-none mb-6">
-                <p className="text-base leading-relaxed whitespace-pre-wrap">{q.text_content}</p>
+              <div className="prose prose-sm dark:prose-invert max-w-none mb-6 prose-table:border-collapse prose-td:border prose-th:border prose-td:border-border prose-th:border-border prose-th:bg-muted/50">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {q.text_content}
+                </ReactMarkdown>
               </div>
               
               <div className="space-y-3">

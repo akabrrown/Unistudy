@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { ArrowLeft, Clock, FileText, Bot, FileQuestion, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 export default function PastPaperDetails() {
   const params = useParams()
@@ -136,7 +138,11 @@ export default function PastPaperDetails() {
                         {q.marks_available} marks
                       </span>
                     </div>
-                    <p className="text-sm text-foreground/80 whitespace-pre-wrap">{q.text_content}</p>
+                    <div className="text-sm text-foreground/80 prose prose-sm dark:prose-invert max-w-none prose-table:border-collapse prose-td:border prose-th:border prose-td:border-border prose-th:border-border prose-th:bg-muted/50">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {q.text_content}
+                      </ReactMarkdown>
+                    </div>
                     {q.extracted_topic && (
                       <div className="mt-3 inline-block text-[10px] uppercase tracking-wider font-semibold text-purple-500 bg-purple-500/10 px-2 py-1 rounded">
                         {q.extracted_topic}
