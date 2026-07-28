@@ -194,10 +194,8 @@ router.post('/ask', async (req: Request, res: Response) => {
   try {
     const response = await routeRequest(aiReq);
     
-    // Deduct quota asynchronously if not cached
-    if (!response.cached) {
-      consumeUserQuota(aiReq.userId, aiReq.feature).catch(console.error);
-    }
+    // Deduct quota asynchronously
+    consumeUserQuota(aiReq.userId, aiReq.feature).catch(console.error);
     
     // For streaming like the calculator feature, the provider might return a stream object
     if (payload.stream && response.result?.tee) {
@@ -233,9 +231,7 @@ router.post('/calculator', withAIQuota('calculator'), async (req: Request, res: 
   try {
     const response = await routeRequest(aiReq);
     
-    if (!response.cached) {
-      consumeUserQuota(aiReq.userId, aiReq.feature).catch(console.error);
-    }
+    consumeUserQuota(aiReq.userId, aiReq.feature).catch(console.error);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');

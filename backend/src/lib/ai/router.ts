@@ -1,6 +1,5 @@
 import { Feature, FEATURE_PROVIDER_MAP } from '../../../../shared/constants/quota';
 import { Plan } from '../../../../shared/types';
-import { isCached } from './cache';
 
 export type TaskType = 'vision' | 'batch_text' | 'streaming' | 'embedding' | 'rerank' | 'low_priority'
 
@@ -37,7 +36,7 @@ export type AIRequest = {
 export type AIResponse = {
   result: any
   provider: string
-  cached: boolean
+
   requestsConsumed: number
   tokensUsed?: number
   responseMs: number
@@ -47,18 +46,7 @@ export type AIResponse = {
 export async function routeRequest(request: AIRequest): Promise<AIResponse> {
   const start = Date.now()
   
-  if (request.identifiers && request.identifiers.length > 0) {
-    const cached = await isCached(request.feature, request.userId, ...request.identifiers);
-    if (cached) {
-       return {
-         result: "CACHED_DATA", // The real implementation would actually return the cached data from isCached/checkCache but for structural parity we keep it this way or fetch it
-         provider: 'cache',
-         cached: true,
-         requestsConsumed: 0,
-         responseMs: Date.now() - start
-       }
-    }
-  }
+
 
   let provider = FEATURE_PROVIDER_MAP[request.feature] || 'gemini';
   let result = null;
@@ -137,7 +125,7 @@ export async function routeRequest(request: AIRequest): Promise<AIResponse> {
   return {
     result,
     provider,
-    cached: false,
+
     requestsConsumed: 1, // Let consumeUserQuota apply the correct feature multiplier later
     responseMs: Date.now() - start
   }

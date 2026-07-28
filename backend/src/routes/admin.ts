@@ -63,8 +63,7 @@ router.get('/overview', async (req: Request, res: Response) => {
         totalUsers: totalUsers || 0,
         newUsersToday: newUsers || 0,
         activePaidSubscribers: activePaid || 0,
-        totalAiRequestsToday: activeRequests || 0,
-        cacheHitRate: 85, // Mocked for now, until cache table is added
+        totalAiRequestsToday: activeRequests || 0
       },
       providers: providers || []
     });
@@ -288,9 +287,7 @@ router.get('/ai-usage', async (req: Request, res: Response) => {
     // 1. Providers balance
     const { data: providers } = await supabaseAdmin.from('platform_ai_balance').select('*');
 
-    // 2. Cache performance
     const { count: totalRequests } = await supabaseAdmin.from('ai_request_log').select('*', { count: 'exact', head: true });
-    const { count: cacheHits } = await supabaseAdmin.from('ai_request_log').select('*', { count: 'exact', head: true }).eq('was_cached', true);
 
     // 3. Daily calls over 30 days
     // We would normally group by DATE, but since we don't have a direct SQL function available in PostgREST,
@@ -354,8 +351,8 @@ router.get('/ai-usage', async (req: Request, res: Response) => {
       providers: providers || [],
       cache: {
         total: totalRequests || 0,
-        hits: cacheHits || 0,
-        rate: totalRequests ? Math.round(((cacheHits || 0) / totalRequests) * 100) : 0
+        hits: 0,
+        rate: 0
       },
       chartData: Object.values(dailyChartData).sort((a: any, b: any) => a.date.localeCompare(b.date)),
       tokensPerProvider,

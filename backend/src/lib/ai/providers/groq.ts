@@ -1,5 +1,5 @@
 import Groq from 'groq-sdk'
-import { setCache } from '../cache'
+
 import { AIRequest } from '../router'
 
 export function getGroqClient() {
@@ -55,8 +55,7 @@ export async function handleGroqRequest(req: AIRequest) {
     })
     
     const brief = result.choices[0]?.message?.content || ""
-    const date = new Date().toISOString().split('T')[0]
-    setCache('daily_brief', req.userId, brief, date).catch(console.error)
+
     return brief
   }
 

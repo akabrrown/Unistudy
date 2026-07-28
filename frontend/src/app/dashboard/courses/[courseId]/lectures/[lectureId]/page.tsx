@@ -95,7 +95,7 @@ export default function LectureViewer() {
   const [isTranslatingExplanation, setIsTranslatingExplanation] = useState(false)
   const [translatedExplanation, setTranslatedExplanation] = useState<Record<number, string>>({})
 
-  // Load chat history from local storage when slide changes
+  // Load chat history and offline explanations from local storage when slide changes
   useEffect(() => {
     if (!currentSlide) return;
     const slideId = currentSlide.id || `${lectureId}-${slideIndex}`;
@@ -108,6 +108,12 @@ export default function LectureViewer() {
       }
     } else {
       setChatMessages([]);
+    }
+    
+    // Load offline explanation
+    const offlineEx = localStorage.getItem(`offline_exp_${slideId}`);
+    if (offlineEx && !slideExplanations[slideIndex]) {
+      setSlideExplanations(prev => ({ ...prev, [slideIndex]: offlineEx }));
     }
   }, [slideIndex, currentSlide?.id, lectureId]);
 
@@ -461,6 +467,7 @@ export default function LectureViewer() {
       setSlideExplanations(prev => ({ ...prev, [slideIndex]: '' }));
       setLoadingAI(false);
 
+      let fullEx = '';
       while (true) {
         const { value, done } = await reader.read()
         if (done) break
@@ -471,12 +478,15 @@ export default function LectureViewer() {
           if (dataStr === '[DONE]') break
           try {
             const data = JSON.parse(dataStr)
+            fullEx += data;
             setSlideExplanations(prev => ({ ...prev, [slideIndex]: prev[slideIndex] + data }));
           } catch {
             // ignore malformed chunks
           }
         }
       }
+      const slideId = currentSlide.id || `${lectureId}-${slideIndex}`;
+      localStorage.setItem(`offline_exp_${slideId}`, fullEx);
     } catch (e: any) {
       setLoadingAI(false);
       setSlideExplanations(prev => ({ ...prev, [slideIndex]: `**Error:** ${e.message}` }));
@@ -984,6 +994,11 @@ export default function LectureViewer() {
               <div className="flex items-center gap-2 mb-4">
                 <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                 <p className="text-xs font-bold tracking-widest uppercase text-primary">AI Explanation</p>
+                {currentSlide && localStorage.getItem(`offline_exp_${currentSlide.id || `${lectureId}-${slideIndex}`}`) && (
+                  <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center gap-1">
+                    <DownloadCloud size={10} /> Saved offline
+                  </span>
+                )}
               </div>
               
               {loadingAI ? (

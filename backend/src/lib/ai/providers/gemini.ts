@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { setCache } from '../cache'
+
 import { AIRequest } from '../router'
 
 const GEMINI_MODELS = [
@@ -82,9 +82,7 @@ export async function handleGeminiRequest(req: AIRequest) {
         }
       ])
       const explanation = result.response.text()
-      if (req.identifiers?.[0]) {
-        setCache('slide_explanation', req.userId, explanation, req.identifiers[0]).catch(console.error)
-      }
+
       return explanation
     }
 

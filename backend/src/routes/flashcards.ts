@@ -55,7 +55,7 @@ router.post('/generate', withAIQuota('flashcard_generation'), async (req: Reques
 
     const response = await routeRequest(aiReq);
 
-    console.log(`[Flashcards] Provider: ${response.provider}, cached: ${response.cached}, responseMs: ${response.responseMs}ms`)
+    console.log(`[Flashcards] Provider: ${response.provider}, responseMs: ${response.responseMs}ms`)
     console.log(`[Flashcards] Result type: ${typeof response.result}, isArray: ${Array.isArray(response.result)}`)
     if (typeof response.result === 'string') {
       console.log(`[Flashcards] Result preview: ${response.result.substring(0, 300)}`)
@@ -63,9 +63,7 @@ router.post('/generate', withAIQuota('flashcard_generation'), async (req: Reques
       console.log(`[Flashcards] Result keys: ${Object.keys(response.result).join(', ')}`)
     }
     
-    if (!response.cached) {
-      consumeUserQuota(aiReq.userId, aiReq.feature).catch(console.error);
-    }
+    consumeUserQuota(aiReq.userId, aiReq.feature).catch(console.error);
     
     // Parse result robustly (array, JSON string, or object with array property)
     let rawResult = response.result;
