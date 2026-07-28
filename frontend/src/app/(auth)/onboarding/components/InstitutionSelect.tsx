@@ -25,56 +25,7 @@ export function InstitutionSelect({ initialInstitution }: InstitutionSelectProps
 
   useEffect(() => {
     async function fetchInstitutions() {
-      const fallbackUniversities = [
-        "University of Ghana",
-        "Kwame Nkrumah University of Science and Technology",
-        "University of Cape Coast",
-        "University for Development Studies",
-        "University of Education, Winneba",
-        "University of Mines and Technology",
-        "University of Professional Studies, Accra",
-        "Ghana Institute of Management and Public Administration",
-        "University of Energy and Natural Resources",
-        "University of Health and Allied Sciences",
-        "C.K. Tedam University of Technology and Applied Sciences",
-        "Simon Diedong Dombo University of Business and Integrated Development Studies",
-        "Akenten Appiah-Menka University of Skills Training and Entrepreneurial Development",
-        "Ghana Communication Technology University",
-        "Accra Technical University",
-        "Kumasi Technical University",
-        "Takoradi Technical University",
-        "Cape Coast Technical University",
-        "Koforidua Technical University",
-        "Sunyani Technical University",
-        "Ho Technical University",
-        "Tamale Technical University",
-        "Bolgatanga Technical University",
-        "Wa Technical University",
-        "Ashesi University",
-        "Central University",
-        "Academic City University",
-        "Regent University College of Science and Technology",
-        "Valley View University",
-        "Methodist University Ghana",
-        "Presbyterian University, Ghana",
-        "All Nations University",
-        "Accra Institute of Technology",
-        "Ghana Christian University College",
-        "Lancaster University Ghana",
-        "Wisconsin International University College",
-        "Garden City University College",
-        "KAAF University College",
-        "Radford University College",
-        "BlueCrest University College",
-        "Zenith University College",
-        "Islamic University College Ghana",
-        "Dominion University College",
-        "Christ Apostolic University College",
-        "Catholic University College of Ghana",
-        "Ghana Baptist University College",
-        "Anglican University College of Technology",
-        "Accra Metropolitan University"
-      ];
+
 
       try {
         const res = await fetch('/api/institutions/ghana')
@@ -86,12 +37,8 @@ export function InstitutionSelect({ initialInstitution }: InstitutionSelectProps
         }))
         setInstitutions(formatted)
       } catch (error) {
-        console.error('Failed to fetch from internal proxy, falling back to static list:', error)
-        const formatted = fallbackUniversities.map((name) => ({
-          id: name,
-          name: name,
-        }))
-        setInstitutions(formatted)
+        console.error('Failed to fetch institutions:', error)
+        setInstitutions([])
       }
       setLoading(false)
     }
