@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { apiFetch } from '@/lib/api/client';
 import { StudyHeatmap } from '@/components/analytics/StudyHeatmap';
-import { Sparkles, TrendingUp, Clock, AlertTriangle, ShieldCheck, Flame, Cpu, Database, Zap } from 'lucide-react';
+import { TrendingUp, Clock, AlertTriangle, ShieldCheck, Flame, Cpu, Zap } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
 export default function AnalyticsPage() {
@@ -13,14 +13,14 @@ export default function AnalyticsPage() {
   const [bestTime, setBestTime] = useState<any>(null);
   const [blindSpots, setBlindSpots] = useState<any[]>([]);
   const [quota, setQuota] = useState<any>(null);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    // Fetch all analytics in parallel
     Promise.all([
-      fetch('/api/analytics/heatmap').then(res => res.json()).catch(() => ({})),
-      fetch('/api/analytics/velocity').then(res => res.json()).catch(() => null),
-      fetch('/api/analytics/best-time').then(res => res.json()).catch(() => null),
-      fetch('/api/analytics/blind-spots').then(res => res.json()).catch(() => ({ blindSpots: [] })),
+      fetch('/api/analytics/heatmap').then(r => r.ok ? r.json() : {}).catch(() => ({})),
+      fetch('/api/analytics/velocity').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/analytics/best-time').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/analytics/blind-spots').then(r => r.ok ? r.json() : { blindSpots: [] }).catch(() => ({ blindSpots: [] })),
       apiFetch('/quota/status').catch(() => null),
     ]).then(([heatRes, velRes, timeRes, blindRes, quotaRes]) => {
       setHeatmapData(heatRes || {});
@@ -28,6 +28,7 @@ export default function AnalyticsPage() {
       setBestTime(timeRes);
       setBlindSpots(blindRes?.blindSpots || []);
       setQuota(quotaRes);
+      setLoaded(true);
     });
   }, []);
 
@@ -62,7 +63,7 @@ export default function AnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {velocity ? (
+            {velocity && velocity.avgVelocity ? (
               <div className='space-y-4'>
                 <div className='flex items-end gap-3'>
                   <span className='text-4xl font-black'>{velocity.avgVelocity}</span>
@@ -76,12 +77,16 @@ export default function AnalyticsPage() {
                     }>{velocity.trend}</span>
                   </p>
                   <p className='text-xs text-[var(--text-muted)] mt-1'>
-                    Your baseline is {velocity.baseline} days. Keep pushing to master topics faster!
+                    Your baseline is {velocity.baseline} days. Keep pushing to master topics faster.
                   </p>
                 </div>
               </div>
             ) : (
-              <p className='text-sm text-[var(--text-muted)]'>Loading velocity data...</p>
+              <div className='text-center py-6'>
+                <TrendingUp className='w-10 h-10 text-blue-300 mx-auto mb-3 opacity-50' />
+                <p className='text-sm font-medium mb-1'>Not enough data yet</p>
+                <p className='text-xs text-[var(--text-muted)]'>Complete quizzes on lecture topics to start tracking your mastery speed.</p>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -95,30 +100,28 @@ export default function AnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {bestTime ? (
-              bestTime.insufficient ? (
-                <div className='text-center py-4'>
-                  <p className='text-sm text-[var(--text-muted)]'>We need more quiz data to determine your peak study hours. Keep testing yourself!</p>
-                </div>
-              ) : (
-                <div className='space-y-4'>
-                  {bestTime.peakHours.map((ph: any, i: number) => (
-                    <div key={i} className='flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-lg border border-emerald-100 dark:border-emerald-900'>
-                      <div className='flex items-center gap-3'>
-                        <div className='w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold'>
-                          {ph.hour}:00
-                        </div>
-                        <div>
-                          <p className='font-semibold text-emerald-900 dark:text-emerald-100'>Top Window</p>
-                          <p className='text-xs text-emerald-700 dark:text-emerald-400'>{ph.avg.toFixed(1)}% avg score</p>
-                        </div>
+            {bestTime && !bestTime.insufficient && bestTime.peakHours?.length ? (
+              <div className='space-y-4'>
+                {bestTime.peakHours.map((ph: any, i: number) => (
+                  <div key={i} className='flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-lg border border-emerald-100 dark:border-emerald-900'>
+                    <div className='flex items-center gap-3'>
+                      <div className='w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold'>
+                        {ph.hour}:00
+                      </div>
+                      <div>
+                        <p className='font-semibold text-emerald-900 dark:text-emerald-100'>Top Window</p>
+                        <p className='text-xs text-emerald-700 dark:text-emerald-400'>{ph.avg.toFixed(1)}% avg score</p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )
+                  </div>
+                ))}
+              </div>
             ) : (
-              <p className='text-sm text-[var(--text-muted)]'>Analyzing timestamps...</p>
+              <div className='text-center py-6'>
+                <Clock className='w-10 h-10 text-emerald-300 mx-auto mb-3 opacity-50' />
+                <p className='text-sm font-medium mb-1'>Not enough data yet</p>
+                <p className='text-xs text-[var(--text-muted)]'>Take a few more quizzes at different times so we can identify your peak hours.</p>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -151,8 +154,8 @@ export default function AnalyticsPage() {
             ) : (
               <div className='text-center py-8 bg-[var(--bg-subtle)] rounded-xl border border-[var(--border-subtle)]'>
                 <ShieldCheck className='w-12 h-12 text-[var(--color-amber-500)] mx-auto mb-3 opacity-50' />
-                <p className='font-bold'>No Blind Spots Detected!</p>
-                <p className='text-sm text-[var(--text-muted)]'>Your confidence perfectly matches your test scores.</p>
+                <p className='font-bold'>No blind spots detected</p>
+                <p className='text-sm text-[var(--text-muted)]'>Your confidence aligns with your test scores.</p>
               </div>
             )}
           </CardContent>
@@ -163,7 +166,7 @@ export default function AnalyticsPage() {
           <CardHeader>
             <CardTitle className='flex items-center gap-2'>
               <Cpu className='text-primary' />
-              Real-time AI Quota
+              AI Quota Balance
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -171,11 +174,12 @@ export default function AnalyticsPage() {
               <div className='grid gap-6 md:grid-cols-2'>
                 {['gemini', 'groq_70b', 'groq_8b', 'cohere'].map(provider => {
                   if (!quota[provider]) return null;
-                  const data = quota[provider];
-                  const percentage = Math.min((data.daily_used / data.daily_limit) * 100, 100);
+                  const providerData = quota[provider];
+                  const percentage = providerData.daily_limit > 0
+                    ? Math.min((providerData.daily_used / providerData.daily_limit) * 100, 100)
+                    : 0;
                   const isHigh = percentage > 85;
                   
-                  // Label mapping
                   const labelMap: Record<string, string> = {
                     gemini: 'Gemini (Vision & Explanations)',
                     groq_70b: 'Groq 70B (Complex Logic)',
@@ -191,7 +195,7 @@ export default function AnalyticsPage() {
                           {labelMap[provider] || provider}
                         </span>
                         <span className='text-sm font-medium'>
-                          {data.daily_used} / {data.daily_limit}
+                          {providerData.daily_used} / {providerData.daily_limit}
                         </span>
                       </div>
                       <Progress value={percentage} className={`h-2 ${isHigh ? 'bg-red-500/20' : ''}`} />
@@ -200,8 +204,17 @@ export default function AnalyticsPage() {
                   );
                 })}
               </div>
+            ) : loaded ? (
+              <div className='text-center py-6'>
+                <Cpu className='w-10 h-10 text-primary/30 mx-auto mb-3' />
+                <p className='text-sm font-medium mb-1'>Quota data unavailable</p>
+                <p className='text-xs text-[var(--text-muted)]'>Could not reach the backend. Check that the server is running.</p>
+              </div>
             ) : (
-              <p className='text-sm text-[var(--text-muted)]'>Loading quota data...</p>
+              <div className='flex items-center gap-2 justify-center py-6 text-[var(--text-muted)]'>
+                <div className='w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin' />
+                <p className='text-sm'>Fetching quota data...</p>
+              </div>
             )}
           </CardContent>
         </Card>
