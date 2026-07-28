@@ -3,13 +3,15 @@
 import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { StudyHeatmap } from '@/components/analytics/StudyHeatmap';
-import { Sparkles, TrendingUp, Clock, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Sparkles, TrendingUp, Clock, AlertTriangle, ShieldCheck, Flame, Cpu, Database, Zap } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 
 export default function AnalyticsPage() {
   const [heatmapData, setHeatmapData] = useState<Record<string, number>>({});
   const [velocity, setVelocity] = useState<any>(null);
   const [bestTime, setBestTime] = useState<any>(null);
   const [blindSpots, setBlindSpots] = useState<any[]>([]);
+  const [quota, setQuota] = useState<any>(null);
 
   useEffect(() => {
     // Fetch all analytics in parallel
@@ -18,11 +20,13 @@ export default function AnalyticsPage() {
       fetch('/api/analytics/velocity').then(res => res.json()),
       fetch('/api/analytics/best-time').then(res => res.json()),
       fetch('/api/analytics/blind-spots').then(res => res.json()),
-    ]).then(([heatRes, velRes, timeRes, blindRes]) => {
+      fetch('/api/quota/status').then(res => res.json()),
+    ]).then(([heatRes, velRes, timeRes, blindRes, quotaRes]) => {
       setHeatmapData(heatRes || {});
       setVelocity(velRes);
       setBestTime(timeRes);
       setBlindSpots(blindRes.blindSpots || []);
+      setQuota(quotaRes);
     });
   }, []);
 
@@ -39,7 +43,7 @@ export default function AnalyticsPage() {
         <Card className='md:col-span-2 border-2 border-[var(--color-plum-200)] dark:border-[var(--color-plum-900)]'>
           <CardHeader>
             <CardTitle className='flex items-center gap-2'>
-              <Sparkles className='text-[var(--color-plum-500)]' />
+              <Flame className='text-orange-500' />
               Study Consistency Heatmap
             </CardTitle>
           </CardHeader>
@@ -149,6 +153,54 @@ export default function AnalyticsPage() {
                 <p className='font-bold'>No Blind Spots Detected!</p>
                 <p className='text-sm text-[var(--text-muted)]'>Your confidence perfectly matches your test scores.</p>
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Real-time AI Quota */}
+        <Card className='md:col-span-2 border-2 border-primary/20'>
+          <CardHeader>
+            <CardTitle className='flex items-center gap-2'>
+              <Cpu className='text-primary' />
+              Real-time AI Quota
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {quota ? (
+              <div className='grid gap-6 md:grid-cols-2'>
+                {['gemini', 'groq_70b', 'groq_8b', 'cohere'].map(provider => {
+                  if (!quota[provider]) return null;
+                  const data = quota[provider];
+                  const percentage = Math.min((data.daily_used / data.daily_limit) * 100, 100);
+                  const isHigh = percentage > 85;
+                  
+                  // Label mapping
+                  const labelMap: Record<string, string> = {
+                    gemini: 'Gemini (Vision & Explanations)',
+                    groq_70b: 'Groq 70B (Complex Logic)',
+                    groq_8b: 'Groq 8B (Fast Tasks)',
+                    cohere: 'Cohere (Embeddings)'
+                  };
+
+                  return (
+                    <div key={provider} className='space-y-2 p-4 bg-[var(--bg-subtle)] rounded-xl border border-[var(--border-subtle)]'>
+                      <div className='flex items-center justify-between'>
+                        <span className='font-semibold flex items-center gap-2'>
+                          <Zap size={14} className='text-primary opacity-70' />
+                          {labelMap[provider] || provider}
+                        </span>
+                        <span className='text-sm font-medium'>
+                          {data.daily_used} / {data.daily_limit}
+                        </span>
+                      </div>
+                      <Progress value={percentage} className={`h-2 ${isHigh ? 'bg-red-500/20' : ''}`} />
+                      {isHigh && <p className='text-xs text-red-500 text-right mt-1'>Approaching limit</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className='text-sm text-[var(--text-muted)]'>Loading quota data...</p>
             )}
           </CardContent>
         </Card>
