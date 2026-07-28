@@ -30,31 +30,34 @@ import pastPapersRoutes from './routes/past-papers';
 import translateRoutes from './routes/translate';
 import billingRoutes from './routes/billing';
 
+const HEALTH_PATHS = new Set(['/ping', '/api/health']);
+
 const app = express();
 app.disable('x-powered-by');
 app.use(helmet());
+
+// Health checks must respond before any rate-limiting or auth middleware
+// so uptime monitors never get blocked by their own polling.
+app.get('/ping', (_req, res) => res.status(200).json({ status: 'ok' }));
+app.get('/api/health', (_req, res) => res.status(200).json({ status: 'ok' }));
+
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: (req) => HEALTH_PATHS.has(req.path),
 }));
 
 // Global Middlewares
 app.use(corsMiddleware);
 app.use(requestLogger);
 
-// Webhooks (need raw body for signature verification before parsing JSON)
+// Webhooks need raw body for signature verification — must come before express.json()
 app.use('/api/webhooks/paystack', express.raw({ type: 'application/json' }), paystackWebhook);
 app.use('/api/webhooks/mux', express.raw({ type: 'application/json' }), muxWebhook);
 
-// Body Parser for all other routes
 app.use(express.json());
-
-// Health Check
-app.get('/ping', (req, res) => {
-  res.status(200).json({ status: 'ok' });
-});
 
 // API Routes
 app.use('/api/ai', aiRoutes);

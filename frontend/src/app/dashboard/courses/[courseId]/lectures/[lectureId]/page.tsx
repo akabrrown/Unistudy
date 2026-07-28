@@ -34,6 +34,7 @@ export default function LectureViewer() {
   const [headerTitle, setHeaderTitle] = useState('Loading...')
   const [headerWeek, setHeaderWeek] = useState('Week -')
   const [lecture, setLecture] = useState<any>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const [slideIndex, setSlideIndex] = useState(0)
   const currentSlide = slides[slideIndex]
@@ -392,9 +393,17 @@ export default function LectureViewer() {
         } else {
           setSlides([])
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to load lecture data:', err)
-        toast.error('Failed to load lecture data')
+        // Distinguish a genuine network failure from an empty result so the
+        // "No Slides Found" screen isn't shown when the backend is unreachable.
+        const msg = err?.message || 'Unknown error';
+        const isNetworkError = msg.toLowerCase().includes('failed to fetch') ||
+          msg.toLowerCase().includes('network') ||
+          msg.toLowerCase().includes('load');
+        setLoadError(isNetworkError
+          ? 'Could not reach the server. Check your connection or wait a moment and refresh.'
+          : `Failed to load lecture: ${msg}`);
       } finally {
         setSlidesLoading(false)
         setLoadingData(false)
@@ -563,8 +572,9 @@ export default function LectureViewer() {
 
   if (slidesLoading) {
     return (
-      <div className="h-[calc(100vh-theme(spacing.16))] flex items-center justify-center bg-background border border-border rounded-xl shadow-sm relative">
-        <Loader2 className="animate-spin w-12 h-12 text-primary" />
+      <div className="h-[calc(100vh-theme(spacing.16))] flex flex-col items-center justify-center gap-3 bg-background border border-border rounded-xl shadow-sm relative">
+        <Loader2 className="animate-spin w-10 h-10 text-primary" />
+        <p className="text-sm text-muted-foreground">Loading lecture — this may take a few seconds on first open.</p>
       </div>
     );
   }
@@ -591,19 +601,39 @@ export default function LectureViewer() {
     )
   }
 
+  if (loadError) {
+    return (
+      <div className="h-[calc(100vh-theme(spacing.16))] flex flex-col items-center justify-center bg-background border border-border rounded-xl shadow-sm relative text-center space-y-4 p-8">
+        <div className="relative text-destructive">
+          <Frown size={64} className="relative z-10" />
+        </div>
+        <h2 className="text-2xl font-bold">Couldn't load this lecture</h2>
+        <div className="text-muted-foreground max-w-md space-y-2">
+          <p>{loadError}</p>
+        </div>
+        <div className="pt-4 flex gap-4">
+          <Button onClick={() => { setLoadError(null); setSlidesLoading(true); window.location.reload(); }}>Try again</Button>
+          <Link href={`/dashboard/courses/${courseId}`}>
+            <Button variant="outline">Back to course</Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   if (slides.length === 0) {
     return (
       <div className="h-[calc(100vh-theme(spacing.16))] flex flex-col items-center justify-center bg-background border border-border rounded-xl shadow-sm relative text-center space-y-4 p-8">
         <div className="relative text-destructive">
           <Frown size={64} className="relative z-10" />
         </div>
-        <h2 className="text-2xl font-bold">No Slides Found</h2>
+        <h2 className="text-2xl font-bold">No slides found</h2>
         <div className="text-muted-foreground max-w-md space-y-2">
-          <p>This presentation has 0 slides, or processing failed midway.</p>
+          <p>Processing may have failed. Delete this lecture and re-upload the PDF to try again.</p>
         </div>
         <div className="pt-4 flex gap-4">
           <Link href={`/dashboard/courses/${courseId}`}>
-            <Button variant="outline">Back to Course</Button>
+            <Button variant="outline">Back to course</Button>
           </Link>
         </div>
       </div>
