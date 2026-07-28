@@ -4,10 +4,9 @@ exports.getGeminiModel = getGeminiModel;
 exports.callGeminiWithFallback = callGeminiWithFallback;
 exports.handleGeminiRequest = handleGeminiRequest;
 const generative_ai_1 = require("@google/generative-ai");
-const cache_1 = require("../cache");
 const GEMINI_MODELS = [
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
+    'gemini-flash-latest',
+    'gemini-flash-latest',
     'gemini-1.5-pro'
 ];
 async function getGeminiModel() {
@@ -84,9 +83,6 @@ async function handleGeminiRequest(req) {
                 }
             ]);
             const explanation = result.response.text();
-            if (req.identifiers?.[0]) {
-                (0, cache_1.setCache)('slide_explanation', req.userId, explanation, req.identifiers[0]).catch(console.error);
-            }
             return explanation;
         }
         if (req.feature === 'quiz_generation') {

@@ -50,7 +50,9 @@ const multer_1 = __importDefault(require("multer"));
 const generative_ai_1 = require("@google/generative-ai");
 const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
 const GEMINI_VISION_MODELS = [
-    'gemini-3.5-flash'
+    'gemini-flash-latest',
+    'gemini-flash-latest',
+    'gemini-1.5-pro',
 ];
 async function callWithFallback(genAI, models, buildRequest) {
     let lastErr;
@@ -212,10 +214,8 @@ router.post('/ask', async (req, res) => {
     };
     try {
         const response = await (0, router_1.routeRequest)(aiReq);
-        // Deduct quota asynchronously if not cached
-        if (!response.cached) {
-            (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature).catch(console.error);
-        }
+        // Deduct quota asynchronously
+        (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature).catch(console.error);
         // For streaming like the calculator feature, the provider might return a stream object
         if (payload.stream && response.result?.tee) {
             res.setHeader('Content-Type', 'text/event-stream');
@@ -245,9 +245,7 @@ router.post('/calculator', (0, quotaGuard_1.withAIQuota)('calculator'), async (r
     };
     try {
         const response = await (0, router_1.routeRequest)(aiReq);
-        if (!response.cached) {
-            (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature).catch(console.error);
-        }
+        (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature).catch(console.error);
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
@@ -307,13 +305,13 @@ Accessibility Overrides for this user:
 
 ${slideText ? `Slide Content (Extracted Text):\n"${slideText}"` : ''}
 
-${(slideText && slideText.split(' ').length < 20) ? `
+${(slideText && slideText.split(' ').length < 20 && !visionExplanation && !imageUrl) ? `
 **GAP FILLER MODE TRIGGERED**:
-The text on this slide is extremely sparse (under 20 words). You must infer what the missing content should be based on the surrounding context.
+The text on this slide is extremely sparse (under 20 words) and no image is available. You must infer what the missing content should be based on the surrounding context.
 Previous Slide Text: "${prevSlideText || 'None available'}"
 Next Slide Text: "${nextSlideText || 'None available'}"
 
-Write a dedicated section at the bottom of your explanation titled "### Gap Fill". In this section, provide the detailed content, context, and steps that are implied but missing from the sparse slide text. Use the surrounding slides and the visual context to deduce what the lecturer meant to explain here.
+Write a dedicated section at the bottom of your explanation titled "### Gap Fill". In this section, provide the detailed content, context, and steps that are implied but missing from the sparse slide text. Use the surrounding slides to deduce what the lecturer meant to explain here.
 ` : ''}
 
 ${visionExplanation ? `Visual Context & Details (from AI Vision Model viewing the slide image):
@@ -382,6 +380,8 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
                 fullText = groqData.choices?.[0]?.message?.content || '';
             }
             else {
+                const errBody = await groqRes.json().catch(() => ({}));
+                console.error('Groq fallback also failed:', errBody);
                 throw geminiErr;
             }
         }

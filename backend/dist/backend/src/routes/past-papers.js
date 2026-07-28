@@ -150,7 +150,7 @@ router.post('/grade', async (req, res) => {
         - "model_answer": (string, showing the ideal answer)
         `;
         const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
         const result = await model.generateContent(prompt);
         const text = result.response.text();
         const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -177,7 +177,7 @@ router.post('/chat', async (req, res) => {
         Answer their question clearly and concisely.
         `;
         const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
         const result = await model.generateContent(prompt);
         res.json({ text: result.response.text() });
     }

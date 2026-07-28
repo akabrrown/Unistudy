@@ -31,27 +31,28 @@ const search_1 = __importDefault(require("./routes/search"));
 const past_papers_1 = __importDefault(require("./routes/past-papers"));
 const translate_1 = __importDefault(require("./routes/translate"));
 const billing_1 = __importDefault(require("./routes/billing"));
+const HEALTH_PATHS = new Set(['/ping', '/api/health']);
 const app = (0, express_1.default)();
 app.disable('x-powered-by');
 app.use((0, helmet_1.default)());
+// Health checks must respond before any rate-limiting or auth middleware
+// so uptime monitors never get blocked by their own polling.
+app.get('/ping', (_req, res) => res.status(200).json({ status: 'ok' }));
+app.get('/api/health', (_req, res) => res.status(200).json({ status: 'ok' }));
 app.use((0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000,
     max: 100,
     standardHeaders: true,
-    legacyHeaders: false
+    legacyHeaders: false,
+    skip: (req) => HEALTH_PATHS.has(req.path),
 }));
 // Global Middlewares
 app.use(cors_1.corsMiddleware);
 app.use(requestLogger_1.requestLogger);
-// Webhooks (need raw body for signature verification before parsing JSON)
+// Webhooks need raw body for signature verification — must come before express.json()
 app.use('/api/webhooks/paystack', express_1.default.raw({ type: 'application/json' }), paystack_1.default);
 app.use('/api/webhooks/mux', express_1.default.raw({ type: 'application/json' }), mux_1.default);
-// Body Parser for all other routes
 app.use(express_1.default.json());
-// Health Check
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
-});
 // API Routes
 app.use('/api/ai', ai_1.default);
 app.use('/api/courses', courses_1.default);

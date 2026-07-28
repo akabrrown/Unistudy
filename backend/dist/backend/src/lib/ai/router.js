@@ -35,22 +35,9 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.routeRequest = routeRequest;
 const quota_1 = require("../../../../shared/constants/quota");
-const cache_1 = require("./cache");
 // Router delegates to specific provider implementations
 async function routeRequest(request) {
     const start = Date.now();
-    if (request.identifiers && request.identifiers.length > 0) {
-        const cached = await (0, cache_1.isCached)(request.feature, request.userId, ...request.identifiers);
-        if (cached) {
-            return {
-                result: "CACHED_DATA", // The real implementation would actually return the cached data from isCached/checkCache but for structural parity we keep it this way or fetch it
-                provider: 'cache',
-                cached: true,
-                requestsConsumed: 0,
-                responseMs: Date.now() - start
-            };
-        }
-    }
     let provider = quota_1.FEATURE_PROVIDER_MAP[request.feature] || 'gemini';
     let result = null;
     try {
@@ -127,7 +114,6 @@ async function routeRequest(request) {
     return {
         result,
         provider,
-        cached: false,
         requestsConsumed: 1, // Let consumeUserQuota apply the correct feature multiplier later
         responseMs: Date.now() - start
     };

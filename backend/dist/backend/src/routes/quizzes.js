@@ -21,9 +21,7 @@ router.post('/generate', (0, quotaGuard_1.withAIQuota)('quiz_generation'), async
     };
     try {
         const response = await (0, router_1.routeRequest)(aiReq);
-        if (!response.cached) {
-            (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature).catch(console.error);
-        }
+        (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature).catch(console.error);
         let questionsData = response.result;
         if (questionsData && typeof questionsData === 'object' && !Array.isArray(questionsData) && Array.isArray(questionsData.questions)) {
             questionsData = questionsData.questions;

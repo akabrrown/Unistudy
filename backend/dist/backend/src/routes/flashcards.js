@@ -48,7 +48,7 @@ router.post('/generate', (0, quotaGuard_1.withAIQuota)('flashcard_generation'), 
             identifiers: [lectureId] // Cache per lecture
         };
         const response = await (0, router_1.routeRequest)(aiReq);
-        console.log(`[Flashcards] Provider: ${response.provider}, cached: ${response.cached}, responseMs: ${response.responseMs}ms`);
+        console.log(`[Flashcards] Provider: ${response.provider}, responseMs: ${response.responseMs}ms`);
         console.log(`[Flashcards] Result type: ${typeof response.result}, isArray: ${Array.isArray(response.result)}`);
         if (typeof response.result === 'string') {
             console.log(`[Flashcards] Result preview: ${response.result.substring(0, 300)}`);
@@ -56,9 +56,7 @@ router.post('/generate', (0, quotaGuard_1.withAIQuota)('flashcard_generation'), 
         else if (response.result && typeof response.result === 'object') {
             console.log(`[Flashcards] Result keys: ${Object.keys(response.result).join(', ')}`);
         }
-        if (!response.cached) {
-            (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature).catch(console.error);
-        }
+        (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature).catch(console.error);
         // Parse result robustly (array, JSON string, or object with array property)
         let rawResult = response.result;
         if (typeof rawResult === 'string') {

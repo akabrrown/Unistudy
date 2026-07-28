@@ -14,6 +14,8 @@ export const corsMiddleware = cors({
     if (!origin) return callback(null, true);
     // Allow any localhost origin (dev environments) regardless of port
     if (origin && origin.includes('localhost')) return callback(null, true);
+    // Allow Vercel preview domains
+    if (origin && origin.endsWith('vercel.app')) return callback(null, true);
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }

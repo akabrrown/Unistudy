@@ -55,8 +55,7 @@ router.get('/overview', async (req, res) => {
                 totalUsers: totalUsers || 0,
                 newUsersToday: newUsers || 0,
                 activePaidSubscribers: activePaid || 0,
-                totalAiRequestsToday: activeRequests || 0,
-                cacheHitRate: 85, // Mocked for now, until cache table is added
+                totalAiRequestsToday: activeRequests || 0
             },
             providers: providers || []
         });
@@ -193,10 +192,16 @@ router.delete('/users/:userId', async (req, res) => {
     try {
         // Delete from auth.users (cascades or cleans up auth)
         const { error: authErr } = await supabase_1.supabaseAdmin.auth.admin.deleteUser(userId);
-        if (authErr)
-            console.warn("Auth user delete warn:", authErr);
+        if (authErr) {
+            console.error('Auth user delete error:', authErr);
+            // Proceed to delete profile anyway
+        }
         // Delete from profiles
-        await supabase_1.supabaseAdmin.from('profiles').delete().eq('id', userId);
+        const { error: profileErr } = await supabase_1.supabaseAdmin.from('profiles').delete().eq('id', userId);
+        if (profileErr) {
+            console.error('Profile delete error:', profileErr);
+            throw new Error(profileErr.message || 'Failed to delete profile');
+        }
         await logAuditAction(req.user.id, 'USER_DELETED', userId, 'user', {});
         res.json({ success: true });
     }
@@ -245,9 +250,7 @@ router.get('/ai-usage', async (req, res) => {
         const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
         // 1. Providers balance
         const { data: providers } = await supabase_1.supabaseAdmin.from('platform_ai_balance').select('*');
-        // 2. Cache performance
         const { count: totalRequests } = await supabase_1.supabaseAdmin.from('ai_request_log').select('*', { count: 'exact', head: true });
-        const { count: cacheHits } = await supabase_1.supabaseAdmin.from('ai_request_log').select('*', { count: 'exact', head: true }).eq('was_cached', true);
         // 3. Daily calls over 30 days
         // We would normally group by DATE, but since we don't have a direct SQL function available in PostgREST,
         // we'll fetch the logs for the last 30 days and group them in JS (fine for our current scale).
@@ -305,8 +308,8 @@ router.get('/ai-usage', async (req, res) => {
             providers: providers || [],
             cache: {
                 total: totalRequests || 0,
-                hits: cacheHits || 0,
-                rate: totalRequests ? Math.round(((cacheHits || 0) / totalRequests) * 100) : 0
+                hits: 0,
+                rate: 0
             },
             chartData: Object.values(dailyChartData).sort((a, b) => a.date.localeCompare(b.date)),
             tokensPerProvider,
