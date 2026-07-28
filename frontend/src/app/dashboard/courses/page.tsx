@@ -200,14 +200,6 @@ export default function CoursesPage() {
                   <Input id="name" placeholder="e.g. Intro to CS" className="col-span-3" value={newCourseName} onChange={e => setNewCourseName(e.target.value)} />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="semester" className="text-right">Semester</Label>
-                  <Input id="semester" type="number" min="1" max="3" placeholder="e.g. 1" className="col-span-3" value={newCourseSemester} onChange={e => setNewCourseSemester(e.target.value)} />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="year" className="text-right">Year</Label>
-                  <Input id="year" type="number" min="2000" max="2100" placeholder="e.g. 2026" className="col-span-3" value={newCourseYear} onChange={e => setNewCourseYear(e.target.value)} />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right">Course Colour</Label>
                   <div className="col-span-3 flex space-x-2">
                     {[
@@ -254,14 +246,6 @@ export default function CoursesPage() {
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="edit-name" className="text-right">Course Name</Label>
                   <Input id="edit-name" placeholder="e.g. Intro to CS" className="col-span-3" value={editCourseName} onChange={e => setEditCourseName(e.target.value)} />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="edit-semester" className="text-right">Semester</Label>
-                  <Input id="edit-semester" type="number" min="1" max="3" placeholder="e.g. 1" className="col-span-3" value={editCourseSemester} onChange={e => setEditCourseSemester(e.target.value)} />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="edit-year" className="text-right">Year</Label>
-                  <Input id="edit-year" type="number" min="2000" max="2100" placeholder="e.g. 2026" className="col-span-3" value={editCourseYear} onChange={e => setEditCourseYear(e.target.value)} />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right">Course Colour</Label>
@@ -621,10 +605,10 @@ export default function CoursesPage() {
                     xhr.send(formDataCloudinary);
                     const fileData = await responsePromise;
 
-                    // Update lecture with Cloudinary URL
+                    // Update lecture with Cloudinary URL and set processing to true
                     const { error: updateErr } = await supabase
                       .from('lectures')
-                      .update({ file_url: fileData.secure_url })
+                      .update({ file_url: fileData.secure_url, processing: true })
                       .eq('id', newLecture.id);
                     if (updateErr) throw updateErr;
 
@@ -637,7 +621,8 @@ export default function CoursesPage() {
                     const userId = userRes.data.user?.id || '';
                     formDataFastAPI.append('user_id', userId);
 
-                    const convertRes = await fetch('http://localhost:8000/convert', {
+                    const apiUrl = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
+                    const convertRes = await fetch(`${apiUrl}/convert`, {
                       method: 'POST',
                       body: formDataFastAPI,
                     });

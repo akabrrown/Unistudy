@@ -296,30 +296,6 @@ export default function CoursesScreen() {
               onChangeText={setNewCourseTitle}
             />
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <View style={{ flex: 1, marginRight: 8 }}>
-                <Text style={[styles.label, { color: colors.text }]}>Semester</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: isDark ? '#2a2a2a' : '#f0f0f0', color: colors.text }]}
-                  placeholder="1"
-                  placeholderTextColor={colors.textMuted}
-                  value={newCourseSemester}
-                  onChangeText={setNewCourseSemester}
-                  keyboardType="numeric"
-                />
-              </View>
-              <View style={{ flex: 1, marginLeft: 8 }}>
-                <Text style={[styles.label, { color: colors.text }]}>Year</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: isDark ? '#2a2a2a' : '#f0f0f0', color: colors.text }]}
-                  placeholder="2026"
-                  placeholderTextColor={colors.textMuted}
-                  value={newCourseYear}
-                  onChangeText={setNewCourseYear}
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
 
             <Text style={[styles.label, { color: colors.text }]}>Course Colour</Text>
             <View style={styles.colorPickerContainer}>

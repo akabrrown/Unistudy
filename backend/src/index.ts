@@ -52,8 +52,8 @@ app.use('/api/webhooks/mux', express.raw({ type: 'application/json' }), muxWebho
 app.use(express.json());
 
 // Health Check
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/ping', (req, res) => {
+  res.status(200).json({ status: 'ok' });
 });
 
 // API Routes

@@ -31,7 +31,7 @@ export default async function LoginPage(props: { searchParams: Promise<{ error?:
           <form action={login} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" placeholder="student@university.edu" required className="bg-background/50" />
+              <Input id="email" name="email" type="email" placeholder="example@gmail.com" required className="bg-background/50" />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -42,7 +42,7 @@ export default async function LoginPage(props: { searchParams: Promise<{ error?:
               </div>
               <PasswordInput id="password" name="password" required className="bg-background/50" />
             </div>
-            
+
             {searchParams?.error && (
               <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
                 {searchParams.error}

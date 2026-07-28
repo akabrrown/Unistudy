@@ -9,10 +9,8 @@ import { ArrowLeft } from 'lucide-react'
 
 import { EmailField } from './components/EmailField'
 import { UsernameField } from './components/UsernameField'
-import { InstitutionSelect } from './components/InstitutionSelect'
-import { CourseOfStudyInput } from './components/CourseOfStudyInput'
-import { StudyFrequencyPicker } from './components/StudyFrequencyPicker'
 import { PasswordStrengthField } from './components/PasswordStrengthField'
+import { FullNameField } from './components/FullNameField' // Force TS re-evaluation
 
 export default async function SignupPage(props: { searchParams: Promise<{ error?: string }> }) {
   const searchParams = await props.searchParams
@@ -35,16 +33,13 @@ export default async function SignupPage(props: { searchParams: Promise<{ error?
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={signup} className="space-y-6">
+          <form action={signup} autoComplete="off" className="space-y-6">
 
 
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <UsernameField />
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">Full Name</Label>
-                  <Input id="fullName" name="fullName" placeholder="Jane Doe" required className="bg-background/50" />
-                </div>
+                <FullNameField />
               </div>
               <EmailField />
             </div>
@@ -52,38 +47,16 @@ export default async function SignupPage(props: { searchParams: Promise<{ error?
             <PasswordStrengthField />
 
             <div className="border-t border-border pt-4">
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">Academic Details</h3>
-              <div className="space-y-4">
-                <InstitutionSelect />
-                <CourseOfStudyInput />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <StudyFrequencyPicker />
-                  <div className="space-y-2">
-                    <Label htmlFor="year_of_study">Year of Study</Label>
-                    <select id="year_of_study" name="year_of_study" required className="w-full bg-background/50 border rounded p-2 text-sm h-[38px] mt-2">
-                      <option value="100">100</option>
-                      <option value="200">200</option>
-                      <option value="300">300</option>
-                      <option value="400">400</option>
-                      <option value="500">500</option>
-                      <option value="600">600</option>
-                      <option value="700">700</option>
-                      <option value="800">800</option>
-                    </select>
-                  </div>
+              {searchParams?.error && (
+                <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md mb-4">
+                  {searchParams.error}
                 </div>
-              </div>
+              )}
+
+              <Button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-600 text-white">
+                Sign Up
+              </Button>
             </div>
-
-            {searchParams?.error && (
-              <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
-                {searchParams.error}
-              </div>
-            )}
-
-            <Button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-600 text-white">
-              Sign Up
-            </Button>
           </form>
         </CardContent>
         <CardFooter className="flex justify-center border-t border-border/40 pt-6">

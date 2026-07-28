@@ -9,25 +9,12 @@ import Constants from 'expo-constants';
 import { uploadAvatar } from '../utils/avatarUpload';
 import * as ImagePicker from 'expo-image-picker';
 
-const STUDY_FREQUENCIES = [
-  { id: 'daily', label: 'Daily', icon: 'sunny-outline' as const },
-  { id: 'weekdays', label: 'Weekdays', icon: 'calendar-outline' as const },
-  { id: 'weekends', label: 'Weekends', icon: 'calendar-number-outline' as const },
-  { id: 'custom', label: 'Custom', icon: 'shuffle-outline' as const },
-  { id: 'flexible', label: 'Flexible', icon: 'time-outline' as const },
-];
-
-const YEAR_LEVELS = ['100', '200', '300', '400', '500', '600', '700', '800'];
-
 export default function SignupScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
   const colors = useThemeColors();
   const isDark = theme === 'dark';
   const styles = getStyles(colors, isDark);
-
-  // Step management
-  const [step, setStep] = useState(1);
 
   // Step 1 fields
   const [username, setUsername] = useState('');
@@ -45,24 +32,6 @@ export default function SignupScreen() {
 
   // Password strength
   const passwordStrength = getPasswordStrength(password);
-
-  // Step 2 fields
-  const [institutions, setInstitutions] = useState<any[]>([]);
-  const [selectedInstitution, setSelectedInstitution] = useState<any>(null);
-  const [institutionSearch, setInstitutionSearch] = useState('');
-  const [institutionModalVisible, setInstitutionModalVisible] = useState(false);
-  const [institutionsLoading, setInstitutionsLoading] = useState(true);
-
-  const [programmes, setProgrammes] = useState<any[]>([]);
-  const [selectedProgramme, setSelectedProgramme] = useState('');
-  const [programmeSearch, setProgrammeSearch] = useState('');
-  const [programmeModalVisible, setProgrammeModalVisible] = useState(false);
-  const [programmesLoading, setProgrammesLoading] = useState(true);
-
-  const [studyFrequency, setStudyFrequency] = useState('');
-  const [yearOfStudy, setYearOfStudy] = useState('');
-  const [frequencyModalVisible, setFrequencyModalVisible] = useState(false);
-  const [yearModalVisible, setYearModalVisible] = useState(false);
 
   const [loading, setLoading] = useState(false);
 
@@ -112,59 +81,22 @@ export default function SignupScreen() {
     };
   }, [username]);
 
-  // Fetch institutions and programmes when stepping to step 2
-  useEffect(() => {
-    if (step !== 2) return;
+  const canProceedStep1 = username.length >= 3 && usernameAvailable === true && name.trim().length > 0 && email.includes('@') && email.includes('.') && passwordStrength.score >= 2;
 
-    async function fetchLookups() {
-      const [instResult, progResult] = await Promise.all([
-        supabase.from('institutions').select('id, name').order('name'),
-        supabase.from('course_programmes').select('id, name, field').order('name'),
-      ]);
-      if (instResult.data) setInstitutions(instResult.data);
-      setInstitutionsLoading(false);
-      if (progResult.data) setProgrammes(progResult.data);
-      setProgrammesLoading(false);
-    }
-    fetchLookups();
-  }, [step]);
-
-  const canProceedStep1 = username.length >= 3 && usernameAvailable === true && name.trim().length > 0 && email.includes('@') && passwordStrength.score >= 2;
-
-  const handleNext = () => {
+  const handleSignup = async () => {
     if (!canProceedStep1) {
       let msg = '';
       if (username.length < 3) msg = 'Username must be at least 3 characters.';
       else if (usernameAvailable !== true) msg = 'Pick an available username.';
       else if (!name.trim()) msg = 'Full name is required.';
-      else if (!email.includes('@')) msg = 'Enter a valid email address.';
-      else if (passwordStrength.score < 2) msg = 'Password is too weak. Use at least 8 characters with mixed case and a number.';
+      else if (!email.includes('@') || !email.includes('.')) msg = 'Enter a valid email address.';
+      else if (passwordStrength.score < 2) msg = 'Password is too weak. Use at least 6 characters with mixed case and a number.';
       Alert.alert('Missing info', msg);
-      return;
-    }
-    setStep(2);
-  };
-
-  const handleSignup = async () => {
-    if (!selectedInstitution) {
-      Alert.alert('Missing info', 'Select your institution.');
       return;
     }
     const leaked = await isPasswordLeaked(password);
     if (leaked) {
       Alert.alert('Unsafe password', 'This password appears in known data breaches. Choose a different password.');
-      return;
-    }
-    if (!selectedProgramme) {
-      Alert.alert('Missing info', 'Select your degree programme.');
-      return;
-    }
-    if (!studyFrequency) {
-      Alert.alert('Missing info', 'Pick how often you study.');
-      return;
-    }
-    if (!yearOfStudy) {
-      Alert.alert('Missing info', 'Select your year of study.');
       return;
     }
 
@@ -177,10 +109,6 @@ export default function SignupScreen() {
         data: {
           username,
           full_name: name,
-          institution_id: selectedInstitution.id,
-          degree_programme: selectedProgramme,
-          study_frequency: studyFrequency,
-          year_of_study: yearOfStudy,
         },
       },
     });
@@ -194,20 +122,10 @@ export default function SignupScreen() {
     if (data.session) {
       router.replace('/onboarding');
     } else {
-      Alert.alert('Account created', 'Check your email for verification.');
-      router.replace('/login');
+      // Supabase email confirmation is enabled — user needs to verify OTP
+      router.replace({ pathname: '/verify', params: { email } });
     }
   };
-
-  const filteredInstitutions = institutions.filter(i =>
-    i.name.toLowerCase().includes(institutionSearch.toLowerCase())
-  );
-
-  const filteredProgrammes = programmes.filter(p =>
-    p.name.toLowerCase().includes(programmeSearch.toLowerCase())
-  );
-
-  const selectedFreqLabel = STUDY_FREQUENCIES.find(f => f.id === studyFrequency)?.label;
 
   return (
     <KeyboardAvoidingView
@@ -217,28 +135,19 @@ export default function SignupScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => step === 2 ? setStep(1) : router.back()}
+          onPress={() => router.back()}
         >
           <Ionicons name="arrow-back" size={28} color={colors.text} />
         </TouchableOpacity>
 
-        <View style={styles.progressRow}>
-          <View style={[styles.progressDot, styles.progressActive]} />
-          <View style={[styles.progressBar, step === 2 && styles.progressBarActive]} />
-          <View style={[styles.progressDot, step === 2 && styles.progressActive]} />
-        </View>
-
         <View style={styles.header}>
-          <Text style={styles.title}>{step === 1 ? 'Create Account' : 'Academic Details'}</Text>
+          <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>
-            {step === 1
-              ? 'Set up your profile to get started.'
-              : 'Tell us about your studies so we can personalise your experience.'}
+            Set up your profile to get started.
           </Text>
         </View>
 
-        {step === 1 ? (
-          <View style={styles.form}>
+        <View style={styles.form}>
             <TouchableOpacity onPress={async () => {
               const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
               if (!permissionResult.granted) {
@@ -277,7 +186,7 @@ export default function SignupScreen() {
               <Ionicons name="at-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="janedoe"
+                placeholder=""
                 placeholderTextColor={colors.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -324,7 +233,7 @@ export default function SignupScreen() {
               <Ionicons name="mail-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="student@university.edu"
+                placeholder="example@gmail.com"
                 placeholderTextColor={colors.textMuted}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -338,7 +247,7 @@ export default function SignupScreen() {
               <Ionicons name="lock-closed-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { flex: 1 }]}
-                placeholder="Min. 8 characters"
+                placeholder="Min. 6 characters"
                 placeholderTextColor={colors.textMuted}
                 secureTextEntry={!showPassword}
                 value={password}
@@ -359,55 +268,9 @@ export default function SignupScreen() {
             )}
 
             <TouchableOpacity
-              style={[styles.primaryButton, !canProceedStep1 && styles.buttonDisabled]}
-              onPress={handleNext}
-            >
-              <Text style={styles.primaryButtonText}>Next</Text>
-              <Ionicons name="arrow-forward" size={20} color="#fff" style={{ marginLeft: 6 }} />
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.form}>
-            <Text style={styles.label}>Institution</Text>
-            <TouchableOpacity style={styles.selectorButton} onPress={() => setInstitutionModalVisible(true)}>
-              <Ionicons name="business-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
-              <Text style={[styles.selectorText, selectedInstitution && { color: colors.text }]}>
-                {selectedInstitution?.name || 'Search your university...'}
-              </Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
-
-            <Text style={styles.label}>Degree Programme</Text>
-            <TouchableOpacity style={styles.selectorButton} onPress={() => setProgrammeModalVisible(true)}>
-              <Ionicons name="school-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
-              <Text style={[styles.selectorText, selectedProgramme && { color: colors.text }]} numberOfLines={1}>
-                {selectedProgramme || 'e.g. Computer Science'}
-              </Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
-
-            <Text style={styles.label}>Study Frequency</Text>
-            <TouchableOpacity style={styles.selectorButton} onPress={() => setFrequencyModalVisible(true)}>
-              <Ionicons name="calendar-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
-              <Text style={[styles.selectorText, studyFrequency && { color: colors.text }]}>
-                {selectedFreqLabel || 'How often do you study?'}
-              </Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
-
-            <Text style={styles.label}>Year of Study</Text>
-            <TouchableOpacity style={styles.selectorButton} onPress={() => setYearModalVisible(true)}>
-              <Ionicons name="trending-up-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
-              <Text style={[styles.selectorText, yearOfStudy && { color: colors.text }]}>
-                {yearOfStudy ? `Level ${yearOfStudy}` : 'Select level'}
-              </Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.primaryButton, loading && styles.buttonDisabled]}
+              style={[styles.primaryButton, (!canProceedStep1 || loading) && styles.buttonDisabled]}
               onPress={handleSignup}
-              disabled={loading}
+              disabled={!canProceedStep1 || loading}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
@@ -416,7 +279,7 @@ export default function SignupScreen() {
               )}
             </TouchableOpacity>
           </View>
-        )}
+
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Already have an account? </Text>
@@ -426,171 +289,7 @@ export default function SignupScreen() {
         </View>
       </ScrollView>
 
-      {/* Institution Search Modal */}
-      <Modal visible={institutionModalVisible} animationType="slide" presentationStyle="pageSheet">
-        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Institution</Text>
-            <TouchableOpacity onPress={() => setInstitutionModalVisible(false)}>
-              <Text style={{ color: colors.tint, fontSize: 16 }}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={18} color={colors.textMuted} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search universities..."
-              placeholderTextColor={colors.textMuted}
-              value={institutionSearch}
-              onChangeText={setInstitutionSearch}
-              autoFocus
-            />
-          </View>
-          {institutionsLoading ? (
-            <ActivityIndicator size="large" color={colors.tint} style={{ marginTop: 40 }} />
-          ) : (
-            <FlatList
-              data={filteredInstitutions}
-              keyExtractor={(item) => item.id}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setSelectedInstitution(item);
-                    setInstitutionModalVisible(false);
-                    setInstitutionSearch('');
-                  }}
-                >
-                  <Ionicons name="business" size={18} color={colors.textMuted} style={{ marginRight: 12 }} />
-                  <Text style={{ color: colors.text, fontSize: 16, flex: 1 }}>{item.name}</Text>
-                  {selectedInstitution?.id === item.id && (
-                    <Ionicons name="checkmark" size={20} color={colors.tint} />
-                  )}
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <Text style={styles.emptyText}>No institutions found.</Text>
-              }
-            />
-          )}
-        </View>
-      </Modal>
 
-      {/* Programme Search Modal */}
-      <Modal visible={programmeModalVisible} animationType="slide" presentationStyle="pageSheet">
-        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Programme</Text>
-            <TouchableOpacity onPress={() => setProgrammeModalVisible(false)}>
-              <Text style={{ color: colors.tint, fontSize: 16 }}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={18} color={colors.textMuted} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search programmes..."
-              placeholderTextColor={colors.textMuted}
-              value={programmeSearch}
-              onChangeText={setProgrammeSearch}
-              autoFocus
-            />
-          </View>
-          {programmesLoading ? (
-            <ActivityIndicator size="large" color={colors.tint} style={{ marginTop: 40 }} />
-          ) : (
-            <FlatList
-              data={filteredProgrammes.slice(0, 50)}
-              keyExtractor={(item) => item.id}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.modalItem}
-                  onPress={() => {
-                    setSelectedProgramme(item.name);
-                    setProgrammeModalVisible(false);
-                    setProgrammeSearch('');
-                  }}
-                >
-                  <Ionicons name="school" size={18} color={colors.textMuted} style={{ marginRight: 12 }} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.text, fontSize: 16 }}>{item.name}</Text>
-                    {item.field && <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>{item.field}</Text>}
-                  </View>
-                  {selectedProgramme === item.name && (
-                    <Ionicons name="checkmark" size={20} color={colors.tint} />
-                  )}
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <Text style={styles.emptyText}>No programmes found.</Text>
-              }
-            />
-          )}
-        </View>
-      </Modal>
-
-      {/* Study Frequency Bottom Sheet */}
-      <Modal visible={frequencyModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalBottom, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { marginBottom: 16 }]}>Study Frequency</Text>
-            {STUDY_FREQUENCIES.map(freq => (
-              <TouchableOpacity
-                key={freq.id}
-                style={styles.modalItem}
-                onPress={() => {
-                  setStudyFrequency(freq.id);
-                  setFrequencyModalVisible(false);
-                }}
-              >
-                <Ionicons name={freq.icon} size={20} color={colors.textMuted} style={{ marginRight: 12 }} />
-                <Text style={{ color: colors.text, fontSize: 16, flex: 1 }}>{freq.label}</Text>
-                {studyFrequency === freq.id && (
-                  <Ionicons name="checkmark" size={20} color={colors.tint} />
-                )}
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity
-              style={[styles.modalItem, { justifyContent: 'center', marginTop: 10 }]}
-              onPress={() => setFrequencyModalVisible(false)}
-            >
-              <Text style={{ color: colors.destructive, fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Year of Study Bottom Sheet */}
-      <Modal visible={yearModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalBottom, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { marginBottom: 16 }]}>Year of Study</Text>
-            {YEAR_LEVELS.map(level => (
-              <TouchableOpacity
-                key={level}
-                style={styles.modalItem}
-                onPress={() => {
-                  setYearOfStudy(level);
-                  setYearModalVisible(false);
-                }}
-              >
-                <Text style={{ color: colors.text, fontSize: 16, flex: 1 }}>Level {level}</Text>
-                {yearOfStudy === level && (
-                  <Ionicons name="checkmark" size={20} color={colors.tint} />
-                )}
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity
-              style={[styles.modalItem, { justifyContent: 'center', marginTop: 10 }]}
-              onPress={() => setYearModalVisible(false)}
-            >
-              <Text style={{ color: colors.destructive, fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -598,7 +297,7 @@ export default function SignupScreen() {
 function getPasswordStrength(pw: string): { score: number; label: string; color: string } {
   if (!pw) return { score: 0, label: '', color: '#888' };
   let score = 0;
-  if (pw.length >= 8) score++;
+  if (pw.length >= 6) score++;
   if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
   if (/\d/.test(pw)) score++;
   if (/[^a-zA-Z0-9]/.test(pw)) score++;

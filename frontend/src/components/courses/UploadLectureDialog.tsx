@@ -91,10 +91,10 @@ export function UploadLectureDialog({ courseId, courseCode }: UploadLectureDialo
         xhr.send(formDataCloudinary);
         const fileData = await responsePromise;
 
-        // Update lecture with Cloudinary URL
+        // Update lecture with Cloudinary URL and set processing to true
         await apiFetch(`/lectures/${newLecture.id}`, {
           method: 'PATCH',
-          body: JSON.stringify({ file_url: fileData.secure_url })
+          body: JSON.stringify({ file_url: fileData.secure_url, processing: true })
         });
 
         // 2. Send file to FastAPI conversion endpoint
@@ -106,7 +106,8 @@ export function UploadLectureDialog({ courseId, courseCode }: UploadLectureDialo
         const userId = userRes.data.user?.id || '';
         formDataFastAPI.append('user_id', userId);
 
-        const convertRes = await fetch('http://localhost:8000/convert', {
+        const fastapiUrl = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
+        const convertRes = await fetch(`${fastapiUrl}/convert`, {
           method: 'POST',
           body: formDataFastAPI,
         });

@@ -12,6 +12,17 @@ export function UsernameField() {
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null)
   const [suggestions, setSuggestions] = useState<string[]>([])
   
+  useEffect(() => {
+    const saved = sessionStorage.getItem('signup_username')
+    if (saved) {
+      setUsername(saved)
+    }
+  }, [])
+
+  useEffect(() => {
+    sessionStorage.setItem('signup_username', username)
+  }, [username])
+  
   // Ref for debouncing
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -85,7 +96,7 @@ export function UsernameField() {
           ref={inputRef}
           id="username" 
           name="username" 
-          placeholder="janedoe" 
+          placeholder="" 
           required 
           className="bg-background/50 pr-10" 
           value={username}

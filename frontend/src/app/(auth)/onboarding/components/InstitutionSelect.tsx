@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { createClient } from '@/lib/supabase/client'
+
 import { Building2, Search, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
@@ -12,31 +12,86 @@ type Institution = {
   name: string
 }
 
-export function InstitutionSelect() {
+interface InstitutionSelectProps {
+  initialInstitution?: string | null;
+}
+
+export function InstitutionSelect({ initialInstitution }: InstitutionSelectProps = {}) {
   const [institutions, setInstitutions] = useState<Institution[]>([])
-  const [search, setSearch] = useState('')
-  const [selectedId, setSelectedId] = useState<string>('')
+  const [search, setSearch] = useState(initialInstitution || '')
+  const [selectedId, setSelectedId] = useState<string>(initialInstitution || '')
   const [loading, setLoading] = useState(true)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
   useEffect(() => {
     async function fetchInstitutions() {
-      const supabase = createClient()
-      
-      // Fetch institutions and their student counts
-      const { data, error } = await supabase
-        .from('institutions')
-        .select('id, name')
-        .order('name')
+      const fallbackUniversities = [
+        "University of Ghana",
+        "Kwame Nkrumah University of Science and Technology",
+        "University of Cape Coast",
+        "University for Development Studies",
+        "University of Education, Winneba",
+        "University of Mines and Technology",
+        "University of Professional Studies, Accra",
+        "Ghana Institute of Management and Public Administration",
+        "University of Energy and Natural Resources",
+        "University of Health and Allied Sciences",
+        "C.K. Tedam University of Technology and Applied Sciences",
+        "Simon Diedong Dombo University of Business and Integrated Development Studies",
+        "Akenten Appiah-Menka University of Skills Training and Entrepreneurial Development",
+        "Ghana Communication Technology University",
+        "Accra Technical University",
+        "Kumasi Technical University",
+        "Takoradi Technical University",
+        "Cape Coast Technical University",
+        "Koforidua Technical University",
+        "Sunyani Technical University",
+        "Ho Technical University",
+        "Tamale Technical University",
+        "Bolgatanga Technical University",
+        "Wa Technical University",
+        "Ashesi University",
+        "Central University",
+        "Academic City University",
+        "Regent University College of Science and Technology",
+        "Valley View University",
+        "Methodist University Ghana",
+        "Presbyterian University, Ghana",
+        "All Nations University",
+        "Accra Institute of Technology",
+        "Ghana Christian University College",
+        "Lancaster University Ghana",
+        "Wisconsin International University College",
+        "Garden City University College",
+        "KAAF University College",
+        "Radford University College",
+        "BlueCrest University College",
+        "Zenith University College",
+        "Islamic University College Ghana",
+        "Dominion University College",
+        "Christ Apostolic University College",
+        "Catholic University College of Ghana",
+        "Ghana Baptist University College",
+        "Anglican University College of Technology",
+        "Accra Metropolitan University"
+      ];
 
-      if (!error && data) {
+      try {
+        const res = await fetch('/api/institutions/ghana')
+        if (!res.ok) throw new Error('Network response was not ok')
+        const data = await res.json()
         const formatted = data.map((inst: any) => ({
-          id: inst.id,
-          name: inst.name
+          id: inst.name,
+          name: inst.name,
         }))
         setInstitutions(formatted)
-      } else {
-        console.error('Failed to fetch institutions:', error)
+      } catch (error) {
+        console.error('Failed to fetch from internal proxy, falling back to static list:', error)
+        const formatted = fallbackUniversities.map((name) => ({
+          id: name,
+          name: name,
+        }))
+        setInstitutions(formatted)
       }
       setLoading(false)
     }
@@ -96,7 +151,7 @@ export function InstitutionSelect() {
         
       </div>
 
-      <input type="hidden" name="institution_id" value={selectedId} required />
+      <input type="hidden" name="institution_id" value={selectedId || search} required />
 
       {isDropdownOpen && (
         <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-60 overflow-auto">

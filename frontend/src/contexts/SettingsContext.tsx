@@ -94,15 +94,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           return;
         }
       } catch (err) {
-        // If the backend complains about a missing auth header, skip auth and use default settings
-        if (err instanceof Error && err.message.includes('Missing')) {
-          console.warn('Missing auth header; using default client settings');
-          // Apply default settings defined earlier in this file
-          setSettings(defaultSettings);
-          applyDOMChanges(defaultSettings);
-        } else {
-          console.error('Failed to load user settings:', err);
-        }
+        // Fall back to defaults on any error: network failure, FK constraint, missing profile, etc.
+        console.warn('Settings unavailable, using defaults:', err instanceof Error ? err.message : err);
+        setSettings(defaultSettings);
+        applyDOMChanges(defaultSettings);
       } finally {
         setLoading(false);
       }

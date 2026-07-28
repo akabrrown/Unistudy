@@ -13,9 +13,35 @@ export default async function ProfileSettingsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*, institutions(abbreviation, name)')
+    .select('*')
     .eq('id', user.id)
     .single()
+
+  let institutionName = 'Not provided';
+  if (profile?.institution_id) {
+    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(profile.institution_id.trim());
+    if (isUuid) {
+      const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
+      const supabaseAdmin = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      
+      const { data: inst } = await supabaseAdmin
+        .from('institutions')
+        .select('name')
+        .eq('id', profile.institution_id.trim())
+        .maybeSingle();
+        
+      if (inst && inst.name) {
+        institutionName = inst.name;
+      } else {
+        institutionName = 'Unknown Institution'; 
+      }
+    } else {
+      institutionName = profile.institution_id;
+    }
+  }
 
   return (
     <div className="max-w-2xl mx-auto py-8">
@@ -42,12 +68,12 @@ export default async function ProfileSettingsPage() {
 
         <div className="border-t pt-6">
           <h3 className="text-lg font-medium">Academic Details</h3>
-          <p className="text-sm text-muted-foreground mb-4">Your university, level, and course of study.</p>
+          <p className="text-sm text-muted-foreground mb-4">Your university and course of study.</p>
           
           <AcademicSettingsForm 
             initialYear={profile?.year_of_study} 
             initialDegree={profile?.degree_programme} 
-            institutionName={profile?.institutions?.name} 
+            institutionName={institutionName} 
           />
         </div>
       </div>

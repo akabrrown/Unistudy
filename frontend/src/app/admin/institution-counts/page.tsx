@@ -19,8 +19,7 @@ export default async function InstitutionCountsPage({ searchParams }: { searchPa
       id,
       name,
       abbreviation,
-      type,
-      institution_student_counts (student_count)
+      type
     `, { count: 'exact' })
     .order('name');
 
@@ -30,7 +29,21 @@ export default async function InstitutionCountsPage({ searchParams }: { searchPa
 
   query = query.range(start, end);
 
-  const { data, error, count } = await query;
+  const [institutionsRes, profilesRes] = await Promise.all([
+    query,
+    supabase.from('profiles').select('institution_id')
+  ]);
+
+  const { data, error, count } = institutionsRes;
+
+  const countsMap = new Map<string, number>();
+  if (profilesRes.data) {
+    for (const p of profilesRes.data) {
+      if (p.institution_id) {
+        countsMap.set(p.institution_id, (countsMap.get(p.institution_id) || 0) + 1);
+      }
+    }
+  }
 
   if (error) {
     console.error('Failed to fetch institution counts:', error);
@@ -81,7 +94,7 @@ export default async function InstitutionCountsPage({ searchParams }: { searchPa
               <td className="px-4 py-2">{inst.abbreviation || '—'}</td>
               <td className="px-4 py-2">{inst.type || '—'}</td>
               <td className="px-4 py-2 text-right">
-                {inst.institution_student_counts?.[0]?.student_count ?? 0}
+                {countsMap.get(inst.name) || 0}
               </td>
             </tr>
           ))}

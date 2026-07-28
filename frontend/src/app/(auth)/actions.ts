@@ -62,11 +62,15 @@ export async function signup(formData: FormData) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const { data: existingUser } = await adminSupabase
+  const { data: existingUser, error: checkError } = await adminSupabase
     .from('profiles')
     .select('username')
     .eq('username', desiredUsername)
     .maybeSingle();
+
+  if (checkError) {
+    console.error('Error checking username:', checkError);
+  }
 
   if (existingUser) {
     redirect(`/signup?error=Username '${desiredUsername}' is already taken. Please choose another.`);
@@ -86,15 +90,6 @@ export async function signup(formData: FormData) {
       data: {
         username: formData.get('username') as string,
         full_name: formData.get('fullName') as string,
-        avatar_url: formData.get('avatar_url') as string,
-        avatar_type: formData.get('avatar_type') as string,
-        institutional_email: formData.get('institutional_email') as string,
-        email_is_institutional: formData.get('email_is_institutional') === 'true',
-        institution_id: formData.get('institution_id') as string,
-        degree_programme: formData.get('degree_programme') as string,
-        study_frequency: formData.get('study_frequency') as string,
-        year_of_study: formData.get('year_of_study') as string,
-        study_hours_per_session: formData.get('study_hours_per_session') as string,
       },
     },
   };
@@ -102,32 +97,30 @@ export async function signup(formData: FormData) {
   const { data: authData, error } = await supabase.auth.signUp(data);
 
   if (error) {
-    redirect(`/signup?error=${error.message}`);
+    const errorMsg = typeof error.message === 'string' ? error.message : JSON.stringify(error);
+    redirect(`/signup?error=${encodeURIComponent(errorMsg)}`);
   }
 
   // Refresh materialised view
-  await supabase.rpc('refresh_institution_student_counts');
+  try {
+    await supabase.rpc('refresh_institution_student_counts');
+  } catch (e) {
+    console.error(e);
+  }
 
   // Trigger initial planner generation in the background
   if (authData?.user?.id) {
     try {
-      // Force update profile with the additional fields using an admin client to bypass RLS delays
-      const { createClient } = await import('@supabase/supabase-js');
-      const adminSupabase = createClient(
+      const adminSupabase2 = createSupabaseClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
-      await adminSupabase.from('profiles').update({
+      await adminSupabase2.from('profiles').update({
         username: formData.get('username') as string,
         full_name: formData.get('fullName') as string,
-        institution_id: formData.get('institution_id') as string || null,
-        degree_programme: formData.get('degree_programme') as string || null,
-        study_frequency: formData.get('study_frequency') as string || null,
-        year_of_study: parseInt(formData.get('year_of_study') as string, 10) || null,
       }).eq('id', authData.user.id);
       
-      // Use absolute URL since this is a server action
       const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
       fetch(`${baseUrl}/api/planner/generate-initial`, {
         method: 'POST',
@@ -140,7 +133,14 @@ export async function signup(formData: FormData) {
   }
 
   revalidatePath('/', 'layout');
-  redirect('/onboarding');
+  
+  if (authData?.session) {
+    // If Email Confirmations are turned OFF in Supabase, they are logged in instantly.
+    redirect('/onboarding');
+  } else {
+    // If Email Confirmations are ON, they need to click the link in their email.
+    redirect('/login?message=Please check your email for the confirmation link to sign in.');
+  }
 }
 
 

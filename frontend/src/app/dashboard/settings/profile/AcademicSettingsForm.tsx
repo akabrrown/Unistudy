@@ -14,10 +14,10 @@ interface AcademicSettingsFormProps {
   initialDegree: string | null
   institutionName: string | null
 }
+import { InstitutionSelect } from '@/app/(auth)/onboarding/components/InstitutionSelect'
 
 export function AcademicSettingsForm({ initialYear, initialDegree, institutionName }: AcademicSettingsFormProps) {
   const [loading, setLoading] = useState(false)
-  const [yearOfStudy, setYearOfStudy] = useState(initialYear ? initialYear.toString() : '100')
   const [degreeProgramme, setDegreeProgramme] = useState(initialDegree || '')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
@@ -47,9 +47,12 @@ export function AcademicSettingsForm({ initialYear, initialDegree, institutionNa
     e.preventDefault()
     setLoading(true)
 
+    const formData = new FormData(e.currentTarget as HTMLFormElement)
+    const instId = formData.get('institution_id') as string
+
     const res = await updateAcademicProfile({
-      year_of_study: parseInt(yearOfStudy, 10),
-      degree_programme: degreeProgramme
+      degree_programme: degreeProgramme,
+      institution_id: instId || undefined
     })
 
     if (res.error) {
@@ -64,18 +67,9 @@ export function AcademicSettingsForm({ initialYear, initialDegree, institutionNa
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <div className="space-y-4">
-        <div>
-          <Label className="text-sm font-medium text-muted-foreground">Institution</Label>
-          <div className="mt-1">
-            {institutionName ? (
-              <span className="font-medium text-foreground">{institutionName}</span>
-            ) : (
-              <span className="text-plum-500 font-medium">Setup needed - please contact support to update your institution.</span>
-            )}
-          </div>
-        </div>
+        <InstitutionSelect initialInstitution={institutionName} />
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <div className="space-y-2 relative">
             <Label htmlFor="degree">Degree Programme</Label>
             <div className="relative">
@@ -124,22 +118,6 @@ export function AcademicSettingsForm({ initialYear, initialDegree, institutionNa
                 )}
               </div>
             )}
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="level">Academic Level</Label>
-            <Select value={yearOfStudy} onValueChange={(val) => setYearOfStudy(val || '100')}>
-              <SelectTrigger id="level">
-                <SelectValue placeholder="Select your current level" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="100">Level 100</SelectItem>
-                <SelectItem value="200">Level 200</SelectItem>
-                <SelectItem value="300">Level 300</SelectItem>
-                <SelectItem value="400">Level 400</SelectItem>
-                <SelectItem value="500">Level 500+</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </div>
       </div>

@@ -1,23 +1,78 @@
-'use client';
-
-import { AvatarSelector } from '../signup/components/AvatarSelector';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+
+export const dynamic = 'force-dynamic';
 
 export default async function ProfilePage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+
+  let profileData = profile;
+  let institutionName = 'Not provided';
+
+  if (profileData?.institution_id) {
+    // If it looks like a UUID, fetch the name
+    const id = profileData.institution_id.trim();
+    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
+    console.log('[ProfilePage] Check UUID:', id, 'isUuid:', isUuid);
+    
+    if (isUuid) {
+      // Use admin client to guarantee we bypass any read restrictions
+      const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
+      const supabaseAdmin = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      
+      const { data: inst, error: instErr } = await supabaseAdmin
+        .from('institutions')
+        .select('name')
+        .eq('id', id)
+        .maybeSingle();
+      
+      console.log('[ProfilePage] Institution fetched:', inst, 'Error:', instErr);
+        
+      if (inst && inst.name) {
+        institutionName = inst.name;
+      } else {
+        // Fallback if UUID not found in institutions table
+        institutionName = 'Unknown Institution'; 
+      }
+    } else {
+      // If it's somehow not a UUID but a string name
+      institutionName = id;
+    }
+  }
+
+  console.log('[ProfilePage] Final institutionName:', institutionName);
+
+  const initial = profile?.full_name ? profile.full_name.charAt(0).toUpperCase() : 'U';
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4 relative py-12">
       {/* Back navigation */}
       <Link
-        href="/"
+        href="/dashboard"
         className="absolute top-8 left-8 flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
       >
         <ArrowLeft size={16} />
-        Back to Home
+        Back to Dashboard
       </Link>
 
       {/* Subtle radial gradient background for premium feel */}
@@ -31,37 +86,52 @@ export default async function ProfilePage() {
           </div>
           <CardTitle className="text-3xl font-bold tracking-tight text-foreground">Your Profile</CardTitle>
           <CardDescription className="text-muted-foreground">
-            Edit your personal details and choose an avatar
+            Your personal and academic details
           </CardDescription>
         </CardHeader>
 
         <CardContent>
-          <form className="space-y-6">
-            {/* Avatar selector – now lives on the profile page */}
+          <div className="space-y-6">
             <div className="flex justify-center mb-4">
-              <AvatarSelector />
+              {profileData?.avatar_url ? (
+                <img src={profileData.avatar_url} alt="Avatar" className="h-24 w-24 rounded-full object-cover border" />
+              ) : (
+                <div className="h-24 w-24 rounded-full bg-muted flex items-center justify-center text-4xl font-semibold text-muted-foreground">
+                  {initial}
+                </div>
+              )}
             </div>
 
-            {/* Example profile fields – extend as needed */}
             <div className="grid grid-cols-1 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="fullName">Full Name</Label>
-                <Input id="fullName" name="fullName" placeholder="Jane Doe" className="bg-background/50" />
+                <Input id="fullName" name="fullName" value={profileData?.full_name || ''} readOnly className="bg-background/50 cursor-not-allowed" />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" name="email" placeholder="jane@example.com" className="bg-background/50" />
+                <Input id="email" type="email" name="email" value={profileData?.email || user.email || ''} readOnly className="bg-background/50 cursor-not-allowed" />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="institution">Institution</Label>
+                <Input id="institution" name="institution" value={institutionName} readOnly className="bg-background/50 cursor-not-allowed" />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="degree">Degree Programme</Label>
+                <Input id="degree" name="degree" value={profileData?.degree_programme || 'Not provided'} readOnly className="bg-background/50 cursor-not-allowed" />
               </div>
             </div>
 
-            <Button
-              type="submit"
-              className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-600 text-white"
-            >
-              Save Changes
-            </Button>
-          </form>
+            <Link href="/dashboard/settings/profile" className="w-full block mt-6">
+              <Button
+                className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-600 text-white"
+              >
+                Edit Profile Details
+              </Button>
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -1,79 +1,58 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { CheckCircle2, Info } from 'lucide-react'
+import { CheckCircle2, AlertCircle } from 'lucide-react'
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 export function EmailField() {
   const [email, setEmail] = useState('')
-  const [isInstitutional, setIsInstitutional] = useState(false)
-  const [isPersonal, setIsPersonal] = useState(false)
+  const [touched, setTouched] = useState(false)
 
-  const checkEmailDomain = (value: string) => {
-    setEmail(value)
-    if (!value.includes('@')) {
-      setIsInstitutional(false)
-      setIsPersonal(false)
-      return
+  useEffect(() => {
+    const saved = sessionStorage.getItem('signup_email')
+    if (saved) {
+      setEmail(saved)
+      setTouched(true)
     }
+  }, [])
 
-    const domain = value.split('@')[1].toLowerCase()
-    const personalDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com']
-    
-    if (personalDomains.includes(domain)) {
-      setIsPersonal(true)
-      setIsInstitutional(false)
-    } else {
-      setIsPersonal(false)
-      // Basic check for educational domains or assuming non-personal is institutional for now
-      if (domain.endsWith('.edu') || domain.endsWith('.ac.uk') || domain.endsWith('.edu.gh') || (domain.length > 3 && domain.includes('.'))) {
-        setIsInstitutional(true)
-        
-        // Dispatch custom event for InstitutionSelect to auto-populate
-        if (typeof window !== 'undefined') {
-          const event = new CustomEvent('institutional_email_detected', { detail: { domain } })
-          window.dispatchEvent(event)
-        }
-      } else {
-        setIsInstitutional(false)
-      }
-    }
-  }
+  useEffect(() => {
+    sessionStorage.setItem('signup_email', email)
+  }, [email])
+
+  const isValid = EMAIL_REGEX.test(email)
+  const showError = touched && email.length > 0 && !isValid
 
   return (
     <div className="space-y-2 relative">
       <Label htmlFor="email">Email</Label>
       <div className="relative">
-        <Input 
-          id="email" 
-          name="email" 
-          type="email" 
-          placeholder="student@university.edu" 
-          required 
-          className="bg-background/50 pr-10" 
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          placeholder="you@example.com"
+          required
+          className="bg-background/50 pr-10"
           value={email}
-          onChange={(e) => checkEmailDomain(e.target.value)}
+          onChange={(e) => setEmail(e.target.value)}
+          onBlur={() => setTouched(true)}
         />
-        {isInstitutional && (
+        {isValid && (
           <CheckCircle2 className="absolute right-3 top-2.5 h-5 w-5 text-green-500" />
         )}
+        {showError && (
+          <AlertCircle className="absolute right-3 top-2.5 h-5 w-5 text-red-500" />
+        )}
       </div>
-      
-      {/* Hidden inputs to pass data to server action */}
-      <input type="hidden" name="email_is_institutional" value={isInstitutional.toString()} />
-      {isInstitutional && (
-        <input type="hidden" name="institutional_email" value={email} />
-      )}
 
-      {isPersonal && (
-        <div className="mt-2 flex gap-2 rounded-md bg-blue-50/50 p-3 text-sm text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
-          <Info className="h-5 w-5 flex-shrink-0" />
-          <p>
-            You are using a personal email. We recommend using your institutional email if you have one, 
-            to automatically connect with your university later.
-          </p>
-        </div>
+      {showError && (
+        <p className="text-xs text-red-500 mt-1">
+          Enter a valid email address.
+        </p>
       )}
     </div>
   )

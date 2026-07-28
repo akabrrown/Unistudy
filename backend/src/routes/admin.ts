@@ -219,20 +219,27 @@ router.post('/users/:userId/reset-password', async (req: Request, res: Response)
 router.delete('/users/:userId', async (req: Request, res: Response) => {
   const userId = req.params.userId as string;
 
-  try {
-    // Delete from auth.users (cascades or cleans up auth)
-    const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
-    if (authErr) console.warn("Auth user delete warn:", authErr);
+    try {
+      // Delete from auth.users (cascades or cleans up auth)
+      const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
+      if (authErr) {
+        console.error('Auth user delete error:', authErr);
+        // Proceed to delete profile anyway
+      }
 
-    // Delete from profiles
-    await supabaseAdmin.from('profiles').delete().eq('id', userId);
+      // Delete from profiles
+      const { error: profileErr } = await supabaseAdmin.from('profiles').delete().eq('id', userId);
+      if (profileErr) {
+        console.error('Profile delete error:', profileErr);
+        throw new Error(profileErr.message || 'Failed to delete profile');
+      }
 
-    await logAuditAction(req.user!.id, 'USER_DELETED', userId, 'user', {});
+      await logAuditAction(req.user!.id, 'USER_DELETED', userId, 'user', {});
 
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
 });
 
 // A03: Content Moderation - Fetch all content (with flags)

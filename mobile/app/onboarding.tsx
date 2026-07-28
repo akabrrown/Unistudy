@@ -1,16 +1,10 @@
-import { View, Text, StyleSheet, TouchableOpacity, useColorScheme, TextInput, Alert, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, useColorScheme, TextInput, Alert, Animated, Modal, FlatList, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Colors, useThemeColors } from '../constants/Colors';
-
-const LEARNING_STYLES = [
-  { id: 'adaptive', label: 'Adaptive (AI decides)', icon: 'sparkles-outline' as const },
-  { id: 'visual', label: 'Visual (Diagrams, charts)', icon: 'bar-chart-outline' as const },
-  { id: 'reading', label: 'Reading/Writing', icon: 'book-outline' as const },
-];
 
 const TUTOR_PERSONALITIES = [
   { id: 'encouraging', label: 'Encouraging' },
@@ -28,14 +22,71 @@ export default function OnboardingScreen() {
   const styles = getStyles(colors, isDark);
 
   const [step, setStep] = useState(1);
+  const [saving, setSaving] = useState(false);
+
+  // Step 1: Academic Details
+  const [institutions, setInstitutions] = useState<any[]>([]);
+  const [selectedInstitution, setSelectedInstitution] = useState<any>(null);
+  const [institutionSearch, setInstitutionSearch] = useState('');
+  const [institutionModalVisible, setInstitutionModalVisible] = useState(false);
+  const [institutionsLoading, setInstitutionsLoading] = useState(true);
+
+  const [programmes, setProgrammes] = useState<any[]>([]);
+  const [selectedProgramme, setSelectedProgramme] = useState('');
+  const [programmeSearch, setProgrammeSearch] = useState('');
+  const [programmeModalVisible, setProgrammeModalVisible] = useState(false);
+  const [programmesLoading, setProgrammesLoading] = useState(true);
+
+  // Step 2: Learning Style
   const [learningStyle, setLearningStyle] = useState('adaptive');
+
+  // Step 3: Tutor Setup
   const [tutorName, setTutorName] = useState('Alex');
   const [tutorPersonality, setTutorPersonality] = useState('encouraging');
-  const [saving, setSaving] = useState(false);
 
   const slideAnim = useRef(new Animated.Value(0)).current;
 
+  useEffect(() => {
+    async function fetchLookups() {
+      try {
+        const apiRes = await fetch('https://list-of-universities-in-ghana.onrender.com/universities');
+        const apiData = await apiRes.json();
+        const institutionsData = apiData.universities || apiData;
+        const formattedInstitutions = institutionsData.map((inst: any) => ({
+          id: inst.name,
+          name: inst.name,
+        }));
+        setInstitutions(formattedInstitutions);
+        setInstitutionsLoading(false);
+      } catch (error) {
+        console.error('Failed to fetch institutions from API:', error);
+        setInstitutionsLoading(false);
+      }
+
+      try {
+        const progResult = await supabase.from('course_programmes').select('id, name, field').order('name');
+        if (progResult.data) setProgrammes(progResult.data);
+        setProgrammesLoading(false);
+      } catch (error) {
+        console.error('Failed to fetch programmes:', error);
+        setProgrammesLoading(false);
+      }
+    }
+    fetchLookups();
+  }, []);
+
   const animateToStep = (nextStep: number) => {
+    if (step === 1 && nextStep === 2) {
+      if (!selectedInstitution) {
+        Alert.alert('Missing info', 'Select your institution.');
+        return;
+      }
+      if (!selectedProgramme) {
+        Alert.alert('Missing info', 'Select your degree programme.');
+        return;
+      }
+    }
+
     const direction = nextStep > step ? 1 : -1;
     Animated.timing(slideAnim, {
       toValue: direction * -300,
@@ -62,6 +113,8 @@ export default function OnboardingScreen() {
     const { error } = await supabase
       .from('profiles')
       .update({
+        institution_id: selectedInstitution.id,
+        degree_programme: selectedProgramme,
         learning_style: learningStyle,
         tutor_name: tutorName.trim(),
         tutor_personality: tutorPersonality,
@@ -74,16 +127,33 @@ export default function OnboardingScreen() {
       return;
     }
 
+    // Sync AI tutor settings to user_settings so the AI engine picks them up
+    await supabase
+      .from('user_settings')
+      .upsert({
+        user_id: user!.id,
+        ai_tutor_name: tutorName.trim(),
+        ai_personality: tutorPersonality,
+      });
+
     router.replace('/(tabs)');
   };
+
+  const filteredInstitutions = institutions.filter(i =>
+    i.name.toLowerCase().includes(institutionSearch.toLowerCase())
+  );
+
+  const filteredProgrammes = programmes.filter(p =>
+    p.name.toLowerCase().includes(programmeSearch.toLowerCase())
+  );
 
   return (
     <View style={styles.container}>
       {/* Progress */}
       <View style={styles.progressRow}>
         <View style={[styles.progressDot, styles.progressActive]} />
-        <View style={[styles.progressBar, step === 2 && styles.progressBarActive]} />
-        <View style={[styles.progressDot, step === 2 && styles.progressActive]} />
+        <View style={[styles.progressBar, step >= 2 && styles.progressBarActive]} />
+        <View style={[styles.progressDot, step >= 2 && styles.progressActive]} />
       </View>
 
       <Animated.View style={[styles.content, { transform: [{ translateX: slideAnim }] }]}>
@@ -92,30 +162,27 @@ export default function OnboardingScreen() {
             <View style={styles.stepBadge}>
               <Text style={styles.stepBadgeText}>1</Text>
             </View>
-            <Text style={styles.title}>Learning Style</Text>
-            <Text style={styles.subtitle}>How do you learn best?</Text>
+            <Text style={styles.title}>Academic Details</Text>
+            <Text style={styles.subtitle}>Tell us about your studies.</Text>
 
-            <View style={styles.optionsGroup}>
-              {LEARNING_STYLES.map(ls => (
-                <TouchableOpacity
-                  key={ls.id}
-                  style={[styles.optionCard, learningStyle === ls.id && styles.optionCardSelected]}
-                  onPress={() => setLearningStyle(ls.id)}
-                >
-                  <Ionicons
-                    name={ls.icon}
-                    size={22}
-                    color={learningStyle === ls.id ? colors.tint : colors.textMuted}
-                    style={{ marginRight: 14 }}
-                  />
-                  <Text style={[styles.optionLabel, learningStyle === ls.id && styles.optionLabelSelected]}>
-                    {ls.label}
-                  </Text>
-                  {learningStyle === ls.id && (
-                    <Ionicons name="checkmark-circle" size={22} color={colors.tint} />
-                  )}
-                </TouchableOpacity>
-              ))}
+            <View style={styles.form}>
+              <Text style={styles.fieldLabel}>Institution</Text>
+              <TouchableOpacity style={styles.selectorButton} onPress={() => setInstitutionModalVisible(true)}>
+                <Ionicons name="business-outline" size={20} color={colors.textMuted} style={{ marginRight: 12 }} />
+                <Text style={[styles.selectorText, selectedInstitution && { color: colors.text }]}>
+                  {selectedInstitution?.name || 'Search your university...'}
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              </TouchableOpacity>
+
+              <Text style={styles.fieldLabel}>Programme of Study</Text>
+              <TouchableOpacity style={styles.selectorButton} onPress={() => setProgrammeModalVisible(true)}>
+                <Ionicons name="school-outline" size={20} color={colors.textMuted} style={{ marginRight: 12 }} />
+                <Text style={[styles.selectorText, selectedProgramme && { color: colors.text }]} numberOfLines={1}>
+                  {selectedProgramme || 'e.g. Computer Science'}
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity style={styles.primaryButton} onPress={() => animateToStep(2)}>
@@ -164,7 +231,7 @@ export default function OnboardingScreen() {
                 <Text style={styles.secondaryButtonText}>Back</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.primaryButton, { flex: 1 }, saving && { opacity: 0.5 }]}
+                style={[styles.primaryButton, { flex: 1, marginTop: 0 }, saving && { opacity: 0.5 }]}
                 onPress={handleComplete}
                 disabled={saving}
               >
@@ -175,10 +242,110 @@ export default function OnboardingScreen() {
         )}
       </Animated.View>
 
-      {/* Skip option */}
       <TouchableOpacity style={styles.skipButton} onPress={() => router.replace('/(tabs)')}>
         <Text style={styles.skipText}>Skip for now</Text>
       </TouchableOpacity>
+
+      {/* Institution Search Modal */}
+      <Modal visible={institutionModalVisible} animationType="slide" presentationStyle="pageSheet">
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Select Institution</Text>
+            <TouchableOpacity onPress={() => setInstitutionModalVisible(false)}>
+              <Text style={{ color: colors.tint, fontSize: 16 }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={18} color={colors.textMuted} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search universities..."
+              placeholderTextColor={colors.textMuted}
+              value={institutionSearch}
+              onChangeText={setInstitutionSearch}
+              autoFocus
+            />
+          </View>
+          {institutionsLoading ? (
+            <ActivityIndicator size="large" color={colors.tint} style={{ marginTop: 40 }} />
+          ) : (
+            <FlatList
+              data={filteredInstitutions}
+              keyExtractor={(item) => item.id}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.modalItem}
+                  onPress={() => {
+                    setSelectedInstitution(item);
+                    setInstitutionModalVisible(false);
+                    setInstitutionSearch('');
+                  }}
+                >
+                  <Ionicons name="business" size={18} color={colors.textMuted} style={{ marginRight: 12 }} />
+                  <Text style={{ color: colors.text, fontSize: 16, flex: 1 }}>{item.name}</Text>
+                  {selectedInstitution?.id === item.id && (
+                    <Ionicons name="checkmark" size={20} color={colors.tint} />
+                  )}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={<Text style={styles.emptyText}>No institutions found.</Text>}
+            />
+          )}
+        </View>
+      </Modal>
+
+      {/* Programme Search Modal */}
+      <Modal visible={programmeModalVisible} animationType="slide" presentationStyle="pageSheet">
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Select Programme</Text>
+            <TouchableOpacity onPress={() => setProgrammeModalVisible(false)}>
+              <Text style={{ color: colors.tint, fontSize: 16 }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={18} color={colors.textMuted} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search programmes..."
+              placeholderTextColor={colors.textMuted}
+              value={programmeSearch}
+              onChangeText={setProgrammeSearch}
+              autoFocus
+            />
+          </View>
+          {programmesLoading ? (
+            <ActivityIndicator size="large" color={colors.tint} style={{ marginTop: 40 }} />
+          ) : (
+            <FlatList
+              data={filteredProgrammes.slice(0, 50)}
+              keyExtractor={(item) => item.id}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.modalItem}
+                  onPress={() => {
+                    setSelectedProgramme(item.name);
+                    setProgrammeModalVisible(false);
+                    setProgrammeSearch('');
+                  }}
+                >
+                  <Ionicons name="school" size={18} color={colors.textMuted} style={{ marginRight: 12 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontSize: 16 }}>{item.name}</Text>
+                    {item.field && <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>{item.field}</Text>}
+                  </View>
+                  {selectedProgramme === item.name && (
+                    <Ionicons name="checkmark" size={20} color={colors.tint} />
+                  )}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={<Text style={styles.emptyText}>No programmes found.</Text>}
+            />
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -206,7 +373,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.tint,
   },
   progressBar: {
-    width: 80,
+    width: 60,
     height: 3,
     backgroundColor: colors.border,
     marginHorizontal: 4,
@@ -243,6 +410,49 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 28,
     lineHeight: 22,
   },
+  form: {
+    marginBottom: 20,
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  selectorButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.input,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    marginBottom: 24,
+    paddingHorizontal: 16,
+    height: 56,
+  },
+  selectorText: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.textMuted,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.input,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    height: 56,
+    marginBottom: 24,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.text,
+    height: '100%',
+  },
   optionsGroup: {
     marginBottom: 32,
   },
@@ -269,30 +479,6 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   optionLabelSelected: {
     color: colors.tint,
     fontWeight: '600',
-  },
-  fieldLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.input,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    height: 56,
-    marginBottom: 24,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: colors.text,
-    height: '100%',
   },
   personalityGrid: {
     flexDirection: 'row',
@@ -332,6 +518,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
+    marginTop: 12,
     shadowColor: colors.tint,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -346,6 +533,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   secondaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 18,
     paddingHorizontal: 20,
     borderRadius: 14,
@@ -366,5 +554,53 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   skipText: {
     fontSize: 15,
     color: colors.textMuted,
+  },
+  // Modals
+  modalContainer: {
+    flex: 1,
+    padding: 20,
+    paddingTop: 60,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.input,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    height: 44,
+    marginBottom: 16,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.text,
+    marginLeft: 10,
+    height: '100%',
+  },
+  modalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: colors.textMuted,
+    marginTop: 40,
+    fontSize: 15,
   },
 });

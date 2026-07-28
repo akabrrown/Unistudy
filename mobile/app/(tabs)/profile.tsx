@@ -37,12 +37,34 @@ export default function ProfileScreen() {
     async function loadData() {
       if (!user) return;
       
-      const { data: profileData } = await supabase
+      const { data: profileData, error } = await supabase
         .from('profiles')
         .select('*, institutions(name)')
         .eq('id', user.id)
         .single();
         
+      if (profileData) {
+        if (!profileData.institutions && profileData.institution_id) {
+          const id = String(profileData.institution_id).trim();
+          const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
+          
+          if (isUuid) {
+            const { data: inst } = await supabase
+              .from('institutions')
+              .select('name')
+              .eq('id', id)
+              .maybeSingle();
+            if (inst && inst.name) {
+              profileData.institutions = { name: inst.name };
+            } else {
+              profileData.institutions = { name: 'Unknown Institution' };
+            }
+          } else {
+            // It's a raw string
+            profileData.institutions = { name: id };
+          }
+        }
+      }
       setProfile(profileData);
 
       const { data: progData } = await supabase

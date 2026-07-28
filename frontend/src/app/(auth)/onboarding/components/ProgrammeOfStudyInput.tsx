@@ -12,7 +12,7 @@ type CourseProgramme = {
   field?: string
 }
 
-export function CourseOfStudyInput() {
+export function ProgrammeOfStudyInput() {
   const [programmes, setProgrammes] = useState<CourseProgramme[]>([])
   const [search, setSearch] = useState('')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -41,7 +41,7 @@ export function CourseOfStudyInput() {
 
   return (
     <div className="space-y-2 relative">
-      <Label htmlFor="degree_programme">Course of Study</Label>
+      <Label htmlFor="degree_programme">Programme of Study</Label>
       
       <div className="relative">
         <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />

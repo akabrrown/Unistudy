@@ -33,6 +33,7 @@ export default function LectureViewer() {
   const [courseContext, setCourseContext] = useState('University Course')
   const [headerTitle, setHeaderTitle] = useState('Loading...')
   const [headerWeek, setHeaderWeek] = useState('Week -')
+  const [lecture, setLecture] = useState<any>(null)
 
   const [slideIndex, setSlideIndex] = useState(0)
   const currentSlide = slides[slideIndex]
@@ -368,6 +369,7 @@ export default function LectureViewer() {
         const lectureData = await apiFetch(`/lectures/detail/${lectureId}`)
           
         if (lectureData) {
+          setLecture(lectureData)
           const cTitle = Array.isArray(lectureData.courses) ? lectureData.courses[0]?.title : (lectureData.courses as any)?.title;
           const cCode = Array.isArray(lectureData.courses) ? lectureData.courses[0]?.course_code : (lectureData.courses as any)?.course_code;
           
@@ -405,11 +407,14 @@ export default function LectureViewer() {
   // Poll for slides if they are still processing in the background
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (slides.length === 0 && !slidesLoading) {
+    if (lecture?.processing) {
       interval = setInterval(async () => {
         try {
+          const lData = await apiFetch(`/lectures/detail/${lectureId}`);
+          if (lData) setLecture(lData);
+
           const slidesData = await apiFetch(`/lectures/${lectureId}/slides`);
-          if (slidesData && slidesData.length > 0) {
+          if (slidesData) {
             setSlides(slidesData);
           }
         } catch (e) {
@@ -418,7 +423,7 @@ export default function LectureViewer() {
       }, 5000);
     }
     return () => clearInterval(interval);
-  }, [slides.length, slidesLoading, lectureId]);
+  }, [lecture?.processing, lectureId]);
 
   const handleGenerateExplanation = async () => {
     if (!currentSlide || (!currentSlide.raw_text && !currentSlide.explanation && !currentSlide.image_url)) {
@@ -564,7 +569,7 @@ export default function LectureViewer() {
     );
   }
 
-  if (slides.length === 0) {
+  if (lecture?.processing) {
     return (
       <div className="h-[calc(100vh-theme(spacing.16))] flex flex-col items-center justify-center bg-background border border-border rounded-xl shadow-sm relative text-center space-y-4 p-8">
         <div className="relative">
@@ -574,7 +579,27 @@ export default function LectureViewer() {
         <h2 className="text-2xl font-bold">Processing Slides</h2>
         <div className="text-muted-foreground max-w-md space-y-2">
           <p>We are extracting text and using AI to generate explanations for your presentation.</p>
+          <p className="font-medium text-primary py-2 text-lg">Processed {slides.length} of {lecture?.slide_count || '?'} slides...</p>
           <p className="text-sm">This can take a few minutes for large presentations. Please wait, this page will automatically update when ready...</p>
+        </div>
+        <div className="pt-4 flex gap-4">
+          <Link href={`/dashboard/courses/${courseId}`}>
+            <Button variant="outline">Back to Course</Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  if (slides.length === 0) {
+    return (
+      <div className="h-[calc(100vh-theme(spacing.16))] flex flex-col items-center justify-center bg-background border border-border rounded-xl shadow-sm relative text-center space-y-4 p-8">
+        <div className="relative text-destructive">
+          <Frown size={64} className="relative z-10" />
+        </div>
+        <h2 className="text-2xl font-bold">No Slides Found</h2>
+        <div className="text-muted-foreground max-w-md space-y-2">
+          <p>This presentation has 0 slides, or processing failed midway.</p>
         </div>
         <div className="pt-4 flex gap-4">
           <Link href={`/dashboard/courses/${courseId}`}>

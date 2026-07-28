@@ -100,6 +100,10 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
             doc.close() # Close the document to release the file lock on Windows
 
         print(f"Extracted {len(slides_to_process)} slide images. Processing with AI concurrently...")
+        try:
+            supabase.table("lectures").update({"slide_count": len(slides_to_process)}).eq("id", lecture_id).execute()
+        except Exception as e:
+            print(f"Failed to update slide count: {e}")
 
         def process_single_slide(slide_info):
             sn = slide_info["slide_number"]
@@ -146,13 +150,19 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
                 raw_text = ""
                 explanation = ""
                 
-            return {
+            slide_record = {
                 "lecture_id": lecture_id,
                 "slide_number": sn,
                 "raw_text": raw_text,
                 "explanation": explanation,
                 "image_url": image_url
             }
+            try:
+                supabase.table("slides").insert(slide_record).execute()
+                print(f"Inserted slide {sn} into DB.")
+            except Exception as e:
+                print(f"Error inserting slide {sn} into DB: {e}")
+            return slide_record
 
         slides_to_insert = []
         import concurrent.futures
@@ -168,11 +178,9 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
                     print(f"Slide processing generated an exception: {exc}")
 
         if slides_to_insert:
-            print("Inserting slides into Supabase...")
-            supabase.table("slides").insert(slides_to_insert).execute()
-            print("Slides inserted successfully!")
+            print("Finished processing all slides.")
         else:
-            print("No slides to insert.")
+            print("No slides to process.")
 
     except Exception as e:
         print(f"Error processing file: {str(e)}")
@@ -180,6 +188,11 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
         # Cleanup temp directory
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir)
+        # Always mark lecture processing as false, even on error
+        try:
+            supabase.table("lectures").update({"processing": False}).eq("id", lecture_id).execute()
+        except Exception as e:
+            print(f"Failed to update processing status: {e}")
 
 
 @app.post("/convert")
