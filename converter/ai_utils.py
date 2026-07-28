@@ -272,7 +272,7 @@ def _repair_json(raw: str) -> dict:
 
 
 def gemini_vision(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Extract slide text and explanation from a single image via Gemini 3.5 Flash.
+    """Extract slide text and explanation from a single image via Gemini 2.0 Flash.
     Handles 503 (overloaded) with exponential backoff internally.
     """
     import time, requests, json as _json
@@ -288,7 +288,7 @@ def gemini_vision(payload: Dict[str, Any]) -> Dict[str, Any]:
     MAX_503_RETRIES = 3
 
     def _run(api_key):
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
         headers = {
             "Content-Type": "application/json",
         }
@@ -410,7 +410,7 @@ def gemini_vision(payload: Dict[str, Any]) -> Dict[str, Any]:
 
         return {
             "response": {
-                "raw_text": "Text extraction pending (Gemini API key service blocked).",
+                "raw_text": "Text extraction failed.",
                 "explanation": "Explanation pending."
             },
             "usage": {"total_tokens": 0}

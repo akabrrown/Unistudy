@@ -17,7 +17,9 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const upload = multer({ storage: multer.memoryStorage() });
 
 const GEMINI_VISION_MODELS = [
-  'gemini-3.5-flash'
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-pro',
 ];
 
 async function callWithFallback(
@@ -293,13 +295,13 @@ Accessibility Overrides for this user:
 
 ${slideText ? `Slide Content (Extracted Text):\n"${slideText}"` : ''}
 
-${(slideText && slideText.split(' ').length < 20) ? `
+${(slideText && slideText.split(' ').length < 20 && !visionExplanation && !imageUrl) ? `
 **GAP FILLER MODE TRIGGERED**:
-The text on this slide is extremely sparse (under 20 words). You must infer what the missing content should be based on the surrounding context.
+The text on this slide is extremely sparse (under 20 words) and no image is available. You must infer what the missing content should be based on the surrounding context.
 Previous Slide Text: "${prevSlideText || 'None available'}"
 Next Slide Text: "${nextSlideText || 'None available'}"
 
-Write a dedicated section at the bottom of your explanation titled "### Gap Fill". In this section, provide the detailed content, context, and steps that are implied but missing from the sparse slide text. Use the surrounding slides and the visual context to deduce what the lecturer meant to explain here.
+Write a dedicated section at the bottom of your explanation titled "### Gap Fill". In this section, provide the detailed content, context, and steps that are implied but missing from the sparse slide text. Use the surrounding slides to deduce what the lecturer meant to explain here.
 ` : ''}
 
 ${visionExplanation ? `Visual Context & Details (from AI Vision Model viewing the slide image):
@@ -371,6 +373,8 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
         const groqData = await groqRes.json();
         fullText = groqData.choices?.[0]?.message?.content || '';
       } else {
+        const errBody = await groqRes.json().catch(() => ({}));
+        console.error('Groq fallback also failed:', errBody);
         throw geminiErr;
       }
     }
