@@ -31,16 +31,20 @@ export default function PastPaperDetails() {
       if (pData) {
         setPaper(pData)
         
-        // Fetch questions
-        const { data: qData } = await supabase
-          .from('past_paper_questions')
-          .select('*')
-          .eq('past_paper_id', pData.id)
-          .order('question_number', { ascending: true })
+          let sortedQs = [...qData].sort((a, b) => 
+            a.question_number.localeCompare(b.question_number, undefined, { numeric: true })
+          )
           
-        if (qData) {
-          setQuestions(qData)
-        }
+          // Pre-process MCQs to assign 1 mark if missing
+          sortedQs = sortedQs.map(q => {
+            const isMcq = /\\b[A-E][\\.\\)]\\s/i.test(q.text_content) || /\\n\\s*[A-E][\\.\\)]\\s/i.test(q.text_content)
+            if (isMcq && (!q.marks_available || q.marks_available === 0)) {
+              return { ...q, marks_available: 1, isMcq: true }
+            }
+            return { ...q, isMcq }
+          })
+          
+          setQuestions(sortedQs)
       }
       
       setLoading(false)
@@ -81,6 +85,9 @@ export default function PastPaperDetails() {
       router.push(`/dashboard/past-papers/${paper.id}/attempt?attemptId=${data.id}`)
     }
   }
+
+  const mcqQuestions = questions.filter(q => q.isMcq)
+  const theoryQuestions = questions.filter(q => !q.isMcq)
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -129,27 +136,58 @@ export default function PastPaperDetails() {
                 No questions found. The AI might have failed to parse this paper.
               </p>
             ) : (
-              <div className="space-y-4">
-                {questions.map((q) => (
-                  <div key={q.id} className="p-4 rounded-lg bg-muted/30 border border-border">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="font-semibold text-foreground">Question {q.question_number}</span>
-                      <span className="text-sm font-medium bg-muted px-2 py-1 rounded text-muted-foreground">
-                        {q.marks_available} marks
-                      </span>
-                    </div>
-                    <div className="text-sm text-foreground/80 prose prose-sm dark:prose-invert max-w-none prose-table:border-collapse prose-td:border prose-th:border prose-td:border-border prose-th:border-border prose-th:bg-muted/50">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {q.text_content}
-                      </ReactMarkdown>
-                    </div>
-                    {q.extracted_topic && (
-                      <div className="mt-3 inline-block text-[10px] uppercase tracking-wider font-semibold text-purple-500 bg-purple-500/10 px-2 py-1 rounded">
-                        {q.extracted_topic}
+              <div className="space-y-8">
+                {mcqQuestions.length > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-bold text-foreground border-b border-border pb-2">Multiple Choice Questions</h3>
+                    {mcqQuestions.map((q) => (
+                      <div key={q.id} className="p-4 rounded-lg bg-muted/30 border border-border">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="font-semibold text-foreground">Question {q.question_number}</span>
+                          <span className="text-sm font-medium bg-muted px-2 py-1 rounded text-muted-foreground">
+                            {q.marks_available} marks
+                          </span>
+                        </div>
+                        <div className="text-sm text-foreground/80 prose prose-sm dark:prose-invert max-w-none [&_table]:border-collapse [&_table]:w-full [&_table]:border [&_table]:border-border [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:p-2 [&_td]:border [&_td]:border-border [&_td]:p-2">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {q.text_content}
+                          </ReactMarkdown>
+                        </div>
+                        {q.extracted_topic && (
+                          <div className="mt-3 inline-block text-[10px] uppercase tracking-wider font-semibold text-purple-500 bg-purple-500/10 px-2 py-1 rounded">
+                            {q.extracted_topic}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
+                )}
+                
+                {theoryQuestions.length > 0 && (
+                  <div className="space-y-4 mt-8">
+                    <h3 className="text-lg font-bold text-foreground border-b border-border pb-2">Theory & Essay Questions</h3>
+                    {theoryQuestions.map((q) => (
+                      <div key={q.id} className="p-4 rounded-lg bg-muted/30 border border-border">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="font-semibold text-foreground">Question {q.question_number}</span>
+                          <span className="text-sm font-medium bg-muted px-2 py-1 rounded text-muted-foreground">
+                            {q.marks_available} marks
+                          </span>
+                        </div>
+                        <div className="text-sm text-foreground/80 prose prose-sm dark:prose-invert max-w-none [&_table]:border-collapse [&_table]:w-full [&_table]:border [&_table]:border-border [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:p-2 [&_td]:border [&_td]:border-border [&_td]:p-2">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {q.text_content}
+                          </ReactMarkdown>
+                        </div>
+                        {q.extracted_topic && (
+                          <div className="mt-3 inline-block text-[10px] uppercase tracking-wider font-semibold text-purple-500 bg-purple-500/10 px-2 py-1 rounded">
+                            {q.extracted_topic}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

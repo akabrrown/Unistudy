@@ -36,7 +36,20 @@ export default function ExamAttempt() {
         .eq('past_paper_id', params.id)
         .order('question_number', { ascending: true })
         
-      if (qData) setQuestions(qData)
+      if (qData) {
+        let sortedQs = [...qData].sort((a, b) => 
+          a.question_number.localeCompare(b.question_number, undefined, { numeric: true })
+        )
+        // Pre-process MCQs to assign 1 mark if missing
+        sortedQs = sortedQs.map(q => {
+          const isMcq = /\\b[A-E][\\.\\)]\\s/i.test(q.text_content) || /\\n\\s*[A-E][\\.\\)]\\s/i.test(q.text_content)
+          if (isMcq && (!q.marks_available || q.marks_available === 0)) {
+            return { ...q, marks_available: 1, isMcq: true }
+          }
+          return { ...q, isMcq }
+        })
+        setQuestions(sortedQs)
+      }
       
       // Fetch attempt details to calculate time
       const { data: aData } = await supabase
@@ -105,6 +118,9 @@ export default function ExamAttempt() {
     router.push(`/dashboard/past-papers/results/${attemptId}`)
   }
 
+  const mcqQuestions = questions.filter(q => q.isMcq)
+  const theoryQuestions = questions.filter(q => !q.isMcq)
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-20">
       {/* Sticky Header Timer */}
@@ -120,41 +136,82 @@ export default function ExamAttempt() {
       </div>
 
       <div className="space-y-8">
-        {questions.map((q, idx) => (
-          <Card key={q.id} className="border-border shadow-sm">
-            <CardHeader className="bg-muted/10 border-b border-border pb-4">
-              <div className="flex justify-between items-start">
-                <CardTitle className="text-lg">Question {q.question_number || (idx + 1)}</CardTitle>
-                <span className="text-sm font-semibold bg-primary/10 text-primary px-3 py-1 rounded-full">
-                  {q.marks_available} Marks
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="prose prose-sm dark:prose-invert max-w-none mb-6 prose-table:border-collapse prose-td:border prose-th:border prose-td:border-border prose-th:border-border prose-th:bg-muted/50">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {q.text_content}
-                </ReactMarkdown>
-              </div>
-              
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-muted-foreground flex items-center justify-between">
-                  Your Answer
-                  {/* Basic scaffolding for handwriting upload later */}
-                  <Button variant="ghost" size="sm" className="h-8 gap-2 text-xs">
-                    <UploadCloud className="w-3 h-3" /> Upload Handwriting
-                  </Button>
-                </label>
-                <Textarea 
-                  placeholder="Type your detailed answer here..."
-                  className="min-h-[150px] font-mono text-sm resize-y"
-                  value={answers[q.id] || ''}
-                  onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {mcqQuestions.length > 0 && (
+          <div className="space-y-6">
+            <h3 className="text-xl font-bold text-foreground border-b border-border pb-2">Multiple Choice Questions</h3>
+            {mcqQuestions.map((q, idx) => (
+              <Card key={q.id} className="border-border shadow-sm">
+                <CardHeader className="bg-muted/10 border-b border-border pb-4">
+                  <div className="flex justify-between items-start">
+                    <CardTitle className="text-lg">Question {q.question_number}</CardTitle>
+                    <span className="text-sm font-semibold bg-primary/10 text-primary px-3 py-1 rounded-full">
+                      {q.marks_available} Marks
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="prose prose-sm dark:prose-invert max-w-none mb-6 [&_table]:border-collapse [&_table]:w-full [&_table]:border [&_table]:border-border [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:p-2 [&_td]:border [&_td]:border-border [&_td]:p-2">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {q.text_content}
+                    </ReactMarkdown>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-muted-foreground flex items-center justify-between">
+                      Your Answer
+                    </label>
+                    <Textarea 
+                      placeholder="Type your answer here (e.g. A, B, C, D)..."
+                      className="min-h-[60px] font-mono text-sm resize-y"
+                      value={answers[q.id] || ''}
+                      onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {theoryQuestions.length > 0 && (
+          <div className="space-y-6 mt-12">
+            <h3 className="text-xl font-bold text-foreground border-b border-border pb-2">Theory & Essay Questions</h3>
+            {theoryQuestions.map((q, idx) => (
+              <Card key={q.id} className="border-border shadow-sm">
+                <CardHeader className="bg-muted/10 border-b border-border pb-4">
+                  <div className="flex justify-between items-start">
+                    <CardTitle className="text-lg">Question {q.question_number}</CardTitle>
+                    <span className="text-sm font-semibold bg-primary/10 text-primary px-3 py-1 rounded-full">
+                      {q.marks_available} Marks
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="prose prose-sm dark:prose-invert max-w-none mb-6 [&_table]:border-collapse [&_table]:w-full [&_table]:border [&_table]:border-border [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:p-2 [&_td]:border [&_td]:border-border [&_td]:p-2">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {q.text_content}
+                    </ReactMarkdown>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-muted-foreground flex items-center justify-between">
+                      Your Answer
+                      <Button variant="ghost" size="sm" className="h-8 gap-2 text-xs">
+                        <UploadCloud className="w-3 h-3" /> Upload Handwriting
+                      </Button>
+                    </label>
+                    <Textarea 
+                      placeholder="Type your detailed answer here..."
+                      className="min-h-[150px] font-mono text-sm resize-y"
+                      value={answers[q.id] || ''}
+                      onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex justify-end pt-6 border-t border-border mt-10">
