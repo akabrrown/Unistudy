@@ -14,8 +14,6 @@ interface FileUploadData {
   file: File
   courseCode: string
   courseName: string
-  year: string
-  examType: string
   progress: number
   status: 'idle' | 'uploading' | 'success' | 'error'
   error?: string
@@ -32,8 +30,6 @@ export function UploadModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; o
       file: f,
       courseCode: '',
       courseName: '',
-      year: new Date().getFullYear().toString(),
-      examType: 'Final',
       progress: 0,
       status: 'idle' as const
     }))
@@ -60,8 +56,8 @@ export function UploadModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; o
     for (const fData of filesData) {
       if (fData.status === 'success' || fData.status === 'uploading') continue
       
-      if (!fData.courseCode || !fData.courseName || !fData.year || !fData.examType) {
-        updateFileData(fData.id, { status: 'error', error: 'Missing fields' })
+      if (!fData.courseCode || !fData.courseName) {
+        updateFileData(fData.id, { status: 'error', error: 'Fill in course code and name' })
         continue
       }
 
@@ -72,8 +68,6 @@ export function UploadModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; o
         formData.append('file', fData.file)
         formData.append('courseCode', fData.courseCode)
         formData.append('courseName', fData.courseName)
-        formData.append('year', fData.year)
-        formData.append('examType', fData.examType)
 
         await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8005'}/api/past-papers/upload`, formData, {
           headers: {
@@ -155,27 +149,7 @@ export function UploadModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; o
                   />
                 </div>
               </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label className="text-xs">Year</Label>
-                  <Input 
-                    type="number" 
-                    value={fData.year} 
-                    onChange={(e) => updateFileData(fData.id, { year: e.target.value })} 
-                    disabled={fData.status === 'success' || fData.status === 'uploading'}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label className="text-xs">Exam Type</Label>
-                  <Input 
-                    value={fData.examType} 
-                    onChange={(e) => updateFileData(fData.id, { examType: e.target.value })} 
-                    placeholder="Midterm, Final..." 
-                    disabled={fData.status === 'success' || fData.status === 'uploading'}
-                  />
-                </div>
-              </div>
+
 
               {fData.error && <p className="text-xs text-destructive">{fData.error}</p>}
               
