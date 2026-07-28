@@ -31,6 +31,13 @@ export default function PastPaperDetails() {
       if (pData) {
         setPaper(pData)
         
+        const { data: qData } = await supabase
+          .from('past_paper_questions')
+          .select('*')
+          .eq('past_paper_id', pData.id)
+          .order('question_number', { ascending: true })
+          
+        if (qData) {
           let sortedQs = [...qData].sort((a, b) => 
             a.question_number.localeCompare(b.question_number, undefined, { numeric: true })
           )
@@ -45,6 +52,7 @@ export default function PastPaperDetails() {
           })
           
           setQuestions(sortedQs)
+        }
       }
       
       setLoading(false)
