@@ -11,18 +11,6 @@ export function UsernameField() {
   const [isChecking, setIsChecking] = useState(false)
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null)
   const [suggestions, setSuggestions] = useState<string[]>([])
-  
-  useEffect(() => {
-    const saved = sessionStorage.getItem('signup_username')
-    if (saved) {
-      setUsername(saved)
-    }
-  }, [])
-
-  useEffect(() => {
-    sessionStorage.setItem('signup_username', username)
-  }, [username])
-  
   // Ref for debouncing
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 

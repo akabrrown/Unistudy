@@ -7,15 +7,6 @@ import { Label } from '@/components/ui/label'
 export function FullNameField() {
   const [fullName, setFullName] = useState('')
 
-  useEffect(() => {
-    const saved = sessionStorage.getItem('signup_fullName')
-    if (saved) setFullName(saved)
-  }, [])
-
-  useEffect(() => {
-    sessionStorage.setItem('signup_fullName', fullName)
-  }, [fullName])
-
   return (
     <div className="space-y-2">
       <Label htmlFor="fullName">Full Name</Label>

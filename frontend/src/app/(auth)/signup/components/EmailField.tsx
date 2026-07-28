@@ -11,18 +11,6 @@ export function EmailField() {
   const [email, setEmail] = useState('')
   const [touched, setTouched] = useState(false)
 
-  useEffect(() => {
-    const saved = sessionStorage.getItem('signup_email')
-    if (saved) {
-      setEmail(saved)
-      setTouched(true)
-    }
-  }, [])
-
-  useEffect(() => {
-    sessionStorage.setItem('signup_email', email)
-  }, [email])
-
   const isValid = EMAIL_REGEX.test(email)
   const showError = touched && email.length > 0 && !isValid
 

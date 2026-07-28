@@ -8,17 +8,6 @@ import { Check, X } from 'lucide-react'
 export function PasswordStrengthField() {
   const [password, setPassword] = useState('')
 
-  useEffect(() => {
-    const saved = sessionStorage.getItem('signup_password')
-    if (saved) {
-      setPassword(saved)
-    }
-  }, [])
-
-  useEffect(() => {
-    sessionStorage.setItem('signup_password', password)
-  }, [password])
-
   const requirements = [
     { regex: /.{6,}/, text: 'At least 6 characters' },
     { regex: /[A-Z]/, text: 'At least 1 uppercase letter' },
