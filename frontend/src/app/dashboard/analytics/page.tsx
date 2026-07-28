@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { apiFetch } from '@/lib/api/client';
 import { StudyHeatmap } from '@/components/analytics/StudyHeatmap';
 import { Sparkles, TrendingUp, Clock, AlertTriangle, ShieldCheck, Flame, Cpu, Database, Zap } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
@@ -16,16 +17,16 @@ export default function AnalyticsPage() {
   useEffect(() => {
     // Fetch all analytics in parallel
     Promise.all([
-      fetch('/api/analytics/heatmap').then(res => res.json()),
-      fetch('/api/analytics/velocity').then(res => res.json()),
-      fetch('/api/analytics/best-time').then(res => res.json()),
-      fetch('/api/analytics/blind-spots').then(res => res.json()),
-      fetch('/api/quota/status').then(res => res.json()),
+      fetch('/api/analytics/heatmap').then(res => res.json()).catch(() => ({})),
+      fetch('/api/analytics/velocity').then(res => res.json()).catch(() => null),
+      fetch('/api/analytics/best-time').then(res => res.json()).catch(() => null),
+      fetch('/api/analytics/blind-spots').then(res => res.json()).catch(() => ({ blindSpots: [] })),
+      apiFetch('/quota/status').catch(() => null),
     ]).then(([heatRes, velRes, timeRes, blindRes, quotaRes]) => {
       setHeatmapData(heatRes || {});
       setVelocity(velRes);
       setBestTime(timeRes);
-      setBlindSpots(blindRes.blindSpots || []);
+      setBlindSpots(blindRes?.blindSpots || []);
       setQuota(quotaRes);
     });
   }, []);
