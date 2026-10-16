@@ -72,7 +72,7 @@ router.post('/avatar', requireAuth, avatarRateLimit, upload.single('file'), asyn
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
-    res.status(500).json({ error: error.message || 'Internal Server Error' });
+    res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   }
 });
 

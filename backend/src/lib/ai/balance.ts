@@ -8,8 +8,12 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@unistudy.ai';
 
 export async function getProviderStatus(provider: ProviderName) {
   if (redis) {
-    const cached = await redis.get(`platform:balance:${provider}`);
-    if (cached) return cached as any;
+    try {
+      const cached = await redis.get(`platform:balance:${provider}`);
+      if (cached) return cached as any;
+    } catch (e) {
+      console.warn("Redis read failed:", e);
+    }
   }
 
   const { data, error } = await supabaseAdmin

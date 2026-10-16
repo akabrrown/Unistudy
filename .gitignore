@@ -40,3 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 *.docx
+
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+converter/temp/

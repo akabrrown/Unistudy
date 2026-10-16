@@ -67,7 +67,7 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
     res.json({ url: data.data.authorization_url });
   } catch (error: any) {
     console.error('Checkout Error:', error);
-    res.status(500).json({ error: error.message || 'Internal Server Error' });
+    res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   }
 });
 
@@ -93,7 +93,7 @@ router.post('/cancel', requireAuth, async (req: Request, res: Response) => {
     res.json({ success: true, message: 'Subscription cancelled successfully' });
   } catch (error: any) {
     console.error('Cancel Subscription Error:', error);
-    res.status(500).json({ error: error.message || 'Internal Server Error' });
+    res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   }
 });
 
@@ -105,7 +105,7 @@ router.post('/portal', requireAuth, async (req: Request, res: Response) => {
     res.json({ url: `${baseUrl}/dashboard/settings/billing` });
   } catch (error: any) {
     console.error('Portal Error:', error);
-    res.status(500).json({ error: error.message || 'Internal Server Error' });
+    res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   }
 });
 
@@ -131,7 +131,7 @@ router.post('/upgrade', requireAuth, async (req: Request, res: Response) => {
     res.json({ success: true, message: `Plan upgraded to ${plan}` });
   } catch (error: any) {
     console.error('Upgrade Error:', error);
-    res.status(500).json({ error: error.message || 'Internal Server Error' });
+    res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   }
 });
 
@@ -147,7 +147,7 @@ router.post('/referral', requireAuth, async (req: Request, res: Response) => {
     res.json({ success: true, referralCode: code });
   } catch (error: any) {
     console.error('Referral Error:', error);
-    res.status(500).json({ error: error.message || 'Internal Server Error' });
+    res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   }
 });
 
@@ -190,7 +190,7 @@ router.post('/gift', requireAuth, async (req: Request, res: Response) => {
     res.json({ success: true, message: `Gifted ${plan} plan to ${recipientEmail}` });
   } catch (error: any) {
     console.error('Gift Error:', error);
-    res.status(500).json({ error: error.message || 'Internal Server Error' });
+    res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   }
 });
 

@@ -33,9 +33,12 @@ export function withAIQuota(feature: Feature) {
       // Attach quota info to request so route handlers know it passed
       req.quota = quotaStatus;
       next();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Quota check failed:', error);
-      res.status(500).json({ error: 'Internal server error during quota validation' });
+      res.status(500).json({ 
+        error: 'Internal server error during quota validation', 
+        message: process.env.NODE_ENV === 'development' ? error.message : 'An unexpected error occurred'
+      });
     }
   };
 }

@@ -28,7 +28,7 @@ router.get('/', async (req: Request, res: Response) => {
     const statuses = await getAllProviderStatuses();
     res.json(statuses);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -47,7 +47,7 @@ router.patch('/:provider', async (req: Request, res: Response) => {
     if (error) throw error;
     res.json(data);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 

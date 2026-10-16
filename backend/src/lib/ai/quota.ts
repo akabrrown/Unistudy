@@ -23,8 +23,12 @@ export async function getCreditBalance(userId: string) {
 
 export async function getUserQuota(userId: string) {
   if (redis) {
-    const cached = await redis.get(`user_quota:${userId}`);
-    if (cached) return cached as any;
+    try {
+      const cached = await redis.get(`user_quota:${userId}`);
+      if (cached) return cached as any;
+    } catch (e) {
+      console.warn("Redis read failed:", e);
+    }
   }
 
   const { data } = await supabaseAdmin.from('user_quota').select('*').eq('user_id', userId).single();

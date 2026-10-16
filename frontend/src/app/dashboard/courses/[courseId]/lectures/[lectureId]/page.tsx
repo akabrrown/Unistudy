@@ -44,7 +44,8 @@ export default function LectureViewer() {
   
   // Cache explanations so we don't re-fetch when navigating back and forth
   const [slideExplanations, setSlideExplanations] = useState<Record<number, string>>({})
-  const explanation = slideExplanations[slideIndex] || (currentSlide?.explanation || '')
+  const currentSlideExplanation = (currentSlide?.explanation && currentSlide.explanation !== 'Explanation pending.') ? currentSlide.explanation : ''
+  const explanation = slideExplanations[slideIndex] || currentSlideExplanation
   
   const [loadingAI, setLoadingAI] = useState(false)
 
@@ -113,7 +114,9 @@ export default function LectureViewer() {
     // Load offline explanation
     const offlineEx = localStorage.getItem(`offline_exp_${slideId}`);
     if (offlineEx && !slideExplanations[slideIndex]) {
-      setSlideExplanations(prev => ({ ...prev, [slideIndex]: offlineEx }));
+      if (!offlineEx.includes('AI API returned an error') && !offlineEx.includes('Showing mock response')) {
+        setSlideExplanations(prev => ({ ...prev, [slideIndex]: offlineEx }));
+      }
     }
   }, [slideIndex, currentSlide?.id, lectureId]);
 
@@ -440,56 +443,65 @@ export default function LectureViewer() {
     return () => clearInterval(interval);
   }, [lecture?.processing, lectureId]);
 
-  const handleGenerateExplanation = async () => {
-    if (!currentSlide || (!currentSlide.raw_text && !currentSlide.explanation && !currentSlide.image_url)) {
+  const handleGenerateExplanation = async (targetIndex?: number) => {
+    const idx = typeof targetIndex === 'number' ? targetIndex : slideIndex;
+    const targetSlide = slides[idx];
+    if (!targetSlide || (!targetSlide.raw_text && !targetSlide.explanation && !targetSlide.image_url)) {
+      toast.info('No content or image available on this slide to explain.');
       return;
     }
     setLoadingAI(true);
+    setSlideExplanations(prev => ({ ...prev, [idx]: '' }));
+
     try {
+      const cleanVision = targetSlide.explanation !== 'Explanation pending.' ? (targetSlide.explanation || '') : '';
+      const cleanText = targetSlide.raw_text !== 'Text extraction failed.' ? (targetSlide.raw_text || '') : '';
+
       const res = await apiFetchRaw('/ai/explain', {
         method: 'POST',
         body: JSON.stringify({
-          slideText: currentSlide.raw_text || '',
+          slideNumber: idx + 1,
+          slideText: cleanText,
           level,
           courseContext,
-          visionExplanation: currentSlide.explanation,
-          imageUrl: currentSlide.image_url,
+          visionExplanation: cleanVision,
+          imageUrl: targetSlide.image_url,
           mode: explainMode,
-          prevSlideText: slideIndex > 0 ? slides[slideIndex - 1]?.raw_text : '',
-          nextSlideText: slideIndex < slides.length - 1 ? slides[slideIndex + 1]?.raw_text : ''
+          prevSlideText: idx > 0 ? (slides[idx - 1]?.raw_text !== 'Text extraction failed.' ? slides[idx - 1]?.raw_text : '') : '',
+          nextSlideText: idx < slides.length - 1 ? (slides[idx + 1]?.raw_text !== 'Text extraction failed.' ? slides[idx + 1]?.raw_text : '') : ''
         })
       });
       
-      const reader = res.body?.getReader()
-      const decoder = new TextDecoder()
-      if (!reader) throw new Error('No readable stream')
-      
-      setSlideExplanations(prev => ({ ...prev, [slideIndex]: '' }));
-      setLoadingAI(false);
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      if (!reader) throw new Error('No readable stream');
 
       let fullEx = '';
       while (true) {
-        const { value, done } = await reader.read()
-        if (done) break
-        const chunk = decoder.decode(value, { stream: true })
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
         for (const line of chunk.split('\n\n')) {
-          if (!line.startsWith('data: ')) continue
-          const dataStr = line.slice(6)
-          if (dataStr === '[DONE]') break
+          if (!line.startsWith('data: ')) continue;
+          const dataStr = line.slice(6);
+          if (dataStr === '[DONE]') break;
           try {
-            const data = JSON.parse(dataStr)
+            const data = JSON.parse(dataStr);
             fullEx += data;
-            setSlideExplanations(prev => ({ ...prev, [slideIndex]: prev[slideIndex] + data }));
+            setSlideExplanations(prev => ({ ...prev, [idx]: (prev[idx] || '') + data }));
           } catch {
             // ignore malformed chunks
           }
         }
       }
-      const slideId = currentSlide.id || `${lectureId}-${slideIndex}`;
-      localStorage.setItem(`offline_exp_${slideId}`, fullEx);
+      const slideId = targetSlide.id || `${lectureId}-${idx}`;
+      if (fullEx && !fullEx.includes('Showing mock response')) {
+        localStorage.setItem(`offline_exp_${slideId}`, fullEx);
+      }
     } catch (e: any) {
+      setSlideExplanations(prev => ({ ...prev, [idx]: `**Error:** ${e.message}` }));
+    } finally {
       setLoadingAI(false);
-      setSlideExplanations(prev => ({ ...prev, [slideIndex]: `**Error:** ${e.message}` }));
     }
   }
 
@@ -930,7 +942,7 @@ export default function LectureViewer() {
               <Button variant="ghost" size="icon-sm" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => setIsYoutubeOpen(true)} title="Find Resources">
                 <PlaySquare size={16} />
               </Button>
-              <Button variant="ghost" size="icon-sm" className="text-blue-500 hover:text-blue-600 hover:bg-blue-50" onClick={handleGenerateExplanation} title="Regenerate Explanation" disabled={loadingAI}>
+              <Button variant="ghost" size="icon-sm" className="text-blue-500 hover:text-blue-600 hover:bg-blue-50" onClick={() => handleGenerateExplanation(slideIndex)} title="Regenerate Explanation" disabled={loadingAI}>
                 <RefreshCw size={16} className={loadingAI ? "animate-spin" : ""} />
               </Button>
               <Button variant="ghost" size="icon-sm" className="text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50" onClick={() => setIsChatOpen(true)} title="Ask AI about this slide">
@@ -973,13 +985,13 @@ export default function LectureViewer() {
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
                   <DropdownMenuLabel className="text-[10px] tracking-widest uppercase text-muted-foreground">Style</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => { setExplainMode('standard'); handleGenerateExplanation(); }} className={explainMode === 'standard' ? 'bg-primary/10 text-primary font-semibold' : ''}>
+                  <DropdownMenuItem onClick={() => { setExplainMode('standard'); handleGenerateExplanation(slideIndex); }} className={explainMode === 'standard' ? 'bg-primary/10 text-primary font-semibold' : ''}>
                     Standard
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setExplainMode('story'); handleGenerateExplanation(); }} className={explainMode === 'story' ? 'bg-primary/10 text-primary font-semibold' : ''}>
+                  <DropdownMenuItem onClick={() => { setExplainMode('story'); handleGenerateExplanation(slideIndex); }} className={explainMode === 'story' ? 'bg-primary/10 text-primary font-semibold' : ''}>
                     Story
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setExplainMode('conceptual'); handleGenerateExplanation(); }} className={explainMode === 'conceptual' ? 'bg-primary/10 text-primary font-semibold' : ''}>
+                  <DropdownMenuItem onClick={() => { setExplainMode('conceptual'); handleGenerateExplanation(slideIndex); }} className={explainMode === 'conceptual' ? 'bg-primary/10 text-primary font-semibold' : ''}>
                     Conceptual
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
@@ -993,7 +1005,7 @@ export default function LectureViewer() {
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <p className="text-xs font-bold tracking-widest uppercase text-primary">AI Explanation</p>
+                <p className="text-xs font-bold tracking-widest uppercase text-primary">AI Explanation • Slide {slideIndex + 1}</p>
                 {currentSlide && localStorage.getItem(`offline_exp_${currentSlide.id || `${lectureId}-${slideIndex}`}`) && (
                   <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center gap-1">
                     <DownloadCloud size={10} /> Saved offline
@@ -1004,7 +1016,7 @@ export default function LectureViewer() {
               {loadingAI ? (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground space-y-4">
                   <Loader2 size={32} className="animate-spin text-primary/50" />
-                  <p className="text-sm font-medium animate-pulse">Generating tailored explanation...</p>
+                  <p className="text-sm font-medium animate-pulse">Generating tailored explanation for Slide {slideIndex + 1}...</p>
                 </div>
               ) : explanation ? (
                 <div className="text-sm leading-relaxed text-foreground space-y-4 [&>p]:mb-4 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:mb-4 [&>ul>li]:mb-2 [&>strong]:text-primary [&>strong]:font-bold prose prose-slate dark:prose-invert max-w-none prose-headings:text-primary prose-headings:font-bold prose-strong:text-foreground prose-li:my-1 prose-p:leading-relaxed">
@@ -1027,8 +1039,8 @@ export default function LectureViewer() {
                     <p className="text-sm font-medium text-foreground mb-1">Manual Explanations Enabled</p>
                     <p className="text-xs text-muted-foreground">Generate an AI explanation only when you need it to save your quota.</p>
                   </div>
-                  <Button onClick={handleGenerateExplanation} disabled={loadingAI} className="gap-2">
-                    <Zap size={16} /> Generate Explanation
+                  <Button onClick={() => handleGenerateExplanation(slideIndex)} disabled={loadingAI} className="gap-2">
+                    <Zap size={16} /> Generate Explanation for Slide {slideIndex + 1}
                   </Button>
                 </div>
               )}

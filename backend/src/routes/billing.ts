@@ -34,7 +34,7 @@ router.get('/subscription', requireAuth, async (req: Request, res: Response) => 
     });
   } catch (error: any) {
     console.error('Get Subscription Error:', error);
-    res.status(500).json({ error: error.message || 'Internal Server Error' });
+    res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   }
 });
 

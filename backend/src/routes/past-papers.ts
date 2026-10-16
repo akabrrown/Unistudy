@@ -155,7 +155,7 @@ ${extractedText}
     } catch (e: any) {
         console.error("Upload error fully detailed:", e);
         require('fs').writeFileSync('upload_error.txt', e.stack || e.message);
-        res.status(500).json({ error: e.message || 'Unknown upload error' });
+        res.status(500).json({ error: 'Unknown upload error', details: process.env.NODE_ENV === 'development' ? e.message : undefined });
     }
 });
 
@@ -245,7 +245,7 @@ router.post('/grade-batch', withAIQuota('past_paper_grading'), async (req, res) 
         res.json({ success: true, data: parsed.results || [] });
     } catch (err: any) {
         console.error('Error grading batch:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 
@@ -322,7 +322,7 @@ router.post('/grade', withAIQuota('past_paper_grading'), async (req, res) => {
         res.json({ success: true, data: JSON.parse(jsonMatch[0]) });
     } catch (err: any) {
         console.error('Error grading:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 
@@ -349,7 +349,7 @@ router.post('/chat', withAIQuota('past_paper_question'), async (req, res) => {
         await consumeUserQuota(req.user!.id, 'past_paper_question');
         res.json({ text: result.response.text() });
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 
@@ -379,7 +379,7 @@ router.delete('/:id', async (req, res) => {
         res.json({ success: true });
     } catch (err: any) {
         console.error('Error deleting paper:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 

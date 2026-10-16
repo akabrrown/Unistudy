@@ -44,7 +44,7 @@ router.get('/', async (req: Request, res: Response) => {
     res.json({ data: shuffled.slice(0, 25) });
   } catch (err: any) {
     console.error('Error fetching cards:', err);
-    res.status(500).json({ error: err.message || 'Internal Server Error' });
+    res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 

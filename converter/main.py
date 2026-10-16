@@ -93,8 +93,17 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
             import subprocess
             print(f"Converting PPTX to PDF via LibreOffice: {file_path}")
             try:
-                # Use 'soffice' on Windows if in path, or 'libreoffice'
-                cmd = "soffice" if os.name == 'nt' else "libreoffice"
+                # Use 'soffice' on Windows if in path, or absolute path, else 'libreoffice'
+                cmd = "libreoffice"
+                if os.name == 'nt':
+                    import shutil
+                    if shutil.which("soffice"):
+                        cmd = "soffice"
+                    elif os.path.exists(r"C:\Program Files\LibreOffice\program\soffice.exe"):
+                        cmd = r"C:\Program Files\LibreOffice\program\soffice.exe"
+                    else:
+                        cmd = "soffice"
+                
                 result = subprocess.run(
                     [cmd, "--headless", "--convert-to", "pdf", file_path, "--outdir", temp_dir],
                     capture_output=True, text=True, timeout=120
@@ -117,9 +126,11 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
                 slide_number = i + 1
                 image_path = os.path.join(temp_dir, f"slide_{slide_number}.png")
                 pix.save(image_path)
+                extracted_text = page.get_text("text").strip()
                 slides_to_process.append({
                     "slide_number": slide_number,
-                    "image_path": image_path
+                    "image_path": image_path,
+                    "extracted_text": extracted_text
                 })
         finally:
             doc.close()
@@ -169,10 +180,14 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
                 )
                 resp = vision_result.get("response", {})
                 raw_text = resp.get("raw_text", "")
+                if not raw_text or raw_text == "Text extraction failed.":
+                    raw_text = slide_info.get("extracted_text", "")
                 explanation = resp.get("explanation", "")
+                if explanation == "Explanation pending.":
+                    explanation = ""
             except Exception as e:
                 print(f"Error processing slide {sn}: {e}")
-                raw_text = ""
+                raw_text = slide_info.get("extracted_text", "")
                 explanation = ""
                 
             slide_record = {
@@ -228,12 +243,13 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
             print("No slides to process.")
 
     except RuntimeError as re:
-        print(f"Error processing file: {str(re)}")
-        if "LibreOffice" not in str(re):
-            import traceback
-            traceback.print_exc()
+        err_msg = str(re)
+        print(f"Error processing file: {err_msg}")
+        import traceback
+        traceback.print_exc()
+        short_reason = err_msg[:80] if len(err_msg) > 80 else err_msg
         try:
-            supabase.table("lectures").update({"title": f"[FAILED: LibreOffice Required] {lecture_id}"}).eq("id", lecture_id).execute()
+            supabase.table("lectures").update({"title": f"[FAILED: {short_reason}] {lecture_id}"}).eq("id", lecture_id).execute()
         except:
             pass
     except Exception as e:
@@ -261,8 +277,9 @@ async def convert_document(
     Endpoint to receive a PDF/PPTX file, convert it to slide images, 
     upload to Cloudinary, and notify the main app.
     """
-    # Create temp directory
-    temp_dir = os.path.join("/tmp", str(uuid.uuid4()))
+    # Create temp directory — use tempfile.gettempdir() for cross-platform support (Windows/Linux)
+    import tempfile
+    temp_dir = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
     os.makedirs(temp_dir, exist_ok=True)
     
     file_path = os.path.join(temp_dir, file.filename)

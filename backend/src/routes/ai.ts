@@ -76,7 +76,7 @@ router.post('/search-math', withAIQuota('answer_improver'), async (req: Request,
     res.json({ success: true, data: JSON.parse(jsonMatch[0]) });
   } catch (err: any) {
     console.error('Math AI search error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -215,7 +215,7 @@ router.post('/ask', async (req: Request, res: Response) => {
 
     res.json(response);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -246,12 +246,17 @@ router.post('/calculator', withAIQuota('calculator'), async (req: Request, res: 
     res.write('data: [DONE]\n\n');
     res.end();
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
 router.post('/explain', authenticateUser, withAIQuota('slide_explanation'), async (req: Request, res: Response) => {
-  const { slideText, level, courseContext, visionExplanation, imageUrl, mode, prevSlideText, nextSlideText } = req.body;
+  try {
+  const { slideText, slideNumber, level, courseContext, visionExplanation, imageUrl, mode, prevSlideText, nextSlideText } = req.body;
+
+  // Sanitize fallback error strings so they don't corrupt the prompt
+  const cleanSlideText = (slideText && slideText !== 'Text extraction failed.') ? slideText : '';
+  const cleanVisionEx = (visionExplanation && visionExplanation !== 'Explanation pending.') ? visionExplanation : '';
 
   let levelPrompt = 'standard university level';
   if (level === 'ELI5') levelPrompt = 'a high school student with no prior knowledge (ELI5). Use simple analogies.';
@@ -281,20 +286,27 @@ router.post('/explain', authenticateUser, withAIQuota('slide_explanation'), asyn
   const prompt = `
 You are an expert university AI tutor named ${tutorName}. You are known for being ${tutorPersonality}.
 The student is studying the course: "${courseContext}".
+${slideNumber ? `You are currently explaining SLIDE ${slideNumber}.` : ''}
+
 ${mode === 'story' 
   ? 'Your task is to explain the following slide content to them by rewriting the concept as a short, engaging narrative story. Characters should represent variables or concepts, conflicts represent opposing forces, and the resolution represents the solution. Do not include a standard academic explanation; only tell the story.'
   : mode === 'conceptual'
   ? 'Your task is to explain the following theory, definitions, diagrams, or descriptive content from the slide. Start with a real-world analogy the student will recognise. Give the academic definition after the analogy. Explain WHY the concept exists — what problem it solves. Give one concrete example. End with exam-likely phrasing of the concept.'
   : 'Your task is to explain the following slide content to them.'}
 
+CRITICAL SLIDE FOCUS DIRECTIVE:
+Your explanation MUST concentrate strictly and solely on the specific content, bullet points, formulas, and diagrams presented on THIS slide (Slide ${slideNumber || 'current'}).
+Do NOT give a generic course introduction if this slide covers specific objectives or topics.
+Do NOT bleed into or summarize concepts that belong to other slides.
+
 Accessibility Overrides for this user:
 - Reading Complexity: ${readingLevel}
 - Tone: ${tone}
 - Language: You MUST respond in this language code: ${language}.
 
-${slideText ? `Slide Content (Extracted Text):\n"${slideText}"` : ''}
+${cleanSlideText ? `Slide Content (Extracted Text):\n"${cleanSlideText}"` : ''}
 
-${(slideText && slideText.split(' ').length < 20 && !visionExplanation && !imageUrl) ? `
+${(cleanSlideText && cleanSlideText.split(' ').length < 20 && !cleanVisionEx && !imageUrl) ? `
 **GAP FILLER MODE TRIGGERED**:
 The text on this slide is extremely sparse (under 20 words) and no image is available. You must infer what the missing content should be based on the surrounding context.
 Previous Slide Text: "${prevSlideText || 'None available'}"
@@ -303,8 +315,8 @@ Next Slide Text: "${nextSlideText || 'None available'}"
 Write a dedicated section at the bottom of your explanation titled "### Gap Fill". In this section, provide the detailed content, context, and steps that are implied but missing from the sparse slide text. Use the surrounding slides to deduce what the lecturer meant to explain here.
 ` : ''}
 
-${visionExplanation ? `Visual Context & Details (from AI Vision Model viewing the slide image):
-"${visionExplanation}"
+${cleanVisionEx ? `Visual Context & Details (from AI Vision Model viewing the slide image):
+"${cleanVisionEx}"
 Use this visual context to enrich your explanation if it mentions charts, diagrams, or pictures.` : ''}
 
 Format your response in clean Markdown. For mathematical expressions, use $ for inline math and $$ for block math equations. Do not use HTML tags. 
@@ -352,29 +364,76 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
       );
       fullText = result.response.text();
     } catch (geminiErr: any) {
-      console.log('Gemini failed, falling back to Groq (llama-3.3-70b-versatile)...');
-      const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: prompt }
-          ]
-        })
-      });
+      // 1. Try OpenRouter Vision if image is present and OPENROUTER_API_KEY is configured
+      let openRouterSuccess = false;
+      const openRouterKey = process.env.OPENROUTER_API_KEY;
+      if (imageUrl && imageUrl !== 'https://example.com/placeholder.png' && openRouterKey) {
+        try {
+          console.log('Gemini vision failed, calling OpenRouter Vision fallback for slide image...');
+          const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openRouterKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: 'google/gemini-2.5-flash',
+              max_tokens: 1200,
+              messages: [
+                {
+                  role: 'user',
+                  content: [
+                    { type: 'text', text: prompt },
+                    { type: 'image_url', image_url: { url: imageUrl } }
+                  ]
+                }
+              ]
+            })
+          });
 
-      if (groqRes.ok) {
-        const groqData = await groqRes.json();
-        fullText = groqData.choices?.[0]?.message?.content || '';
-      } else {
-        const errBody = await groqRes.json().catch(() => ({}));
-        console.error('Groq fallback also failed:', errBody);
-        throw geminiErr;
+          if (orRes.ok) {
+            const orData = await orRes.json();
+            const text = orData.choices?.[0]?.message?.content;
+            if (text) {
+              fullText = text;
+              openRouterSuccess = true;
+              console.log('OpenRouter Vision fallback succeeded for slide explanation!');
+            }
+          } else {
+            const orErrText = await orRes.text().catch(() => '');
+            console.warn('OpenRouter Vision fallback responded with error:', orRes.status, orErrText);
+          }
+        } catch (orErr) {
+          console.warn('OpenRouter Vision fallback network error:', orErr);
+        }
+      }
+
+      // 2. Fall back to Groq text LLM if OpenRouter didn't produce text
+      if (!openRouterSuccess) {
+        console.log('Falling back to Groq (openai/gpt-oss-120b)...');
+        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'openai/gpt-oss-120b',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: prompt }
+            ]
+          })
+        });
+
+        if (groqRes.ok) {
+          const groqData = await groqRes.json();
+          fullText = groqData.choices?.[0]?.message?.content || '';
+        } else {
+          const errBody = await groqRes.json().catch(() => ({}));
+          console.error('Groq fallback also failed:', errBody);
+          throw geminiErr;
+        }
       }
     }
 
@@ -397,6 +456,10 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
       res.write('data: [DONE]\n\n');
       res.end();
     }
+  }
+  } catch (outerErr: any) {
+    console.error("CRITICAL ROUTE ERROR:", outerErr);
+    if (!res.headersSent) res.status(500).json({ error: outerErr.message, stack: outerErr.stack });
   }
 });
 
@@ -454,7 +517,7 @@ The quote must reference their actual situation naturally (e.g. "You have an Eng
     res.json({ quote });
   } catch (err: any) {
     console.error('Motivational Quote Error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -481,7 +544,7 @@ router.post('/study-break', withAIQuota('break_suggestion'), async (req: Request
 
     res.json({ suggestion });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -510,7 +573,7 @@ router.post('/anxiety-response', withAIQuota('chat_message'), async (req: Reques
 
     res.json({ suggestion });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 

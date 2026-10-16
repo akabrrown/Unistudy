@@ -84,7 +84,7 @@ router.get('/daily-brief', async (req: Request, res: Response) => {
     res.json({ success: true, processed: users?.length });
   } catch (err: any) {
     console.error('Cron Error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 

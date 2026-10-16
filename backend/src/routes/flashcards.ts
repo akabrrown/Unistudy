@@ -133,7 +133,7 @@ router.post('/generate', withAIQuota('flashcard_generation'), async (req: Reques
     res.json({ success: true, count: generatedCards.length, data: generatedCards });
   } catch (err: any) {
     console.error('Flashcard generation error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -150,7 +150,7 @@ router.get('/', async (req: Request, res: Response) => {
     if (error) throw error;
     res.json({ data });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -187,7 +187,7 @@ router.post('/review', async (req: Request, res: Response) => {
     }});
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 

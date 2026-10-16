@@ -100,7 +100,7 @@ router.post('/generate-from-attempt', async (req: any, res: any) => {
         res.json({ success: true, message: `Created ${newDrills.length} drills.`, count: newDrills.length });
     } catch (err: any) {
         console.error('Error generating drills:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 
@@ -151,7 +151,7 @@ router.get('/:id/practice', withAIQuota('weakness_drill'), async (req: any, res:
         res.json({ success: true, questions: parsed.questions || [], drill });
     } catch (err: any) {
         console.error('Error getting practice:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 
@@ -203,7 +203,7 @@ router.post('/:id/submit', async (req: any, res: any) => {
         res.json({ success: true, drill: updated, passed: isPassed });
     } catch (err: any) {
         console.error('Error submitting drill:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 

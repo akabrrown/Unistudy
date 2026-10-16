@@ -55,7 +55,7 @@ router.post('/generate', withAIQuota('quiz_generation'), async (req: Request, re
     
     res.json(questionsData);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -72,7 +72,7 @@ router.get('/', async (req: Request, res: Response) => {
     if (error) throw error;
     res.json({ data });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -97,7 +97,7 @@ router.post('/attempt', async (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 

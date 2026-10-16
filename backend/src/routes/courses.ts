@@ -32,7 +32,7 @@ router.get('/', async (req: Request, res: Response) => {
   }
   const supabase = supabaseAsUser(token);
   const { data, error } = await supabase.from('courses').select('*, lectures(id)').order('created_at', { ascending: false });
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   res.json(data);
 });
 router.get('/calendar-events', authenticateUser, async (req: Request, res: Response) => {
@@ -43,7 +43,7 @@ router.get('/calendar-events', authenticateUser, async (req: Request, res: Respo
     .eq('user_id', req.user!.id)
     .order('date', { ascending: true });
     
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   res.json(data);
 });
 
@@ -63,7 +63,7 @@ router.post('/calendar-events', authenticateUser, async (req: Request, res: Resp
     .select()
     .single();
     
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   res.json(data);
 });
 
@@ -76,7 +76,7 @@ router.post('/', authenticateUser, async (req: Request, res: Response) => {
   const supabase = supabaseAsUser(req.user!.jwt);
   const { data, error } = await supabase.from('courses').insert({ ...parsed.data, user_id: req.user!.id }).select('*, lectures(id)').single();
   
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   res.json(data);
 });
 
@@ -84,7 +84,7 @@ router.delete('/:id', authenticateUser, async (req: Request, res: Response) => {
   const supabase = supabaseAsUser(req.user!.jwt);
   const { error } = await supabase.from('courses').delete().eq('id', req.params.id);
   
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   res.json({ success: true });
 });
 
@@ -96,7 +96,7 @@ router.get('/:id', authenticateUser, async (req: Request, res: Response) => {
     .eq('id', req.params.id)
     .maybeSingle();
   
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   if (!data) return res.status(404).json({ error: 'Course not found' });
   
   res.json(data);
@@ -125,7 +125,7 @@ router.patch('/:id', authenticateUser, async (req: Request, res: Response) => {
     .select('*, lectures(id)')
     .single();
     
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   res.json(data);
 });
 

@@ -47,6 +47,7 @@ export function UploadLectureDialog({ courseId, courseCode }: UploadLectureDialo
       setCurrentUploadIndex(i);
       setUploadProgress(0);
 
+      let newLectureId: string | null = null;
       try {
         const fileWeek = fileWeeks[i];
         const payload: any = {
@@ -62,6 +63,7 @@ export function UploadLectureDialog({ courseId, courseCode }: UploadLectureDialo
           method: 'POST',
           body: JSON.stringify(payload)
         });
+        newLectureId = newLecture.id;
 
         // 1. Upload the original file to Cloudinary
         const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
@@ -109,12 +111,8 @@ export function UploadLectureDialog({ courseId, courseCode }: UploadLectureDialo
         const userId = userRes.data.user?.id || '';
         formDataFastAPI.append('user_id', userId);
 
-        const fastapiUrl = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
-        const convertRes = await fetch(`${fastapiUrl}/convert`, {
+        const convertRes = await fetch(`/api/convert`, {
           method: 'POST',
-          headers: {
-            'X-Converter-Secret': process.env.NEXT_PUBLIC_CONVERTER_SECRET || '',
-          },
           body: formDataFastAPI,
         });
 
@@ -130,6 +128,11 @@ export function UploadLectureDialog({ courseId, courseCode }: UploadLectureDialo
         toast.error(`Failed to upload ${file.name}: ${err.message}`);
         failCount++;
         setIsProcessing(false);
+        
+        // Cleanup the placeholder if something failed (e.g. Cloudinary or FastAPI)
+        if (newLectureId) {
+          await apiFetch(`/lectures/${newLectureId}`, { method: 'DELETE' }).catch(() => {});
+        }
       }
     }
 

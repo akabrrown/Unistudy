@@ -68,7 +68,7 @@ router.get('/overview', async (req: Request, res: Response) => {
       providers: providers || []
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -83,7 +83,7 @@ router.get('/users', async (req: Request, res: Response) => {
     if (error) throw error;
     res.json({ users });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -119,7 +119,7 @@ router.get('/users/:userId/details', async (req: Request, res: Response) => {
       recentActivity: activityData
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -152,7 +152,7 @@ router.patch('/users/:userId/role', async (req: Request, res: Response) => {
 
     res.json({ success: true, profile: data });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -180,7 +180,7 @@ router.patch('/users/:userId/plan', async (req: Request, res: Response) => {
 
     res.json({ success: true, subscription: data });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -210,7 +210,7 @@ router.post('/users/:userId/reset-password', async (req: Request, res: Response)
 
     res.json({ success: true, recoveryLink: data.properties?.action_link });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -237,7 +237,7 @@ router.delete('/users/:userId', async (req: Request, res: Response) => {
 
       res.json({ success: true });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 
@@ -253,7 +253,7 @@ router.get('/content', async (req: Request, res: Response) => {
     if (error) throw error;
     res.json({ content: lectures });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -273,7 +273,7 @@ router.delete('/content/:id', async (req: Request, res: Response) => {
 
     res.json({ success: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -359,7 +359,7 @@ router.get('/ai-usage', async (req: Request, res: Response) => {
       topUsers
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -375,7 +375,7 @@ router.post('/ai-usage/toggle-fallback', async (req: Request, res: Response) => 
     await logAuditAction(req.user!.id, activate ? 'AI_FALLBACK_ACTIVATED' : 'AI_FALLBACK_DEACTIVATED', provider, 'provider');
     res.json({ success: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -435,7 +435,7 @@ router.get('/subscriptions', async (req: Request, res: Response) => {
       paymentLogs
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -460,7 +460,7 @@ router.post('/subscriptions/override', async (req: Request, res: Response) => {
     await logAuditAction(req.user!.id, 'SUBSCRIPTION_MANUALLY_OVERRIDDEN', userId, 'subscription', { newPlan, expiryDays });
     res.json({ success: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 

@@ -27,8 +27,7 @@ export function DailyMotivationalQuote() {
         }
       }
 
-      const res = await apiFetch('/api/settings/daily-quote');
-      const data = await res.json();
+      const data = await apiFetch('/settings/daily-quote');
       const newQuote = data.quote || "Small, consistent steps build massive momentum.";
       const newAuthor = data.author || "Unknown";
       

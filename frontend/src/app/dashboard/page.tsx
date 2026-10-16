@@ -1,5 +1,5 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { MoodCheckin } from '@/components/study/MoodCheckin'
+
 import { EffortTracker } from '@/components/EffortTracker'
 import { DailyMotivationalQuote } from '@/components/DailyMotivationalQuote'
 import { AnxietyCheckIn } from '@/components/AnxietyCheckIn'
@@ -47,9 +47,7 @@ export default async function DashboardPage() {
           <h1 className="text-3xl font-bold tracking-tight text-[#1A0A2E]">Your Study Desk</h1>
           <p className="text-muted-foreground mt-1">Organize your materials and start learning.</p>
         </div>
-        <div className="w-full md:w-auto">
-          <MoodCheckin />
-        </div>
+
       </div>
 
       <DailyMotivationalQuote />

@@ -4,31 +4,53 @@ import { supabaseAsUser } from '../lib/supabase';
 
 const router = Router();
 
+import Groq from 'groq-sdk';
+
+let cachedQuote: { date: string, quote: string, author: string } | null = null;
+
 // Public route: Daily Quote (no auth required)
-router.get('/daily-quote', (req: Request, res: Response) => {
-  const quotes = [
-    { quote: "Education is the most powerful weapon which you can use to change the world.", author: "Nelson Mandela" },
-    { quote: "The mind is not a vessel to be filled, but a fire to be kindled.", author: "Plutarch" },
-    { quote: "Develop a passion for learning. If you do, you will never cease to grow.", author: "Anthony J. D'Angelo" },
-    { quote: "An investment in knowledge pays the best interest.", author: "Benjamin Franklin" },
-    { quote: "The beautiful thing about learning is that no one can take it away from you.", author: "B.B. King" },
-    { quote: "The expert in anything was once a beginner.", author: "Helen Hayes" },
-    { quote: "Learning never exhausts the mind.", author: "Leonardo da Vinci" },
-    { quote: "You don't have to be great to start, but you have to start to be great.", author: "Zig Ziglar" },
-    { quote: "There are no shortcuts to any place worth going.", author: "Beverly Sills" },
-    { quote: "Success is the sum of small efforts, repeated day in and day out.", author: "Robert Collier" },
-    { quote: "The only place where success comes before work is in the dictionary.", author: "Vidal Sassoon" },
-    { quote: "Strive for progress, not perfection.", author: "Unknown" },
-    { quote: "I find that the harder I work, the more luck I seem to have.", author: "Thomas Jefferson" },
-    { quote: "Don't let what you cannot do interfere with what you can do.", author: "John Wooden" },
-  ];
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  const diff = now.getTime() - start.getTime();
-  const oneDay = 1000 * 60 * 60 * 24;
-  const dayOfYear = Math.floor(diff / oneDay);
-  const dailyQuote = quotes[dayOfYear % quotes.length];
-  res.json(dailyQuote);
+router.get('/daily-quote', async (req: Request, res: Response) => {
+  const today = new Date().toISOString().split('T')[0];
+  
+  if (cachedQuote && cachedQuote.date === today) {
+    return res.json({ quote: cachedQuote.quote, author: cachedQuote.author });
+  }
+
+  try {
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! });
+    const result = await groq.chat.completions.create({
+      messages: [{ 
+        role: 'user', 
+        content: `Give me a single motivational quote for university students. 
+Format your response exactly as: "Quote text" - Author Name. 
+Do not include any other text.` 
+      }],
+      model: 'llama3-8b-8192'
+    });
+
+    const responseText = result.choices[0]?.message?.content?.trim() || '';
+    
+    // Parse "Quote" - Author format
+    const match = responseText.match(/^"?(.*?)"?\s*-\s*(.*)$/);
+    
+    let quote = "Small, consistent steps build massive momentum.";
+    let author = "Unknown";
+    
+    if (match) {
+      quote = match[1];
+      author = match[2];
+    } else if (responseText) {
+      quote = responseText;
+      author = "AI";
+    }
+
+    cachedQuote = { date: today, quote, author };
+    res.json({ quote, author });
+  } catch (error) {
+    console.error('Error generating daily quote:', error);
+    // Fallback if Groq fails
+    res.json({ quote: "Education is the most powerful weapon which you can use to change the world.", author: "Nelson Mandela" });
+  }
 });
 router.use(authenticateUser);
 
@@ -44,7 +66,7 @@ router.get('/accessibility', async (req: Request, res: Response) => {
 
     if (error && error.code !== 'PGRST116') {
       console.error('Error fetching settings:', error);
-      return res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 
     if (!data) {
@@ -56,14 +78,14 @@ router.get('/accessibility', async (req: Request, res: Response) => {
         .single();
         
       if (insertError) {
-        return res.status(500).json({ error: insertError.message });
+        return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? insertError.message : undefined });
       }
       return res.json({ settings: newData });
     }
 
     res.json({ settings: data });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
@@ -88,12 +110,12 @@ router.patch('/accessibility', async (req: Request, res: Response) => {
 
     if (error) {
       console.error('Error updating settings:', error);
-      return res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 
     res.json({ settings: data });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 

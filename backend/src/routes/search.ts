@@ -96,7 +96,7 @@ router.post('/', async (req: Request, res: Response) => {
 
   } catch (err: any) {
     console.error('Search error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
