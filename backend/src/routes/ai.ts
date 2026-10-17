@@ -17,9 +17,9 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const upload = multer({ storage: multer.memoryStorage() });
 
 const GEMINI_VISION_MODELS = [
-  'gemini-flash-latest',
-  'gemini-flash-latest',
-  'gemini-1.5-pro',
+  'gemini-3.5-flash',
+  'gemini-3.8-flash',
+  'gemini-3.5-flash-lite',
 ];
 
 async function callWithFallback(
@@ -502,7 +502,7 @@ The quote must reference their actual situation naturally (e.g. "You have an Eng
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         messages: [
           { role: 'system', content: 'You are an inspiring academic coach.' },
           { role: 'user', content: prompt }
@@ -530,7 +530,7 @@ router.post('/study-break', withAIQuota('break_suggestion'), async (req: Request
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         messages: [
           { role: 'system', content: 'You suggest highly practical, specific 5-minute study breaks to prevent burnout.' },
           { role: 'user', content: 'I just finished a 25-minute pomodoro study session. Suggest one specific, actionable 5-minute break activity (e.g. physical movement, visual rest). Keep it under 2 sentences.' }
@@ -559,7 +559,7 @@ router.post('/anxiety-response', withAIQuota('chat_message'), async (req: Reques
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         messages: [
           { role: 'system', content: 'You are a supportive academic coach helping students with pre-exam anxiety.' },
           { role: 'user', content: `I have an exam tomorrow and I am feeling: ${feeling}. Suggest one specific, quick technique (like box breathing or positive visualization) to help me right now. Keep it under 3 sentences and very supportive.` }

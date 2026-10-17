@@ -3,6 +3,7 @@ import { supabaseAsUser, supabaseAdmin } from '../lib/supabase';
 import { authenticateUser } from '../middleware/auth';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
+import { chatCompletionWithFallback } from '../lib/ai/safeGroq';
 
 const router = Router();
 router.use(authenticateUser);
@@ -137,14 +138,10 @@ router.get('/:id/practice', withAIQuota('weakness_drill'), async (req: any, res:
         - "correct_answer": string (must exactly match one of the options)
         `;
 
-        const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! });
-        const result = await groq.chat.completions.create({
+        const text = await chatCompletionWithFallback({
             messages: [{ role: 'user', content: prompt }],
-            model: 'llama-3.3-70b-versatile',
             response_format: { type: 'json_object' }
         });
-        
-        const text = result.choices[0]?.message?.content || '{"questions":[]}';
         const parsed = JSON.parse(text);
 
         await consumeUserQuota(req.user!.id, 'weakness_drill');

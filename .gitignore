@@ -46,3 +46,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 converter/temp/
+
+# local logs and debug
+*upload_debug.txt
+*upload_error.txt
+*quota_error.txt
+test_*.js

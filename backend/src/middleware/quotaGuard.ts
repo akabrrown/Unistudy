@@ -35,6 +35,10 @@ export function withAIQuota(feature: Feature) {
       next();
     } catch (error: any) {
       console.error('Quota check failed:', error);
+      try {
+        const fs = require('fs');
+        fs.writeFileSync('quota_error.txt', `${new Date().toISOString()}\n${error.stack || error.message}`);
+      } catch (_) {}
       res.status(500).json({ 
         error: 'Internal server error during quota validation', 
         message: process.env.NODE_ENV === 'development' ? error.message : 'An unexpected error occurred'

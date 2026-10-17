@@ -3,9 +3,9 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { AIRequest } from '../router'
 
 const GEMINI_MODELS = [
-  'gemini-flash-latest',
-  'gemini-flash-latest',
-  'gemini-1.5-pro'
+  'gemini-3.5-flash',
+  'gemini-3.8-flash',
+  'gemini-3.5-flash-lite'
 ]
 
 export async function getGeminiModel() {

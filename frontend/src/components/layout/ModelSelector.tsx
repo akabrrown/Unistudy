@@ -3,9 +3,82 @@
 import { useModelStore } from '@/lib/stores/modelStore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Zap, BrainCircuit } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
-export function ModelSelector() {
+interface ModelSelectorProps {
+  isCollapsed?: boolean;
+}
+
+export function ModelSelector({ isCollapsed = false }: ModelSelectorProps) {
   const { selectedTier, setTier } = useModelStore();
+
+  const getTierIcon = (tier: string) => {
+    switch (tier) {
+      case 'fast':
+        return <Zap className="w-4 h-4 text-yellow-500" />;
+      case 'smart':
+        return <BrainCircuit className="w-4 h-4 text-purple-500" />;
+      default:
+        return <BrainCircuit className="w-4 h-4 text-blue-500" />;
+    }
+  };
+
+  const getTierLabel = (tier: string) => {
+    switch (tier) {
+      case 'fast':
+        return 'Fast & Cheap (0.5x)';
+      case 'smart':
+        return 'Smart & Precise (2.0x)';
+      default:
+        return 'Balanced (1.0x)';
+    }
+  };
+
+  if (isCollapsed) {
+    return (
+      <div className="flex justify-center w-full mb-3">
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <div className="inline-flex">
+                <Select value={selectedTier} onValueChange={(val: any) => setTier(val)}>
+                  <SelectTrigger 
+                    className="w-10 h-10 p-0 justify-center rounded-xl bg-background border border-border hover:border-primary/50 transition-colors [&>svg:last-child]:hidden"
+                    aria-label={`Current AI Model: ${getTierLabel(selectedTier)}`}
+                  >
+                    {getTierIcon(selectedTier)}
+                  </SelectTrigger>
+                  <SelectContent side="right" align="end" className="z-50">
+                    <SelectItem value="fast">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-yellow-500" />
+                        <span>Fast & Cheap (0.5x)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="default">
+                      <div className="flex items-center gap-2">
+                        <BrainCircuit className="w-4 h-4 text-blue-500" />
+                        <span>Balanced (1.0x)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="smart">
+                      <div className="flex items-center gap-2">
+                        <BrainCircuit className="w-4 h-4 text-purple-500" />
+                        <span>Smart & Precise (2.0x)</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            }
+          />
+          <TooltipContent side="right" sideOffset={12}>
+            AI Model: {getTierLabel(selectedTier)}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-1 w-full px-2 mb-4">

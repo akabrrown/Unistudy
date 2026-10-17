@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Upload, FileText, ArrowRight, TrendingUp, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 
+import { CourseUploadPastPaperButton } from '@/components/past-papers/CourseUploadPastPaperButton';
+
 export default async function PastPapersPage(props: { params: Promise<{ courseId: string }> }) {
   const params = await props.params;
   const supabase = await createClient();
@@ -35,10 +37,7 @@ export default async function PastPapersPage(props: { params: Promise<{ courseId
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Past Papers & Drills</h1>
           <p className="text-muted-foreground mt-1">Upload exams, get AI grading, and track your weak areas.</p>
         </div>
-        <Button className="gap-2">
-          <Upload className="w-4 h-4" />
-          Upload Past Paper
-        </Button>
+        <CourseUploadPastPaperButton courseId={params.courseId} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

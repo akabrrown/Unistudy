@@ -31,7 +31,10 @@ router.get('/', async (req: Request, res: Response) => {
     return res.json([]);
   }
   const supabase = supabaseAsUser(token);
-  const { data, error } = await supabase.from('courses').select('*, lectures(id)').order('created_at', { ascending: false });
+  const { data, error } = await supabase
+    .from('courses')
+    .select('*, lectures(id), past_papers(id, title, year, exam_type, status)')
+    .order('created_at', { ascending: false });
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   res.json(data);
 });
