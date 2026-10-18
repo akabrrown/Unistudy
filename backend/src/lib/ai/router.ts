@@ -63,8 +63,8 @@ export async function routeRequest(request: AIRequest): Promise<AIResponse> {
     const { getProviderStatus } = await import('./balance');
     const status = await getProviderStatus(provider as any);
     
-    // If the provider has fallback activated, route to groq_70b (Llama 3 70B)
-    if (status && status.is_fallback_active) {
+    // If the provider has fallback activated, route to groq_70b (Llama 3 70B) for text generation
+    if (status && status.is_fallback_active && request.task !== 'embedding' && request.task !== 'rerank') {
       console.warn(`[AI Router] Provider ${provider} is critically low. Falling back to groq_70b.`);
       provider = 'groq_70b';
     }
@@ -108,23 +108,44 @@ export async function routeRequest(request: AIRequest): Promise<AIResponse> {
       }
     }
   } catch (error) {
-    console.error(`[AI Router] Provider ${provider} failed:`, error)
+    console.error(`[AI Router] Provider ${provider} failed:`, error);
     
+    // For embedding tasks, chat providers cannot generate embeddings. Fail open with empty result.
+    if (request.task === 'embedding') {
+      console.warn(`[AI Router] Embedding provider ${provider} failed for ${request.feature}. Returning empty array.`);
+      return {
+        result: [],
+        provider: 'none',
+        requestsConsumed: 0,
+        responseMs: Date.now() - start
+      };
+    }
+
+    if (request.task === 'rerank') {
+      console.warn(`[AI Router] Rerank provider ${provider} failed. Returning null.`);
+      return {
+        result: null,
+        provider: 'none',
+        requestsConsumed: 0,
+        responseMs: Date.now() - start
+      };
+    }
+
     // Try Groq first since it has feature-specific prompt handling
     if (provider !== 'groq_70b' && provider !== 'groq_8b' && process.env.GROQ_API_KEY) {
       try {
-        console.log(`[AI Router] Attempting Groq fallback for ${request.feature}`)
-        provider = 'groq_70b'
+        console.log(`[AI Router] Attempting Groq fallback for ${request.feature}`);
+        provider = 'groq_70b';
         const { handleGroqRequest } = await import('./providers/groq');
         result = await handleGroqRequest(request);
       } catch (groqErr) {
-        console.error('[AI Router] Groq fallback also failed, trying OpenRouter:', groqErr)
-        provider = 'openrouter'
+        console.error('[AI Router] Groq fallback also failed, trying OpenRouter:', groqErr);
+        provider = 'openrouter';
         const { handleOpenRouterRequest } = await import('./providers/openrouter');
         result = await handleOpenRouterRequest(request);
       }
     } else {
-      provider = 'openrouter'
+      provider = 'openrouter';
       const { handleOpenRouterRequest } = await import('./providers/openrouter');
       result = await handleOpenRouterRequest(request);
     }

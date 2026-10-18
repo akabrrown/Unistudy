@@ -19,10 +19,9 @@ async function generateEmbeddingsBatch(texts: string[], userId: string): Promise
     const embedRes = await routeRequest(embedReq);
     const result = embedRes.result;
     
-    if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0])) {
-        return result;
-    } else if (Array.isArray(result)) {
-        // Handle single result wrapped
+    if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && typeof result[0][0] === 'number') {
+        return result as number[][];
+    } else if (Array.isArray(result) && result.length > 0 && typeof result[0] === 'number') {
         return [result as number[]];
     }
     return [];

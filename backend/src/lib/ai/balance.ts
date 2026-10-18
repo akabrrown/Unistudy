@@ -7,6 +7,11 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@unistudy.ai';
 
 export async function getProviderStatus(provider: ProviderName) {
+  const config = PROVIDER_CONFIG[provider];
+  if (!config || config.pool_type === 'free_rate_limit') {
+    return null;
+  }
+
   if (redis) {
     try {
       const cached = await redis.get(`platform:balance:${provider}`);
@@ -20,10 +25,12 @@ export async function getProviderStatus(provider: ProviderName) {
     .from('platform_ai_balance')
     .select('*')
     .eq('provider', provider)
-    .single();
+    .maybeSingle();
 
   if (error || !data) {
-    console.error(`Error fetching balance for ${provider}:`, error);
+    if (error) {
+      console.error(`Error fetching balance for ${provider}:`, error);
+    }
     return null;
   }
 

@@ -328,11 +328,13 @@ router.post('/grade-batch', withAIQuota('past_paper_grading'), async (req, res) 
                     priority: 'high'
                 };
                 const embedRes = await routeRequest(embedReq);
-                const embeddings = embedRes.result || [];
+                const rawEmbeddings = embedRes.result;
+                const embeddings = Array.isArray(rawEmbeddings) ? rawEmbeddings : [];
 
                 for (let i = 0; i < answers.length; i++) {
                     const emb = embeddings[i];
-                    if (emb) {
+                    const isValidVector = Array.isArray(emb) && emb.length > 0 && typeof emb[0] === 'number';
+                    if (isValidVector) {
                         const { data: matches } = await supabaseAdmin.rpc('match_study_content', {
                             query_embedding: `[${emb.join(',')}]`,
                             match_threshold: 0.5,
@@ -354,39 +356,63 @@ router.post('/grade-batch', withAIQuota('past_paper_grading'), async (req, res) 
 
         const personality = is_ultra 
             ? "You are a STRICT and UNFORGIVING university examiner. Do not offer encouragement or praise. Use pure mark-scheme language."
-            : "You are a helpful teaching assistant grading an exam. Be encouraging but accurate.";
+            : "You are an expert university examiner and teaching assistant grading an exam. Be rigorous, constructive, and highly educational.";
 
-        const prompt = `
-        ${personality}
-        Grade the following answers to exam questions.
-        
-        CRITICAL INSTRUCTION: If "Lecturer's Slide Context" is provided for a question, you MUST strongly base your grading on that context before considering general factual correctness. Accept factually correct answers if the slides are incomplete, but explicitly reference the slides when applicable (e.g., "According to Slide X...").
-        
-        ${answers.map((ans: any, idx: number) => `
-        --- Item ${idx} (ID: ${ans.id}) ---
-        Question: ${ans.question_content}
-        Total Marks Available: ${ans.marks_available}
-        Student's Answer: ${ans.student_answer}
-        ${ans.slide_context ? `\nLecturer's Slide Context (PRIORITIZE THIS):\n${ans.slide_context}` : ''}
-        `).join('\n')}
-        
-        Return EXACTLY ONE valid JSON object. 
-        It MUST have a single root key called "results" which is an array containing an object for each item graded, IN THE EXACT SAME ORDER.
-        Each object MUST have these keys:
-        - "id": (string, the exact ID provided in the item)
-        - "marks_awarded": (integer)
-        - "feedback": (string)
-        - "model_answer": (string, showing the ideal answer based heavily on the slides if available)
-        `;
+        // Chunk answers into batches of at most 3 to ensure the AI has ample token headroom
+        // to re-answer all questions and all sub-parts completely without lazy truncation.
+        const CHUNK_SIZE = 3;
+        const allResults: any[] = [];
 
-        const text = await chatCompletionWithFallback({
-            messages: [{ role: 'user', content: prompt }],
-            response_format: { type: 'json_object' }
-        });
-        const parsed = JSON.parse(text);
+        for (let i = 0; i < answers.length; i += CHUNK_SIZE) {
+            const chunk = answers.slice(i, i + CHUNK_SIZE);
+            const prompt = `
+${personality}
+Grade the following answers to exam questions.
+
+CRITICAL INSTRUCTIONS (MANDATORY FOR EVERY SINGLE QUESTION):
+1. RE-ANSWER EVERY QUESTION COMPLETELY:
+   - For EACH and EVERY question below, you MUST provide a complete, authoritative, step-by-step Model Answer ("model_answer") that fully re-answers the entire question from scratch to 100% completion.
+   - If a question has sub-parts (e.g. part a, part b, part c, i, ii, iii), your "model_answer" MUST re-answer EVERY SINGLE sub-part with full solutions, formulas, steps, explanations, and final answers. 
+   - NEVER answer only some parts and leave others unanswered!
+   - NEVER write "Refer to notes", "N/A", or "Student did not attempt". Even if the student's answer was blank or scored 0 marks, you MUST provide the complete, working model solution for all parts so the student learns the complete answer.
+2. EXAMINER FEEDBACK:
+   - "feedback": State clearly what the student earned marks for, what was missing or incorrect, and the specific marking-scheme allocation.
+3. SCORING:
+   - "marks_awarded": Integer between 0 and marks_available.
+
+CRITICAL INSTRUCTION FOR SLIDES: If "Lecturer's Slide Context" is provided for a question, you MUST strongly base your grading and model answer on that context before considering general factual correctness.
+
+${chunk.map((ans: any, idx: number) => `
+--- Item ${i + idx} (ID: ${ans.id}) ---
+Question: ${ans.question_content}
+Total Marks Available: ${ans.marks_available}
+Student's Answer: ${ans.student_answer}
+${ans.slide_context ? `\nLecturer's Slide Context (PRIORITIZE THIS):\n${ans.slide_context}` : ''}
+`).join('\n')}
+
+Return EXACTLY ONE valid JSON object with a single root key called "results", which is an array containing an object for each item in this batch, IN THE EXACT SAME ORDER:
+- "id": (string, the exact ID provided in the item)
+- "marks_awarded": (integer)
+- "feedback": (string)
+- "model_answer": (string, complete markdown solution re-answering all question parts completely)
+`;
+
+            const text = await chatCompletionWithFallback({
+                messages: [{ role: 'user', content: prompt }],
+                response_format: { type: 'json_object' }
+            });
+            const start = text.indexOf('{');
+            const end = text.lastIndexOf('}');
+            if (start !== -1 && end !== -1) {
+                const parsed = JSON.parse(text.slice(start, end + 1));
+                if (Array.isArray(parsed.results)) {
+                    allResults.push(...parsed.results);
+                }
+            }
+        }
         
         await consumeUserQuota(req.user!.id, 'past_paper_grading');
-        res.json({ success: true, data: parsed.results || [] });
+        res.json({ success: true, data: allResults });
     } catch (err: any) {
         console.error('Error grading batch:', err);
         res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
@@ -412,10 +438,18 @@ router.post('/grade', withAIQuota('past_paper_grading'), async (req, res) => {
                     priority: 'high'
                 };
                 const embedRes = await routeRequest(embedReq);
-                const embedding = embedRes.result?.[0];
-                if (embedding) {
+                const rawResult = embedRes.result;
+                let embeddingVector: number[] | null = null;
+                if (Array.isArray(rawResult)) {
+                    if (typeof rawResult[0] === 'number') {
+                        embeddingVector = rawResult as number[];
+                    } else if (Array.isArray(rawResult[0]) && typeof rawResult[0][0] === 'number') {
+                        embeddingVector = rawResult[0] as number[];
+                    }
+                }
+                if (embeddingVector && embeddingVector.length > 0) {
                     const { data: matches } = await supabaseAdmin.rpc('match_study_content', {
-                        query_embedding: `[${embedding.join(',')}]`,
+                        query_embedding: `[${embeddingVector.join(',')}]`,
                         match_threshold: 0.5,
                         match_count: 3,
                         p_user_id: req.user!.id
@@ -434,13 +468,24 @@ router.post('/grade', withAIQuota('past_paper_grading'), async (req, res) => {
 
         const personality = is_ultra 
             ? "You are a STRICT and UNFORGIVING university examiner. Do not offer encouragement or praise. Use pure mark-scheme language (e.g. 'Candidate correctly identified X [1 mark] but failed to...')."
-            : "You are a helpful teaching assistant grading an exam. Be encouraging but accurate.";
+            : "You are a helpful university examiner and teaching assistant grading an exam. Be encouraging, thorough, and accurate.";
 
         const prompt = `
         ${personality}
         Grade the following answer to this exam question.
         
-        CRITICAL INSTRUCTION: If "Lecturer's Slide Context" is provided, you MUST strongly base your grading on that context before considering general factual correctness. Accept factually correct answers if the slides are incomplete, but explicitly reference the slides when applicable (e.g., "According to Slide X...").
+        CRITICAL INSTRUCTIONS (MANDATORY):
+        1. RE-ANSWER THE QUESTION COMPLETELY:
+           - You MUST provide a complete, authoritative, step-by-step Model Answer ("model_answer") that fully re-answers the entire question from scratch to 100% completion.
+           - If the question contains multiple sub-parts (e.g. (a), (b), (c), (i), (ii)), your "model_answer" MUST re-answer EVERY SINGLE sub-part with full solutions, formulas, steps, explanations, and final answers.
+           - NEVER answer only some parts and leave others unanswered!
+           - Even if the student's answer was blank or scored 0 marks, you MUST still provide the complete, working model solution for all sub-parts so the student learns the full answer.
+        2. EXAMINER FEEDBACK:
+           - "feedback": Detail what marks were awarded or deducted and why according to the mark scheme.
+        3. SCORING:
+           - "marks_awarded": Integer between 0 and ${marks_available || 0}.
+
+        CRITICAL INSTRUCTION FOR SLIDES: If "Lecturer's Slide Context" is provided, you MUST strongly base your grading and model answer on that context before considering general factual correctness.
         
         Question: ${question_content}
         Total Marks Available: ${marks_available}
@@ -452,7 +497,7 @@ router.post('/grade', withAIQuota('past_paper_grading'), async (req, res) => {
         Return exactly ONE valid JSON object with these keys:
         - "marks_awarded": (integer)
         - "feedback": (string)
-        - "model_answer": (string, showing the ideal answer based heavily on the slides if available)
+        - "model_answer": (string, complete markdown solution re-answering all question parts completely)
         `;
 
         let parsedResult: any = null;

@@ -101,30 +101,49 @@ router.post('/generate', withAIQuota('flashcard_generation'), async (req: Reques
 
     // 5. Generate embeddings and insert new flashcards into database
     if (generatedCards.length > 0) {
-      const textsToEmbed = generatedCards.map(c => `Flashcard: Q: ${c.front} A: ${c.back}`);
-      
-      const embedReq: AIRequest = {
-        task: 'embedding',
-        feature: 'flashcard_embedding',
-        payload: { texts: textsToEmbed },
-        userId: req.user!.id,
-        priority: 'medium'
-      };
-      
-      const embedRes = await routeRequest(embedReq);
-      const embeddings = embedRes.result || []; // Should be an array of vectors
+      let embeddings: (number[] | null)[] = [];
+      try {
+        const textsToEmbed = generatedCards.map(c => `Flashcard: Q: ${c.front} A: ${c.back}`);
+        
+        const embedReq: AIRequest = {
+          task: 'embedding',
+          feature: 'flashcard_embedding',
+          payload: { texts: textsToEmbed },
+          userId: req.user!.id,
+          priority: 'medium'
+        };
+        
+        const embedRes = await routeRequest(embedReq);
+        const rawResult = embedRes?.result;
+        
+        if (Array.isArray(rawResult)) {
+          if (rawResult.length > 0 && typeof rawResult[0] === 'number') {
+            embeddings = [rawResult as number[]];
+          } else {
+            embeddings = rawResult.map((item: any) => 
+              Array.isArray(item) && item.length > 0 && typeof item[0] === 'number' ? (item as number[]) : null
+            );
+          }
+        }
+      } catch (embedErr) {
+        console.warn('[Flashcards] Embedding generation failed, continuing without embeddings:', embedErr);
+      }
 
-      const cardsToInsert = generatedCards.map((c, i) => ({
-        user_id: req.user!.id,
-        lecture_id: lectureId,
-        front: c.front,
-        back: c.back,
-        ease_factor: 2.5,
-        interval_days: 0,
-        repetitions: 0,
-        next_review: new Date().toISOString(),
-        embedding: embeddings[i] ? `[${embeddings[i].join(',')}]` : null // pgvector format
-      }));
+      const cardsToInsert = generatedCards.map((c, i) => {
+        const emb = embeddings[i];
+        const isValidVector = Array.isArray(emb) && emb.length > 0 && typeof emb[0] === 'number';
+        return {
+          user_id: req.user!.id,
+          lecture_id: lectureId,
+          front: c.front,
+          back: c.back,
+          ease_factor: 2.5,
+          interval_days: 0,
+          repetitions: 0,
+          next_review: new Date().toISOString(),
+          embedding: isValidVector ? `[${emb.join(',')}]` : null // pgvector format
+        };
+      });
 
       const { error: insertError } = await supabase.from('flashcards').insert(cardsToInsert);
       if (insertError) throw insertError;

@@ -1,6 +1,14 @@
 import { createClient } from '../supabase/client';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8005';
+const rawBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8005';
+// Normalize: strip trailing slashes and trailing '/api' so BACKEND_URL is always the origin host
+export const BACKEND_URL = rawBackendUrl.trim().replace(/\/+$/, '').replace(/\/api$/, '');
+
+export function buildApiUrl(endpoint: string): string {
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const path = cleanEndpoint.startsWith('/api/') ? cleanEndpoint : `/api${cleanEndpoint}`;
+  return `${BACKEND_URL}${path}`;
+}
 
 // Render free-tier services spin down after inactivity and take up to 60s to
 // wake. We retry on network errors (not HTTP errors) up to MAX_RETRIES times
@@ -47,8 +55,9 @@ async function buildHeaders(options: RequestInit): Promise<Headers> {
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   const headers = await buildHeaders(options);
+  const url = buildApiUrl(endpoint);
   const response = await withRetry(() =>
-    fetch(`${BACKEND_URL}/api${endpoint}`, { ...options, headers })
+    fetch(url, { ...options, headers })
   );
 
   if (!response.ok) {
@@ -61,8 +70,9 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
 export async function apiFetchRaw(endpoint: string, options: RequestInit = {}) {
   const headers = await buildHeaders(options);
+  const url = buildApiUrl(endpoint);
   const response = await withRetry(() =>
-    fetch(`${BACKEND_URL}/api${endpoint}`, { ...options, headers })
+    fetch(url, { ...options, headers })
   );
 
   if (!response.ok) {
@@ -72,3 +82,4 @@ export async function apiFetchRaw(endpoint: string, options: RequestInit = {}) {
 
   return response;
 }
+

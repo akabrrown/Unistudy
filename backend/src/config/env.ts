@@ -7,7 +7,7 @@ dotenv.config(); // fallback to .env if needed
 const envSchema = z.object({
   PORT: z.string().default('8000'),
   NODE_ENV: z.string().default('development'),
-  FRONTEND_URL: z.string().url(),
+  FRONTEND_URL: z.string().default('http://localhost:3000'),
   SUPABASE_URL: z.string().url(),
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),

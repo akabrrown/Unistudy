@@ -59,7 +59,7 @@ export default async function PastPapersPage(props: { params: Promise<{ courseId
                     <h3 className="font-semibold text-base">{paper.year} {paper.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm'}</h3>
                     <p className="text-sm text-muted-foreground">Uploaded {new Date(paper.created_at).toLocaleDateString()}</p>
                   </div>
-                  <Link href={`/dashboard/courses/${params.courseId}/past-papers/${paper.id}/attempt`}>
+                  <Link href={`/dashboard/past-papers/${paper.id}`}>
                     <Button variant="outline" size="sm" className="gap-2">
                       Attempt
                       <ArrowRight className="w-3 h-3" />

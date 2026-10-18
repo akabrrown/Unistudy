@@ -28,10 +28,22 @@ router.post('/', async (req: Request, res: Response) => {
     };
 
     const hfResponse = await routeRequest(aiReq);
-    const queryEmbedding = Array.isArray(hfResponse.result) ? hfResponse.result[0] : hfResponse.result;
+    const rawResult = hfResponse?.result;
+    let queryEmbedding: number[] | null = null;
+    if (Array.isArray(rawResult)) {
+      if (typeof rawResult[0] === 'number') {
+        queryEmbedding = rawResult as number[];
+      } else if (Array.isArray(rawResult[0]) && typeof rawResult[0][0] === 'number') {
+        queryEmbedding = rawResult[0] as number[];
+      }
+    }
 
-    if (!queryEmbedding) {
-      throw new Error('Failed to generate embedding for query');
+    if (!queryEmbedding || queryEmbedding.length === 0) {
+      return res.json({
+        success: true,
+        data: { slides: [], flashcards: [], past_papers: [] },
+        enhanced: false
+      });
     }
 
     // 2. Perform vector search using Supabase RPC

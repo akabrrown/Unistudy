@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Loader2, Quote } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
+import { getCuratedDailyQuote } from '@/lib/constants/quotes';
 
 export function DailyMotivationalQuote() {
   const [quote, setQuote] = useState<string>('');
@@ -13,30 +14,37 @@ export function DailyMotivationalQuote() {
   }, []);
 
   const loadQuote = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    const defaultQuote = getCuratedDailyQuote(today);
+
     try {
-      const today = new Date().toISOString().split('T')[0];
       const cachedData = localStorage.getItem('dailyQuoteV2');
       
       if (cachedData) {
-        const { date, quote, author } = JSON.parse(cachedData);
-        if (date === today) {
-          setQuote(quote);
-          setAuthor(author);
-          setLoading(false);
-          return;
+        try {
+          const parsed = JSON.parse(cachedData);
+          if (parsed.date === today && parsed.quote) {
+            setQuote(parsed.quote);
+            setAuthor(parsed.author || 'Unknown');
+            setLoading(false);
+            return;
+          }
+        } catch {
+          // invalid cache, continue
         }
       }
 
       const data = await apiFetch('/settings/daily-quote');
-      const newQuote = data.quote || "Small, consistent steps build massive momentum.";
-      const newAuthor = data.author || "Unknown";
+      const newQuote = data.quote || defaultQuote.quote;
+      const newAuthor = data.author || defaultQuote.author;
       
       localStorage.setItem('dailyQuoteV2', JSON.stringify({ date: today, quote: newQuote, author: newAuthor }));
       setQuote(newQuote);
       setAuthor(newAuthor);
-    } catch (err) {
-      setQuote("Small, consistent steps build massive momentum.");
-      setAuthor("Unknown");
+    } catch {
+      // Rotating daily fallback guaranteed to change every day
+      setQuote(defaultQuote.quote);
+      setAuthor(defaultQuote.author);
     } finally {
       setLoading(false);
     }

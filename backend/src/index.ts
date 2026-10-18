@@ -52,6 +52,16 @@ app.use(rateLimit({
 
 // Global Middlewares
 app.use(corsMiddleware);
+app.options('*', corsMiddleware);
+
+// Defensive rewrite for client configurations that include duplicate /api prefixes
+app.use((req, _res, next) => {
+  if (req.url.startsWith('/api/api/')) {
+    req.url = req.url.replace(/^\/api\/api\//, '/api/');
+  }
+  next();
+});
+
 app.use(requestLogger);
 
 // Webhooks need raw body for signature verification — must come before express.json()
