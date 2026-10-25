@@ -11,7 +11,7 @@ const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_RE
   : null;
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@unistudy.ai';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'unistudy.ai@gmail.com';
 
 export async function getProviderStatus(provider: ProviderName) {
   if (redis) {

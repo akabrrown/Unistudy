@@ -146,7 +146,7 @@ export default function CookiesPage() {
               4. Questions
             </h2>
             <p>
-              For questions regarding our storage practices, contact us at <a href="mailto:privacy@unistudy.ai" className="text-[#5B2D8E] dark:text-[#D1C4E9] underline font-medium">privacy@unistudy.ai</a>.
+              For questions regarding our storage practices, contact us at <a href="mailto:unistudy.ai@gmail.com" className="text-[#5B2D8E] dark:text-[#D1C4E9] underline font-medium">unistudy.ai@gmail.com</a>.
             </p>
           </section>
         </div>

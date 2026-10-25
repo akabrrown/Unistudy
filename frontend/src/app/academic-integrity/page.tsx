@@ -112,7 +112,7 @@ export default function AcademicIntegrityPage() {
             </p>
             <div className="p-4 rounded-xl bg-[#EDE7F6]/50 dark:bg-white/5 border border-[#D1C4E9]/50 dark:border-white/10 text-sm">
               <p><strong>UniStudy AI — Academic Integrity Liaison</strong></p>
-              <p>Email: <a href="mailto:academic-integrity@unistudy.ai" className="text-[#5B2D8E] dark:text-[#D1C4E9] underline font-medium">academic-integrity@unistudy.ai</a></p>
+              <p>Email: <a href="mailto:unistudy.ai@gmail.com" className="text-[#5B2D8E] dark:text-[#D1C4E9] underline font-medium">unistudy.ai@gmail.com</a></p>
             </div>
           </section>
         </div>

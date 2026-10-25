@@ -4,7 +4,7 @@ import { Resend } from 'resend';
 import { ProviderName, PROVIDER_CONFIG } from '../../../../shared/constants/quota';
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@unistudy.ai';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'unistudy.ai@gmail.com';
 
 export async function getProviderStatus(provider: ProviderName) {
   const config = PROVIDER_CONFIG[provider];

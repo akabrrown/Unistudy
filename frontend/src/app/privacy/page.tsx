@@ -205,7 +205,7 @@ export default function PrivacyPage() {
             </p>
             <div className="p-4 rounded-xl bg-[#EDE7F6]/50 dark:bg-white/5 border border-[#D1C4E9]/50 dark:border-white/10 text-sm">
               <p><strong>UniStudy AI — Data Protection &amp; Privacy Office</strong></p>
-              <p>Email: <a href="mailto:privacy@unistudy.ai" className="text-[#5B2D8E] dark:text-[#D1C4E9] underline">privacy@unistudy.ai</a></p>
+              <p>Email: <a href="mailto:unistudy.ai@gmail.com" className="text-[#5B2D8E] dark:text-[#D1C4E9] underline">unistudy.ai@gmail.com</a></p>
               <p>Physical Address: Accra, Greater Accra Region, Ghana</p>
               <p className="text-xs text-[#6B5A8A] dark:text-[#B39DDB] mt-2">
                 If you believe your data has been handled in breach of the Data Protection Act, 2012 (Act 843), you have the right to lodge a complaint with the Data Protection Commission (DPC) of Ghana.

@@ -93,9 +93,9 @@ export function MarketingFooter() {
                 </Link>
               </li>
               <li>
-                <a href="mailto:support@unistudy.ai" className="hover:text-[#5B2D8E] dark:hover:text-white transition-colors flex items-center gap-1.5">
+                <a href="mailto:unistudy.ai@gmail.com" className="hover:text-[#5B2D8E] dark:hover:text-white transition-colors flex items-center gap-1.5">
                   <Mail size={14} />
-                  <span>support@unistudy.ai</span>
+                  <span>unistudy.ai@gmail.com</span>
                 </a>
               </li>
             </ul>

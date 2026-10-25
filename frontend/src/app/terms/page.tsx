@@ -86,7 +86,7 @@ export default function TermsPage() {
               <li>Provide accurate, current, and complete registration information.</li>
               <li>Maintain the confidentiality of your login credentials and accept responsibility for all activity on your account.</li>
               <li>Be at least 16 years of age or enrolled in a secondary or tertiary educational institution.</li>
-              <li>Immediately notify us at <a href="mailto:support@unistudy.ai" className="text-[#5B2D8E] dark:text-[#D1C4E9] underline">support@unistudy.ai</a> if you detect any unauthorized access or breach of security.</li>
+              <li>Immediately notify us at <a href="mailto:unistudy.ai@gmail.com" className="text-[#5B2D8E] dark:text-[#D1C4E9] underline">unistudy.ai@gmail.com</a> if you detect any unauthorized access or breach of security.</li>
             </ul>
           </section>
 
@@ -191,7 +191,7 @@ export default function TermsPage() {
             </p>
             <div className="p-4 rounded-xl bg-[#EDE7F6]/50 dark:bg-white/5 border border-[#D1C4E9]/50 dark:border-white/10 text-sm">
               <p><strong>UniStudy AI Ltd. — Legal &amp; Compliance</strong></p>
-              <p>Email: <a href="mailto:legal@unistudy.ai" className="text-[#5B2D8E] dark:text-[#D1C4E9] underline">legal@unistudy.ai</a> / <a href="mailto:support@unistudy.ai" className="text-[#5B2D8E] dark:text-[#D1C4E9] underline">support@unistudy.ai</a></p>
+              <p>Email: <a href="mailto:unistudy.ai@gmail.com" className="text-[#5B2D8E] dark:text-[#D1C4E9] underline">unistudy.ai@gmail.com</a></p>
               <p>Location: Accra, Ghana</p>
             </div>
           </section>
