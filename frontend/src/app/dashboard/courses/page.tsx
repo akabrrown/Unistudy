@@ -573,15 +573,42 @@ export default function CoursesPage() {
 
                     if (insertError) throw insertError;
 
-                    // 1. Upload the original file to Cloudinary
-                    const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-                    if (!uploadPreset) throw new Error('Cloudinary upload preset is not configured.');
+                    // Pre-flight file size check (100MB limit)
+                    if (file.size > 100 * 1024 * 1024) {
+                      throw new Error(`File is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum allowed size is 100MB.`);
+                    }
+
+                    // 1. Fetch Cloudinary upload signature if secret is configured on server
+                    let signedData: any = null;
+                    try {
+                      const signRes = await fetch('/api/upload/sign', { method: 'POST' });
+                      if (signRes.ok) {
+                        signedData = await signRes.json();
+                      }
+                    } catch (e) {
+                      console.warn('Could not fetch upload signature, using preset fallback:', e);
+                    }
 
                     const formDataCloudinary = new FormData();
                     formDataCloudinary.append('file', file);
-                    formDataCloudinary.append('upload_preset', uploadPreset);
-                    // For PPTX, we might want to specify resource_type raw or auto. auto works well.
-                    const uploadUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/auto/upload`;
+
+                    let uploadUrl = '';
+                    if (signedData?.signed) {
+                      formDataCloudinary.append('api_key', signedData.apiKey);
+                      formDataCloudinary.append('timestamp', String(signedData.timestamp));
+                      formDataCloudinary.append('signature', signedData.signature);
+                      formDataCloudinary.append('folder', signedData.folder);
+                      uploadUrl = `https://api.cloudinary.com/v1_1/${signedData.cloudName}/auto/upload`;
+                    } else {
+                      // Unsigned fallback
+                      if (file.size > 10485760) {
+                        throw new Error(`File size (${(file.size / (1024 * 1024)).toFixed(1)}MB) exceeds Cloudinary's 10MB limit for unsigned uploads. Add CLOUDINARY_API_SECRET in Vercel to unlock 100MB uploads.`);
+                      }
+                      const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+                      if (!uploadPreset) throw new Error('Cloudinary upload preset is not configured.');
+                      formDataCloudinary.append('upload_preset', uploadPreset);
+                      uploadUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/auto/upload`;
+                    }
 
                     const xhr = new XMLHttpRequest();
                     xhr.open('POST', uploadUrl);
@@ -612,7 +639,7 @@ export default function CoursesPage() {
                       .eq('id', newLecture.id);
                     if (updateErr) throw updateErr;
 
-                    // 2. Send file to FastAPI conversion endpoint for image generation and AI processing
+                    // 2. Send file to conversion endpoint for image generation and AI processing
                     setIsProcessing(true);
                     const formDataFastAPI = new FormData();
                     formDataFastAPI.append('file', file);
@@ -621,14 +648,14 @@ export default function CoursesPage() {
                     const userId = userRes.data.user?.id || '';
                     formDataFastAPI.append('user_id', userId);
 
-                    const apiUrl = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
-                    const convertRes = await fetch(`${apiUrl}/convert`, {
+                    const convertRes = await fetch(`/api/convert`, {
                       method: 'POST',
                       body: formDataFastAPI,
                     });
 
                     if (!convertRes.ok) {
-                      const errText = await convertRes.text();
+                      const errJson = await convertRes.json().catch(() => null);
+                      const errText = errJson?.error || (await convertRes.text().catch(() => 'Conversion failed'));
                       throw new Error(`Conversion failed: ${errText}`);
                     }
                     
@@ -636,7 +663,7 @@ export default function CoursesPage() {
                     successCount++;
                   } catch (err: any) {
                     console.error(`Upload error for ${file.name}:`, err);
-                    toast.error(`Failed to upload ${file.name}: ${err.message}`);
+                    toast.error(`Failed to process ${file.name}: ${err.message}`);
                     failCount++;
                     setIsProcessing(false);
                   }

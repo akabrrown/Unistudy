@@ -48,6 +48,7 @@ export function UploadLectureDialog({ courseId, courseCode }: UploadLectureDialo
       setUploadProgress(0);
 
       let newLectureId: string | null = null;
+      let uploadedFileUrl: string | null = null;
       try {
         const fileWeek = fileWeeks[i];
         const payload: any = {
@@ -64,15 +65,43 @@ export function UploadLectureDialog({ courseId, courseCode }: UploadLectureDialo
           body: JSON.stringify(payload)
         });
         newLectureId = newLecture.id;
+        
+        // Pre-flight file size check (100MB limit)
+        if (file.size > 100 * 1024 * 1024) {
+          throw new Error(`File is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum allowed size is 100MB.`);
+        }
 
-        // 1. Upload the original file to Cloudinary
-        const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-        if (!uploadPreset) throw new Error('Cloudinary upload preset is not configured.');
+        // 1. Fetch Cloudinary upload signature if secret is configured on server
+        let signedData: any = null;
+        try {
+          const signRes = await fetch('/api/upload/sign', { method: 'POST' });
+          if (signRes.ok) {
+            signedData = await signRes.json();
+          }
+        } catch (e) {
+          console.warn('Could not fetch upload signature, using preset fallback:', e);
+        }
 
         const formDataCloudinary = new FormData();
         formDataCloudinary.append('file', file);
-        formDataCloudinary.append('upload_preset', uploadPreset);
-        const uploadUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/auto/upload`;
+
+        let uploadUrl = '';
+        if (signedData?.signed) {
+          formDataCloudinary.append('api_key', signedData.apiKey);
+          formDataCloudinary.append('timestamp', String(signedData.timestamp));
+          formDataCloudinary.append('signature', signedData.signature);
+          formDataCloudinary.append('folder', signedData.folder);
+          uploadUrl = `https://api.cloudinary.com/v1_1/${signedData.cloudName}/auto/upload`;
+        } else {
+          // Unsigned fallback
+          if (file.size > 10485760) {
+            throw new Error(`File size (${(file.size / (1024 * 1024)).toFixed(1)}MB) exceeds Cloudinary's 10MB limit for unsigned uploads. Add CLOUDINARY_API_SECRET in Vercel to unlock 100MB uploads.`);
+          }
+          const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+          if (!uploadPreset) throw new Error('Cloudinary upload preset is not configured.');
+          formDataCloudinary.append('upload_preset', uploadPreset);
+          uploadUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/auto/upload`;
+        }
 
         const xhr = new XMLHttpRequest();
         xhr.open('POST', uploadUrl);
@@ -95,14 +124,15 @@ export function UploadLectureDialog({ courseId, courseCode }: UploadLectureDialo
 
         xhr.send(formDataCloudinary);
         const fileData = await responsePromise;
+        uploadedFileUrl = fileData.secure_url;
 
         // Update lecture with Cloudinary URL and set processing to true
         await apiFetch(`/lectures/${newLecture.id}`, {
           method: 'PATCH',
-          body: JSON.stringify({ file_url: fileData.secure_url, processing: true })
+          body: JSON.stringify({ file_url: uploadedFileUrl, processing: true })
         });
 
-        // 2. Send file to FastAPI conversion endpoint
+        // 2. Send file to conversion endpoint
         setIsProcessing(true);
         const formDataFastAPI = new FormData();
         formDataFastAPI.append('file', file);
@@ -117,7 +147,8 @@ export function UploadLectureDialog({ courseId, courseCode }: UploadLectureDialo
         });
 
         if (!convertRes.ok) {
-          const errText = await convertRes.text();
+          const errJson = await convertRes.json().catch(() => null);
+          const errText = errJson?.error || (await convertRes.text().catch(() => 'Conversion failed'));
           throw new Error(`Conversion failed: ${errText}`);
         }
         
@@ -125,13 +156,21 @@ export function UploadLectureDialog({ courseId, courseCode }: UploadLectureDialo
         successCount++;
       } catch (err: any) {
         console.error(`Upload error for ${file.name}:`, err);
-        toast.error(`Failed to upload ${file.name}: ${err.message}`);
+        toast.error(`Failed to process ${file.name}: ${err.message}`);
         failCount++;
         setIsProcessing(false);
         
-        // Cleanup the placeholder if something failed (e.g. Cloudinary or FastAPI)
+        // Only cleanup placeholder if file was NEVER uploaded to storage.
+        // If file was uploaded, keep the lecture record and clear processing flag.
         if (newLectureId) {
-          await apiFetch(`/lectures/${newLectureId}`, { method: 'DELETE' }).catch(() => {});
+          if (!uploadedFileUrl) {
+            await apiFetch(`/lectures/${newLectureId}`, { method: 'DELETE' }).catch(() => {});
+          } else {
+            await apiFetch(`/lectures/${newLectureId}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ processing: false })
+            }).catch(() => {});
+          }
         }
       }
     }
