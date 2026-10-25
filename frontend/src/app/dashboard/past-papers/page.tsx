@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input'
 import { createClient } from '@/lib/supabase/client'
 import { apiFetch } from '@/lib/api/client'
 import Link from 'next/link'
+import { resolveCourseColor } from '@/lib/constants/courses'
 import { UploadModal } from '@/components/past-papers/UploadModal'
 import { cn } from '@/lib/utils'
 
@@ -289,7 +290,7 @@ export default function PastPapersDashboard() {
                 >
                   <div
                     className="absolute top-0 left-0 right-0 h-1.5"
-                    style={{ backgroundColor: course.colour || '#5B2D8E' }}
+                    style={{ backgroundColor: resolveCourseColor(course.colour) }}
                   />
 
                   <CardHeader className="pt-5 pb-3">

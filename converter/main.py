@@ -40,7 +40,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Shared-secret authentication for internal service calls
 # ---------------------------------------------------------------------------
-_converter_secret = os.getenv("CONVERTER_SECRET", "")
+_converter_secret = os.getenv("CONVERTER_SECRET", "").strip().strip('"').strip("'")
 _api_key_header = APIKeyHeader(name="X-Converter-Secret", auto_error=False)
 
 async def verify_converter_secret(api_key: Optional[str] = Security(_api_key_header)):
@@ -48,7 +48,13 @@ async def verify_converter_secret(api_key: Optional[str] = Security(_api_key_hea
     if not _converter_secret:
         # If CONVERTER_SECRET is not configured, allow calls for local development
         return api_key
-    if api_key != _converter_secret:
+    clean_key = (api_key or "").strip().strip('"').strip("'")
+    if clean_key != _converter_secret:
+        logger.warning(
+            "Converter secret mismatch. Received key len=%d, expected len=%d",
+            len(clean_key),
+            len(_converter_secret),
+        )
         raise HTTPException(status_code=401, detail="Invalid converter secret")
     return api_key
 

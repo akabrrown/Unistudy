@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import Link from 'next/link'
-import { Plus, UploadCloud, BookOpen, Trash2, Loader2, FileText, Edit3, Archive, ArchiveRestore } from 'lucide-react'
+import { Plus, UploadCloud, BookOpen, Trash2, Loader2, FileText, Edit3, Archive, ArchiveRestore, Check } from 'lucide-react'
+import { COURSE_COLORS, resolveCourseColor } from '@/lib/constants/courses'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -126,7 +126,7 @@ export default function CoursesPage() {
     setEditCourseId(course.id);
     setEditCourseCode(course.course_code || '');
     setEditCourseName(course.title || '');
-    setEditCourseColor(course.colour || '#5B2D8E');
+    setEditCourseColor(resolveCourseColor(course.colour));
     setEditCourseSemester(course.semester?.toString() || '1');
     setEditCourseYear(course.year?.toString() || new Date().getFullYear().toString());
     setIsEditDialogOpen(true);
@@ -201,24 +201,29 @@ export default function CoursesPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right">Course Colour</Label>
-                  <div className="col-span-3 flex space-x-2">
-                    {[
-                      "#5B2D8E",
-                      "#7B4DB5",
-                      "#9B72CF",
-                      "#E91E63",
-                      "#0B57D0",
-                      "#FF5722",
-                      "#4CAF50"
-                    ].map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        className={`w-6 h-6 rounded-full border-2 ${c === newCourseColor ? "border-black" : "border-transparent"}`}
-                        style={{ backgroundColor: c }}
-                        onClick={() => setNewCourseColor(c)}
-                      />
-                    ))}
+                  <div className="col-span-3 flex flex-wrap gap-2 pt-1">
+                    {COURSE_COLORS.map((c) => {
+                      const isSelected = c.hex.toLowerCase() === newCourseColor.toLowerCase();
+                      return (
+                        <button
+                          key={c.hex}
+                          type="button"
+                          className={`w-7 h-7 rounded-full transition-all flex items-center justify-center ${
+                            isSelected
+                              ? "ring-2 ring-primary ring-offset-2 ring-offset-background scale-110 shadow-sm"
+                              : "hover:scale-105 opacity-85 hover:opacity-100"
+                          }`}
+                          style={{ backgroundColor: c.hex }}
+                          onClick={() => setNewCourseColor(c.hex)}
+                          title={c.name}
+                          aria-label={`Select ${c.name}`}
+                        >
+                          {isSelected && (
+                            <Check size={14} className="text-white drop-shadow-sm" strokeWidth={3} />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -249,24 +254,29 @@ export default function CoursesPage() {
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right">Course Colour</Label>
-                  <div className="col-span-3 flex space-x-2">
-                    {[
-                      "#5B2D8E",
-                      "#7B4DB5",
-                      "#9B72CF",
-                      "#E91E63",
-                      "#0B57D0",
-                      "#FF5722",
-                      "#4CAF50"
-                    ].map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        className={`w-6 h-6 rounded-full border-2 ${c === editCourseColor ? "border-black" : "border-transparent"}`}
-                        style={{ backgroundColor: c }}
-                        onClick={() => setEditCourseColor(c)}
-                      />
-                    ))}
+                  <div className="col-span-3 flex flex-wrap gap-2 pt-1">
+                    {COURSE_COLORS.map((c) => {
+                      const isSelected = c.hex.toLowerCase() === editCourseColor.toLowerCase();
+                      return (
+                        <button
+                          key={c.hex}
+                          type="button"
+                          className={`w-7 h-7 rounded-full transition-all flex items-center justify-center ${
+                            isSelected
+                              ? "ring-2 ring-primary ring-offset-2 ring-offset-background scale-110 shadow-sm"
+                              : "hover:scale-105 opacity-85 hover:opacity-100"
+                          }`}
+                          style={{ backgroundColor: c.hex }}
+                          onClick={() => setEditCourseColor(c.hex)}
+                          title={c.name}
+                          aria-label={`Select ${c.name}`}
+                        >
+                          {isSelected && (
+                            <Check size={14} className="text-white drop-shadow-sm" strokeWidth={3} />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -299,7 +309,7 @@ export default function CoursesPage() {
               router.push(`/dashboard/courses/${course.id}`)
             }}
           >
-            <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: course.colour || '#5B2D8E' }} />
+            <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: resolveCourseColor(course.colour) }} />
             <CardHeader className="pb-3">
               <div className="flex justify-between items-start">
                 <div>
@@ -387,7 +397,7 @@ export default function CoursesPage() {
                 key={course.id}
                 className="relative overflow-hidden group hover:border-primary/50 transition-colors"
               >
-                <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: course.colour || '#5B2D8E' }} />
+                <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: resolveCourseColor(course.colour) }} />
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
                     <div>

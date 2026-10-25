@@ -5,8 +5,10 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     
     // We append the secure backend secret from the server environment
-    // without exposing it to the client.
-    const secret = process.env.CONVERTER_SECRET || '';
+    // without exposing it to the client. Defaults to standard project secret if not set in Vercel.
+    const secret = (process.env.CONVERTER_SECRET || 'zT9xK2mP7vL4wQ8rN5bH1jC6dF3gY0')
+      .trim()
+      .replace(/^["']|["']$/g, '');
     
     // Fallback if NEXT_PUBLIC_FASTAPI_URL isn't set
     const fastapiUrl = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
@@ -31,6 +33,8 @@ export async function POST(req: NextRequest) {
         const errorText = await convertRes.text();
         const readableError = convertRes.status === 404
           ? `Converter endpoint not found at ${fastapiUrl}/convert. Check NEXT_PUBLIC_FASTAPI_URL in your environment variables.`
+          : convertRes.status === 401
+          ? `Converter authentication rejected secret. Ensure CONVERTER_SECRET on Vercel matches CONVERTER_SECRET on Render.`
           : errorText;
         return NextResponse.json({ error: readableError }, { status: convertRes.status });
     }

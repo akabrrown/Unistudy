@@ -8,6 +8,7 @@ import { ExamCountdownList } from '@/components/ExamCountdownList'
 import { FolderPlus, BookOpen } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { resolveCourseColor } from '@/lib/constants/courses'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -94,7 +95,7 @@ export default async function DashboardPage() {
             {courses.slice(0, 3).map(course => (
               <Link key={course.id} href={`/dashboard/courses/${course.id}`}>
                 <Card className="relative overflow-hidden group hover:border-primary/50 transition-colors cursor-pointer h-full">
-                  <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: course.colour || '#5B2D8E' }} />
+                  <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: resolveCourseColor(course.colour) }} />
                   <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
                     <div>

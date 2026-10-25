@@ -8,6 +8,7 @@ import { DeleteLectureButton } from '@/components/courses/DeleteLectureButton';
 import { UploadLectureDialog } from '@/components/courses/UploadLectureDialog';
 import { DownloadCourseButton } from '@/components/courses/DownloadCourseButton';
 import { LectureList } from '@/components/courses/LectureList';
+import { resolveCourseColor } from '@/lib/constants/courses';
 
 export default async function CourseDetailPage(props: { params: Promise<{ courseId: string }> }) {
   const params = await props.params;
@@ -26,12 +27,14 @@ export default async function CourseDetailPage(props: { params: Promise<{ course
   }
   
   const course = await res.json();
+  const courseColor = resolveCourseColor(course.colour);
 
   return (
     <div className="max-w-4xl mx-auto py-8">
-      <Card className="shadow-sm border-border">
+      <Card className="shadow-sm border-border relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: courseColor }} />
         <CardHeader>
-          <CardTitle className="text-2xl" style={{ color: course.colour }}>
+          <CardTitle className="text-2xl" style={{ color: courseColor }}>
             {course.course_code} – {course.title}
           </CardTitle>
           <CardDescription>{`Created ${new Date(course.created_at).toLocaleDateString()}`}</CardDescription>
