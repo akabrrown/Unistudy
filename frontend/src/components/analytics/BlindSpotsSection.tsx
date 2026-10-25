@@ -53,7 +53,7 @@ export function BlindSpotsSection() {
                 <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
                   {bs.insight}
                 </p>
-                <Link href="/dashboard/courses/1/quiz">
+                <Link href={bs.courseId ? `/dashboard/courses/${bs.courseId}/quiz` : '/dashboard/courses'}>
                   <Button variant="outline" size="sm">Review Weakness</Button>
                 </Link>
               </CardContent>
