@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, MessageSquare, ThumbsUp, Loader2, Sparkles, Send, Clock, User } from 'lucide-react';
+import { ArrowLeft, MessageSquare, ThumbsUp, Loader2, GraduationCap, Send, Clock, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
@@ -201,7 +201,7 @@ export default function ThreadDetailPage() {
                   <div className="flex items-center gap-3 text-sm">
                     <div className={`w-8 h-8 rounded-full overflow-hidden flex items-center justify-center font-bold text-sm ${reply.is_ai ? 'bg-indigo-500 text-white' : 'bg-primary/10 text-primary'}`}>
                       {reply.is_ai ? (
-                        <Sparkles className="w-4 h-4" />
+                        <GraduationCap className="w-4 h-4" />
                       ) : reply.profiles?.avatar_url ? (
                         <img src={reply.profiles.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
                       ) : (

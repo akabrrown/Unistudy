@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, GraduationCap, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface GradingReport {
@@ -56,8 +56,8 @@ export default function EssayGraderPage() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-primary flex items-center gap-2">
-          <Sparkles className="w-8 h-8 text-amber-500" />
-          AI Essay Grader
+          <GraduationCap className="w-8 h-8 text-primary" />
+          Essay Grader
         </h1>
         <p className="text-muted-foreground mt-1">Get instant, university-level feedback on your essays and assignments.</p>
       </div>
@@ -161,7 +161,7 @@ export default function EssayGraderPage() {
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground text-center">
               <div>
-                <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                <FileText className="w-12 h-12 mx-auto mb-4 opacity-20" />
                 <p>Paste your essay and prompt on the left</p>
                 <p className="text-xs mt-1">Your detailed grading report will appear here.</p>
               </div>

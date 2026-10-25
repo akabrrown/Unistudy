@@ -83,7 +83,7 @@ export default function EssayGraderScreen() {
               disabled={!essayText.trim() || isProcessing}
             >
               <Text style={styles.gradeBtnText}>Grade My Essay</Text>
-              <Ionicons name="sparkles" size={20} color="#fff" />
+              <Ionicons name="school" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
         ) : (

@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { generateFlashcards, submitFlashcardReview } from '@/app/actions/flashcards'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, Loader2, BrainCircuit, Check, X, RotateCcw, Volume2, RefreshCw, Sparkles, PlayCircle, Lightbulb, Languages } from 'lucide-react'
+import { ChevronLeft, Loader2, BrainCircuit, Check, X, RotateCcw, Volume2, RefreshCw, Layers, PlayCircle, Lightbulb, Languages } from 'lucide-react'
 import { apiFetch } from '@/lib/api/client'
 import { Rating } from '@/lib/utils/sm2'
 import { ShareButton } from '@/components/study/ShareButton'
@@ -397,7 +397,7 @@ export default function FlashcardsPage() {
                     {generatingFor === lec.id ? (
                       <><Loader2 size={16} className="mr-2 animate-spin" /> Generating...</>
                     ) : (
-                      <><Sparkles size={16} className="mr-2" /> Generate Cards</>
+                      <><Layers size={16} className="mr-2" /> Generate Cards</>
                     )}
                   </Button>
                 ) : (

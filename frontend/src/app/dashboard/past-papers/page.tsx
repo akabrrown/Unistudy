@@ -17,7 +17,6 @@ import {
   CheckCircle2,
   GraduationCap,
   Layers,
-  Sparkles,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { createClient } from '@/lib/supabase/client'
@@ -197,7 +196,7 @@ export default function PastPapersDashboard() {
         <Card className="bg-card border-border shadow-xs">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-500" /> AI Practice Ready
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Practice Ready
             </CardTitle>
           </CardHeader>
           <CardContent>

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Calculator, Send, Loader2, Sparkles, BrainCircuit } from 'lucide-react'
+import { Calculator, Send, Loader2, BrainCircuit } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'

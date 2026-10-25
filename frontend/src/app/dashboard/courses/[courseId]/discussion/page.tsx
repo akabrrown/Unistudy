@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { MessageSquare, Plus, Loader2, ArrowLeft, ThumbsUp, Sparkles } from 'lucide-react';
+import { MessageSquare, Plus, Loader2, ArrowLeft, ThumbsUp, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
@@ -200,8 +200,8 @@ export default function CourseDiscussionPage() {
                       
                       {thread.is_ai_answered && (
                         <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 font-medium">
-                          <Sparkles className="w-3 h-3" />
-                          <span>AI Answered</span>
+                          <GraduationCap className="w-3 h-3" />
+                          <span>Tutor Answered</span>
                         </div>
                       )}
                     </div>

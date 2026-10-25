@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { FileText, Layers, Award, Sparkles, ChevronRight, Image as ImageIcon } from 'lucide-react';
+import { FileText, Layers, Award, Search, Zap, ChevronRight, Image as ImageIcon } from 'lucide-react';
 import Link from 'next/link';
 
 function SearchResultsContent() {
@@ -52,7 +52,7 @@ function SearchResultsContent() {
   if (!query) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-        <Sparkles className="w-12 h-12 mb-4 opacity-50" />
+        <Search className="w-12 h-12 mb-4 opacity-50" />
         <p>Type anything in the search bar to find answers across your study materials.</p>
       </div>
     );
@@ -64,7 +64,7 @@ function SearchResultsContent() {
         <h1 className="text-3xl font-bold tracking-tight">Search Results</h1>
         {isEnhanced && (
           <div className="flex items-center gap-2 px-3 py-1 bg-brand-purple/10 text-brand-purple rounded-full text-sm font-medium border border-brand-purple/20">
-            <Sparkles className="w-4 h-4" /> Enhanced Ranking Active
+            <Zap className="w-4 h-4" /> Enhanced Ranking Active
           </div>
         )}
       </div>
