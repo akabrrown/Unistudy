@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MarketingNavbar } from "@/components/layout/MarketingNavbar";
+import { MarketingFooter } from "@/components/layout/MarketingFooter";
 import { CheckCircle, Brain, Zap, BookOpen, Languages, Search, Video, FileText, BarChart, Heart, Target, Layers } from "lucide-react";
 
 const tabData = [
@@ -139,6 +140,7 @@ export default function FeaturesPage() {
         </div>
 
       </main>
+      <MarketingFooter />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Zap, Coins, Check, AlertTriangle, ShieldCheck, Clock } from 'lucide-react';
 import { MarketingNavbar } from '@/components/layout/MarketingNavbar';
+import { MarketingFooter } from '@/components/layout/MarketingFooter';
 import CheckoutButton from './checkout-button';
 
 export default function PricingPage() {
@@ -179,6 +180,7 @@ export default function PricingPage() {
         </div>
 
       </div>
+      <MarketingFooter />
     </div>
   );
 }

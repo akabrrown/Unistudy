@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from 'next/link'
 import { MarketingNavbar } from '@/components/layout/MarketingNavbar'
+import { MarketingFooter } from '@/components/layout/MarketingFooter'
 import {
   Brain, ArrowRight, Play, Layers,
   Upload, Zap, CheckCircle, Eye,
@@ -89,14 +90,7 @@ export default function LandingPage() {
 
 
       {/* Footer */}
-      <footer className="bg-[#F5F3FA] dark:bg-[#0F0C29] border-t border-[#D1C4E9] dark:border-white/10 px-8 py-6">
-        <div className="flex justify-between items-center flex-wrap gap-4 max-w-6xl mx-auto">
-          <p className="text-[13px] text-[#9E8CB5]">© 2025 UniStudy AI Ltd. All rights reserved.</p>
-          <div className="flex gap-4 text-[#B39DDB]">
-            <Globe size={16} /><MessageCircle size={16} /><Share2 size={16} />
-          </div>
-        </div>
-      </footer>
+      <MarketingFooter />
     </div>
   )
 }

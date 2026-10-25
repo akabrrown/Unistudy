@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { MarketingNavbar } from '@/components/layout/MarketingNavbar';
+import { MarketingFooter } from '@/components/layout/MarketingFooter';
 import { Mail, MapPin, Phone } from 'lucide-react';
 
 export default function ContactPage() {
@@ -142,6 +143,7 @@ export default function ContactPage() {
           </div>
         </div>
       </div>
+      <MarketingFooter />
     </div>
   );
 }

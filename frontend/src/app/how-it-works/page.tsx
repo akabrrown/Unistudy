@@ -1,4 +1,5 @@
 import { MarketingNavbar } from "@/components/layout/MarketingNavbar";
+import { MarketingFooter } from "@/components/layout/MarketingFooter";
 import { Upload, Brain, Zap, Video, Scan, Heart, Activity, LineChart, FileText } from "lucide-react";
 
 export default function HowItWorksPage() {
@@ -89,6 +90,7 @@ export default function HowItWorksPage() {
         </div>
 
       </main>
+      <MarketingFooter />
     </div>
   );
 }

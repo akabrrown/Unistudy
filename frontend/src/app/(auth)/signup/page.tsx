@@ -56,6 +56,17 @@ export default async function SignupPage(props: { searchParams: Promise<{ error?
               <Button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-600 text-white">
                 Sign Up
               </Button>
+
+              <p className="text-[11px] text-muted-foreground text-center mt-3 leading-relaxed">
+                By creating an account, you agree to our{' '}
+                <Link href="/terms" target="_blank" className="text-primary hover:underline font-medium">
+                  Terms of Service
+                </Link>{' '}
+                and acknowledge our{' '}
+                <Link href="/privacy" target="_blank" className="text-primary hover:underline font-medium">
+                  Privacy Policy
+                </Link>.
+              </p>
             </div>
           </form>
         </CardContent>
