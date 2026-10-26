@@ -12,10 +12,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from typing import Optional, List
+import logging
 from ai_utils import execute_ai_task, openrouter_low_priority, gemini_vision, groq70b, huggingface_search, cohere_rerank, RerankRequest, supabase
 from dotenv import load_dotenv
 
 load_dotenv()
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("converter")
 
 app = FastAPI()
 
