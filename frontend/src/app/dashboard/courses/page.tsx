@@ -12,29 +12,15 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api/client'
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
+import { UploadLectureDialog } from '@/components/courses/UploadLectureDialog'
 
 export default function CoursesPage() {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [courses, setCourses] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   const [isCourseDialogOpen, setIsCourseDialogOpen] = useState(false)
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
   const [activeCourseId, setActiveCourseId] = useState<string | null>(null)
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [currentUploadIndex, setCurrentUploadIndex] = useState(0);
-  const [fileWeeks, setFileWeeks] = useState<Record<number, string>>({});
 
   
   const [newCourseCode, setNewCourseCode] = useState('');
@@ -346,7 +332,7 @@ export default function CoursesPage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between mt-4 border-t pt-4">
-                <div className="text-sm text-muted-foreground">{course.lectures?.length || 0} lectures</div>
+                <div className="text-sm text-muted-foreground">{course.lectures?.filter((l: any) => !l.title?.startsWith('[FAILED')).length || 0} lectures</div>
                 
                 <div className="flex gap-2">
                   <Button 
@@ -424,7 +410,7 @@ export default function CoursesPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between mt-4 border-t pt-4">
-                    <div className="text-sm text-muted-foreground">{course.lectures?.length || 0} lectures</div>
+                    <div className="text-sm text-muted-foreground">{course.lectures?.filter((l: any) => !l.title?.startsWith('[FAILED')).length || 0} lectures</div>
                   </div>
                 </CardContent>
               </Card>
@@ -433,274 +419,19 @@ export default function CoursesPage() {
         </div>
       )}
 
-      {/* Upload Dialog */}
-      <Dialog open={isUploadDialogOpen} onOpenChange={(open) => {
-        setIsUploadDialogOpen(open)
-        if (!open) {
-          setSelectedFiles([])
-          setFileWeeks({})
-          setActiveCourseId(null)
-        }
-      }}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>
-              Upload Lecture to {courses.find(c => c.id === activeCourseId)?.course_code}
-            </DialogTitle>
-            <DialogDescription>
-              Upload a PDF of your lecture slides. We will extract the content and prepare it for AI processing.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-6">
-                <div
-                  className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-colors bg-muted/30 ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-primary/50 border-border'}`}
-                  onClick={() => !isUploading && fileInputRef.current?.click()}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if (isUploading) return;
-                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                      const files = Array.from(e.dataTransfer.files);
-                      setSelectedFiles(prev => [...prev, ...files].slice(0, 10)); // limit to 10
-                    }
-                  }}
-                >
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-4">
-                    <UploadCloud size={24} />
-                  </div>
-                  <p className="text-sm font-medium mb-1">Click to upload or drag and drop</p>
-                  <p className="text-xs text-muted-foreground">PDF / PPTX files (up to 10 at once)</p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept=".pdf,application/pdf,.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation,.ppt,application/vnd.ms-powerpoint"
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        const files = Array.from(e.target.files);
-                        setSelectedFiles(prev => [...prev, ...files].slice(0, 10));
-                        // Clear input so selecting the same file again works
-                        e.target.value = '';
-                      }
-                    }}
-                  />
-                </div>
-
-                {/* Upload Progress & Selected File Info */}
-                {selectedFiles.length > 0 && (
-                  <div className="max-h-[250px] overflow-y-auto space-y-2 mt-4 pr-1">
-                    {isUploading && (
-                      <p className="text-sm font-semibold text-primary mb-2">
-                        Uploading {currentUploadIndex + 1} of {selectedFiles.length}...
-                      </p>
-                    )}
-                    {selectedFiles.map((file, idx) => (
-                      <div key={`${file.name}-${idx}`} className="flex items-center gap-3 p-3 border border-border rounded-xl bg-card shadow-sm relative group">
-                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
-                          <FileText size={16} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-center mb-1">
-                            <p className="text-sm font-semibold text-foreground truncate pr-2">{file.name}</p>
-                            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                              {formatBytes(file.size)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 mt-1 mb-2">
-                            <span className="text-xs font-medium text-muted-foreground">Lecture Week (optional):</span>
-                            <input 
-                              type="number" 
-                              min="1" max="52" 
-                              placeholder="e.g. 1"
-                              value={fileWeeks[idx] || ''}
-                              onChange={(e) => setFileWeeks(prev => ({ ...prev, [idx]: e.target.value }))}
-                              disabled={isUploading}
-                              className="w-20 bg-background border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
-                            />
-                          </div>
-                          {isUploading && currentUploadIndex === idx && (
-                            <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                              <div 
-                                className="bg-primary h-full rounded-full transition-all duration-300 ease-out"
-                                style={{ width: `${Math.round((uploadProgress / file.size) * 100)}%` }}
-                              />
-                            </div>
-                          )}
-                          {isUploading && currentUploadIndex > idx && (
-                            <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                              <div className="bg-green-500 h-full rounded-full w-full" />
-                            </div>
-                          )}
-                        </div>
-                        {!isUploading && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedFiles(prev => prev.filter((_, i) => i !== idx));
-                            }}
-                            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" type="button" onClick={() => setIsUploadDialogOpen(false)}>
-      Cancel
-    </Button>
-            <Button
-              disabled={selectedFiles.length === 0 || isUploading || isProcessing}
-              onClick={async () => {
-                if (selectedFiles.length === 0 || !activeCourseId) return;
-
-                setIsUploading(true);
-                let successCount = 0;
-                let failCount = 0;
-
-                for (let i = 0; i < selectedFiles.length; i++) {
-                  const file = selectedFiles[i];
-                  setCurrentUploadIndex(i);
-                  setUploadProgress(0);
-
-                  const isPpt = file.name.toLowerCase().endsWith('.ppt') ||
-                                file.name.toLowerCase().endsWith('.pptx');
-
-                  try {
-                    const fileWeek = fileWeeks[i];
-                    // Insert lecture placeholder
-                    const { data: newLecture, error: insertError } = await supabase
-                      .from('lectures')
-                      .insert([{ course_id: activeCourseId, file_url: '', title: file.name, week: fileWeek ? parseInt(fileWeek) : null }])
-                      .select()
-                      .single();
-
-                    if (insertError) throw insertError;
-
-                    // Pre-flight file size check (100MB limit)
-                    if (file.size > 100 * 1024 * 1024) {
-                      throw new Error(`File is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum allowed size is 100MB.`);
-                    }
-
-                    // 1. Fetch Cloudinary upload signature if secret is configured on server
-                    let signedData: any = null;
-                    try {
-                      const signRes = await fetch('/api/upload/sign', { method: 'POST' });
-                      if (signRes.ok) {
-                        signedData = await signRes.json();
-                      }
-                    } catch (e) {
-                      console.warn('Could not fetch upload signature, using preset fallback:', e);
-                    }
-
-                    const formDataCloudinary = new FormData();
-                    formDataCloudinary.append('file', file);
-
-                    let uploadUrl = '';
-                    if (signedData?.signed) {
-                      formDataCloudinary.append('api_key', signedData.apiKey);
-                      formDataCloudinary.append('timestamp', String(signedData.timestamp));
-                      formDataCloudinary.append('signature', signedData.signature);
-                      formDataCloudinary.append('folder', signedData.folder);
-                      uploadUrl = `https://api.cloudinary.com/v1_1/${signedData.cloudName}/auto/upload`;
-                    } else {
-                      // Unsigned fallback
-                      if (file.size > 10485760) {
-                        throw new Error(`File size (${(file.size / (1024 * 1024)).toFixed(1)}MB) exceeds Cloudinary's 10MB limit for unsigned uploads. Add CLOUDINARY_API_SECRET in Vercel to unlock 100MB uploads.`);
-                      }
-                      const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-                      if (!uploadPreset) throw new Error('Cloudinary upload preset is not configured.');
-                      formDataCloudinary.append('upload_preset', uploadPreset);
-                      uploadUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/auto/upload`;
-                    }
-
-                    const xhr = new XMLHttpRequest();
-                    xhr.open('POST', uploadUrl);
-                    xhr.upload.onprogress = (e) => {
-                      if (e.lengthComputable) setUploadProgress(e.loaded);
-                    };
-
-                    const responsePromise = new Promise<any>((resolve, reject) => {
-                      xhr.onload = () => {
-                        try {
-                          const json = JSON.parse(xhr.responseText);
-                          if (xhr.status >= 200 && xhr.status < 300) resolve(json);
-                          else reject(new Error(json.error?.message || 'Upload failed'));
-                        } catch (err) {
-                          reject(err);
-                        }
-                      };
-                      xhr.onerror = () => reject(new Error('Network error'));
-                    });
-
-                    xhr.send(formDataCloudinary);
-                    const fileData = await responsePromise;
-
-                    // Update lecture with Cloudinary URL and set processing to true
-                    const { error: updateErr } = await supabase
-                      .from('lectures')
-                      .update({ file_url: fileData.secure_url, processing: true })
-                      .eq('id', newLecture.id);
-                    if (updateErr) throw updateErr;
-
-                    // 2. Send file to conversion endpoint for image generation and AI processing
-                    setIsProcessing(true);
-                    const formDataFastAPI = new FormData();
-                    formDataFastAPI.append('file', file);
-                    formDataFastAPI.append('lecture_id', newLecture.id);
-                    const userRes = await supabase.auth.getUser();
-                    const userId = userRes.data.user?.id || '';
-                    formDataFastAPI.append('user_id', userId);
-
-                    const convertRes = await fetch(`/api/convert`, {
-                      method: 'POST',
-                      body: formDataFastAPI,
-                    });
-
-                    if (!convertRes.ok) {
-                      const errJson = await convertRes.json().catch(() => null);
-                      const errText = errJson?.error || (await convertRes.text().catch(() => 'Conversion failed'));
-                      throw new Error(`Conversion failed: ${errText}`);
-                    }
-                    
-                    setIsProcessing(false);
-                    successCount++;
-                  } catch (err: any) {
-                    console.error(`Upload error for ${file.name}:`, err);
-                    toast.error(`Failed to process ${file.name}: ${err.message}`);
-                    failCount++;
-                    setIsProcessing(false);
-                  }
-                }
-
-                if (successCount > 0) {
-                  toast.success(`Successfully uploaded ${successCount} lecture${successCount > 1 ? 's' : ''}!`);
-                }
-
-                // Cleanup and refresh
-                setIsUploading(false);
-                setIsProcessing(false);
-                setUploadProgress(0);
-                setCurrentUploadIndex(0);
-                setSelectedFiles([]);
-                setFileWeeks({});
-                fetchCourses();
-                if (failCount === 0) {
-                  setIsUploadDialogOpen(false);
-                }
-              }}
-            >
-              {selectedFiles.length > 0 ? (isUploading ? `Uploading ${currentUploadIndex + 1}/${selectedFiles.length}...` : `Upload ${selectedFiles.length} Lecture${selectedFiles.length > 1 ? 's' : ''}`) : 'Select files'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Upload Lecture Dialog */}
+      {activeCourseId && (
+        <UploadLectureDialog
+          courseId={activeCourseId}
+          courseCode={courses.find(c => c.id === activeCourseId)?.course_code || 'COURSE'}
+          open={isUploadDialogOpen}
+          onOpenChange={(open) => {
+            setIsUploadDialogOpen(open);
+            if (!open) setActiveCourseId(null);
+          }}
+          onSuccess={fetchCourses}
+        />
+      )}
     </div>
   )
 }

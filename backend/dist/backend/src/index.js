@@ -31,6 +31,7 @@ const search_1 = __importDefault(require("./routes/search"));
 const past_papers_1 = __importDefault(require("./routes/past-papers"));
 const translate_1 = __importDefault(require("./routes/translate"));
 const billing_1 = __importDefault(require("./routes/billing"));
+const drills_1 = __importDefault(require("./routes/drills"));
 const HEALTH_PATHS = new Set(['/ping', '/api/health']);
 const app = (0, express_1.default)();
 app.disable('x-powered-by');
@@ -48,6 +49,14 @@ app.use((0, express_rate_limit_1.default)({
 }));
 // Global Middlewares
 app.use(cors_1.corsMiddleware);
+app.options('*', cors_1.corsMiddleware);
+// Defensive rewrite for client configurations that include duplicate /api prefixes
+app.use((req, _res, next) => {
+    if (req.url.startsWith('/api/api/')) {
+        req.url = req.url.replace(/^\/api\/api\//, '/api/');
+    }
+    next();
+});
 app.use(requestLogger_1.requestLogger);
 // Webhooks need raw body for signature verification — must come before express.json()
 app.use('/api/webhooks/paystack', express_1.default.raw({ type: 'application/json' }), paystack_1.default);
@@ -61,6 +70,7 @@ app.use('/api/notes', notes_1.default);
 app.use('/api/past-papers', past_papers_1.default);
 app.use('/api/flashcards', flashcards_1.default);
 app.use('/api/quizzes', quizzes_1.default);
+app.use('/api/drills', drills_1.default);
 app.use('/api/search', search_1.default);
 app.use('/api/quota', quota_1.default);
 app.use('/api/payments', payments_1.default);

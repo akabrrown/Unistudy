@@ -5,9 +5,9 @@ exports.callGeminiWithFallback = callGeminiWithFallback;
 exports.handleGeminiRequest = handleGeminiRequest;
 const generative_ai_1 = require("@google/generative-ai");
 const GEMINI_MODELS = [
-    'gemini-flash-latest',
-    'gemini-flash-latest',
-    'gemini-1.5-pro'
+    'gemini-3.5-flash',
+    'gemini-3.8-flash',
+    'gemini-3.5-flash-lite'
 ];
 async function getGeminiModel() {
     const key = process.env.GEMINI_API_KEY;

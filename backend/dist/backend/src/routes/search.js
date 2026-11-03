@@ -23,9 +23,22 @@ router.post('/', async (req, res) => {
             priority: 'high'
         };
         const hfResponse = await (0, router_1.routeRequest)(aiReq);
-        const queryEmbedding = Array.isArray(hfResponse.result) ? hfResponse.result[0] : hfResponse.result;
-        if (!queryEmbedding) {
-            throw new Error('Failed to generate embedding for query');
+        const rawResult = hfResponse?.result;
+        let queryEmbedding = null;
+        if (Array.isArray(rawResult)) {
+            if (typeof rawResult[0] === 'number') {
+                queryEmbedding = rawResult;
+            }
+            else if (Array.isArray(rawResult[0]) && typeof rawResult[0][0] === 'number') {
+                queryEmbedding = rawResult[0];
+            }
+        }
+        if (!queryEmbedding || queryEmbedding.length === 0) {
+            return res.json({
+                success: true,
+                data: { slides: [], flashcards: [], past_papers: [] },
+                enhanced: false
+            });
         }
         // 2. Perform vector search using Supabase RPC
         const { data: searchResults, error: rpcError } = await supabase_1.supabaseAdmin.rpc('match_study_content', {
@@ -87,7 +100,7 @@ router.post('/', async (req, res) => {
     }
     catch (err) {
         console.error('Search error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 exports.default = router;

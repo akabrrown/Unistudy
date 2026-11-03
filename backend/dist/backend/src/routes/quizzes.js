@@ -21,7 +21,7 @@ router.post('/generate', (0, quotaGuard_1.withAIQuota)('quiz_generation'), async
     };
     try {
         const response = await (0, router_1.routeRequest)(aiReq);
-        (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature).catch(console.error);
+        (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature, req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
         let questionsData = response.result;
         if (questionsData && typeof questionsData === 'object' && !Array.isArray(questionsData) && Array.isArray(questionsData.questions)) {
             questionsData = questionsData.questions;
@@ -39,7 +39,7 @@ router.post('/generate', (0, quotaGuard_1.withAIQuota)('quiz_generation'), async
                 difficulty: difficulty === 'hard' ? 5 : difficulty === 'medium' ? 3 : 1,
                 type: q.type || 'mcq'
             }));
-            const { error: insertErr } = await supabase_1.supabaseAdmin.from('quiz_questions').insert(toInsert);
+            const { error: insertErr } = await (0, supabase_1.supabaseAsUser)(req.user.jwt).from('quiz_questions').insert(toInsert);
             if (insertErr) {
                 console.error('Failed to insert quiz questions:', insertErr);
                 if (insertErr.code === '23503') {
@@ -51,30 +51,31 @@ router.post('/generate', (0, quotaGuard_1.withAIQuota)('quiz_generation'), async
         res.json(questionsData);
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 router.get('/', async (req, res) => {
     try {
+        const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
         const lectureIdsParam = req.query.lectureIds;
         if (!lectureIdsParam) {
             return res.status(400).json({ error: 'lectureIds is required' });
         }
         const lectureIds = lectureIdsParam.split(',');
-        const { data, error } = await supabase_1.supabaseAdmin.from('quiz_questions').select('*').in('lecture_id', lectureIds);
+        const { data, error } = await supabase.from('quiz_questions').select('*').in('lecture_id', lectureIds);
         if (error)
             throw error;
         res.json({ data });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 router.post('/attempt', async (req, res) => {
     const { lectureId, score, total, timeTaken } = req.body;
     const userId = req.user.id;
     try {
-        const { error: insertError } = await supabase_1.supabaseAdmin.from('quiz_attempts').insert({
+        const { error: insertError } = await (0, supabase_1.supabaseAsUser)(req.user.jwt).from('quiz_attempts').insert({
             user_id: userId,
             lecture_id: lectureId,
             score,
@@ -89,7 +90,7 @@ router.post('/attempt', async (req, res) => {
     }
     catch (err) {
         console.error(err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 exports.default = router;

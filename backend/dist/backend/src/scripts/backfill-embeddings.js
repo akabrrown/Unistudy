@@ -19,11 +19,10 @@ async function generateEmbeddingsBatch(texts, userId) {
     };
     const embedRes = await (0, router_1.routeRequest)(embedReq);
     const result = embedRes.result;
-    if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0])) {
+    if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && typeof result[0][0] === 'number') {
         return result;
     }
-    else if (Array.isArray(result)) {
-        // Handle single result wrapped
+    else if (Array.isArray(result) && result.length > 0 && typeof result[0] === 'number') {
         return [result];
     }
     return [];

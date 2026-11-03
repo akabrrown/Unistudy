@@ -17,9 +17,14 @@ async function getCreditBalance(userId) {
 }
 async function getUserQuota(userId) {
     if (redis_1.redis) {
-        const cached = await redis_1.redis.get(`user_quota:${userId}`);
-        if (cached)
-            return cached;
+        try {
+            const cached = await redis_1.redis.get(`user_quota:${userId}`);
+            if (cached)
+                return cached;
+        }
+        catch (e) {
+            console.warn("Redis read failed:", e);
+        }
     }
     const { data } = await supabase_1.supabaseAdmin.from('user_quota').select('*').eq('user_id', userId).single();
     let result = data;
@@ -46,9 +51,11 @@ async function getUserQuota(userId) {
     }
     return result;
 }
-async function checkUserQuota(userId, feature) {
+async function checkUserQuota(userId, feature, model_tier = 'default') {
     const provider = quota_1.FEATURE_PROVIDER_MAP[feature];
-    const cost = quota_1.FEATURE_COSTS[feature];
+    const baseCost = quota_1.FEATURE_COSTS[feature];
+    const multiplier = quota_1.MODEL_MULTIPLIERS[model_tier] || quota_1.MODEL_MULTIPLIERS['default'];
+    const cost = Math.round(baseCost * multiplier);
     const config = quota_1.PROVIDER_CONFIG[provider];
     if (!config.has_user_quota || !config.user_quota_column) {
         return { allowed: true, cost: 0, daily_used: 0, daily_limit: 9999, wallet_balance: 9999 };
@@ -76,9 +83,11 @@ async function checkUserQuota(userId, feature) {
         wallet_balance: walletBalance
     };
 }
-async function consumeUserQuota(userId, feature) {
+async function consumeUserQuota(userId, feature, model_tier = 'default') {
     const provider = quota_1.FEATURE_PROVIDER_MAP[feature];
-    const cost = quota_1.FEATURE_COSTS[feature];
+    const baseCost = quota_1.FEATURE_COSTS[feature];
+    const multiplier = quota_1.MODEL_MULTIPLIERS[model_tier] || quota_1.MODEL_MULTIPLIERS['default'];
+    const cost = Math.round(baseCost * multiplier);
     if (cost <= 0)
         return true;
     const config = quota_1.PROVIDER_CONFIG[provider];

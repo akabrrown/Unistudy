@@ -9,20 +9,31 @@ const supabase_1 = require("../supabase");
 const resend_1 = require("resend");
 const quota_1 = require("../../../../shared/constants/quota");
 const resend = process.env.RESEND_API_KEY ? new resend_1.Resend(process.env.RESEND_API_KEY) : null;
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@unistudy.ai';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'unistudy.ai@gmail.com';
 async function getProviderStatus(provider) {
+    const config = quota_1.PROVIDER_CONFIG[provider];
+    if (!config || config.pool_type === 'free_rate_limit') {
+        return null;
+    }
     if (redis_1.redis) {
-        const cached = await redis_1.redis.get(`platform:balance:${provider}`);
-        if (cached)
-            return cached;
+        try {
+            const cached = await redis_1.redis.get(`platform:balance:${provider}`);
+            if (cached)
+                return cached;
+        }
+        catch (e) {
+            console.warn("Redis read failed:", e);
+        }
     }
     const { data, error } = await supabase_1.supabaseAdmin
         .from('platform_ai_balance')
         .select('*')
         .eq('provider', provider)
-        .single();
+        .maybeSingle();
     if (error || !data) {
-        console.error(`Error fetching balance for ${provider}:`, error);
+        if (error) {
+            console.error(`Error fetching balance for ${provider}:`, error);
+        }
         return null;
     }
     let total = 0;

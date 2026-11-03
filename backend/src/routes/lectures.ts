@@ -29,6 +29,9 @@ router.get('/detail/:lectureId', async (req: Request, res: Response) => {
     .single();
   
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+  if (data && data.title?.startsWith('[FAILED')) {
+    return res.status(404).json({ error: 'Lecture not found' });
+  }
   res.json(data);
 });
 
@@ -37,7 +40,8 @@ router.get('/:courseId', async (req: Request, res: Response) => {
   const { data, error } = await supabase.from('lectures').select('*').eq('course_id', req.params.courseId).order('week', { ascending: true });
   
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
-  res.json(data);
+  const filtered = Array.isArray(data) ? data.filter((l: any) => !l.title?.startsWith('[FAILED')) : [];
+  res.json(filtered);
 });
 
 router.post('/', async (req: Request, res: Response) => {

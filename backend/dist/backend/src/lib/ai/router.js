@@ -39,12 +39,19 @@ const quota_1 = require("../../../../shared/constants/quota");
 async function routeRequest(request) {
     const start = Date.now();
     let provider = quota_1.FEATURE_PROVIDER_MAP[request.feature] || 'gemini';
+    // Override provider based on selected model tier
+    if (request.model_tier === 'fast') {
+        provider = provider.includes('groq') ? 'groq_8b' : 'gemini';
+    }
+    else if (request.model_tier === 'smart') {
+        provider = provider.includes('groq') ? 'groq_70b' : 'gemini'; // ideally we'd have gemini_pro
+    }
     let result = null;
     try {
         const { getProviderStatus } = await Promise.resolve().then(() => __importStar(require('./balance')));
         const status = await getProviderStatus(provider);
-        // If the provider has fallback activated, route to groq_70b (Llama 3 70B)
-        if (status && status.is_fallback_active) {
+        // If the provider has fallback activated, route to groq_70b (Llama 3 70B) for text generation
+        if (status && status.is_fallback_active && request.task !== 'embedding' && request.task !== 'rerank') {
             console.warn(`[AI Router] Provider ${provider} is critically low. Falling back to groq_70b.`);
             provider = 'groq_70b';
         }
@@ -90,6 +97,25 @@ async function routeRequest(request) {
     }
     catch (error) {
         console.error(`[AI Router] Provider ${provider} failed:`, error);
+        // For embedding tasks, chat providers cannot generate embeddings. Fail open with empty result.
+        if (request.task === 'embedding') {
+            console.warn(`[AI Router] Embedding provider ${provider} failed for ${request.feature}. Returning empty array.`);
+            return {
+                result: [],
+                provider: 'none',
+                requestsConsumed: 0,
+                responseMs: Date.now() - start
+            };
+        }
+        if (request.task === 'rerank') {
+            console.warn(`[AI Router] Rerank provider ${provider} failed. Returning null.`);
+            return {
+                result: null,
+                provider: 'none',
+                requestsConsumed: 0,
+                responseMs: Date.now() - start
+            };
+        }
         // Try Groq first since it has feature-specific prompt handling
         if (provider !== 'groq_70b' && provider !== 'groq_8b' && process.env.GROQ_API_KEY) {
             try {

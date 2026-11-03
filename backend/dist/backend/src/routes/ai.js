@@ -50,9 +50,9 @@ const multer_1 = __importDefault(require("multer"));
 const generative_ai_1 = require("@google/generative-ai");
 const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
 const GEMINI_VISION_MODELS = [
-    'gemini-flash-latest',
-    'gemini-flash-latest',
-    'gemini-1.5-pro',
+    'gemini-3.5-flash',
+    'gemini-3.8-flash',
+    'gemini-3.5-flash-lite',
 ];
 async function callWithFallback(genAI, models, buildRequest) {
     let lastErr;
@@ -77,7 +77,7 @@ async function callWithFallback(genAI, models, buildRequest) {
     }
     throw lastErr;
 }
-router.post('/search-math', async (req, res) => {
+router.post('/search-math', (0, quotaGuard_1.withAIQuota)('answer_improver'), async (req, res) => {
     try {
         const { type, query } = req.body;
         if (!type || !query)
@@ -101,7 +101,7 @@ router.post('/search-math', async (req, res) => {
     }
     catch (err) {
         console.error('Math AI search error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 router.post('/scan-notes', upload.single('file'), (0, quotaGuard_1.withAIQuota)('handwriting_scan'), async (req, res) => {
@@ -166,7 +166,7 @@ router.post('/scan-notes', upload.single('file'), (0, quotaGuard_1.withAIQuota)(
             cleanTranscription = cleanTranscription.substring(3).trim();
         if (cleanTranscription.endsWith('```'))
             cleanTranscription = cleanTranscription.substring(0, cleanTranscription.length - 3).trim();
-        (0, quota_1.consumeUserQuota)(req.user.id, 'handwriting_scan').catch(console.error);
+        (0, quota_1.consumeUserQuota)(req.user.id, 'handwriting_scan', req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
         res.json({ transcription: cleanTranscription });
     }
     catch (err) {
@@ -184,9 +184,12 @@ router.post('/ask', async (req, res) => {
     const { feature, payload, priority, identifiers } = req.body;
     if (!feature || !payload)
         return res.status(400).json({ error: 'Missing feature or payload' });
-    // Wrap inside dynamic quota guard conceptually since we need the feature dynamically:
-    // Instead of static middleware, we manually call the quota logic or just run the routeRequest.
-    // Wait, the withAIQuota middleware takes a fixed feature. For dynamic feature, we check manually:
+    // Manually check quota
+    const modelTier = req.body?.model_tier || req.headers?.['x-model-tier'] || 'default';
+    const hasQuota = await (0, quota_1.checkUserQuota)(req.user.id, feature, modelTier);
+    if (!hasQuota.allowed) {
+        return res.status(429).json({ error: 'Insufficient credits or quota', details: hasQuota.reason });
+    }
     // Fetch user settings
     let userSettings = null;
     try {
@@ -215,7 +218,7 @@ router.post('/ask', async (req, res) => {
     try {
         const response = await (0, router_1.routeRequest)(aiReq);
         // Deduct quota asynchronously
-        (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature).catch(console.error);
+        (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature, req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
         // For streaming like the calculator feature, the provider might return a stream object
         if (payload.stream && response.result?.tee) {
             res.setHeader('Content-Type', 'text/event-stream');
@@ -230,7 +233,7 @@ router.post('/ask', async (req, res) => {
         res.json(response);
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 // For specific routes that use the middleware strictly:
@@ -245,7 +248,7 @@ router.post('/calculator', (0, quotaGuard_1.withAIQuota)('calculator'), async (r
     };
     try {
         const response = await (0, router_1.routeRequest)(aiReq);
-        (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature).catch(console.error);
+        (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature, req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
@@ -256,56 +259,67 @@ router.post('/calculator', (0, quotaGuard_1.withAIQuota)('calculator'), async (r
         res.end();
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 router.post('/explain', auth_1.authenticateUser, (0, quotaGuard_1.withAIQuota)('slide_explanation'), async (req, res) => {
-    const { slideText, level, courseContext, visionExplanation, imageUrl, mode, prevSlideText, nextSlideText } = req.body;
-    let levelPrompt = 'standard university level';
-    if (level === 'ELI5')
-        levelPrompt = 'a high school student with no prior knowledge (ELI5). Use simple analogies.';
-    if (level === 'Med')
-        levelPrompt = 'a typical undergraduate student taking this module. Focus on core concepts.';
-    if (level === 'Expert')
-        levelPrompt = 'an expert level. Dive deep into the technical nuances, advanced terminology, and underlying mechanisms.';
-    let tutorName = "Uni";
-    let tutorPersonality = "neutral";
-    let tone = "academic";
-    let language = "en";
-    let readingLevel = "intermediate";
-    const { supabaseAsUser } = await Promise.resolve().then(() => __importStar(require('../lib/supabase')));
-    const supabase = supabaseAsUser(req.user.jwt);
-    const { data: settings } = await supabase.from('user_settings').select('*').eq('user_id', req.user.id).single();
-    if (settings) {
-        if (settings.ai_tutor_name)
-            tutorName = settings.ai_tutor_name;
-        if (settings.ai_personality)
-            tutorPersonality = settings.ai_personality;
-        if (settings.ai_tone)
-            tone = settings.ai_tone;
-        if (settings.language)
-            language = settings.language;
-        if (settings.ai_reading_level)
-            readingLevel = settings.ai_reading_level;
-    }
-    const systemPrompt = `You are an expert university AI tutor named ${tutorName}. You are known for being ${tutorPersonality}.`;
-    const prompt = `
+    try {
+        const { slideText, slideNumber, level, courseContext, visionExplanation, imageUrl, mode, prevSlideText, nextSlideText } = req.body;
+        // Sanitize fallback error strings so they don't corrupt the prompt
+        const cleanSlideText = (slideText && slideText !== 'Text extraction failed.') ? slideText : '';
+        const cleanVisionEx = (visionExplanation && visionExplanation !== 'Explanation pending.') ? visionExplanation : '';
+        let levelPrompt = 'standard university level';
+        if (level === 'ELI5')
+            levelPrompt = 'a high school student with no prior knowledge (ELI5). Use simple analogies.';
+        if (level === 'Med')
+            levelPrompt = 'a typical undergraduate student taking this module. Focus on core concepts.';
+        if (level === 'Expert')
+            levelPrompt = 'an expert level. Dive deep into the technical nuances, advanced terminology, and underlying mechanisms.';
+        let tutorName = "Uni";
+        let tutorPersonality = "neutral";
+        let tone = "academic";
+        let language = "en";
+        let readingLevel = "intermediate";
+        const { supabaseAsUser } = await Promise.resolve().then(() => __importStar(require('../lib/supabase')));
+        const supabase = supabaseAsUser(req.user.jwt);
+        const { data: settings } = await supabase.from('user_settings').select('*').eq('user_id', req.user.id).single();
+        if (settings) {
+            if (settings.ai_tutor_name)
+                tutorName = settings.ai_tutor_name;
+            if (settings.ai_personality)
+                tutorPersonality = settings.ai_personality;
+            if (settings.ai_tone)
+                tone = settings.ai_tone;
+            if (settings.language)
+                language = settings.language;
+            if (settings.ai_reading_level)
+                readingLevel = settings.ai_reading_level;
+        }
+        const systemPrompt = `You are an expert university AI tutor named ${tutorName}. You are known for being ${tutorPersonality}.`;
+        const prompt = `
 You are an expert university AI tutor named ${tutorName}. You are known for being ${tutorPersonality}.
 The student is studying the course: "${courseContext}".
+${slideNumber ? `You are currently explaining SLIDE ${slideNumber}.` : ''}
+
 ${mode === 'story'
-        ? 'Your task is to explain the following slide content to them by rewriting the concept as a short, engaging narrative story. Characters should represent variables or concepts, conflicts represent opposing forces, and the resolution represents the solution. Do not include a standard academic explanation; only tell the story.'
-        : mode === 'conceptual'
-            ? 'Your task is to explain the following theory, definitions, diagrams, or descriptive content from the slide. Start with a real-world analogy the student will recognise. Give the academic definition after the analogy. Explain WHY the concept exists — what problem it solves. Give one concrete example. End with exam-likely phrasing of the concept.'
-            : 'Your task is to explain the following slide content to them.'}
+            ? 'Your task is to explain the following slide content to them by rewriting the concept as a short, engaging narrative story. Characters should represent variables or concepts, conflicts represent opposing forces, and the resolution represents the solution. Do not include a standard academic explanation; only tell the story.'
+            : mode === 'conceptual'
+                ? 'Your task is to explain the following theory, definitions, diagrams, or descriptive content from the slide. Start with a real-world analogy the student will recognise. Give the academic definition after the analogy. Explain WHY the concept exists — what problem it solves. Give one concrete example. End with exam-likely phrasing of the concept.'
+                : 'Your task is to explain the following slide content to them.'}
+
+CRITICAL SLIDE FOCUS DIRECTIVE:
+Your explanation MUST concentrate strictly and solely on the specific content, bullet points, formulas, and diagrams presented on THIS slide (Slide ${slideNumber || 'current'}).
+Do NOT give a generic course introduction if this slide covers specific objectives or topics.
+Do NOT bleed into or summarize concepts that belong to other slides.
 
 Accessibility Overrides for this user:
 - Reading Complexity: ${readingLevel}
 - Tone: ${tone}
 - Language: You MUST respond in this language code: ${language}.
 
-${slideText ? `Slide Content (Extracted Text):\n"${slideText}"` : ''}
+${cleanSlideText ? `Slide Content (Extracted Text):\n"${cleanSlideText}"` : ''}
 
-${(slideText && slideText.split(' ').length < 20 && !visionExplanation && !imageUrl) ? `
+${(cleanSlideText && cleanSlideText.split(' ').length < 20 && !cleanVisionEx && !imageUrl) ? `
 **GAP FILLER MODE TRIGGERED**:
 The text on this slide is extremely sparse (under 20 words) and no image is available. You must infer what the missing content should be based on the surrounding context.
 Previous Slide Text: "${prevSlideText || 'None available'}"
@@ -314,8 +328,8 @@ Next Slide Text: "${nextSlideText || 'None available'}"
 Write a dedicated section at the bottom of your explanation titled "### Gap Fill". In this section, provide the detailed content, context, and steps that are implied but missing from the sparse slide text. Use the surrounding slides to deduce what the lecturer meant to explain here.
 ` : ''}
 
-${visionExplanation ? `Visual Context & Details (from AI Vision Model viewing the slide image):
-"${visionExplanation}"
+${cleanVisionEx ? `Visual Context & Details (from AI Vision Model viewing the slide image):
+"${cleanVisionEx}"
 Use this visual context to enrich your explanation if it mentions charts, diagrams, or pictures.` : ''}
 
 Format your response in clean Markdown. For mathematical expressions, use $ for inline math and $$ for block math equations. Do not use HTML tags. 
@@ -331,78 +345,131 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
 - Write like a smart, knowledgeable human explaining a concept to a friend. Use verbs over nouns, concrete over abstract.
 - Do not introduce yourself, do not apologize, and do not say "Here is an explanation." Just start the explanation immediately.
 `;
-    try {
-        const parts = [{ text: prompt }];
-        if (imageUrl && imageUrl !== 'https://example.com/placeholder.png') {
-            try {
-                const imageRes = await fetch(imageUrl);
-                if (imageRes.ok) {
-                    const arrayBuffer = await imageRes.arrayBuffer();
-                    const base64 = Buffer.from(arrayBuffer).toString('base64');
-                    let mimeType = imageRes.headers.get('content-type') || 'image/png';
-                    mimeType = mimeType.split(';')[0];
-                    parts.push({
-                        inlineData: {
-                            data: base64,
-                            mimeType: mimeType
-                        }
-                    });
+        try {
+            const parts = [{ text: prompt }];
+            if (imageUrl && imageUrl !== 'https://example.com/placeholder.png') {
+                try {
+                    const imageRes = await fetch(imageUrl);
+                    if (imageRes.ok) {
+                        const arrayBuffer = await imageRes.arrayBuffer();
+                        const base64 = Buffer.from(arrayBuffer).toString('base64');
+                        let mimeType = imageRes.headers.get('content-type') || 'image/png';
+                        mimeType = mimeType.split(';')[0];
+                        parts.push({
+                            inlineData: {
+                                data: base64,
+                                mimeType: mimeType
+                            }
+                        });
+                    }
+                }
+                catch (err) {
+                    console.error("Failed to fetch image for Gemini vision processing:", err);
                 }
             }
-            catch (err) {
-                console.error("Failed to fetch image for Gemini vision processing:", err);
+            let fullText = '';
+            try {
+                const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+                const result = await callWithFallback(genAI, GEMINI_VISION_MODELS, model => model.generateContent({ contents: [{ role: 'user', parts }] }));
+                fullText = result.response.text();
             }
-        }
-        let fullText = '';
-        try {
-            const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-            const result = await callWithFallback(genAI, GEMINI_VISION_MODELS, model => model.generateContent({ contents: [{ role: 'user', parts }] }));
-            fullText = result.response.text();
-        }
-        catch (geminiErr) {
-            console.log('Gemini failed, falling back to Groq (llama-3.3-70b-versatile)...');
-            const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: 'llama-3.3-70b-versatile',
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: prompt }
-                    ]
-                })
-            });
-            if (groqRes.ok) {
-                const groqData = await groqRes.json();
-                fullText = groqData.choices?.[0]?.message?.content || '';
+            catch (geminiErr) {
+                // 1. Try OpenRouter Vision if image is present and OPENROUTER_API_KEY is configured
+                let openRouterSuccess = false;
+                const openRouterKey = process.env.OPENROUTER_API_KEY;
+                if (imageUrl && imageUrl !== 'https://example.com/placeholder.png' && openRouterKey) {
+                    try {
+                        console.log('Gemini vision failed, calling OpenRouter Vision fallback for slide image...');
+                        const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${openRouterKey}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                model: 'google/gemini-2.5-flash',
+                                max_tokens: 1200,
+                                messages: [
+                                    {
+                                        role: 'user',
+                                        content: [
+                                            { type: 'text', text: prompt },
+                                            { type: 'image_url', image_url: { url: imageUrl } }
+                                        ]
+                                    }
+                                ]
+                            })
+                        });
+                        if (orRes.ok) {
+                            const orData = await orRes.json();
+                            const text = orData.choices?.[0]?.message?.content;
+                            if (text) {
+                                fullText = text;
+                                openRouterSuccess = true;
+                                console.log('OpenRouter Vision fallback succeeded for slide explanation!');
+                            }
+                        }
+                        else {
+                            const orErrText = await orRes.text().catch(() => '');
+                            console.warn('OpenRouter Vision fallback responded with error:', orRes.status, orErrText);
+                        }
+                    }
+                    catch (orErr) {
+                        console.warn('OpenRouter Vision fallback network error:', orErr);
+                    }
+                }
+                // 2. Fall back to Groq text LLM if OpenRouter didn't produce text
+                if (!openRouterSuccess) {
+                    console.log('Falling back to Groq (openai/gpt-oss-120b)...');
+                    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            model: 'openai/gpt-oss-120b',
+                            messages: [
+                                { role: 'system', content: systemPrompt },
+                                { role: 'user', content: prompt }
+                            ]
+                        })
+                    });
+                    if (groqRes.ok) {
+                        const groqData = await groqRes.json();
+                        fullText = groqData.choices?.[0]?.message?.content || '';
+                    }
+                    else {
+                        const errBody = await groqRes.json().catch(() => ({}));
+                        console.error('Groq fallback also failed:', errBody);
+                        throw geminiErr;
+                    }
+                }
             }
-            else {
-                const errBody = await groqRes.json().catch(() => ({}));
-                console.error('Groq fallback also failed:', errBody);
-                throw geminiErr;
-            }
-        }
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
-        res.write(`data: ${JSON.stringify(fullText)}\n\n`);
-        res.write('data: [DONE]\n\n');
-        res.end();
-        (0, quota_1.consumeUserQuota)(req.user.id, 'slide_explanation').catch(console.error);
-    }
-    catch (err) {
-        console.error('Gemini API Error:', err);
-        if (!res.headersSent) {
             res.setHeader('Content-Type', 'text/event-stream');
             res.setHeader('Cache-Control', 'no-cache');
             res.setHeader('Connection', 'keep-alive');
-            res.write(`data: ${JSON.stringify(`\n\n**Note:** *AI API returned an error (${err?.message?.split('.')[0] || 'Quota Exceeded'}). Showing mock response.*\n\nThis is a tailored explanation of the slide content at the **${level}** level.`)}\n\n`);
+            res.write(`data: ${JSON.stringify(fullText)}\n\n`);
             res.write('data: [DONE]\n\n');
             res.end();
+            (0, quota_1.consumeUserQuota)(req.user.id, 'slide_explanation', req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
         }
+        catch (err) {
+            console.error('Gemini API Error:', err);
+            if (!res.headersSent) {
+                res.setHeader('Content-Type', 'text/event-stream');
+                res.setHeader('Cache-Control', 'no-cache');
+                res.setHeader('Connection', 'keep-alive');
+                res.write(`data: ${JSON.stringify(`\n\n**Note:** *AI API returned an error (${err?.message?.split('.')[0] || 'Quota Exceeded'}). Showing mock response.*\n\nThis is a tailored explanation of the slide content at the **${level}** level.`)}\n\n`);
+                res.write('data: [DONE]\n\n');
+                res.end();
+            }
+        }
+    }
+    catch (outerErr) {
+        console.error("CRITICAL ROUTE ERROR:", outerErr);
+        if (!res.headersSent)
+            res.status(500).json({ error: outerErr.message, stack: outerErr.stack });
     }
 });
 // --- Wellbeing AI Endpoints ---
@@ -439,7 +506,7 @@ The quote must reference their actual situation naturally (e.g. "You have an Eng
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: 'llama-3.3-70b-versatile',
+                model: 'openai/gpt-oss-120b',
                 messages: [
                     { role: 'system', content: 'You are an inspiring academic coach.' },
                     { role: 'user', content: prompt }
@@ -454,10 +521,10 @@ The quote must reference their actual situation naturally (e.g. "You have an Eng
     }
     catch (err) {
         console.error('Motivational Quote Error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
-router.post('/study-break', async (req, res) => {
+router.post('/study-break', (0, quotaGuard_1.withAIQuota)('break_suggestion'), async (req, res) => {
     try {
         const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
@@ -466,7 +533,7 @@ router.post('/study-break', async (req, res) => {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: 'llama-3.3-70b-versatile',
+                model: 'openai/gpt-oss-120b',
                 messages: [
                     { role: 'system', content: 'You suggest highly practical, specific 5-minute study breaks to prevent burnout.' },
                     { role: 'user', content: 'I just finished a 25-minute pomodoro study session. Suggest one specific, actionable 5-minute break activity (e.g. physical movement, visual rest). Keep it under 2 sentences.' }
@@ -480,10 +547,10 @@ router.post('/study-break', async (req, res) => {
         res.json({ suggestion });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
-router.post('/anxiety-response', async (req, res) => {
+router.post('/anxiety-response', (0, quotaGuard_1.withAIQuota)('chat_message'), async (req, res) => {
     try {
         const { feeling } = req.body;
         const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -493,7 +560,7 @@ router.post('/anxiety-response', async (req, res) => {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: 'llama-3.3-70b-versatile',
+                model: 'openai/gpt-oss-120b',
                 messages: [
                     { role: 'system', content: 'You are a supportive academic coach helping students with pre-exam anxiety.' },
                     { role: 'user', content: `I have an exam tomorrow and I am feeling: ${feeling}. Suggest one specific, quick technique (like box breathing or positive visualization) to help me right now. Keep it under 3 sentences and very supportive.` }
@@ -507,7 +574,7 @@ router.post('/anxiety-response', async (req, res) => {
         res.json({ suggestion });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 exports.default = router;

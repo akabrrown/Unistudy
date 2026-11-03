@@ -11,6 +11,13 @@ export function LectureList({ courseId, lectures }: { courseId: string, lectures
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Filter out any failed lectures so they never show or count
+  const validLectures = (lectures || []).filter((l: any) => {
+    if (!l) return false;
+    if (typeof l.title === 'string' && l.title.startsWith('[FAILED')) return false;
+    return true;
+  });
+
   const toggleSelect = (id: string) => {
     const next = new Set(selectedIds);
     if (next.has(id)) next.delete(id);
@@ -19,8 +26,8 @@ export function LectureList({ courseId, lectures }: { courseId: string, lectures
   };
 
   const toggleAll = () => {
-    if (selectedIds.size === lectures.length) setSelectedIds(new Set());
-    else setSelectedIds(new Set(lectures.map(l => l.id)));
+    if (selectedIds.size === validLectures.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(validLectures.map(l => l.id)));
   };
 
   const handleDeleteSelected = async () => {
@@ -38,7 +45,7 @@ export function LectureList({ courseId, lectures }: { courseId: string, lectures
     }
   };
 
-  if (!lectures || lectures.length === 0) {
+  if (!validLectures || validLectures.length === 0) {
     return (
       <div className="text-center py-12 bg-muted/20 rounded-xl border border-dashed border-border">
         <FileText className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
@@ -54,8 +61,8 @@ export function LectureList({ courseId, lectures }: { courseId: string, lectures
     return t.includes('past question') || t.includes('past paper') || t.includes('exam') || t.includes('quiz') || t.includes('test');
   };
 
-  const slides = lectures.filter(l => !isPastQuestion(l.title));
-  const pastQuestions = lectures.filter(l => isPastQuestion(l.title));
+  const slides = validLectures.filter(l => !isPastQuestion(l.title));
+  const pastQuestions = validLectures.filter(l => isPastQuestion(l.title));
 
   // Group slides by week
   const groupedSlides = slides.reduce((acc: any, lec: any) => {
@@ -74,11 +81,11 @@ export function LectureList({ courseId, lectures }: { courseId: string, lectures
 
   return (
     <div className="space-y-6">
-      {lectures.length > 0 && (
+      {validLectures.length > 0 && (
         <div className="flex items-center justify-between">
           <Button variant="ghost" size="sm" onClick={toggleAll} className="text-muted-foreground hover:text-foreground">
-            {selectedIds.size === lectures.length ? <CheckSquare className="mr-2 h-4 w-4" /> : <Square className="mr-2 h-4 w-4" />}
-            {selectedIds.size === lectures.length ? 'Deselect All' : 'Select All'}
+            {selectedIds.size === validLectures.length ? <CheckSquare className="mr-2 h-4 w-4" /> : <Square className="mr-2 h-4 w-4" />}
+            {selectedIds.size === validLectures.length ? 'Deselect All' : 'Select All'}
           </Button>
           
           {selectedIds.size > 0 && (

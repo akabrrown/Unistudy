@@ -8,8 +8,10 @@ function withAIQuota(feature) {
             if (!req.user) {
                 return res.status(401).json({ error: 'Unauthorized' });
             }
+            // Extract model_tier from body or headers if present
+            const modelTier = req.body?.model_tier || req.headers['x-model-tier'] || 'default';
             // We need user plan, we can fetch it, but better, quota check fetches it
-            const quotaStatus = await (0, quota_1.checkUserQuota)(req.user.id, feature);
+            const quotaStatus = await (0, quota_1.checkUserQuota)(req.user.id, feature, modelTier);
             if (!quotaStatus.allowed) {
                 return res.status(403).json({
                     error: 'quota_exceeded',
@@ -30,7 +32,15 @@ function withAIQuota(feature) {
         }
         catch (error) {
             console.error('Quota check failed:', error);
-            res.status(500).json({ error: 'Internal server error during quota validation' });
+            try {
+                const fs = require('fs');
+                fs.writeFileSync('quota_error.txt', `${new Date().toISOString()}\n${error.stack || error.message}`);
+            }
+            catch (_) { }
+            res.status(500).json({
+                error: 'Internal server error during quota validation',
+                message: process.env.NODE_ENV === 'development' ? error.message : 'An unexpected error occurred'
+            });
         }
     };
 }

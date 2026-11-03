@@ -11,7 +11,12 @@ const router = (0, express_1.Router)();
 router.post('/', async (req, res) => {
     // express.raw() passes req.body as a Buffer
     const payloadBuffer = req.body;
-    const hash = crypto_1.default.createHmac('sha512', env_1.env.PAYSTACK_WEBHOOK_SECRET || 'sk_test_mock_key')
+    const webhookSecret = env_1.env.PAYSTACK_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+        console.error('PAYSTACK_WEBHOOK_SECRET is not configured');
+        return res.status(500).send('Webhook not configured');
+    }
+    const hash = crypto_1.default.createHmac('sha512', webhookSecret)
         .update(payloadBuffer)
         .digest('hex');
     if (hash !== req.headers['x-paystack-signature']) {

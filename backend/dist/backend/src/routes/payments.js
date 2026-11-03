@@ -10,9 +10,9 @@ const auth_1 = require("../middleware/auth");
 const env_1 = require("../config/env");
 const crypto_1 = __importDefault(require("crypto"));
 const router = (0, express_1.Router)();
+const quota_1 = require("../../../shared/constants/quota");
 const CheckoutSchema = zod_1.z.object({
-    amount: zod_1.z.number().positive(),
-    credits: zod_1.z.number().positive(),
+    bundle_id: zod_1.z.string(),
     type: zod_1.z.literal('credit_topup').optional().default('credit_topup')
 });
 router.post('/checkout', auth_1.authenticateUser, async (req, res) => {
@@ -23,7 +23,12 @@ router.post('/checkout', auth_1.authenticateUser, async (req, res) => {
         if (!parseResult.success) {
             return res.status(400).json({ error: 'Invalid payload', details: parseResult.error.format() });
         }
-        const { amount, credits, type } = parseResult.data;
+        const { bundle_id, type } = parseResult.data;
+        const bundle = quota_1.CREDIT_BUNDLES[bundle_id];
+        if (!bundle) {
+            return res.status(400).json({ error: 'Invalid bundle ID' });
+        }
+        const { price: amount, credits } = bundle;
         const amountInPesewas = amount * 100; // Convert GHS to pesewas
         // Ensure we have a valid site URL for callback
         const baseUrl = env_1.env.FRONTEND_URL || 'http://localhost:3000';
@@ -54,7 +59,7 @@ router.post('/checkout', auth_1.authenticateUser, async (req, res) => {
     }
     catch (error) {
         console.error('Checkout Error:', error);
-        res.status(500).json({ error: error.message || 'Internal Server Error' });
+        res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 router.post('/cancel', auth_1.authenticateUser, async (req, res) => {
@@ -76,7 +81,7 @@ router.post('/cancel', auth_1.authenticateUser, async (req, res) => {
     }
     catch (error) {
         console.error('Cancel Subscription Error:', error);
-        res.status(500).json({ error: error.message || 'Internal Server Error' });
+        res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 router.post('/portal', auth_1.authenticateUser, async (req, res) => {
@@ -88,7 +93,7 @@ router.post('/portal', auth_1.authenticateUser, async (req, res) => {
     }
     catch (error) {
         console.error('Portal Error:', error);
-        res.status(500).json({ error: error.message || 'Internal Server Error' });
+        res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 // Placeholder for upgrading subscription (future implementation)
@@ -116,7 +121,7 @@ router.post('/upgrade', auth_1.authenticateUser, async (req, res) => {
     }
     catch (error) {
         console.error('Upgrade Error:', error);
-        res.status(500).json({ error: error.message || 'Internal Server Error' });
+        res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 // Placeholder for referral rewards endpoint
@@ -133,7 +138,7 @@ router.post('/referral', auth_1.authenticateUser, async (req, res) => {
     }
     catch (error) {
         console.error('Referral Error:', error);
-        res.status(500).json({ error: error.message || 'Internal Server Error' });
+        res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 // Placeholder for gifting a subscription to another user
@@ -177,7 +182,7 @@ router.post('/gift', auth_1.authenticateUser, async (req, res) => {
     }
     catch (error) {
         console.error('Gift Error:', error);
-        res.status(500).json({ error: error.message || 'Internal Server Error' });
+        res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 exports.default = router;

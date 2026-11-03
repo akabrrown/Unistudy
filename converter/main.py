@@ -249,28 +249,39 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
         if slides_to_insert:
             print("Finished processing all slides.")
         else:
-            print("No slides to process.")
+            print("No slides to process. Deleting empty lecture placeholder.")
+            try:
+                supabase.table("lectures").delete().eq("id", lecture_id).execute()
+            except Exception as e:
+                print(f"Failed to delete empty lecture: {e}")
 
     except RuntimeError as re:
         err_msg = str(re)
         print(f"Error processing file: {err_msg}")
         import traceback
         traceback.print_exc()
-        short_reason = err_msg[:80] if len(err_msg) > 80 else err_msg
         try:
-            supabase.table("lectures").update({"title": f"[FAILED: {short_reason}] {lecture_id}"}).eq("id", lecture_id).execute()
-        except:
-            pass
+            # Delete lecture on conversion failure so failed slides do not count or show
+            supabase.table("lectures").delete().eq("id", lecture_id).execute()
+            print(f"Deleted failed lecture {lecture_id} from DB.")
+        except Exception as del_err:
+            print(f"Failed to delete lecture on error: {del_err}")
     except Exception as e:
         print(f"Error processing file: {str(e)}")
         import traceback
         traceback.print_exc()
+        try:
+            # Delete lecture on conversion failure so failed slides do not count or show
+            supabase.table("lectures").delete().eq("id", lecture_id).execute()
+            print(f"Deleted failed lecture {lecture_id} from DB.")
+        except Exception as del_err:
+            print(f"Failed to delete lecture on error: {del_err}")
     finally:
         # Always mark processing done first, then clean up
         try:
             supabase.table("lectures").update({"processing": False}).eq("id", lecture_id).execute()
         except Exception as e:
-            print(f"Failed to update processing status: {e}")
+            pass
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir)
 

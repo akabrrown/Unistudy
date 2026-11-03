@@ -9,11 +9,14 @@ const resend = process.env.RESEND_API_KEY ? new resend_1.Resend(process.env.RESE
 router.get('/daily-brief', async (req, res) => {
     try {
         const authHeader = req.headers.authorization;
-        if (authHeader !== `Bearer ${process.env.CRON_SECRET || 'dev_cron_secret'}`) {
-            // Allow it in development without a secret, but strictly enforce in prod if CRON_SECRET is set
-            if (process.env.NODE_ENV === 'production') {
-                return res.status(401).json({ error: 'Unauthorized' });
-            }
+        const cronSecret = process.env.CRON_SECRET;
+        // Always require a configured secret — never fall back to a weak default
+        if (!cronSecret || cronSecret === 'test_secret' || cronSecret === 'dev_cron_secret') {
+            console.error('CRON_SECRET is not configured or is using a weak default value');
+            return res.status(500).json({ error: 'Cron not configured' });
+        }
+        if (authHeader !== `Bearer ${cronSecret}`) {
+            return res.status(401).json({ error: 'Unauthorized' });
         }
         if (!resend) {
             return res.status(500).json({ error: 'Resend API key not configured' });
@@ -71,7 +74,7 @@ router.get('/daily-brief', async (req, res) => {
     }
     catch (err) {
         console.error('Cron Error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 exports.default = router;

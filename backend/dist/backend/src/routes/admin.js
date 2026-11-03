@@ -61,7 +61,7 @@ router.get('/overview', async (req, res) => {
         });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 // A02: Users Management - List
@@ -76,7 +76,7 @@ router.get('/users', async (req, res) => {
         res.json({ users });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 // A02: User Profile View - Details
@@ -110,7 +110,7 @@ router.get('/users/:userId/details', async (req, res) => {
         });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 // A02: Update User Role (student, admin, suspended)
@@ -133,7 +133,7 @@ router.patch('/users/:userId/role', async (req, res) => {
         res.json({ success: true, profile: data });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 // A02: Update User Plan (free, pro, ultra)
@@ -158,7 +158,7 @@ router.patch('/users/:userId/plan', async (req, res) => {
         res.json({ success: true, subscription: data });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 // A02: Reset Password (Generate Magic Recovery Link)
@@ -183,7 +183,7 @@ router.post('/users/:userId/reset-password', async (req, res) => {
         res.json({ success: true, recoveryLink: data.properties?.action_link });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 // A02: Delete User Account
@@ -206,7 +206,7 @@ router.delete('/users/:userId', async (req, res) => {
         res.json({ success: true });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 // A03: Content Moderation - Fetch all content (with flags)
@@ -222,7 +222,7 @@ router.get('/content', async (req, res) => {
         res.json({ content: lectures });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 // A03: Content Moderation - Delete content
@@ -239,7 +239,7 @@ router.delete('/content/:id', async (req, res) => {
         res.json({ success: true });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 // A04: AI Usage Monitoring - Dashboard Data
@@ -317,7 +317,7 @@ router.get('/ai-usage', async (req, res) => {
         });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 // A04: AI Admin Actions
@@ -332,7 +332,7 @@ router.post('/ai-usage/toggle-fallback', async (req, res) => {
         res.json({ success: true });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 // A05: Subscription & Revenue Analytics
@@ -388,7 +388,7 @@ router.get('/subscriptions', async (req, res) => {
         });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 // A05: Manual Plan Override
@@ -410,7 +410,7 @@ router.post('/subscriptions/override', async (req, res) => {
         res.json({ success: true });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 exports.default = router;

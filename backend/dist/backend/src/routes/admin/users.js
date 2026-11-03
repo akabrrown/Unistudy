@@ -29,7 +29,7 @@ router.get('/', async (req, res) => {
         res.json({ users: data });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 router.get('/:userId/quota', async (req, res) => {
@@ -40,7 +40,7 @@ router.get('/:userId/quota', async (req, res) => {
         res.json(data);
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 exports.default = router;

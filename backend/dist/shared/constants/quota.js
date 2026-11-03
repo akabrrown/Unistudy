@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FREE_DAILY_ALLOWANCES = exports.FEATURE_COSTS = exports.FEATURE_PROVIDER_MAP = exports.PROVIDER_CONFIG = void 0;
+exports.CREDIT_BUNDLES = exports.FREE_DAILY_ALLOWANCES = exports.MODEL_MULTIPLIERS = exports.FEATURE_COSTS = exports.FEATURE_PROVIDER_MAP = exports.PROVIDER_CONFIG = void 0;
 exports.PROVIDER_CONFIG = {
     gemini: { pool_type: 'credit_funded', has_user_quota: true, user_quota_column: 'gemini' },
     groq_70b: { pool_type: 'credit_funded', has_user_quota: true, user_quota_column: 'groq70' },
@@ -45,42 +45,53 @@ exports.FEATURE_PROVIDER_MAP = {
     generate_mnemonics: 'gemini'
 };
 exports.FEATURE_COSTS = {
-    slide_explanation: 2,
-    flashcard_generation: 2,
-    quiz_generation: 2,
-    past_paper_grading: 2,
-    past_paper_question: 2,
-    lecture_tagging: 2,
-    difficulty_rating: 2,
-    topic_summary: 2,
-    trend_analysis: 2,
-    weakness_drill: 2,
-    gap_filler: 2,
-    semester_narrative: 2,
-    handwriting_scan: 2,
-    answer_improver: 2,
-    study_poster: 2,
-    cheat_sheet: 2,
-    generate_mnemonics: 2,
-    calculator: 1,
-    chat_message: 1,
-    debate_mode: 1,
-    oral_exam: 1,
-    revision_song: 1,
-    daily_brief: 1,
-    motivational_quote: 1,
-    break_suggestion: 1,
+    slide_explanation: 200,
+    flashcard_generation: 200,
+    quiz_generation: 200,
+    past_paper_grading: 200,
+    past_paper_question: 200,
+    lecture_tagging: 200,
+    difficulty_rating: 200,
+    topic_summary: 200,
+    trend_analysis: 200,
+    weakness_drill: 200,
+    gap_filler: 200,
+    semester_narrative: 200,
+    handwriting_scan: 200,
+    answer_improver: 200,
+    study_poster: 200,
+    cheat_sheet: 200,
+    generate_mnemonics: 200,
+    calculator: 100,
+    chat_message: 100,
+    debate_mode: 100,
+    oral_exam: 100,
+    revision_song: 100,
+    daily_brief: 100,
+    motivational_quote: 100,
+    break_suggestion: 100,
     slide_embedding: 0,
     search_embedding: 0,
     flashcard_embedding: 0,
-    semantic_search_rerank: 1,
-    youtube_search: 1
+    semantic_search_rerank: 100,
+    youtube_search: 100
+};
+exports.MODEL_MULTIPLIERS = {
+    'fast': 0.5, // e.g. Gemini Flash, Groq 8B
+    'smart': 2.0, // e.g. Gemini Pro, Groq 70B
+    'default': 1.0
 };
 // Every user gets these daily allowances for free, resets at midnight.
 exports.FREE_DAILY_ALLOWANCES = {
-    gemini: 50,
-    groq70: 10,
-    groq8: 20,
+    gemini: 5000,
+    groq70: 1000,
+    groq8: 2000,
     cohere: 0, // Cohere has no free daily allowance, strictly uses credits or fallback if needed
-    youtube: 3
+    youtube: 300
+};
+exports.CREDIT_BUNDLES = {
+    starter: { price: 10, credits: 10000 },
+    standard: { price: 25, credits: 30000 },
+    value: { price: 50, credits: 70000 },
+    bulk: { price: 100, credits: 160000 }
 };

@@ -30,7 +30,7 @@ router.get('/subscription', auth_1.authenticateUser, async (req, res) => {
     }
     catch (error) {
         console.error('Get Subscription Error:', error);
-        res.status(500).json({ error: error.message || 'Internal Server Error' });
+        res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 exports.default = router;

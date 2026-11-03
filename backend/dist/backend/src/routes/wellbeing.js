@@ -8,8 +8,8 @@ router.use(auth_1.authenticateUser);
 router.post('/sessions', async (req, res) => {
     try {
         const { course_id, duration_minutes, status } = req.body;
-        // We expect end_time to be now() since this triggers at end of Pomodoro
-        const { data, error } = await supabase_1.supabaseAdmin
+        const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
+        const { data, error } = await supabase
             .from('study_sessions')
             .insert({
             user_id: req.user.id,
@@ -25,13 +25,14 @@ router.post('/sessions', async (req, res) => {
         res.json(data);
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 router.post('/anxiety', async (req, res) => {
     try {
         const { event_id, feeling, ai_suggestion } = req.body;
-        const { data, error } = await supabase_1.supabaseAdmin
+        const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
+        const { data, error } = await supabase
             .from('anxiety_check_ins')
             .insert({
             user_id: req.user.id,
@@ -46,13 +47,14 @@ router.post('/anxiety', async (req, res) => {
         res.json(data);
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 router.post('/break-rating', async (req, res) => {
     try {
         const { suggestion, rating } = req.body;
-        const { data, error } = await supabase_1.supabaseAdmin
+        const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
+        const { data, error } = await supabase
             .from('study_break_preferences')
             .insert({
             user_id: req.user.id,
@@ -66,15 +68,16 @@ router.post('/break-rating', async (req, res) => {
         res.json(data);
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 router.get('/badges', async (req, res) => {
     try {
+        const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
         // Get last 7 days of sessions
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const { data, error } = await supabase_1.supabaseAdmin
+        const { data, error } = await supabase
             .from('study_sessions')
             .select('duration_minutes, status, created_at')
             .eq('user_id', req.user.id)
@@ -101,7 +104,7 @@ router.get('/badges', async (req, res) => {
         res.json({ badge, totalMinutes, sessionCount, aiMessage });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 exports.default = router;

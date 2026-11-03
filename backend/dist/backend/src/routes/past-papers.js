@@ -5,141 +5,469 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const generative_ai_1 = require("@google/generative-ai");
+const pdf_parse_1 = __importDefault(require("pdf-parse"));
+const safeGroq_1 = require("../lib/ai/safeGroq");
 const router = (0, express_1.Router)();
 const auth_1 = require("../middleware/auth");
+const quotaGuard_1 = require("../middleware/quotaGuard");
+const quota_1 = require("../lib/ai/quota");
 const router_1 = require("../lib/ai/router");
 router.use(auth_1.authenticateUser);
 const multer_1 = __importDefault(require("multer"));
 const supabase_1 = require("../lib/supabase");
 const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
-// Upload and mock OCR extraction
-router.post('/upload', upload.single('file'), async (req, res) => {
+async function extractQuestionsFromPdfBuffer(fileBuffer) {
     try {
-        const { courseCode, courseName, year, examType } = req.body;
-        // Lookup or create course to satisfy NOT NULL constraint
-        let courseId = null;
-        const { data: existingCourse } = await supabase_1.supabaseAdmin
-            .from('courses')
-            .select('id')
-            .eq('course_code', courseCode || 'TEST101')
-            .maybeSingle();
-        if (existingCourse) {
-            courseId = existingCourse.id;
+        const parseFn = typeof pdf_parse_1.default === 'function' ? pdf_parse_1.default : pdf_parse_1.default.default || pdf_parse_1.default;
+        let extractedText = '';
+        try {
+            const data = await parseFn(fileBuffer);
+            extractedText = (data && data.text) ? data.text.trim() : '';
         }
-        else {
-            const { data: newCourse, error: cErr } = await supabase_1.supabaseAdmin
+        catch (parseErr) {
+            console.warn('[Past Papers] pdfParse error (likely scanned/image-based):', parseErr?.message);
+        }
+        // 1. If digital text is extracted with reasonable length (>= 50 chars), try text completion first
+        if (extractedText.length >= 50) {
+            try {
+                const prompt = `
+You are an expert exam analyzer. I am providing you with the extracted raw text from a past exam paper.
+Extract all the questions from this exam paper in the EXACT sequential order they appear from top to bottom.
+Keep main questions (e.g., Question 1, Question 2, Question 3) grouped together as a SINGLE object. Do NOT split a question into multiple objects for its sub-questions (e.g., do not create separate objects for 1a, 1b). Instead, include the main preamble and all sub-questions beautifully formatted as markdown lists inside the "text_content" of the main question.
+
+CRITICAL INSTRUCTIONS FOR TABLES AND FIGURES:
+- If a question contains a table, you MUST convert it into a markdown formatted table within the "text_content".
+- If a question contains a figure, image, diagram, or graph, you MUST include a highly detailed descriptive placeholder in the "text_content", for example: "[Figure: A bar chart showing population growth over 10 years]". Do not ignore images!
+
+Return EXACTLY ONE valid JSON object. 
+It MUST have a single root key called "questions" which is an array containing objects with the following keys:
+- "question_number": (string, the main question number, e.g. "1", "2", "3")
+- "question_type": (string, EXACTLY "mcq" for Multiple Choice Questions, or "theory" for Theory/Essay questions)
+- "text_content": (string, the full text of the question, including markdown tables and [Figure: ...] descriptions)
+- "extracted_topic": (string, a brief 1-3 word topic identifying what the question is about)
+- "marks_available": (integer, if stated, otherwise 0)
+
+Raw Extracted Text:
+${extractedText}
+`;
+                const rawJson = await (0, safeGroq_1.chatCompletionWithFallback)({
+                    messages: [{ role: 'user', content: prompt }],
+                    response_format: { type: 'json_object' }
+                });
+                const start = rawJson.indexOf('{');
+                const end = rawJson.lastIndexOf('}');
+                if (start !== -1 && end !== -1) {
+                    const parsed = JSON.parse(rawJson.slice(start, end + 1));
+                    if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+                        console.log(`[Past Papers] Successfully extracted ${parsed.questions.length} questions via text-based model.`);
+                        return parsed.questions;
+                    }
+                }
+            }
+            catch (textErr) {
+                console.warn('[Past Papers] Text model extraction returned 0 questions or failed, proceeding to vision:', textErr?.message);
+            }
+        }
+        // 2. Scanned or image-based PDF: Use Gemini Multimodal PDF parsing
+        console.log(`[Past Papers] Running Multimodal/Vision PDF extraction (text length was ${extractedText.length})...`);
+        const base64Pdf = fileBuffer.toString('base64');
+        const geminiModels = ['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+        const geminiKey = process.env.GEMINI_API_KEY;
+        if (geminiKey) {
+            const genAI = new generative_ai_1.GoogleGenerativeAI(geminiKey);
+            const visionPrompt = `
+You are an expert exam analyzer. I am providing you with the full PDF of a university past exam paper (which may contain scanned pages, handwritten annotations, tables, diagrams, or printed text).
+Analyze and extract all questions from this exam paper in the EXACT sequential order they appear from page 1 to the end.
+Keep main questions (e.g., Question 1, Question 2, Question 3) grouped together as a SINGLE object. Do NOT split a question into multiple objects for sub-questions (e.g. 1a, 1b). Instead, include all sub-questions and context clearly formatted as markdown lists inside "text_content".
+
+CRITICAL INSTRUCTIONS FOR TABLES AND FIGURES:
+- If a question contains a table, transcribe it into a clean markdown table.
+- If a question contains a diagram, chart, or figure, describe it concisely in brackets, e.g. [Figure: Circuit diagram with R1 and C1].
+
+Return EXACTLY ONE valid JSON object with a single root key called "questions", an array of objects:
+- "question_number": (string, e.g. "1", "2")
+- "question_type": ("mcq" or "theory")
+- "text_content": (string, full question text and markdown)
+- "extracted_topic": (string, 1-3 word topic)
+- "marks_available": (integer, default 0)
+`;
+            for (const modelName of geminiModels) {
+                try {
+                    const model = genAI.getGenerativeModel({
+                        model: modelName,
+                        generationConfig: { responseMimeType: 'application/json' }
+                    });
+                    const result = await model.generateContent([
+                        visionPrompt,
+                        {
+                            inlineData: {
+                                data: base64Pdf,
+                                mimeType: 'application/pdf'
+                            }
+                        }
+                    ]);
+                    const rawResponse = result.response.text();
+                    const start = rawResponse.indexOf('{');
+                    const end = rawResponse.lastIndexOf('}');
+                    if (start !== -1 && end !== -1) {
+                        const parsed = JSON.parse(rawResponse.slice(start, end + 1));
+                        if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+                            console.log(`[Past Papers] Gemini (${modelName}) successfully extracted ${parsed.questions.length} questions from scanned PDF.`);
+                            return parsed.questions;
+                        }
+                    }
+                }
+                catch (geminiErr) {
+                    console.warn(`[Past Papers] Gemini model ${modelName} failed on PDF:`, geminiErr.message);
+                }
+            }
+        }
+    }
+    catch (unexpectedErr) {
+        console.error('[Past Papers] Unexpected error in extractQuestionsFromPdfBuffer:', unexpectedErr);
+    }
+    // 3. Fallback: If all else fails, create a default question so the paper remains usable without 500
+    console.warn('[Past Papers] Fallback: Could not automatically detect individual questions from PDF. Creating initial document question.');
+    return [
+        {
+            question_number: '1',
+            question_type: 'theory',
+            text_content: 'Exam Paper (Scanned / Image Document)\n\nThis past paper was uploaded as a scanned or image document. You can review the document and practice answering questions with the AI tutor.',
+            extracted_topic: 'GENERAL|Full Exam',
+            marks_available: 0
+        }
+    ];
+}
+// Upload and OCR extraction
+router.post('/upload', upload.single('file'), (0, quotaGuard_1.withAIQuota)('handwriting_scan'), async (req, res) => {
+    let createdPaperId = null;
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No PDF file provided" });
+        }
+        const { courseCode, courseName, year, examType, courseId: incomingCourseId } = req.body;
+        let courseId = incomingCourseId || null;
+        let resolvedCourseCode = (courseCode || '').trim();
+        let resolvedCourseName = (courseName || '').trim();
+        // 1. If courseId provided, resolve course details
+        if (courseId) {
+            const { data: cData } = await supabase_1.supabaseAdmin
                 .from('courses')
-                .insert({
-                course_code: courseCode || 'TEST101',
-                title: courseName || 'Test Course',
-                semester: 1,
-                year: parseInt(year) || new Date().getFullYear(),
-                user_id: req.user.id
-            })
-                .select('id')
-                .single();
-            if (cErr)
-                throw cErr;
-            courseId = newCourse.id;
+                .select('id, course_code, title')
+                .eq('id', courseId)
+                .maybeSingle();
+            if (cData) {
+                resolvedCourseCode = resolvedCourseCode || cData.course_code;
+                resolvedCourseName = resolvedCourseName || cData.title;
+            }
         }
-        // 1. In reality, upload req.file.buffer to Supabase Storage.
-        // For MVP, we just create the DB record.
+        // 2. If no courseId, check if user already has this course by course_code
+        if (!courseId) {
+            const normalizedCode = (resolvedCourseCode || 'GEN101').toUpperCase();
+            const { data: existingCourse } = await supabase_1.supabaseAdmin
+                .from('courses')
+                .select('id, course_code, title')
+                .eq('user_id', req.user.id)
+                .ilike('course_code', normalizedCode)
+                .maybeSingle();
+            if (existingCourse) {
+                courseId = existingCourse.id;
+                resolvedCourseCode = existingCourse.course_code;
+                resolvedCourseName = resolvedCourseName || existingCourse.title;
+            }
+            else {
+                // Create new course for this user in their courses & question bank
+                const { data: newCourse, error: cErr } = await supabase_1.supabaseAdmin
+                    .from('courses')
+                    .insert({
+                    course_code: normalizedCode,
+                    title: resolvedCourseName || normalizedCode,
+                    semester: 1,
+                    year: parseInt(year) || new Date().getFullYear(),
+                    user_id: req.user.id,
+                    colour: '#5B2D8E'
+                })
+                    .select('id, course_code, title')
+                    .single();
+                if (cErr)
+                    throw cErr;
+                courseId = newCourse.id;
+                resolvedCourseCode = newCourse.course_code;
+                resolvedCourseName = newCourse.title;
+            }
+        }
+        // Normalize exam_type enum: 'mid-semester' | 'end-semester' | 'resit'
+        const normalizedExamType = examType === 'mid-semester' || examType === 'Midterm' ? 'mid-semester' :
+            examType === 'resit' ? 'resit' : 'end-semester';
+        const examTypeLabel = normalizedExamType === 'mid-semester' ? 'Midterm' :
+            normalizedExamType === 'resit' ? 'Resit' : 'Final';
+        const paperYear = parseInt(year) || new Date().getFullYear();
+        const paperTitle = `${resolvedCourseCode} - ${paperYear} ${examTypeLabel} Exam`;
+        // 1. Create the DB record.
         const { data: paper, error: pErr } = await supabase_1.supabaseAdmin
             .from('past_papers')
             .insert({
             user_id: req.user.id,
-            course_id: courseId, // Satisfy NOT NULL constraint
-            title: `${courseCode} - ${year} ${examType}`,
-            year: parseInt(year) || new Date().getFullYear(),
-            exam_type: examType || 'Final',
-            status: 'ready', // Immediately ready for demo
+            course_id: courseId,
+            title: paperTitle,
+            year: paperYear,
+            exam_type: normalizedExamType,
+            status: 'ready',
             shared_to_community: false
         })
             .select()
             .single();
         if (pErr)
             throw pErr;
-        if (!req.file)
-            throw new Error("No PDF file provided");
-        // 2. Real PDF extraction using Gemini
-        const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
-        const prompt = `
-You are an expert exam analyzer. I am providing you with a past exam paper in PDF format.
-Extract all the questions from this exam paper in the EXACT sequential order they appear from top to bottom.
-Do not skip any questions and do not reorder them. Preserve the exact hierarchical numbering (e.g. "1a", "1b", "2").
-
-CRITICAL INSTRUCTIONS FOR TABLES AND FIGURES:
-- If a question contains a table, you MUST convert it into a markdown formatted table within the "text_content".
-- If a question contains a figure, image, diagram, or graph, you MUST include a highly detailed descriptive placeholder in the "text_content", for example: "[Figure: A bar chart showing population growth over 10 years]". Do not ignore images!
-
-Return EXACTLY ONE valid JSON array. Do not include any other text, markdown formatting, or code blocks.
-The array must contain objects with the following keys:
-- "question_number": (string, e.g. "1a", "2", "3.1")
-- "text_content": (string, the full text of the question, including markdown tables and [Figure: ...] descriptions)
-- "extracted_topic": (string, a brief 1-3 word topic identifying what the question is about)
-- "marks_available": (integer, if stated, otherwise 0)
-`;
-        const aiResult = await model.generateContent([
-            prompt,
-            {
-                inlineData: {
-                    data: req.file.buffer.toString("base64"),
-                    mimeType: "application/pdf"
+        createdPaperId = paper.id;
+        // 2. Real PDF extraction using text + Multimodal Vision fallback
+        const extractedQuestions = await extractQuestionsFromPdfBuffer(req.file.buffer);
+        // Generate embeddings for the extracted questions (optional)
+        let formattedEmbeddings = [];
+        try {
+            const textsToEmbed = extractedQuestions.map((q) => `Question: ${q.text_content}`);
+            const embedReq = {
+                task: 'embedding',
+                feature: 'search_embedding',
+                payload: { texts: textsToEmbed },
+                userId: req.user.id,
+                priority: 'medium'
+            };
+            const embedRes = await (0, router_1.routeRequest)(embedReq);
+            const rawEmbeddings = embedRes.result;
+            if (Array.isArray(rawEmbeddings)) {
+                if (rawEmbeddings.length > 0 && typeof rawEmbeddings[0] === 'number') {
+                    formattedEmbeddings = [rawEmbeddings];
+                }
+                else {
+                    formattedEmbeddings = rawEmbeddings.map((e) => (Array.isArray(e) && typeof e[0] === 'number') ? e : null);
                 }
             }
-        ]);
-        const text = aiResult.response.text();
-        const jsonMatch = text.match(/\[[\s\S]*\]/);
-        if (!jsonMatch)
-            throw new Error("AI did not return valid JSON array");
-        const extractedQuestions = JSON.parse(jsonMatch[0]);
-        // Generate embeddings for the extracted questions
-        const textsToEmbed = extractedQuestions.map((q) => `Question: ${q.text_content}`);
-        const embedReq = {
-            task: 'embedding',
-            feature: 'search_embedding',
-            payload: { texts: textsToEmbed },
-            userId: req.user.id,
-            priority: 'medium'
-        };
-        const embedRes = await (0, router_1.routeRequest)(embedReq);
-        const embeddings = embedRes.result || [];
-        const dbQuestions = extractedQuestions.map((q, i) => ({
-            past_paper_id: paper.id,
-            question_number: String(q.question_number || '1'),
-            text_content: String(q.text_content || 'Unknown Question'),
-            extracted_topic: String(q.extracted_topic || 'General'),
-            marks_available: Number(q.marks_available || 0),
-            embedding: embeddings[i] ? `[${embeddings[i].join(',')}]` : null
-        }));
+        }
+        catch (embedErr) {
+            console.error("Warning: Failed to generate embeddings for past paper questions. Skipping.", embedErr);
+        }
+        const dbQuestions = extractedQuestions.map((q, i) => {
+            const isMcq = q.question_type?.toLowerCase() === 'mcq';
+            const emb = formattedEmbeddings[i];
+            const hasValidVector = Array.isArray(emb) && emb.length > 0 && typeof emb[0] === 'number';
+            return {
+                past_paper_id: paper.id,
+                question_number: String(q.question_number || (i + 1)),
+                text_content: String(q.text_content || 'Unknown Question'),
+                extracted_topic: `${isMcq ? 'MCQ' : 'THEORY'}|${String(q.extracted_topic || 'General')}`,
+                marks_available: Number(q.marks_available || 0),
+                embedding: hasValidVector ? `[${emb.join(',')}]` : null
+            };
+        });
         const { error: qErr } = await supabase_1.supabaseAdmin
             .from('past_paper_questions')
             .insert(dbQuestions);
         if (qErr)
             throw qErr;
+        try {
+            await (0, quota_1.consumeUserQuota)(req.user.id, 'handwriting_scan');
+        }
+        catch (quotaErr) {
+            console.warn("Quota deduction skipped or warning:", quotaErr);
+        }
         res.json({ success: true, message: "Upload and OCR successful", paper });
     }
-    catch (err) {
-        console.error('Upload error:', err);
-        res.status(500).json({ error: err.message });
+    catch (e) {
+        console.error("Upload error fully detailed:", e);
+        try {
+            const fs = require('fs');
+            const errDetails = typeof e === 'object'
+                ? JSON.stringify(e, Object.getOwnPropertyNames(e), 2)
+                : String(e);
+            fs.writeFileSync('upload_error.txt', `${new Date().toISOString()}\n${errDetails}`);
+        }
+        catch (_) { }
+        if (createdPaperId) {
+            try {
+                await supabase_1.supabaseAdmin.from('past_papers').delete().eq('id', createdPaperId);
+            }
+            catch (delErr) {
+                console.error("Failed to cleanup orphaned past paper record:", delErr);
+            }
+        }
+        res.status(500).json({ error: e.message || 'Upload failed', details: process.env.NODE_ENV === 'development' ? (e.stack || e.message) : undefined });
     }
 });
-router.post('/grade', async (req, res) => {
+// Grade a batch of past paper questions
+router.post('/grade-batch', (0, quotaGuard_1.withAIQuota)('past_paper_grading'), async (req, res) => {
     try {
-        const { question_content, marks_available, student_answer, is_ultra } = req.body;
+        const { answers, is_ultra, course_id } = req.body;
+        if (!answers || !Array.isArray(answers) || answers.length === 0) {
+            return res.status(400).json({ error: 'Missing or empty answers array' });
+        }
+        // Pre-fetch contexts for each answer using embeddings
+        if (course_id) {
+            try {
+                const textsToEmbed = answers.map((a) => a.question_content);
+                const embedReq = {
+                    task: 'embedding',
+                    feature: 'search_embedding',
+                    payload: { texts: textsToEmbed },
+                    userId: req.user.id,
+                    priority: 'high'
+                };
+                const embedRes = await (0, router_1.routeRequest)(embedReq);
+                const rawEmbeddings = embedRes.result;
+                const embeddings = Array.isArray(rawEmbeddings) ? rawEmbeddings : [];
+                for (let i = 0; i < answers.length; i++) {
+                    const emb = embeddings[i];
+                    const isValidVector = Array.isArray(emb) && emb.length > 0 && typeof emb[0] === 'number';
+                    if (isValidVector) {
+                        const { data: matches } = await supabase_1.supabaseAdmin.rpc('match_study_content', {
+                            query_embedding: `[${emb.join(',')}]`,
+                            match_threshold: 0.5,
+                            match_count: 3,
+                            p_user_id: req.user.id
+                        });
+                        if (matches) {
+                            const relevantSlides = matches.filter((m) => m.content_type === 'slide' && m.course_id === course_id);
+                            if (relevantSlides.length > 0) {
+                                answers[i].slide_context = relevantSlides.map((s) => `[Slide ${s.slide_number}]: ${s.text_content}`).join('\n\n');
+                            }
+                        }
+                    }
+                }
+            }
+            catch (e) {
+                console.error("Failed to fetch context for RAG grading", e);
+            }
+        }
+        const personality = is_ultra
+            ? "You are a STRICT and UNFORGIVING university examiner. Do not offer encouragement or praise. Use pure mark-scheme language."
+            : "You are an expert university examiner and teaching assistant grading an exam. Be rigorous, constructive, and highly educational.";
+        // Chunk answers into batches of at most 3 to ensure the AI has ample token headroom
+        // to re-answer all questions and all sub-parts completely without lazy truncation.
+        const CHUNK_SIZE = 3;
+        const allResults = [];
+        for (let i = 0; i < answers.length; i += CHUNK_SIZE) {
+            const chunk = answers.slice(i, i + CHUNK_SIZE);
+            const prompt = `
+${personality}
+Grade the following answers to exam questions.
+
+CRITICAL INSTRUCTIONS (MANDATORY FOR EVERY SINGLE QUESTION):
+1. RE-ANSWER EVERY QUESTION COMPLETELY:
+   - For EACH and EVERY question below, you MUST provide a complete, authoritative, step-by-step Model Answer ("model_answer") that fully re-answers the entire question from scratch to 100% completion.
+   - If a question has sub-parts (e.g. part a, part b, part c, i, ii, iii), your "model_answer" MUST re-answer EVERY SINGLE sub-part with full solutions, formulas, steps, explanations, and final answers. 
+   - NEVER answer only some parts and leave others unanswered!
+   - NEVER write "Refer to notes", "N/A", or "Student did not attempt". Even if the student's answer was blank or scored 0 marks, you MUST provide the complete, working model solution for all parts so the student learns the complete answer.
+2. EXAMINER FEEDBACK:
+   - "feedback": State clearly what the student earned marks for, what was missing or incorrect, and the specific marking-scheme allocation.
+3. SCORING:
+   - "marks_awarded": Integer between 0 and marks_available.
+
+CRITICAL INSTRUCTION FOR SLIDES: If "Lecturer's Slide Context" is provided for a question, you MUST strongly base your grading and model answer on that context before considering general factual correctness.
+
+${chunk.map((ans, idx) => `
+--- Item ${i + idx} (ID: ${ans.id}) ---
+Question: ${ans.question_content}
+Total Marks Available: ${ans.marks_available}
+Student's Answer: ${ans.student_answer}
+${ans.slide_context ? `\nLecturer's Slide Context (PRIORITIZE THIS):\n${ans.slide_context}` : ''}
+`).join('\n')}
+
+Return EXACTLY ONE valid JSON object with a single root key called "results", which is an array containing an object for each item in this batch, IN THE EXACT SAME ORDER:
+- "id": (string, the exact ID provided in the item)
+- "marks_awarded": (integer)
+- "feedback": (string)
+- "model_answer": (string, complete markdown solution re-answering all question parts completely)
+`;
+            const text = await (0, safeGroq_1.chatCompletionWithFallback)({
+                messages: [{ role: 'user', content: prompt }],
+                response_format: { type: 'json_object' }
+            });
+            const start = text.indexOf('{');
+            const end = text.lastIndexOf('}');
+            if (start !== -1 && end !== -1) {
+                const parsed = JSON.parse(text.slice(start, end + 1));
+                if (Array.isArray(parsed.results)) {
+                    allResults.push(...parsed.results);
+                }
+            }
+        }
+        await (0, quota_1.consumeUserQuota)(req.user.id, 'past_paper_grading');
+        res.json({ success: true, data: allResults });
+    }
+    catch (err) {
+        console.error('Error grading batch:', err);
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+    }
+});
+router.post('/grade', (0, quotaGuard_1.withAIQuota)('past_paper_grading'), async (req, res) => {
+    try {
+        const { question_content, marks_available, student_answer, is_ultra, course_id } = req.body;
         if (!question_content || !student_answer) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
+        let slide_context = "";
+        if (course_id) {
+            try {
+                const embedReq = {
+                    task: 'embedding',
+                    feature: 'search_embedding',
+                    payload: { texts: [question_content] },
+                    userId: req.user.id,
+                    priority: 'high'
+                };
+                const embedRes = await (0, router_1.routeRequest)(embedReq);
+                const rawResult = embedRes.result;
+                let embeddingVector = null;
+                if (Array.isArray(rawResult)) {
+                    if (typeof rawResult[0] === 'number') {
+                        embeddingVector = rawResult;
+                    }
+                    else if (Array.isArray(rawResult[0]) && typeof rawResult[0][0] === 'number') {
+                        embeddingVector = rawResult[0];
+                    }
+                }
+                if (embeddingVector && embeddingVector.length > 0) {
+                    const { data: matches } = await supabase_1.supabaseAdmin.rpc('match_study_content', {
+                        query_embedding: `[${embeddingVector.join(',')}]`,
+                        match_threshold: 0.5,
+                        match_count: 3,
+                        p_user_id: req.user.id
+                    });
+                    if (matches) {
+                        const relevantSlides = matches.filter((m) => m.content_type === 'slide' && m.course_id === course_id);
+                        if (relevantSlides.length > 0) {
+                            slide_context = relevantSlides.map((s) => `[Slide ${s.slide_number}]: ${s.text_content}`).join('\n\n');
+                        }
+                    }
+                }
+            }
+            catch (e) {
+                console.error("Failed to fetch context for RAG single grading", e);
+            }
+        }
         const personality = is_ultra
             ? "You are a STRICT and UNFORGIVING university examiner. Do not offer encouragement or praise. Use pure mark-scheme language (e.g. 'Candidate correctly identified X [1 mark] but failed to...')."
-            : "You are a helpful teaching assistant grading an exam. Be encouraging but accurate.";
+            : "You are a helpful university examiner and teaching assistant grading an exam. Be encouraging, thorough, and accurate.";
         const prompt = `
         ${personality}
         Grade the following answer to this exam question.
         
+        CRITICAL INSTRUCTIONS (MANDATORY):
+        1. RE-ANSWER THE QUESTION COMPLETELY:
+           - You MUST provide a complete, authoritative, step-by-step Model Answer ("model_answer") that fully re-answers the entire question from scratch to 100% completion.
+           - If the question contains multiple sub-parts (e.g. (a), (b), (c), (i), (ii)), your "model_answer" MUST re-answer EVERY SINGLE sub-part with full solutions, formulas, steps, explanations, and final answers.
+           - NEVER answer only some parts and leave others unanswered!
+           - Even if the student's answer was blank or scored 0 marks, you MUST still provide the complete, working model solution for all sub-parts so the student learns the full answer.
+        2. EXAMINER FEEDBACK:
+           - "feedback": Detail what marks were awarded or deducted and why according to the mark scheme.
+        3. SCORING:
+           - "marks_awarded": Integer between 0 and ${marks_available || 0}.
+
+        CRITICAL INSTRUCTION FOR SLIDES: If "Lecturer's Slide Context" is provided, you MUST strongly base your grading and model answer on that context before considering general factual correctness.
+        
         Question: ${question_content}
         Total Marks Available: ${marks_available}
+        ${slide_context ? `\nLecturer's Slide Context (PRIORITIZE THIS):\n${slide_context}\n` : ''}
         
         Student's Answer:
         ${student_answer}
@@ -147,23 +475,50 @@ router.post('/grade', async (req, res) => {
         Return exactly ONE valid JSON object with these keys:
         - "marks_awarded": (integer)
         - "feedback": (string)
-        - "model_answer": (string, showing the ideal answer)
+        - "model_answer": (string, complete markdown solution re-answering all question parts completely)
         `;
-        const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch)
-            throw new Error("AI did not return valid JSON");
-        res.json({ success: true, data: JSON.parse(jsonMatch[0]) });
+        let parsedResult = null;
+        try {
+            const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+            for (const modelName of ['gemini-3.5-flash', 'gemini-3.8-flash']) {
+                try {
+                    const model = genAI.getGenerativeModel({ model: modelName });
+                    const result = await model.generateContent(prompt);
+                    const text = result.response.text();
+                    const jsonMatch = text.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        parsedResult = JSON.parse(jsonMatch[0]);
+                        break;
+                    }
+                }
+                catch (mErr) {
+                    console.warn(`Gemini grading model ${modelName} failed:`, mErr.message);
+                }
+            }
+        }
+        catch (geminiErr) {
+            console.warn('Gemini grading failed, falling back to Groq/OpenRouter:', geminiErr.message);
+        }
+        if (!parsedResult) {
+            const fallbackText = await (0, safeGroq_1.chatCompletionWithFallback)({
+                messages: [{ role: 'user', content: prompt }],
+                response_format: { type: 'json_object' }
+            });
+            const jsonMatch = fallbackText.match(/\{[\s\S]*\}/);
+            if (!jsonMatch)
+                throw new Error("AI did not return valid JSON");
+            parsedResult = JSON.parse(jsonMatch[0]);
+        }
+        await (0, quota_1.consumeUserQuota)(req.user.id, 'past_paper_grading');
+        res.json({ success: true, data: parsedResult });
     }
     catch (err) {
         console.error('Error grading:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
-router.post('/chat', async (req, res) => {
+// Generic chat about a past paper item
+router.post('/chat', (0, quotaGuard_1.withAIQuota)('past_paper_question'), async (req, res) => {
     try {
         const { question_content, student_answer, feedback, user_message } = req.body;
         const prompt = `
@@ -176,13 +531,35 @@ router.post('/chat', async (req, res) => {
         
         Answer their question clearly and concisely.
         `;
-        const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
-        const result = await model.generateContent(prompt);
-        res.json({ text: result.response.text() });
+        let replyText = "";
+        try {
+            const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+            for (const modelName of ['gemini-3.5-flash', 'gemini-3.8-flash']) {
+                try {
+                    const model = genAI.getGenerativeModel({ model: modelName });
+                    const result = await model.generateContent(prompt);
+                    replyText = result.response.text();
+                    if (replyText)
+                        break;
+                }
+                catch (mErr) {
+                    console.warn(`Gemini chat model ${modelName} failed:`, mErr.message);
+                }
+            }
+        }
+        catch (geminiErr) {
+            console.warn('Gemini chat failed, falling back to Groq/OpenRouter:', geminiErr.message);
+        }
+        if (!replyText) {
+            replyText = await (0, safeGroq_1.chatCompletionWithFallback)({
+                messages: [{ role: 'user', content: prompt }]
+            });
+        }
+        await (0, quota_1.consumeUserQuota)(req.user.id, 'past_paper_question');
+        res.json({ text: replyText });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 router.delete('/:id', async (req, res) => {
@@ -209,7 +586,7 @@ router.delete('/:id', async (req, res) => {
     }
     catch (err) {
         console.error('Error deleting paper:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 exports.default = router;

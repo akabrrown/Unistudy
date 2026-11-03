@@ -33,9 +33,16 @@ router.get('/', async (req: Request, res: Response) => {
   const supabase = supabaseAsUser(token);
   const { data, error } = await supabase
     .from('courses')
-    .select('*, lectures(id), past_papers(id, title, year, exam_type, status)')
+    .select('*, lectures(id, title), past_papers(id, title, year, exam_type, status)')
     .order('created_at', { ascending: false });
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+  if (data) {
+    data.forEach((c: any) => {
+      if (Array.isArray(c.lectures)) {
+        c.lectures = c.lectures.filter((l: any) => !l.title?.startsWith('[FAILED'));
+      }
+    });
+  }
   res.json(data);
 });
 router.get('/calendar-events', authenticateUser, async (req: Request, res: Response) => {
@@ -101,6 +108,10 @@ router.get('/:id', authenticateUser, async (req: Request, res: Response) => {
   
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   if (!data) return res.status(404).json({ error: 'Course not found' });
+  
+  if (Array.isArray(data.lectures)) {
+    data.lectures = data.lectures.filter((l: any) => !l.title?.startsWith('[FAILED'));
+  }
   
   res.json(data);
 });

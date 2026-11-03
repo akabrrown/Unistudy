@@ -19,7 +19,20 @@ cloudinary_1.v2.config({
     api_key: env_1.env.CLOUDINARY_API_KEY,
     api_secret: env_1.env.CLOUDINARY_API_SECRET
 });
-const upload = (0, multer_1.default)({ dest: '/tmp/uploads/' });
+const upload = (0, multer_1.default)({
+    dest: '/tmp/uploads/',
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png' || file.mimetype === 'image/webp') {
+            cb(null, true);
+        }
+        else {
+            cb(new Error('Invalid file type. Only JPEG, PNG, and WebP are allowed.'));
+        }
+    }
+});
 const avatarRateLimit = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000,
     max: 10,
@@ -55,7 +68,7 @@ router.post('/avatar', auth_1.authenticateUser, avatarRateLimit, upload.single('
         if (req.file && fs_1.default.existsSync(req.file.path)) {
             fs_1.default.unlinkSync(req.file.path);
         }
-        res.status(500).json({ error: error.message || 'Internal Server Error' });
+        res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 exports.default = router;

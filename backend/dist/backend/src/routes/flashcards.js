@@ -17,7 +17,8 @@ router.post('/generate', (0, quotaGuard_1.withAIQuota)('flashcard_generation'), 
     }
     try {
         // 1. Fetch all slides for the lecture
-        const { data: slides, error: slidesError } = await supabase_1.supabaseAdmin
+        const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
+        const { data: slides, error: slidesError } = await supabase
             .from('slides')
             .select('raw_text, explanation, slide_number')
             .eq('lecture_id', lectureId)
@@ -33,7 +34,7 @@ router.post('/generate', (0, quotaGuard_1.withAIQuota)('flashcard_generation'), 
             combinedText += `\n\n--- Slide ${s.slide_number} ---\nText: ${s.raw_text || ''}\nExplanation: ${s.explanation || ''}`;
         });
         if (combinedText.trim().length < 20) {
-            const { data: lec } = await supabase_1.supabaseAdmin.from('lectures').select('title').eq('id', lectureId).single();
+            const { data: lec } = await supabase.from('lectures').select('title').eq('id', lectureId).single();
             if (lec?.title) {
                 combinedText += `\nLecture Title: ${lec.title}`;
             }
@@ -56,7 +57,7 @@ router.post('/generate', (0, quotaGuard_1.withAIQuota)('flashcard_generation'), 
         else if (response.result && typeof response.result === 'object') {
             console.log(`[Flashcards] Result keys: ${Object.keys(response.result).join(', ')}`);
         }
-        (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature).catch(console.error);
+        (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature, req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
         // Parse result robustly (array, JSON string, or object with array property)
         let rawResult = response.result;
         if (typeof rawResult === 'string') {
@@ -86,31 +87,49 @@ router.post('/generate', (0, quotaGuard_1.withAIQuota)('flashcard_generation'), 
             .filter(c => c.front.length > 0 && c.back.length > 0);
         console.log(`[Flashcards] extractedList: ${extractedList.length}, generatedCards after filter: ${generatedCards.length}`);
         // 4. Delete existing flashcards for this lecture to allow regeneration
-        await supabase_1.supabaseAdmin.from('flashcards').delete().eq('lecture_id', lectureId).eq('user_id', req.user.id);
+        await supabase.from('flashcards').delete().eq('lecture_id', lectureId).eq('user_id', req.user.id);
         // 5. Generate embeddings and insert new flashcards into database
         if (generatedCards.length > 0) {
-            const textsToEmbed = generatedCards.map(c => `Flashcard: Q: ${c.front} A: ${c.back}`);
-            const embedReq = {
-                task: 'embedding',
-                feature: 'flashcard_embedding',
-                payload: { texts: textsToEmbed },
-                userId: req.user.id,
-                priority: 'medium'
-            };
-            const embedRes = await (0, router_1.routeRequest)(embedReq);
-            const embeddings = embedRes.result || []; // Should be an array of vectors
-            const cardsToInsert = generatedCards.map((c, i) => ({
-                user_id: req.user.id,
-                lecture_id: lectureId,
-                front: c.front,
-                back: c.back,
-                ease_factor: 2.5,
-                interval_days: 0,
-                repetitions: 0,
-                next_review: new Date().toISOString(),
-                embedding: embeddings[i] ? `[${embeddings[i].join(',')}]` : null // pgvector format
-            }));
-            const { error: insertError } = await supabase_1.supabaseAdmin.from('flashcards').insert(cardsToInsert);
+            let embeddings = [];
+            try {
+                const textsToEmbed = generatedCards.map(c => `Flashcard: Q: ${c.front} A: ${c.back}`);
+                const embedReq = {
+                    task: 'embedding',
+                    feature: 'flashcard_embedding',
+                    payload: { texts: textsToEmbed },
+                    userId: req.user.id,
+                    priority: 'medium'
+                };
+                const embedRes = await (0, router_1.routeRequest)(embedReq);
+                const rawResult = embedRes?.result;
+                if (Array.isArray(rawResult)) {
+                    if (rawResult.length > 0 && typeof rawResult[0] === 'number') {
+                        embeddings = [rawResult];
+                    }
+                    else {
+                        embeddings = rawResult.map((item) => Array.isArray(item) && item.length > 0 && typeof item[0] === 'number' ? item : null);
+                    }
+                }
+            }
+            catch (embedErr) {
+                console.warn('[Flashcards] Embedding generation failed, continuing without embeddings:', embedErr);
+            }
+            const cardsToInsert = generatedCards.map((c, i) => {
+                const emb = embeddings[i];
+                const isValidVector = Array.isArray(emb) && emb.length > 0 && typeof emb[0] === 'number';
+                return {
+                    user_id: req.user.id,
+                    lecture_id: lectureId,
+                    front: c.front,
+                    back: c.back,
+                    ease_factor: 2.5,
+                    interval_days: 0,
+                    repetitions: 0,
+                    next_review: new Date().toISOString(),
+                    embedding: isValidVector ? `[${emb.join(',')}]` : null // pgvector format
+                };
+            });
+            const { error: insertError } = await supabase.from('flashcards').insert(cardsToInsert);
             if (insertError)
                 throw insertError;
         }
@@ -118,31 +137,33 @@ router.post('/generate', (0, quotaGuard_1.withAIQuota)('flashcard_generation'), 
     }
     catch (err) {
         console.error('Flashcard generation error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 router.get('/', async (req, res) => {
     try {
+        const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
         const lectureIdsParam = req.query.lectureIds;
         if (!lectureIdsParam) {
             return res.status(400).json({ error: 'lectureIds is required' });
         }
         const lectureIds = lectureIdsParam.split(',');
-        const { data, error } = await supabase_1.supabaseAdmin.from('flashcards').select('*').in('lecture_id', lectureIds);
+        const { data, error } = await supabase.from('flashcards').select('*').in('lecture_id', lectureIds);
         if (error)
             throw error;
         res.json({ data });
     }
     catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 router.post('/review', async (req, res) => {
     const { cardId, rating, currentData } = req.body;
     const userId = req.user.id;
+    const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
     try {
         const nextData = (0, sm2_1.calculateNextReview)(currentData, rating);
-        const { error } = await supabase_1.supabaseAdmin
+        const { error } = await supabase
             .from('flashcards')
             .update({
             ease_factor: nextData.ease_factor,
@@ -166,7 +187,7 @@ router.post('/review', async (req, res) => {
     }
     catch (err) {
         console.error(err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 exports.default = router;

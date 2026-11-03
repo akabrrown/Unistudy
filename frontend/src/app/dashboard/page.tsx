@@ -111,7 +111,7 @@ export default async function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center justify-between mt-4 border-t pt-4">
-                    <div className="text-sm text-muted-foreground">{course.lectures?.length || 0} lectures</div>
+                    <div className="text-sm text-muted-foreground">{course.lectures?.filter((l: any) => !l.title?.startsWith('[FAILED')).length || 0} lectures</div>
                   </div>
                 </CardContent>
                 </Card>

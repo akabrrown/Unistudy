@@ -40,7 +40,7 @@ router.get('/', async (req, res) => {
     }
     catch (err) {
         console.error('Error fetching cards:', err);
-        res.status(500).json({ error: err.message || 'Internal Server Error' });
+        res.status(500).json({ error: 'Internal Server Error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 exports.default = router;
