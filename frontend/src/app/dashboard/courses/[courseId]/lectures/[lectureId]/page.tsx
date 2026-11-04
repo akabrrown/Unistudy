@@ -19,6 +19,7 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import { apiFetch, apiFetchRaw } from '@/lib/api/client'
+import { getOptimizedSlideUrl, getSlideThumbnailUrl } from '@/lib/images'
 export default function LectureViewer() {
   const router = useRouter()
   const params = useParams()
@@ -83,6 +84,34 @@ export default function LectureViewer() {
       setIsSpeaking(false);
     }
   }, [lectureId]);
+
+  // Predictive sliding-window image preloader (Prefetches Next 3 slides + Previous 1 slide)
+  useEffect(() => {
+    if (!slides || slides.length === 0) return;
+
+    const indicesToPreload = [
+      slideIndex + 1,
+      slideIndex + 2,
+      slideIndex + 3,
+      slideIndex - 1,
+    ].filter(idx => idx >= 0 && idx < slides.length);
+
+    indicesToPreload.forEach(idx => {
+      const targetSlide = slides[idx];
+      if (targetSlide?.image_url && targetSlide.image_url !== 'https://example.com/placeholder.png') {
+        const optimizedUrl = getOptimizedSlideUrl(targetSlide.image_url, {
+          lowBandwidth: settings.low_bandwidth,
+        });
+
+        // Preload and decode in background
+        const img = new Image();
+        img.src = optimizedUrl;
+        if ('decode' in img) {
+          img.decode().catch(() => {});
+        }
+      }
+    });
+  }, [slideIndex, slides, settings.low_bandwidth]);
   
   // Cache explanations so we don't re-fetch when navigating back and forth
   const [slideExplanations, setSlideExplanations] = useState<Record<number, string>>({})
@@ -929,9 +958,11 @@ export default function LectureViewer() {
                   <div className="absolute inset-0 z-10 select-none overflow-hidden bg-white flex items-center justify-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img 
-                      src={settings.low_bandwidth ? currentSlide.image_url.replace('/upload/', '/upload/q_50/') : currentSlide.image_url} 
-                      alt="Slide Content" 
-                      className="w-full h-full object-contain pointer-events-none"
+                      src={getOptimizedSlideUrl(currentSlide.image_url, { lowBandwidth: settings.low_bandwidth })} 
+                      alt={`Slide ${slideIndex + 1}`} 
+                      className="w-full h-full object-contain pointer-events-none select-none transition-opacity duration-150"
+                      loading="eager"
+                      decoding="async"
                     />
                   </div>
                   {isDrawMode && (
@@ -1141,15 +1172,48 @@ export default function LectureViewer() {
           </div>
 
           {/* Thumbnail strip */}
-          <div className="flex-shrink-0 flex gap-2 overflow-x-auto px-4 py-3 border-t border-border bg-muted/30">
-            {slides.map((_, i) => (
-              <button key={i} onClick={() => setSlideIndex(i)}
-                className={`flex-shrink-0 w-20 h-12 rounded-lg border-2 transition-all ${i === slideIndex ? 'border-primary' : 'border-border bg-card hover:border-primary/50'}`}>
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className={`text-xs font-bold ${i === slideIndex ? 'text-primary' : 'text-muted-foreground'}`}>{i + 1}</span>
-                </div>
-              </button>
-            ))}
+          <div className="flex-shrink-0 flex gap-2 overflow-x-auto px-4 py-2.5 border-t border-border bg-muted/20">
+            {slides.map((slide, i) => {
+              const isActive = i === slideIndex;
+              const hasImage = slide?.image_url && slide.image_url !== 'https://example.com/placeholder.png';
+              const thumbUrl = hasImage ? getSlideThumbnailUrl(slide.image_url) : null;
+
+              return (
+                <button
+                  key={i}
+                  onClick={() => setSlideIndex(i)}
+                  className={`flex-shrink-0 w-20 h-12 rounded-lg border-2 transition-all overflow-hidden relative group focus:outline-none ${
+                    isActive
+                      ? 'border-primary shadow-sm scale-105 z-10 ring-2 ring-primary/20'
+                      : 'border-border bg-card hover:border-primary/50 opacity-80 hover:opacity-100'
+                  }`}
+                  title={`Slide ${i + 1}`}
+                >
+                  {thumbUrl ? (
+                    <img
+                      src={thumbUrl}
+                      alt={`Slide ${i + 1} thumbnail`}
+                      className="w-full h-full object-cover pointer-events-none"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-card">
+                      <span className={`text-xs font-bold ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
+                        {i + 1}
+                      </span>
+                    </div>
+                  )}
+                  {/* Subtle number badge overlay */}
+                  <span className={`absolute bottom-0.5 right-1 text-[10px] font-bold px-1 rounded backdrop-blur-xs select-none ${
+                    isActive
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-black/60 text-white'
+                  }`}>
+                    {i + 1}
+                  </span>
+                </button>
+              );
+            })}
           </div>
           </>
           )}

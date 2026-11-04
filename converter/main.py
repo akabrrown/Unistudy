@@ -133,7 +133,7 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
                 page = doc.load_page(i)
                 pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                 slide_number = i + 1
-                image_path = os.path.join(temp_dir, f"slide_{slide_number}.png")
+                image_path = os.path.join(temp_dir, f"slide_{slide_number}.jpg")
                 pix.save(image_path)
                 extracted_text = page.get_text("text").strip()
                 slides_to_process.append({
@@ -160,7 +160,9 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
                 try:
                     response = cloudinary.uploader.upload(
                         img_path,
-                        folder=f"unistudy/{user_id}/slides/{lecture_id}/"
+                        folder=f"unistudy/{user_id}/slides/{lecture_id}/",
+                        format="webp",
+                        quality="auto:good"
                     )
                     image_url = response["secure_url"]
                     break
