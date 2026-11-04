@@ -823,40 +823,42 @@ export default function LectureViewer() {
               <ChevronDown size={14} className="text-muted-foreground shrink-0 ml-auto" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-80 max-h-[380px] overflow-y-auto p-1.5 shadow-xl">
-              <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-2 py-1.5 flex items-center justify-between">
-                <span>Switch Slides ({courseLectures.length})</span>
-                <span className="text-[10px] font-normal lowercase opacity-75">Click to switch</span>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <div className="space-y-0.5">
-                {courseLectures.map((l) => {
-                  const isActive = l.id === lectureId;
-                  return (
-                    <DropdownMenuItem
-                      key={l.id}
-                      onClick={() => switchToLecture(l.id)}
-                      className={`flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer transition-colors ${
-                        isActive ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-muted text-foreground'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0 pr-2">
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                          isActive ? 'bg-primary text-primary-foreground' : 'bg-muted-foreground/15 text-muted-foreground'
-                        }`}>
-                          W{l.week || '-'}
-                        </span>
-                        <span className="truncate text-xs font-medium">{l.title || 'Untitled Lecture'}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground">
-                        {l.slide_count ? (
-                          <span className="text-[10px] opacity-75">{l.slide_count} slides</span>
-                        ) : null}
-                        {isActive && <Check size={14} className="text-primary ml-1" />}
-                      </div>
-                    </DropdownMenuItem>
-                  );
-                })}
-              </div>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-2 py-1.5 flex items-center justify-between">
+                  <span>Switch Slides ({courseLectures.length})</span>
+                  <span className="text-[10px] font-normal lowercase opacity-75">Click to switch</span>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="space-y-0.5">
+                  {courseLectures.map((l) => {
+                    const isActive = l.id === lectureId;
+                    return (
+                      <DropdownMenuItem
+                        key={l.id}
+                        onClick={() => switchToLecture(l.id)}
+                        className={`flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer transition-colors ${
+                          isActive ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-muted text-foreground'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 pr-2">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                            isActive ? 'bg-primary text-primary-foreground' : 'bg-muted-foreground/15 text-muted-foreground'
+                          }`}>
+                            W{l.week || '-'}
+                          </span>
+                          <span className="truncate text-xs font-medium">{l.title || 'Untitled Lecture'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground">
+                          {l.slide_count ? (
+                            <span className="text-[10px] opacity-75">{l.slide_count} slides</span>
+                          ) : null}
+                          {isActive && <Check size={14} className="text-primary ml-1" />}
+                        </div>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </div>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
 
