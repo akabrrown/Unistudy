@@ -389,10 +389,16 @@ export default function LectureViewer() {
           setYoutubeQuery(`${cCode || ''} ${lectureData.title}`)
         }
 
-        // Fetch all lectures for dropdown
+        // Fetch all lectures for dropdown, sorted in order 1, 2, 3, 4...
         const allLectures = await apiFetch(`/lectures/${courseId}`)
-        if (allLectures) {
-          setCourseLectures(allLectures)
+        if (Array.isArray(allLectures)) {
+          const sorted = [...allLectures].sort((a, b) => {
+            const wA = typeof a.week === 'number' && a.week > 0 ? a.week : 9999;
+            const wB = typeof b.week === 'number' && b.week > 0 ? b.week : 9999;
+            if (wA !== wB) return wA - wB;
+            return (a.title || '').localeCompare(b.title || '', undefined, { numeric: true });
+          });
+          setCourseLectures(sorted);
         }
 
         // Fetch slides

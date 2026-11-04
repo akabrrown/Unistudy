@@ -104,7 +104,15 @@ router.get('/:id', auth_1.authenticateUser, async (req, res) => {
     if (!data)
         return res.status(404).json({ error: 'Course not found' });
     if (Array.isArray(data.lectures)) {
-        data.lectures = data.lectures.filter((l) => !l.title?.startsWith('[FAILED'));
+        data.lectures = data.lectures
+            .filter((l) => !l.title?.startsWith('[FAILED'))
+            .sort((a, b) => {
+            const wA = typeof a.week === 'number' && a.week > 0 ? a.week : 9999;
+            const wB = typeof b.week === 'number' && b.week > 0 ? b.week : 9999;
+            if (wA !== wB)
+                return wA - wB;
+            return (a.title || '').localeCompare(b.title || '', undefined, { numeric: true });
+        });
     }
     res.json(data);
 });

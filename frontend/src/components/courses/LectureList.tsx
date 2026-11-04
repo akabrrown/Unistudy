@@ -64,19 +64,51 @@ export function LectureList({ courseId, lectures }: { courseId: string, lectures
   const slides = validLectures.filter(l => !isPastQuestion(l.title));
   const pastQuestions = validLectures.filter(l => isPastQuestion(l.title));
 
-  // Group slides by week
-  const groupedSlides = slides.reduce((acc: any, lec: any) => {
-    const week = lec.week || 'Unassigned';
+  // Resolve week number: use explicit week from upload, or fallback to parsing from title
+  const resolveWeekNumber = (lec: any): number | null => {
+    if (typeof lec.week === 'number' && !isNaN(lec.week) && lec.week > 0) {
+      return lec.week;
+    }
+    if (typeof lec.week === 'string' && lec.week.trim()) {
+      const parsed = parseInt(lec.week.trim(), 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    if (lec.title) {
+      const match = String(lec.title).match(/(?:week|w|lecture|lec|session)[\s._-]*(\d{1,2})/i);
+      if (match && match[1]) {
+        const val = parseInt(match[1], 10);
+        if (val >= 1 && val <= 52) return val;
+      }
+    }
+    return null;
+  };
+
+  // Sort slides strictly in ascending order by week number: 1, 2, 3, 4, ... then unassigned
+  const sortedSlides = [...slides].sort((a, b) => {
+    const wA = resolveWeekNumber(a);
+    const wB = resolveWeekNumber(b);
+    if (wA !== null && wB !== null && wA !== wB) {
+      return wA - wB;
+    }
+    if (wA !== null && wB === null) return -1;
+    if (wA === null && wB !== null) return 1;
+    return (a.title || '').localeCompare(b.title || '', undefined, { numeric: true });
+  });
+
+  // Group sorted slides by week
+  const groupedSlides = sortedSlides.reduce((acc: Record<string, any[]>, lec: any) => {
+    const wNum = resolveWeekNumber(lec);
+    const week = wNum !== null ? String(wNum) : 'Unassigned';
     if (!acc[week]) acc[week] = [];
     acc[week].push(lec);
     return acc;
   }, {});
 
-  // Sort weeks: numeric weeks first, then 'Unassigned'
+  // Sort weeks: strictly numeric weeks in order 1, 2, 3, 4..., then 'Unassigned'
   const sortedWeeks = Object.keys(groupedSlides).sort((a, b) => {
     if (a === 'Unassigned') return 1;
     if (b === 'Unassigned') return -1;
-    return parseInt(a) - parseInt(b);
+    return parseInt(a, 10) - parseInt(b, 10);
   });
 
   return (

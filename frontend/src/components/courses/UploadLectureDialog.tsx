@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { UploadCloud, FileText, Trash2, Loader2, Plus, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react'
+import { UploadCloud, FileText, Trash2, Loader2, Plus, CheckCircle2, AlertCircle, RefreshCw, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { createClient } from '@/lib/supabase/client'
@@ -15,6 +15,24 @@ function formatBytes(bytes: number): string {
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function extractWeekFromFilename(filename: string): string {
+  const match = filename.match(/(?:week|w|lecture|lec|session)[\s._-]*(\d{1,2})/i);
+  if (match && match[1]) {
+    const val = parseInt(match[1], 10);
+    if (val >= 1 && val <= 52) return String(val);
+  }
+  return '';
+}
+
+function sortUploadFilesByWeek(files: UploadFileItem[]): UploadFileItem[] {
+  return [...files].sort((a, b) => {
+    const wA = a.week && !isNaN(parseInt(a.week, 10)) ? parseInt(a.week, 10) : 9999;
+    const wB = b.week && !isNaN(parseInt(b.week, 10)) ? parseInt(b.week, 10) : 9999;
+    if (wA !== wB) return wA - wB;
+    return a.file.name.localeCompare(b.file.name, undefined, { numeric: true });
+  });
 }
 
 export interface UploadFileItem {
@@ -71,15 +89,19 @@ export function UploadLectureDialog({
     const items: UploadFileItem[] = incomingFiles.map((file, idx) => ({
       id: `${file.name}-${file.size}-${Date.now()}-${idx}`,
       file,
-      week: '',
+      week: extractWeekFromFilename(file.name),
       status: 'idle',
       progress: 0,
     }));
-    setUploadFiles(prev => [...prev, ...items].slice(0, 10)); // max 10
+    setUploadFiles(prev => sortUploadFilesByWeek([...prev, ...items].slice(0, 10))); // max 10
   };
 
   const handleUpload = async () => {
-    const queue = uploadFiles.filter(f => f.status === 'idle' || f.status === 'error');
+    // Sort all files strictly by week (1, 2, 3, 4...) before uploading so execution and UI follow order
+    const sortedAll = sortUploadFilesByWeek(uploadFiles);
+    setUploadFiles(sortedAll);
+
+    const queue = sortedAll.filter(f => f.status === 'idle' || f.status === 'error');
     if (queue.length === 0) return;
 
     setIsUploading(true);
@@ -320,8 +342,26 @@ export function UploadLectureDialog({
           </div>
 
           {hasItems && (
-            <div className="max-h-[280px] overflow-y-auto space-y-2.5 pr-1">
-              {uploadFiles.map((item) => {
+            <div className="space-y-2">
+              <div className="flex justify-between items-center px-1">
+                <span className="text-xs text-muted-foreground font-medium">
+                  {uploadFiles.length} file{uploadFiles.length > 1 ? 's' : ''} queued
+                </span>
+                {uploadFiles.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setUploadFiles(prev => sortUploadFilesByWeek(prev))}
+                    disabled={isUploading}
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors disabled:opacity-50 cursor-pointer"
+                    title="Arrange slides in order: 1, 2, 3, 4..."
+                  >
+                    <ArrowUpDown size={12} />
+                    Arrange in order (1, 2, 3...)
+                  </button>
+                )}
+              </div>
+              <div className="max-h-[280px] overflow-y-auto space-y-2.5 pr-1">
+                {uploadFiles.map((item) => {
                 const isFailed = item.status === 'error';
                 const isSuccess = item.status === 'success';
                 const isActive = item.status === 'uploading' || item.status === 'processing';
@@ -454,6 +494,7 @@ export function UploadLectureDialog({
                   </div>
                 );
               })}
+              </div>
             </div>
           )}
         </div>
