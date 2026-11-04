@@ -34,8 +34,8 @@ function isOriginAllowed(origin: string): boolean {
   // Local development ports (http://localhost:* or http://127.0.0.1:*)
   if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(normalized)) return true;
 
-  // Any unistudy vercel preview / production domain
-  if (UNISTUDY_VERCEL_REGEX.test(normalized)) return true;
+  // Any vercel preview or production deployment domain (e.g. unistudy-silk.vercel.app, unistudy.vercel.app)
+  if (/^https:\/\/(?:[a-z0-9-]+\.)?vercel\.app$/i.test(normalized) || /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(normalized)) return true;
 
   return false;
 }

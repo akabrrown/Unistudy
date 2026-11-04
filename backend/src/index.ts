@@ -34,8 +34,16 @@ import drillsRouter from './routes/drills';
 const HEALTH_PATHS = new Set(['/ping', '/api/health']);
 
 const app = express();
+app.set('trust proxy', 1);
 app.disable('x-powered-by');
-app.use(helmet());
+
+// Global CORS Middleware - MUST precede all route and limiter middleware so 429/500/OPTIONS always carry CORS headers
+app.use(corsMiddleware);
+app.options('*', corsMiddleware);
+
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 
 // Health checks must respond before any rate-limiting or auth middleware
 // so uptime monitors never get blocked by their own polling.
@@ -44,15 +52,11 @@ app.get('/api/health', (_req, res) => res.status(200).json({ status: 'ok' }));
 
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => HEALTH_PATHS.has(req.path),
 }));
-
-// Global Middlewares
-app.use(corsMiddleware);
-app.options('*', corsMiddleware);
 
 // Defensive rewrite for client configurations that include duplicate /api prefixes
 app.use((req, _res, next) => {

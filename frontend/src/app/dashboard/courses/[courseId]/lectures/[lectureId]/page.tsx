@@ -431,23 +431,41 @@ export default function LectureViewer() {
   // Poll for slides if they are still processing in the background
   useEffect(() => {
     let interval: NodeJS.Timeout;
+    let isCancelled = false;
+    let pollCount = 0;
+    const MAX_POLLS = 60; // 6 minutes max
+
     if (lecture?.processing) {
       interval = setInterval(async () => {
+        if (isCancelled) return;
+        pollCount++;
+        if (pollCount > MAX_POLLS) {
+          clearInterval(interval);
+          return;
+        }
+
         try {
           const lData = await apiFetch(`/lectures/detail/${lectureId}`);
-          if (lData) setLecture(lData);
+          if (isCancelled || !lData) return;
+          setLecture(lData);
 
-          const slidesData = await apiFetch(`/lectures/${lectureId}/slides`);
-          if (slidesData) {
-            setSlides(slidesData);
+          // Only fetch slides if processing is completed or slide count increased
+          if (!lData.processing || (lData.slide_count && lData.slide_count > slides.length)) {
+            const slidesData = await apiFetch(`/lectures/${lectureId}/slides`);
+            if (!isCancelled && slidesData && slidesData.length > 0) {
+              setSlides(slidesData);
+            }
           }
-        } catch (e) {
-          console.error("Polling error:", e);
+        } catch (e: any) {
+          console.warn("Polling status update:", e?.message || e);
         }
-      }, 5000);
+      }, 6000);
     }
-    return () => clearInterval(interval);
-  }, [lecture?.processing, lectureId]);
+    return () => {
+      isCancelled = true;
+      if (interval) clearInterval(interval);
+    };
+  }, [lecture?.processing, lectureId, slides.length]);
 
   const handleGenerateExplanation = async (targetIndex?: number) => {
     const idx = typeof targetIndex === 'number' ? targetIndex : slideIndex;
