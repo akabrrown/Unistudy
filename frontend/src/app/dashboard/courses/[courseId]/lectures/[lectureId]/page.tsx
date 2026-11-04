@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Microscope, Volume2, PenTool, StickyNote, Monitor, Eye, EyeOff, Loader2, PlaySquare, Play, X, Pin, Frown, Meh, Smile, Zap, Flame, Square, Eraser, RefreshCw, MessageCircle, Send, Hourglass, Pause, Calculator, Music, FileText, DownloadCloud, BookOpen, Languages, ChevronDown, SlidersHorizontal, Maximize } from 'lucide-react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Microscope, Volume2, PenTool, StickyNote, Monitor, Eye, EyeOff, Loader2, PlaySquare, Play, X, Pin, Frown, Meh, Smile, Zap, Flame, Square, Eraser, RefreshCw, MessageCircle, Send, Hourglass, Pause, Calculator, Music, FileText, DownloadCloud, BookOpen, Languages, ChevronDown, SlidersHorizontal, Maximize, Layers, Check, ArrowRight } from 'lucide-react'
 import { FocusTimer, FocusTimerRef } from '@/components/study/FocusTimer'
 import { CalculatorPanel } from '@/components/study/CalculatorPanel'
 import { generateSlideExplanation } from '@/app/actions/explain'
@@ -20,9 +20,12 @@ import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import { apiFetch, apiFetchRaw } from '@/lib/api/client'
 export default function LectureViewer() {
+  const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const courseId = params.courseId as string;
   const lectureId = params.lectureId as string;
+  const initialSlideParam = searchParams.get('slide');
   
   const { settings } = useSettings();
 
@@ -36,11 +39,50 @@ export default function LectureViewer() {
   const [lecture, setLecture] = useState<any>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
+  // Current lecture position in sorted list for sequential navigation
+  const currentLectureIndex = courseLectures.findIndex(l => l.id === lectureId);
+  const prevLecture = currentLectureIndex > 0 ? courseLectures[currentLectureIndex - 1] : null;
+  const nextLecture = currentLectureIndex >= 0 && currentLectureIndex < courseLectures.length - 1 ? courseLectures[currentLectureIndex + 1] : null;
+
+  // Direct switch to another lecture's slides without bloating browser history
+  const switchToLecture = (targetLectureId: string) => {
+    if (!targetLectureId || targetLectureId === lectureId) return;
+    const targetCourseId = courseId || lecture?.course_id;
+    router.replace(`/dashboard/courses/${targetCourseId}/lectures/${targetLectureId}`);
+  };
+
+  // Resilient back navigation that follows natural user journey without loops
+  const handleBack = () => {
+    if (typeof window !== 'undefined') {
+      if (window.history.length > 1 && document.referrer && document.referrer.includes(window.location.origin)) {
+        router.back();
+        return;
+      }
+    }
+    const targetCourseId = courseId || lecture?.course_id;
+    if (targetCourseId) {
+      router.push(`/dashboard/courses/${targetCourseId}`);
+    } else {
+      router.push('/dashboard/courses');
+    }
+  };
+
   const [slideIndex, setSlideIndex] = useState(0)
   const currentSlide = slides[slideIndex]
   const totalSlides = slides.length
   const [level, setLevel] = useState('Med')
   const [confidence, setConfidence] = useState<number | null>(null)
+
+  // Reset slide position, speech, notes, and cache cleanly when lecture changes
+  useEffect(() => {
+    setSlideIndex(0);
+    setSlideExplanations({});
+    setSlideNotes('');
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+  }, [lectureId]);
   
   // Cache explanations so we don't re-fetch when navigating back and forth
   const [slideExplanations, setSlideExplanations] = useState<Record<number, string>>({})
@@ -375,6 +417,8 @@ export default function LectureViewer() {
   useEffect(() => {
     async function loadData() {
       try {
+        setSlidesLoading(true)
+        setLoadError(null)
         // Fetch lecture and course info
         const lectureData = await apiFetch(`/lectures/detail/${lectureId}`)
           
@@ -389,22 +433,31 @@ export default function LectureViewer() {
           setYoutubeQuery(`${cCode || ''} ${lectureData.title}`)
         }
 
-        // Fetch all lectures for dropdown, sorted in order 1, 2, 3, 4...
-        const allLectures = await apiFetch(`/lectures/${courseId}`)
-        if (Array.isArray(allLectures)) {
-          const sorted = [...allLectures].sort((a, b) => {
-            const wA = typeof a.week === 'number' && a.week > 0 ? a.week : 9999;
-            const wB = typeof b.week === 'number' && b.week > 0 ? b.week : 9999;
-            if (wA !== wB) return wA - wB;
-            return (a.title || '').localeCompare(b.title || '', undefined, { numeric: true });
-          });
-          setCourseLectures(sorted);
+        // Fetch all lectures for switcher, sorted in order 1, 2, 3, 4...
+        const targetCourseId = courseId || lectureData?.course_id;
+        if (targetCourseId) {
+          const allLectures = await apiFetch(`/lectures/${targetCourseId}`)
+          if (Array.isArray(allLectures)) {
+            const sorted = [...allLectures].sort((a, b) => {
+              const wA = typeof a.week === 'number' && a.week > 0 ? a.week : 9999;
+              const wB = typeof b.week === 'number' && b.week > 0 ? b.week : 9999;
+              if (wA !== wB) return wA - wB;
+              return (a.title || '').localeCompare(b.title || '', undefined, { numeric: true });
+            });
+            setCourseLectures(sorted);
+          }
         }
 
         // Fetch slides
         const slidesData = await apiFetch(`/lectures/${lectureId}/slides`)
         if (slidesData && slidesData.length > 0) {
           setSlides(slidesData)
+          if (initialSlideParam) {
+            const parsed = parseInt(initialSlideParam, 10);
+            if (!isNaN(parsed) && parsed >= 1 && parsed <= slidesData.length) {
+              setSlideIndex(parsed - 1);
+            }
+          }
         } else {
           setSlides([])
         }
@@ -638,10 +691,13 @@ export default function LectureViewer() {
           <p className="font-medium text-primary py-2 text-lg">Processed {slides.length} of {lecture?.slide_count || '?'} slides...</p>
           <p className="text-sm">This can take a few minutes for large presentations. Please wait, this page will automatically update when ready...</p>
         </div>
-        <div className="pt-4 flex gap-4">
-          <Link href={`/dashboard/courses/${courseId}`}>
-            <Button variant="outline">Back to Course</Button>
-          </Link>
+        <div className="pt-4 flex items-center justify-center gap-3">
+          <Button variant="outline" onClick={handleBack} className="gap-1.5">
+            <ChevronLeft size={16} /> Back
+          </Button>
+          <Button variant="ghost" onClick={() => router.push(`/dashboard/courses/${courseId || lecture?.course_id || ''}`)}>
+            Course Overview
+          </Button>
         </div>
       </div>
     )
@@ -657,11 +713,11 @@ export default function LectureViewer() {
         <div className="text-muted-foreground max-w-md space-y-2">
           <p>{loadError}</p>
         </div>
-        <div className="pt-4 flex gap-4">
+        <div className="pt-4 flex items-center justify-center gap-3">
           <Button onClick={() => { setLoadError(null); setSlidesLoading(true); window.location.reload(); }}>Try again</Button>
-          <Link href={`/dashboard/courses/${courseId}`}>
-            <Button variant="outline">Back to course</Button>
-          </Link>
+          <Button variant="outline" onClick={handleBack} className="gap-1.5">
+            <ChevronLeft size={16} /> Back
+          </Button>
         </div>
       </div>
     )
@@ -677,10 +733,13 @@ export default function LectureViewer() {
         <div className="text-muted-foreground max-w-md space-y-2">
           <p>Processing may have failed. Delete this lecture and re-upload the PDF to try again.</p>
         </div>
-        <div className="pt-4 flex gap-4">
-          <Link href={`/dashboard/courses/${courseId}`}>
-            <Button variant="outline">Back to course</Button>
-          </Link>
+        <div className="pt-4 flex items-center justify-center gap-3">
+          <Button variant="outline" onClick={handleBack} className="gap-1.5">
+            <ChevronLeft size={16} /> Back
+          </Button>
+          <Button variant="ghost" onClick={() => router.push(`/dashboard/courses/${courseId || lecture?.course_id || ''}`)}>
+            Course Overview
+          </Button>
         </div>
       </div>
     )
@@ -691,83 +750,170 @@ export default function LectureViewer() {
       
       {/* Top bar */}
       {!isFocusMode && (
-      <div className="h-14 flex-shrink-0 flex items-center gap-3 px-5 border-b border-border bg-card">
-        <Link href={`/dashboard/courses/${courseId}`} className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
-          <ChevronLeft size={16} /> Back
-        </Link>
-        <span className="text-border">|</span>
-        <span className="text-sm font-semibold text-foreground truncate">{headerTitle}</span>
+      <div className="h-14 flex-shrink-0 flex items-center justify-between gap-2 md:gap-3 px-3 sm:px-5 border-b border-border bg-card select-none">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
+          {/* Back button */}
+          <button
+            type="button"
+            onClick={handleBack}
+            className="flex items-center gap-1 px-2.5 py-1.5 -ml-1 rounded-lg text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            title="Go back"
+            aria-label="Go back"
+          >
+            <ChevronLeft size={18} className="shrink-0" />
+            <span className="text-xs uppercase tracking-wider hidden xs:inline sm:inline">Back</span>
+          </button>
 
-        {/* Live countdown pill — visible when timer is running or paused */}
-        {timerDisplay && (
-          <div className={`flex items-center gap-1 rounded-full border transition-all ${
-            timerDisplay.mode === 'focus'
-              ? 'bg-primary/10 border-primary/30 text-primary'
-              : 'bg-green-500/10 border-green-500/30 text-green-600'
-          }`}>
-            <button 
-              onClick={() => timerRef.current?.toggle()} 
-              className="p-1 hover:bg-black/5 rounded-full ml-1"
-              title={timerDisplay.isRunning ? "Pause Timer" : "Play Timer"}
+          <span className="text-border shrink-0 hidden sm:inline">/</span>
+
+          {/* Course Breadcrumb */}
+          <Link
+            href={`/dashboard/courses/${courseId || lecture?.course_id || ''}`}
+            className="text-xs font-medium text-muted-foreground hover:text-primary transition-colors truncate max-w-[100px] sm:max-w-[160px] hidden md:inline-block shrink-0"
+            title={courseContext || 'Course'}
+          >
+            {courseContext || 'Course'}
+          </Link>
+
+          <span className="text-border shrink-0 hidden md:inline">/</span>
+
+          {/* Dedicated Lecture & Slides Switcher Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className="flex items-center gap-1.5 sm:gap-2 max-w-[190px] xs:max-w-[240px] sm:max-w-[320px] md:max-w-[380px] px-2 sm:px-2.5 py-1 text-left text-xs font-semibold rounded-lg bg-muted/60 hover:bg-muted border border-border/80 hover:border-border transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 shrink truncate cursor-pointer"
+              title="Click to switch to other slides in this course"
+              aria-label="Switch slides deck"
             >
-              {timerDisplay.isRunning ? <Pause size={12} className="fill-current" /> : <Play size={12} className="fill-current translate-x-px" />}
-            </button>
-            <button
-              onClick={() => setIsTimerOpen(true)}
-              className="pr-2.5 py-1 text-xs font-bold tabular-nums flex items-center gap-1.5"
-              title="Open timer panel"
+              <Layers size={14} className="text-primary shrink-0" />
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary shrink-0">
+                {headerWeek}
+              </span>
+              <span className="truncate text-foreground font-medium text-xs">
+                {lecture?.title || headerTitle}
+              </span>
+              <ChevronDown size={14} className="text-muted-foreground shrink-0 ml-auto" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-80 max-h-[380px] overflow-y-auto p-1.5 shadow-xl">
+              <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-2 py-1.5 flex items-center justify-between">
+                <span>Switch Slides ({courseLectures.length})</span>
+                <span className="text-[10px] font-normal lowercase opacity-75">Click to switch</span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <div className="space-y-0.5">
+                {courseLectures.map((l) => {
+                  const isActive = l.id === lectureId;
+                  return (
+                    <DropdownMenuItem
+                      key={l.id}
+                      onClick={() => switchToLecture(l.id)}
+                      className={`flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer transition-colors ${
+                        isActive ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-muted text-foreground'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                          isActive ? 'bg-primary text-primary-foreground' : 'bg-muted-foreground/15 text-muted-foreground'
+                        }`}>
+                          W{l.week || '-'}
+                        </span>
+                        <span className="truncate text-xs font-medium">{l.title || 'Untitled Lecture'}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground">
+                        {l.slide_count ? (
+                          <span className="text-[10px] opacity-75">{l.slide_count} slides</span>
+                        ) : null}
+                        {isActive && <Check size={14} className="text-primary ml-1" />}
+                      </div>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Quick Prev / Next Lecture Jump Chevrons */}
+          <div className="hidden lg:flex items-center gap-0.5 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="h-8 w-8 text-muted-foreground hover:text-primary disabled:opacity-20"
+              disabled={!prevLecture}
+              onClick={() => prevLecture && switchToLecture(prevLecture.id)}
+              title={prevLecture ? `Previous Deck: Week ${prevLecture.week} - ${prevLecture.title}` : 'No previous lecture'}
             >
-              {timerDisplay.time}
-            </button>
+              <ChevronLeft size={16} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="h-8 w-8 text-muted-foreground hover:text-primary disabled:opacity-20"
+              disabled={!nextLecture}
+              onClick={() => nextLecture && switchToLecture(nextLecture.id)}
+              title={nextLecture ? `Next Deck: Week ${nextLecture.week} - ${nextLecture.title}` : 'No next lecture'}
+            >
+              <ChevronRight size={16} />
+            </Button>
           </div>
-        )}
-        <DropdownMenu>
-          <DropdownMenuTrigger className="ml-auto flex items-center justify-center h-9 px-3 text-xs font-semibold tracking-widest uppercase text-muted-foreground hover:text-primary hover:bg-accent rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-            {headerWeek}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64 max-h-[300px] overflow-y-auto">
-            {courseLectures.map(lecture => (
-              <DropdownMenuItem key={lecture.id} className="p-0">
-                <Link href={`/dashboard/courses/${courseId}/lectures/${lecture.id}`} className={`w-full px-2 py-1.5 flex justify-between items-center cursor-pointer ${lecture.id === lectureId ? 'bg-muted font-medium' : ''}`}>
-                  <span className="truncate pr-2">{lecture.title}</span>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">Week {lecture.week || '-'}</span>
+        </div>
+
+        {/* Right side controls */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Live countdown pill — visible when timer is running or paused */}
+          {timerDisplay && (
+            <div className={`flex items-center gap-1 rounded-full border transition-all ${
+              timerDisplay.mode === 'focus'
+                ? 'bg-primary/10 border-primary/30 text-primary'
+                : 'bg-green-500/10 border-green-500/30 text-green-600'
+            }`}>
+              <button 
+                onClick={() => timerRef.current?.toggle()} 
+                className="p-1 hover:bg-black/5 rounded-full ml-1"
+                title={timerDisplay.isRunning ? "Pause Timer" : "Play Timer"}
+              >
+                {timerDisplay.isRunning ? <Pause size={12} className="fill-current" /> : <Play size={12} className="fill-current translate-x-px" />}
+              </button>
+              <button
+                onClick={() => setIsTimerOpen(true)}
+                className="pr-2.5 py-1 text-xs font-bold tabular-nums flex items-center gap-1.5"
+                title="Open timer panel"
+              >
+                {timerDisplay.time}
+              </button>
+            </div>
+          )}
+
+          <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-primary h-8 w-8" onClick={handleDownloadPack} disabled={isDownloadingPack} title="Download Lecture Pack">
+            {isDownloadingPack ? <Loader2 size={16} className="animate-spin" /> : <DownloadCloud size={16} />}
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center justify-center h-8 w-8 text-muted-foreground hover:text-primary hover:bg-accent rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+              <MoreHorizontal size={16} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onClick={() => toast.info('Issue reported. Thank you for your feedback!')}>
+                Report Issue
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info('Keyboard shortcuts coming soon!')}>
+                Keyboard Shortcuts
+              </DropdownMenuItem>
+              <DropdownMenuItem className="p-0">
+                <Link href={`/dashboard/courses/${courseId}/lectures/${lectureId}/poster`} className="w-full h-full px-2 py-1.5 cursor-pointer block text-primary">
+                  <FileText size={14} className="inline mr-2" /> Study Poster
                 </Link>
               </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-primary h-8 w-8" onClick={handleDownloadPack} disabled={isDownloadingPack} title="Download Lecture Pack">
-          {isDownloadingPack ? <Loader2 size={16} className="animate-spin" /> : <DownloadCloud size={16} />}
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center justify-center h-8 w-8 text-muted-foreground hover:text-primary hover:bg-accent rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-            <MoreHorizontal size={16} />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => toast.info('Issue reported. Thank you for your feedback!')}>
-              Report Issue
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info('Keyboard shortcuts coming soon!')}>
-              Keyboard Shortcuts
-            </DropdownMenuItem>
-            <DropdownMenuItem className="p-0">
-              <Link href={`/dashboard/courses/${courseId}/lectures/${lectureId}/poster`} className="w-full h-full px-2 py-1.5 cursor-pointer block text-primary">
-                <FileText size={14} className="inline mr-2" /> Study Poster
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="p-0">
-              <Link href={`/dashboard/courses/${courseId}/lectures/${lectureId}/cheat-sheet`} className="w-full h-full px-2 py-1.5 cursor-pointer block text-primary">
-                <BookOpen size={14} className="inline mr-2" /> Exam Cheat Sheet
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="p-0">
-              <Link href={`/dashboard/courses/${courseId}`} className="w-full h-full px-2 py-1.5 cursor-pointer block">
-                Back to Course
-              </Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <DropdownMenuItem className="p-0">
+                <Link href={`/dashboard/courses/${courseId}/lectures/${lectureId}/cheat-sheet`} className="w-full h-full px-2 py-1.5 cursor-pointer block text-primary">
+                  <BookOpen size={14} className="inline mr-2" /> Exam Cheat Sheet
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleBack} className="cursor-pointer">
+                <ChevronLeft size={14} className="inline mr-2" /> Back
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       )}
 
@@ -850,6 +996,21 @@ export default function LectureViewer() {
                   >
                     <X size={20} />
                   </Button>
+                  {slideIndex === totalSlides - 1 && nextLecture && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="absolute bottom-6 right-6 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl z-50 gap-2 font-medium"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        switchToLecture(nextLecture.id);
+                        toast.success(`Switched to Week ${nextLecture.week}: ${nextLecture.title}`);
+                      }}
+                    >
+                      <span>Next Deck: Week {nextLecture.week}</span>
+                      <ArrowRight size={16} />
+                    </Button>
+                  )}
                 </>
               )}
             </div>
@@ -929,16 +1090,54 @@ export default function LectureViewer() {
                 </>
               )}
             </div>
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => setSlideIndex(Math.max(0, slideIndex - 1))} disabled={slideIndex === 0}>
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setSlideIndex(Math.max(0, slideIndex - 1))} 
+                disabled={slideIndex === 0}
+                title="Previous slide"
+              >
                 <ChevronLeft size={20} />
               </Button>
-              <span className="text-sm font-semibold text-foreground">Slide {slideIndex + 1} of {totalSlides}</span>
-              <Button variant="ghost" size="icon" onClick={() => setSlideIndex(Math.min(totalSlides - 1, slideIndex + 1))} disabled={slideIndex === totalSlides - 1}>
+              <span className="text-sm font-semibold text-foreground select-none">Slide {slideIndex + 1} of {totalSlides}</span>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setSlideIndex(Math.min(totalSlides - 1, slideIndex + 1))} 
+                disabled={slideIndex === totalSlides - 1}
+                title="Next slide"
+              >
                 <ChevronRight size={20} />
               </Button>
             </div>
-            <div className="w-[200px]" /> {/* Spacer for balance */}
+            
+            {/* Quick jump to Next or Previous deck when at slide boundaries */}
+            <div className="w-[200px] flex justify-end items-center pr-1">
+              {slideIndex === totalSlides - 1 && nextLecture ? (
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => switchToLecture(nextLecture.id)}
+                  className="h-8 text-xs font-semibold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+                  title={`Continue to Week ${nextLecture.week}: ${nextLecture.title}`}
+                >
+                  <span className="truncate max-w-[120px]">Next: W{nextLecture.week}</span>
+                  <ArrowRight size={14} className="shrink-0" />
+                </Button>
+              ) : slideIndex === 0 && prevLecture ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => switchToLecture(prevLecture.id)}
+                  className="h-8 text-xs font-medium gap-1 text-muted-foreground hover:text-foreground border-border/80"
+                  title={`Go back to Week ${prevLecture.week}: ${prevLecture.title}`}
+                >
+                  <ChevronLeft size={14} className="shrink-0" />
+                  <span className="truncate max-w-[120px]">Prev: W{prevLecture.week}</span>
+                </Button>
+              ) : null}
+            </div>
           </div>
 
           {/* Thumbnail strip */}

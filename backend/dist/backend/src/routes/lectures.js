@@ -22,7 +22,7 @@ router.get('/detail/:lectureId', async (req, res) => {
     const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
     const { data, error } = await supabase
         .from('lectures')
-        .select('id, title, week, processing, slide_count, courses(course_code, title)')
+        .select('id, course_id, title, week, processing, slide_count, courses(course_code, title)')
         .eq('id', req.params.lectureId)
         .single();
     if (error)
