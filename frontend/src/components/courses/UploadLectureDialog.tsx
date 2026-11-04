@@ -295,261 +295,316 @@ export function UploadLectureDialog({
       ) : null}
 
       <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-[620px] max-h-[85vh] flex flex-col p-5 overflow-hidden gap-0">
+          <DialogHeader className="flex-shrink-0 pb-3">
+            <DialogTitle>
+              Upload Lecture to {courseCode}
+            </DialogTitle>
+            <DialogDescription>
+              Upload PDF or PPTX lecture slides. We will extract the content and prepare it for AI processing.
+            </DialogDescription>
+          </DialogHeader>
 
-      <DialogContent className="sm:max-w-[540px]">
-        <DialogHeader>
-          <DialogTitle>
-            Upload Lecture to {courseCode}
-          </DialogTitle>
-          <DialogDescription>
-            Upload a PDF or PPTX of your lecture slides. We will extract the content and prepare it for AI processing.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="grid gap-4 py-4">
-          <div
-            className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center text-center transition-colors bg-muted/30 ${
-              isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-primary/50 border-border'
-            }`}
-            onClick={() => !isUploading && fileInputRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (isUploading) return;
-              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                handleFilesAdded(Array.from(e.dataTransfer.files));
-              }
-            }}
-          >
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-3">
-              <UploadCloud size={24} />
-            </div>
-            <p className="text-sm font-medium mb-1">Click to upload or drag and drop</p>
-            <p className="text-xs text-muted-foreground">PDF / PPTX files (up to 10 at once)</p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept=".pdf,application/pdf,.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation,.ppt,application/vnd.ms-powerpoint"
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files && e.target.files.length > 0) {
-                  handleFilesAdded(Array.from(e.target.files));
-                  e.target.value = '';
-                }
-              }}
-            />
-          </div>
-
-          {hasItems && (
-            <div className="space-y-2">
-              <div className="flex justify-between items-center px-1">
-                <span className="text-xs text-muted-foreground font-medium">
-                  {uploadFiles.length} file{uploadFiles.length > 1 ? 's' : ''} queued
-                </span>
-                {uploadFiles.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => setUploadFiles(prev => sortUploadFilesByWeek(prev))}
-                    disabled={isUploading}
-                    className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors disabled:opacity-50 cursor-pointer"
-                    title="Arrange slides in order: 1, 2, 3, 4..."
-                  >
-                    <ArrowUpDown size={12} />
-                    Arrange in order (1, 2, 3...)
-                  </button>
-                )}
+          {/* Scrollable Modal Body */}
+          <div className="flex-1 overflow-y-auto min-h-0 pr-1 space-y-3.5 my-1">
+            {/* Adaptive Dropzone: Spacious when empty, compact when files are queued */}
+            {!hasItems ? (
+              <div
+                className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-colors bg-muted/20 ${
+                  isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-primary/50 hover:bg-muted/30 border-border'
+                }`}
+                onClick={() => !isUploading && fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (isUploading) return;
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleFilesAdded(Array.from(e.dataTransfer.files));
+                  }
+                }}
+              >
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-3">
+                  <UploadCloud size={24} />
+                </div>
+                <p className="text-sm font-semibold mb-1">Click to upload or drag and drop</p>
+                <p className="text-xs text-muted-foreground">PDF or PPTX slides (up to 10 at once)</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,application/pdf,.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation,.ppt,application/vnd.ms-powerpoint"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      handleFilesAdded(Array.from(e.target.files));
+                      e.target.value = '';
+                    }
+                  }}
+                />
               </div>
-              <div className="max-h-[280px] overflow-y-auto space-y-2.5 pr-1">
-                {uploadFiles.map((item) => {
-                const isFailed = item.status === 'error';
-                const isSuccess = item.status === 'success';
-                const isActive = item.status === 'uploading' || item.status === 'processing';
+            ) : (
+              <div
+                className={`border border-dashed rounded-xl px-4 py-2.5 flex items-center justify-between transition-colors bg-muted/20 ${
+                  isUploading ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'hover:border-primary/50 hover:bg-muted/30 border-border cursor-pointer'
+                }`}
+                onClick={() => !isUploading && fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (isUploading) return;
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleFilesAdded(Array.from(e.dataTransfer.files));
+                  }
+                }}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                    <UploadCloud size={16} />
+                  </div>
+                  <span className="text-xs font-medium text-foreground">
+                    Add more files <span className="text-muted-foreground font-normal">(PDF or PPTX, up to 10)</span>
+                  </span>
+                </div>
+                <Button variant="ghost" size="sm" type="button" className="h-7 text-xs font-medium text-primary hover:bg-primary/10 gap-1 pointer-events-none" disabled={isUploading}>
+                  <Plus size={14} /> Browse
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,application/pdf,.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation,.ppt,application/vnd.ms-powerpoint"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      handleFilesAdded(Array.from(e.target.files));
+                      e.target.value = '';
+                    }
+                  }}
+                />
+              </div>
+            )}
 
-                return (
-                  <div
-                    key={item.id}
-                    className={`p-3 border rounded-xl transition-all shadow-sm ${
-                      isFailed
-                        ? 'border-destructive/50 bg-destructive/5 dark:bg-destructive/10'
-                        : isSuccess
-                        ? 'border-emerald-500/50 bg-emerald-500/5 dark:bg-emerald-950/20'
-                        : isActive
-                        ? 'border-primary/50 bg-card'
-                        : 'border-border bg-card'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
+            {hasItems && (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center px-0.5">
+                  <span className="text-xs text-muted-foreground font-semibold">
+                    {uploadFiles.length} file{uploadFiles.length > 1 ? 's' : ''} queued
+                  </span>
+                  {uploadFiles.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setUploadFiles(prev => sortUploadFilesByWeek(prev))}
+                      disabled={isUploading}
+                      className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium transition-colors disabled:opacity-50 cursor-pointer"
+                      title="Arrange slides in order: 1, 2, 3, 4..."
+                    >
+                      <ArrowUpDown size={12} />
+                      Arrange in order (1, 2, 3...)
+                    </button>
+                  )}
+                </div>
+
+                {/* File list */}
+                <div className="space-y-2">
+                  {uploadFiles.map((item) => {
+                    const isFailed = item.status === 'error';
+                    const isSuccess = item.status === 'success';
+                    const isActive = item.status === 'uploading' || item.status === 'processing';
+
+                    return (
                       <div
-                        className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                        key={item.id}
+                        className={`p-3 border rounded-xl transition-all shadow-xs relative overflow-hidden ${
                           isFailed
-                            ? 'bg-destructive/15 text-destructive'
+                            ? 'border-destructive/40 bg-destructive/5'
                             : isSuccess
-                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                            : 'bg-primary/10 text-primary'
+                            ? 'border-emerald-500/40 bg-emerald-500/5'
+                            : isActive
+                            ? 'border-primary/40 bg-card ring-1 ring-primary/20'
+                            : 'border-border bg-card hover:border-border/80'
                         }`}
                       >
-                        {isFailed ? (
-                          <AlertCircle size={18} />
-                        ) : isSuccess ? (
-                          <CheckCircle2 size={18} />
-                        ) : (
-                          <FileText size={18} />
-                        )}
-                      </div>
+                        <div className="flex items-center gap-3">
+                          {/* File Icon Badge */}
+                          <div
+                            className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                              isFailed
+                                ? 'bg-destructive/15 text-destructive'
+                                : isSuccess
+                                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                : 'bg-primary/10 text-primary'
+                            }`}
+                          >
+                            {isFailed ? (
+                              <AlertCircle size={18} />
+                            ) : isSuccess ? (
+                              <CheckCircle2 size={18} />
+                            ) : (
+                              <FileText size={18} />
+                            )}
+                          </div>
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-center gap-2 mb-1">
-                          <p className="text-sm font-semibold text-foreground truncate" title={item.file.name}>
-                            {item.file.name}
-                          </p>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                              {formatBytes(item.file.size)}
-                            </span>
-                            {/* Badges: RED for error, GREEN for success */}
-                            {isSuccess && (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                                <CheckCircle2 size={12} /> Uploaded
+                          {/* Center Details */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-3 mb-1">
+                              <p className="text-sm font-semibold text-foreground truncate max-w-[280px] sm:max-w-[360px]" title={item.file.name}>
+                                {item.file.name}
+                              </p>
+                              <span className="text-xs font-medium text-muted-foreground whitespace-nowrap shrink-0 tabular-nums">
+                                {formatBytes(item.file.size)}
                               </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 text-xs">
+                              {/* Inline Week Input */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11px] font-medium text-muted-foreground">Week:</span>
+                                {item.status === 'idle' ? (
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="52"
+                                    placeholder="-"
+                                    value={item.week}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, week: val } : f));
+                                    }}
+                                    disabled={isUploading}
+                                    className="w-12 h-6 bg-muted/60 border border-border/80 focus:border-primary rounded px-1.5 py-0.5 text-xs text-center font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+                                    title="Lecture week number (1-52)"
+                                  />
+                                ) : (
+                                  <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-muted text-foreground">
+                                    {item.week ? `W${item.week}` : 'Auto'}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Live Status Pill & Action */}
+                              <div className="flex items-center gap-2 shrink-0">
+                                {isSuccess && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                                    <CheckCircle2 size={12} /> Uploaded
+                                  </span>
+                                )}
+                                {isFailed && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">
+                                    <AlertCircle size={12} /> Failed
+                                  </span>
+                                )}
+                                {item.status === 'uploading' && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                                    <Loader2 size={12} className="animate-spin" /> {item.progress}%
+                                  </span>
+                                )}
+                                {item.status === 'processing' && (
+                                  <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full animate-pulse">
+                                    <Loader2 size={12} className="animate-spin" /> Processing AI...
+                                  </span>
+                                )}
+
+                                {!isActive && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setUploadFiles(prev => prev.filter(f => f.id !== item.id))}
+                                    className="p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+                                    title={isFailed ? 'Dismiss failed file' : 'Remove file'}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Error Message */}
+                            {isFailed && item.error && (
+                              <p className="text-xs text-destructive font-medium mt-1.5 bg-destructive/10 rounded px-2 py-1 leading-snug">
+                                {item.error}
+                              </p>
                             )}
-                            {isFailed && (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">
-                                <AlertCircle size={12} /> Failed
-                              </span>
-                            )}
-                            {item.status === 'uploading' && (
-                              <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
-                                <Loader2 size={12} className="animate-spin" /> {item.progress}%
-                              </span>
-                            )}
-                            {item.status === 'processing' && (
-                              <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
-                                <Loader2 size={12} className="animate-spin" /> Processing AI...
-                              </span>
+
+                            {/* Progress Bar */}
+                            {item.status !== 'idle' && (
+                              <div className="w-full bg-muted/60 rounded-full h-1 overflow-hidden mt-2">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-300 ease-out ${
+                                    isFailed
+                                      ? 'bg-destructive w-full'
+                                      : isSuccess
+                                      ? 'bg-emerald-500 w-full'
+                                      : item.status === 'processing'
+                                      ? 'bg-primary w-full animate-pulse'
+                                      : 'bg-primary'
+                                  }`}
+                                  style={{
+                                    width: item.status === 'uploading' ? `${item.progress}%` : '100%'
+                                  }}
+                                />
+                              </div>
                             )}
                           </div>
                         </div>
-
-                        {/* Week selector while idle */}
-                        {item.status === 'idle' && (
-                          <div className="flex items-center gap-2 mt-1 mb-1">
-                            <span className="text-xs font-medium text-muted-foreground">Lecture Week (optional):</span>
-                            <input
-                              type="number"
-                              min="1"
-                              max="52"
-                              placeholder="e.g. 1"
-                              value={item.week}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, week: val } : f));
-                              }}
-                              disabled={isUploading}
-                              className="w-20 bg-background border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
-                            />
-                          </div>
-                        )}
-
-                        {/* Error message in RED */}
-                        {isFailed && item.error && (
-                          <p className="text-xs text-destructive font-medium mt-1 leading-snug">
-                            {item.error}
-                          </p>
-                        )}
-
-                        {/* Progress Bar: RED on error, GREEN on success, Primary on active */}
-                        {item.status !== 'idle' && (
-                          <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden mt-2">
-                            <div
-                              className={`h-full rounded-full transition-all duration-300 ease-out ${
-                                isFailed
-                                  ? 'bg-destructive w-full'
-                                  : isSuccess
-                                  ? 'bg-emerald-500 w-full'
-                                  : item.status === 'processing'
-                                  ? 'bg-primary w-full animate-pulse'
-                                  : 'bg-primary'
-                              }`}
-                              style={{
-                                width: item.status === 'uploading' ? `${item.progress}%` : '100%'
-                              }}
-                            />
-                          </div>
-                        )}
                       </div>
-
-                      {/* Remove/Dismiss button */}
-                      {!isActive && (
-                        <button
-                          type="button"
-                          onClick={() => setUploadFiles(prev => prev.filter(f => f.id !== item.id))}
-                          className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors flex-shrink-0"
-                          title={isFailed ? 'Dismiss failed file' : 'Remove file'}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
               </div>
+            )}
+          </div>
+          
+          {/* Pinned Dialog Footer */}
+          <DialogFooter className="flex-shrink-0 pt-3 border-t border-border mt-3 flex flex-col sm:flex-row gap-2 sm:justify-between items-center w-full bg-popover">
+            <div className="flex items-center gap-2 text-xs">
+              {hasSuccessItems && (
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                  {uploadFiles.filter(f => f.status === 'success').length} succeeded
+                </span>
+              )}
+              {hasFailedItems && (
+                <span className="text-destructive font-medium">
+                  {uploadFiles.filter(f => f.status === 'error').length} failed
+                </span>
+              )}
             </div>
-          )}
-        </div>
-        
-        <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between items-center w-full">
-          <div className="flex items-center gap-2 text-xs">
-            {hasSuccessItems && (
-              <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                {uploadFiles.filter(f => f.status === 'success').length} succeeded
-              </span>
-            )}
-            {hasFailedItems && (
-              <span className="text-destructive font-medium">
-                {uploadFiles.filter(f => f.status === 'error').length} failed
-              </span>
-            )}
-          </div>
 
-          <div className="flex gap-2 w-full sm:w-auto justify-end">
-            <Button
-              variant="outline"
-              type="button"
-              onClick={() => handleOpenChange(false)}
-              disabled={isUploading}
-            >
-              {hasSuccessItems && !hasPendingItems && !hasFailedItems ? 'Done' : 'Cancel'}
-            </Button>
-
-            {(hasPendingItems || hasFailedItems) && (
+            <div className="flex gap-2 w-full sm:w-auto justify-end">
               <Button
-                onClick={handleUpload}
-                disabled={!hasItems || isUploading}
-                className={hasFailedItems && !hasPendingItems ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground' : ''}
+                variant="outline"
+                type="button"
+                onClick={() => handleOpenChange(false)}
+                disabled={isUploading}
               >
-                {isUploading ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin mr-2" />
-                    Uploading...
-                  </>
-                ) : hasFailedItems && !hasPendingItems ? (
-                  <>
-                    <RefreshCw size={14} className="mr-2" />
-                    Retry Failed ({uploadFiles.filter(f => f.status === 'error').length})
-                  </>
-                ) : (
-                  `Upload ${uploadFiles.filter(f => f.status === 'idle' || f.status === 'error').length} File${
-                    uploadFiles.filter(f => f.status === 'idle' || f.status === 'error').length > 1 ? 's' : ''
-                  }`
-                )}
+                {hasSuccessItems && !hasPendingItems && !hasFailedItems ? 'Done' : 'Cancel'}
               </Button>
-            )}
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+
+              {(hasPendingItems || hasFailedItems) && (
+                <Button
+                  onClick={handleUpload}
+                  disabled={!hasItems || isUploading}
+                  className={hasFailedItems && !hasPendingItems ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground' : ''}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin mr-2" />
+                      Uploading...
+                    </>
+                  ) : hasFailedItems && !hasPendingItems ? (
+                    <>
+                      <RefreshCw size={14} className="mr-2" />
+                      Retry Failed ({uploadFiles.filter(f => f.status === 'error').length})
+                    </>
+                  ) : (
+                    `Upload ${uploadFiles.filter(f => f.status === 'idle' || f.status === 'error').length} File${
+                      uploadFiles.filter(f => f.status === 'idle' || f.status === 'error').length > 1 ? 's' : ''
+                    }`
+                  )}
+                </Button>
+              )}
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
   </>
 )
 }
