@@ -91,10 +91,24 @@ export async function POST(req: NextRequest) {
       base64pdf,
     };
 
-    const fastapiBase = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
+    const secret = (process.env.CONVERTER_SECRET || 'zT9xK2mP7vL4wQ8rN5bH1jC6dF3gY0')
+      .trim()
+      .replace(/^["']|["']$/g, '');
+
+    const fastapiBase = (
+      process.env.CONVERTER_URL ||
+      process.env.NEXT_PUBLIC_CONVERTER_URL ||
+      process.env.NEXT_PUBLIC_FASTAPI_URL ||
+      process.env.FASTAPI_URL ||
+      'http://localhost:8000'
+    ).trim().replace(/\/+$/, '');
+
     const visionRes = await fetch(`${fastapiBase}/vision`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Converter-Secret': secret,
+      },
       body: JSON.stringify(visionPayload),
     });
     if (!visionRes.ok) {

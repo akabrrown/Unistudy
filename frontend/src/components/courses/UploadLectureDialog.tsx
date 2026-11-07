@@ -222,9 +222,15 @@ export function UploadLectureDialog({
         });
 
         if (!convertRes.ok) {
-          const errJson = await convertRes.json().catch(() => null);
-          const errText = errJson?.error || (await convertRes.text().catch(() => 'Conversion failed'));
-          throw new Error(`Conversion failed: ${errText}`);
+          const rawText = await convertRes.text().catch(() => '');
+          let errText = '';
+          try {
+            const errJson = JSON.parse(rawText);
+            errText = errJson?.error || errJson?.detail || rawText;
+          } catch {
+            errText = rawText || `Conversion server returned HTTP ${convertRes.status}`;
+          }
+          throw new Error(errText || 'Conversion failed');
         }
 
         // Successfully completed!

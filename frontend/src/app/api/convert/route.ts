@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Allow up to 60 seconds for Render free-tier cold starts
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -10,39 +14,77 @@ export async function POST(req: NextRequest) {
       .trim()
       .replace(/^["']|["']$/g, '');
     
-    // Fallback if NEXT_PUBLIC_FASTAPI_URL isn't set
-    const fastapiUrl = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
+    // Support all common environment variable naming conventions for the Python converter
+    const fastapiUrl = (
+      process.env.CONVERTER_URL ||
+      process.env.NEXT_PUBLIC_CONVERTER_URL ||
+      process.env.NEXT_PUBLIC_FASTAPI_URL ||
+      process.env.FASTAPI_URL ||
+      'http://localhost:8000'
+    ).trim().replace(/\/+$/, '');
     
-    let convertRes: Response;
-    try {
-      convertRes = await fetch(`${fastapiUrl}/convert`, {
-        method: 'POST',
-        headers: {
-          'X-Converter-Secret': secret,
-        },
-        body: formData,
-      });
-    } catch (networkErr: any) {
-      console.error('Failed to reach converter service:', networkErr);
+    let convertRes: Response | null = null;
+    let lastNetworkErr: any = null;
+
+    // Retry up to 2 times if Render is waking up from idle (returns 502/503/504 during container spin-up)
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        convertRes = await fetch(`${fastapiUrl}/convert`, {
+          method: 'POST',
+          headers: {
+            'X-Converter-Secret': secret,
+          },
+          body: formData,
+          signal: AbortSignal.timeout(55000),
+        });
+
+        // If the service responded or returned a non-gateway error (e.g., 400 or 401), exit loop
+        if (convertRes.ok || (convertRes.status !== 502 && convertRes.status !== 503 && convertRes.status !== 504)) {
+          break;
+        }
+
+        console.warn(`[Converter Proxy] Attempt ${attempt} returned HTTP ${convertRes.status}. Retrying in case service is spinning up...`);
+      } catch (err: any) {
+        lastNetworkErr = err;
+        console.warn(`[Converter Proxy] Attempt ${attempt} network error:`, err?.message);
+      }
+
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
+
+    if (!convertRes) {
+      console.error('Failed to reach converter service after retries:', lastNetworkErr);
       return NextResponse.json({
-        error: `Could not connect to converter at ${fastapiUrl}. Please verify the Python converter is deployed and running.`
+        error: `Could not connect to the slide conversion service at ${fastapiUrl}. The service may be starting up on Render. Please wait a few seconds and try again.`
       }, { status: 503 });
     }
 
     if (!convertRes.ok) {
-        const errorText = await convertRes.text();
-        const readableError = convertRes.status === 404
-          ? `Converter endpoint not found at ${fastapiUrl}/convert. Check NEXT_PUBLIC_FASTAPI_URL in your environment variables.`
-          : convertRes.status === 401
-          ? `Converter authentication rejected secret. Ensure CONVERTER_SECRET on Vercel matches CONVERTER_SECRET on Render.`
-          : errorText;
-        return NextResponse.json({ error: readableError }, { status: convertRes.status });
+      const rawText = await convertRes.text().catch(() => '');
+      let readableError = rawText;
+
+      if (convertRes.status === 404) {
+        readableError = `Converter endpoint not found at ${fastapiUrl}/convert. Check NEXT_PUBLIC_FASTAPI_URL / CONVERTER_URL in Vercel environment variables.`;
+      } else if (convertRes.status === 401) {
+        readableError = `Converter authentication rejected secret. Ensure CONVERTER_SECRET on Vercel matches CONVERTER_SECRET on Render.`;
+      } else if (convertRes.status === 502 || convertRes.status === 503 || convertRes.status === 504) {
+        readableError = `Slide converter on Render is currently waking up or unavailable (HTTP ${convertRes.status}). Please try again in a few moments.`;
+      } else {
+        try {
+          const parsed = JSON.parse(rawText);
+          readableError = parsed.error || parsed.detail || rawText;
+        } catch {}
+      }
+
+      return NextResponse.json({ error: readableError }, { status: convertRes.status });
     }
     
     const data = await convertRes.json();
     return NextResponse.json(data);
   } catch (error: any) {
     console.error('API Conversion Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Internal conversion error' }, { status: 500 });
   }
 }
