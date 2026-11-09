@@ -28,11 +28,13 @@ _allowed_origins = [
     os.getenv("BACKEND_URL", "http://localhost:8005"),
     "https://app.unistudy.ai",
     "https://unistudy.vercel.app",
+    "https://unistudy-silk.vercel.app",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
+    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -291,26 +293,40 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
 @app.post("/convert", dependencies=[Depends(verify_converter_secret)])
 async def convert_document(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
+    file_url: Optional[str] = Form(None),
     lecture_id: str = Form(...),
     user_id: str = Form(...)
 ):
     """
-    Endpoint to receive a PDF/PPTX file, convert it to slide images, 
-    upload to Cloudinary, and notify the main app.
+    Endpoint to receive a PDF/PPTX file or Cloudinary file_url, 
+    convert it to slide images, upload to Cloudinary, and notify the main app.
     """
     # Create temp directory — use tempfile.gettempdir() for cross-platform support (Windows/Linux)
     import tempfile
+    import urllib.parse
     temp_dir = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
     os.makedirs(temp_dir, exist_ok=True)
     
-    file_path = os.path.join(temp_dir, file.filename)
-    
-    # Save uploaded file
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    is_pptx = file.filename.lower().endswith('.pptx')
+    if file_url:
+        parsed_url = urllib.parse.urlparse(file_url)
+        clean_filename = os.path.basename(parsed_url.path) or "lecture.pdf"
+        file_path = os.path.join(temp_dir, clean_filename)
+        
+        # Fast streaming download directly from Cloudinary CDN
+        resp = requests.get(file_url, stream=True, timeout=60)
+        resp.raise_for_status()
+        with open(file_path, "wb") as buffer:
+            for chunk in resp.iter_content(chunk_size=65536):
+                buffer.write(chunk)
+        is_pptx = clean_filename.lower().endswith('.pptx')
+    elif file and file.filename:
+        file_path = os.path.join(temp_dir, file.filename)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        is_pptx = file.filename.lower().endswith('.pptx')
+    else:
+        raise HTTPException(status_code=400, detail="Either file or file_url must be provided.")
 
     # Process in background so we don't block the HTTP response
     background_tasks.add_task(process_file_task, file_path, lecture_id, user_id, is_pptx)

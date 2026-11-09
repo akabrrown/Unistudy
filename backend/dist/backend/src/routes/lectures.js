@@ -4,6 +4,7 @@ const express_1 = require("express");
 const zod_1 = require("zod");
 const auth_1 = require("../middleware/auth");
 const supabase_1 = require("../lib/supabase");
+const env_1 = require("../config/env");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateUser);
 const LectureInsertSchema = zod_1.z.object({
@@ -90,6 +91,47 @@ router.patch('/:id', async (req, res) => {
     if (error)
         return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
     res.json(data);
+});
+router.post('/:id/convert', async (req, res) => {
+    try {
+        const lectureId = req.params.id;
+        const userId = req.user.id;
+        let fileUrl = req.body?.file_url;
+        // If file_url was not supplied in body, look it up from the lecture record
+        if (!fileUrl) {
+            const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
+            const { data: lec } = await supabase.from('lectures').select('file_url').eq('id', lectureId).single();
+            fileUrl = lec?.file_url;
+        }
+        if (!fileUrl) {
+            return res.status(400).json({ error: 'Lecture has no associated file_url to convert.' });
+        }
+        const converterBase = (env_1.env.CONVERTER_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
+        const secret = (env_1.env.CONVERTER_SECRET || 'zT9xK2mP7vL4wQ8rN5bH1jC6dF3gY0').trim();
+        const formData = new FormData();
+        formData.append('lecture_id', String(lectureId));
+        formData.append('user_id', String(userId));
+        formData.append('file_url', String(fileUrl));
+        const convertRes = await fetch(`${converterBase}/convert`, {
+            method: 'POST',
+            headers: {
+                'X-Converter-Secret': secret,
+            },
+            body: formData,
+        });
+        if (!convertRes.ok) {
+            const errText = await convertRes.text().catch(() => '');
+            return res.status(convertRes.status).json({
+                error: errText || `Converter returned HTTP ${convertRes.status}`
+            });
+        }
+        const data = await convertRes.json();
+        res.json(data);
+    }
+    catch (error) {
+        console.error('Lecture conversion dispatch error:', error);
+        res.status(500).json({ error: error.message || 'Failed to dispatch conversion' });
+    }
 });
 router.post('/:slideId/notes', async (req, res) => {
     const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);

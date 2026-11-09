@@ -208,29 +208,51 @@ export function UploadLectureDialog({
         // 3. Mark as processing AI conversion
         setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'processing', progress: 100 } : f));
 
-        // 4. Send file to conversion endpoint
-        const formDataFastAPI = new FormData();
-        formDataFastAPI.append('file', item.file);
-        formDataFastAPI.append('lecture_id', newLectureId as string);
+        // 4. Trigger slide conversion
         const userRes = await supabase.auth.getUser();
         const userId = userRes.data.user?.id || '';
-        formDataFastAPI.append('user_id', userId);
 
-        const convertRes = await fetch(`/api/convert`, {
-          method: 'POST',
-          body: formDataFastAPI,
-        });
+        // Strategy A (Primary): Call Express backend on Render directly via apiFetch.
+        // Render web services do not have Vercel's 10-second serverless execution ceiling.
+        let convertSuccess = false;
+        let lastErrorMsg = '';
 
-        if (!convertRes.ok) {
-          const rawText = await convertRes.text().catch(() => '');
-          let errText = '';
-          try {
-            const errJson = JSON.parse(rawText);
-            errText = errJson?.error || errJson?.detail || rawText;
-          } catch {
-            errText = rawText || `Conversion server returned HTTP ${convertRes.status}`;
+        try {
+          const res = await apiFetch(`/lectures/${newLectureId}/convert`, {
+            method: 'POST',
+            body: JSON.stringify({ file_url: uploadedFileUrl }),
+          });
+          if (res?.status === 'processing started' || res?.lecture_id) {
+            convertSuccess = true;
           }
-          throw new Error(errText || 'Conversion failed');
+        } catch (apiErr: any) {
+          console.warn('Backend /lectures/:id/convert failed, falling back to Next.js proxy route:', apiErr);
+          lastErrorMsg = apiErr?.message || '';
+        }
+
+        // Strategy B (Fallback): If backend route failed, try /api/convert with file_url
+        if (!convertSuccess) {
+          const formDataFastAPI = new FormData();
+          formDataFastAPI.append('file_url', uploadedFileUrl as string);
+          formDataFastAPI.append('lecture_id', newLectureId as string);
+          formDataFastAPI.append('user_id', userId);
+
+          const convertRes = await fetch(`/api/convert`, {
+            method: 'POST',
+            body: formDataFastAPI,
+          });
+
+          if (!convertRes.ok) {
+            const rawText = await convertRes.text().catch(() => '');
+            let errText = '';
+            try {
+              const errJson = JSON.parse(rawText);
+              errText = errJson?.error || errJson?.detail || rawText;
+            } catch {
+              errText = rawText || `Conversion server returned HTTP ${convertRes.status}`;
+            }
+            throw new Error(errText || lastErrorMsg || 'Conversion failed');
+          }
         }
 
         // Successfully completed!

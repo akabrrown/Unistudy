@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticateUser } from '../middleware/auth';
 import { supabaseAsUser } from '../lib/supabase';
+import { env } from '../config/env';
 
 const router = Router();
 router.use(authenticateUser);
@@ -97,6 +98,54 @@ router.patch('/:id', async (req: Request, res: Response) => {
     
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   res.json(data);
+});
+
+router.post('/:id/convert', async (req: Request, res: Response) => {
+  try {
+    const lectureId = req.params.id;
+    const userId = req.user!.id;
+    let fileUrl = req.body?.file_url;
+
+    // If file_url was not supplied in body, look it up from the lecture record
+    if (!fileUrl) {
+      const supabase = supabaseAsUser(req.user!.jwt);
+      const { data: lec } = await supabase.from('lectures').select('file_url').eq('id', lectureId).single();
+      fileUrl = lec?.file_url;
+    }
+
+    if (!fileUrl) {
+      return res.status(400).json({ error: 'Lecture has no associated file_url to convert.' });
+    }
+
+    const converterBase = (env.CONVERTER_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
+    const secret = (env.CONVERTER_SECRET || 'zT9xK2mP7vL4wQ8rN5bH1jC6dF3gY0').trim();
+
+    const formData = new FormData();
+    formData.append('lecture_id', String(lectureId));
+    formData.append('user_id', String(userId));
+    formData.append('file_url', String(fileUrl));
+
+    const convertRes = await fetch(`${converterBase}/convert`, {
+      method: 'POST',
+      headers: {
+        'X-Converter-Secret': secret,
+      },
+      body: formData,
+    });
+
+    if (!convertRes.ok) {
+      const errText = await convertRes.text().catch(() => '');
+      return res.status(convertRes.status).json({
+        error: errText || `Converter returned HTTP ${convertRes.status}`
+      });
+    }
+
+    const data = await convertRes.json();
+    res.json(data);
+  } catch (error: any) {
+    console.error('Lecture conversion dispatch error:', error);
+    res.status(500).json({ error: error.message || 'Failed to dispatch conversion' });
+  }
 });
 
 router.post('/:slideId/notes', async (req: Request, res: Response) => {

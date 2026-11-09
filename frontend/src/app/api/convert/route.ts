@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     let convertRes: Response | null = null;
     let lastNetworkErr: any = null;
 
-    // Retry up to 2 times if Render is waking up from idle (returns 502/503/504 during container spin-up)
+    // Use a 9-second timeout per attempt to safely complete before Vercel's 10s Hobby execution limit
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
         convertRes = await fetch(`${fastapiUrl}/convert`, {
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
             'X-Converter-Secret': secret,
           },
           body: formData,
-          signal: AbortSignal.timeout(55000),
+          signal: AbortSignal.timeout(9000),
         });
 
         // If the service responded or returned a non-gateway error (e.g., 400 or 401), exit loop
