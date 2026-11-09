@@ -8,10 +8,6 @@ exports.BADGES = [
     { id: 'streak_3', name: 'On a Roll', emoji: '🔥', description: '3-day study streak', condition: s => s.streak >= 3 },
     { id: 'streak_7', name: 'Week Warrior', emoji: '⚡', description: '7-day study streak', condition: s => s.streak >= 7 },
     { id: 'streak_30', name: 'Iron Scholar', emoji: '🗿', description: '30-day study streak', condition: s => s.streak >= 30 },
-    // XP badges
-    { id: 'xp_1000', name: 'Rising Star', emoji: '⭐', description: 'Earned 1,000 XP', condition: s => s.xp >= 1000 },
-    { id: 'xp_10000', name: 'Knowledge Seeker', emoji: '🎓', description: 'Earned 10,000 XP', condition: s => s.xp >= 10000 },
-    { id: 'xp_100000', name: 'Legend', emoji: '👑', description: 'Earned 100,000 XP', condition: s => s.xp >= 100000 },
     // Quiz badges
     { id: 'quiz_10', name: 'Quiz Rookie', emoji: '📝', description: 'Completed 10 quizzes', condition: s => s.quizCount >= 10 },
     { id: 'quiz_100', name: 'Quiz Champion', emoji: '🏆', description: 'Completed 100 quizzes', condition: s => s.quizCount >= 100 },
@@ -28,7 +24,7 @@ exports.BADGES = [
 async function checkAndAwardBadges(userId) {
     // Gather stats
     const [profile, quizzes, flashcards, papers, sessions, courses] = await Promise.all([
-        supabase_1.supabaseAdmin.from('profiles').select('xp,streak').eq('id', userId).single(),
+        supabase_1.supabaseAdmin.from('profiles').select('streak').eq('id', userId).single(),
         supabase_1.supabaseAdmin.from('quiz_attempts').select('score', { count: 'exact' }).eq('user_id', userId),
         supabase_1.supabaseAdmin.from('flashcards').select('repetitions').eq('user_id', userId).gt('repetitions', 0),
         supabase_1.supabaseAdmin.from('past_paper_attempts').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('completed', true),
@@ -36,7 +32,6 @@ async function checkAndAwardBadges(userId) {
         supabase_1.supabaseAdmin.from('courses').select('id', { count: 'exact', head: true }).eq('user_id', userId)
     ]);
     const stats = {
-        xp: profile.data?.xp || 0,
         streak: profile.data?.streak || 0,
         quizCount: quizzes.count || 0,
         flashcardCount: (flashcards.data || []).reduce((s, f) => s + f.repetitions, 0),

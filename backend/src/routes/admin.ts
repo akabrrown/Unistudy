@@ -77,7 +77,7 @@ router.get('/users', async (req: Request, res: Response) => {
   try {
     const { data: users, error } = await supabaseAdmin
       .from('profiles')
-      .select('*, subscriptions(status, plan_id, current_period_end)')
+      .select('*, institutions:institution_id(id, name, abbreviation), subscriptions(status, plan_id, current_period_end)')
       .order('created_at', { ascending: false });
 
     if (error) throw error;

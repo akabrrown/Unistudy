@@ -23,7 +23,11 @@ router.use(async (req, res, next) => {
 });
 router.get('/', async (req, res) => {
     try {
-        const { data, error } = await supabase_1.supabaseAdmin.from('profiles').select('*').order('created_at', { ascending: false }).limit(100);
+        const { data, error } = await supabase_1.supabaseAdmin
+            .from('profiles')
+            .select('*, institutions:institution_id(id, name, abbreviation), subscriptions(status, plan_id, current_period_end)')
+            .order('created_at', { ascending: false })
+            .limit(100);
         if (error)
             throw error;
         res.json({ users: data });

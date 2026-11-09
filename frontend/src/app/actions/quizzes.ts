@@ -75,12 +75,10 @@ export async function submitQuizAttempt(lectureId: string, score: number, total:
     const json = await res.json()
     if (!res.ok) return { error: json.error || 'Failed to record attempt' }
 
-    if (json.xpEarned) {
-      const { revalidatePath } = await import('next/cache')
-      revalidatePath('/dashboard', 'layout')
-    }
+    const { revalidatePath } = await import('next/cache')
+    revalidatePath('/dashboard', 'layout')
 
-    return { success: true, xpEarned: json.xpEarned }
+    return { success: true }
   } catch (err: any) {
     return { error: err.message }
   }

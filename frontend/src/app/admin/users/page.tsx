@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { Search, ArrowUpRight, Loader2, Shield, KeyRound, Trash2, Ban, UserCheck, MessageSquare, BookOpen, Activity, Zap } from 'lucide-react';
+import { Search, ArrowUpRight, Loader2, Shield, KeyRound, Trash2, Ban, UserCheck, MessageSquare, BookOpen, Activity, Zap, GraduationCap } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
@@ -147,7 +147,7 @@ export default function AdminUsersPage() {
     result.sort((a, b) => {
       if (sortBy === 'newest') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       if (sortBy === 'oldest') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      if (sortBy === 'xp') return (b.total_xp || 0) - (a.total_xp || 0);
+      if (sortBy === 'name_asc') return (a.full_name || '').localeCompare(b.full_name || '');
       return 0;
     });
 
@@ -178,16 +178,6 @@ export default function AdminUsersPage() {
             className="pl-9 h-10"
           />
         </div>
-                <Select value={sortBy} onValueChange={(v) => setSortBy(v || 'newest')}>
-                  <SelectTrigger className="w-[140px] md:w-[180px]">
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="newest">Newest First</SelectItem>
-                    <SelectItem value="oldest">Oldest First</SelectItem>
-                    <SelectItem value="name_asc">Name (A-Z)</SelectItem>
-                  </SelectContent>
-                </Select>
 
         <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v || 'all')}>
           <SelectTrigger className="w-[140px] h-10">
@@ -214,13 +204,13 @@ export default function AdminUsersPage() {
         </Select>
 
         <Select value={sortBy} onValueChange={(v) => setSortBy(v || 'newest')}>
-          <SelectTrigger className="w-[160px] h-10 ml-auto">
+          <SelectTrigger className="w-[170px] h-10 ml-auto">
             <SelectValue placeholder="Sort By" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="newest">Join Date: Newest</SelectItem>
             <SelectItem value="oldest">Join Date: Oldest</SelectItem>
-            <SelectItem value="xp">Total XP: Highest</SelectItem>
+            <SelectItem value="name_asc">Name (A-Z)</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -234,8 +224,8 @@ export default function AdminUsersPage() {
                 <th className="px-6 py-4 font-semibold">Role</th>
                 <th className="px-6 py-4 font-semibold">Plan</th>
                 <th className="px-6 py-4 font-semibold">Institution</th>
+                <th className="px-6 py-4 font-semibold">Programme</th>
                 <th className="px-6 py-4 font-semibold">Joined</th>
-                <th className="px-6 py-4 font-semibold">XP</th>
                 <th className="px-6 py-4 font-semibold text-right">Profile</th>
               </tr>
             </thead>
@@ -243,6 +233,7 @@ export default function AdminUsersPage() {
               {filteredAndSortedUsers.map((user) => {
                 const activeSub = Array.isArray(user.subscriptions) ? user.subscriptions.find((s: any) => s.status === 'active') : null;
                 const planName = activeSub ? activeSub.plan_id : (user.plan || 'free');
+                const institutionName = user.institutions?.name || user.university || (user.institution_id ? 'University of Professional Studies' : 'Not specified');
 
                 return (
                   <tr 
@@ -262,14 +253,21 @@ export default function AdminUsersPage() {
                     <td className="px-6 py-4">
                       <span className="capitalize text-muted-foreground font-medium">{planName}</span>
                     </td>
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-foreground">
+                        {institutionName}
+                        {user.institutions?.abbreviation && (
+                          <span className="text-xs text-muted-foreground ml-1.5 font-normal">
+                            ({user.institutions.abbreviation})
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 text-muted-foreground">
-                      {user.degree_programme || 'Unknown'}
+                      {user.degree_programme || '—'}
                     </td>
                     <td className="px-6 py-4 text-muted-foreground">
                       {format(new Date(user.created_at), 'MMM d, yyyy')}
-                    </td>
-                    <td className="px-6 py-4 text-foreground font-medium">
-                      {user.total_xp || 0}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
@@ -309,13 +307,36 @@ export default function AdminUsersPage() {
                   <Badge variant="outline" className="capitalize px-3 py-1 text-sm bg-background">
                     {selectedUser.plan || 'free'} Plan
                   </Badge>
-                  <Badge variant="outline" className="px-3 py-1 text-sm bg-background">
-                    {selectedUser.total_xp || 0} XP
-                  </Badge>
                 </div>
               </div>
 
               <div className="p-6 flex-1 space-y-8">
+                {/* Academic Profile */}
+                <div className="space-y-3">
+                  <h3 className="font-semibold flex items-center gap-2"><GraduationCap className="w-4 h-4 text-primary" /> Academic Profile</h3>
+                  <div className="p-4 border rounded-lg bg-card shadow-sm space-y-3 text-sm">
+                    <div>
+                      <span className="text-muted-foreground text-xs block mb-0.5">Institution</span>
+                      <span className="font-medium text-foreground">
+                        {selectedUser.institutions?.name || selectedUser.university || (selectedUser.institution_id ? 'University of Professional Studies' : 'Not specified')}
+                        {selectedUser.institutions?.abbreviation ? ` (${selectedUser.institutions.abbreviation})` : ''}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-xs block mb-0.5">Programme of Study</span>
+                      <span className="font-medium text-foreground">
+                        {selectedUser.degree_programme || 'Not specified'}
+                      </span>
+                    </div>
+                    {selectedUser.year_of_study && (
+                      <div>
+                        <span className="text-muted-foreground text-xs block mb-0.5">Year of Study</span>
+                        <span className="font-medium text-foreground">Year {selectedUser.year_of_study}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* AI Usage */}
                 <div className="space-y-3">
                   <h3 className="font-semibold flex items-center gap-2"><Zap className="w-4 h-4 text-primary" /> AI Usage</h3>

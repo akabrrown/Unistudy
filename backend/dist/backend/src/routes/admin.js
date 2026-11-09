@@ -69,7 +69,7 @@ router.get('/users', async (req, res) => {
     try {
         const { data: users, error } = await supabase_1.supabaseAdmin
             .from('profiles')
-            .select('*, subscriptions(status, plan_id, current_period_end)')
+            .select('*, institutions:institution_id(id, name, abbreviation), subscriptions(status, plan_id, current_period_end)')
             .order('created_at', { ascending: false });
         if (error)
             throw error;

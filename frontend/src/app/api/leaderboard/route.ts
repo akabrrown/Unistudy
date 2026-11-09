@@ -16,8 +16,8 @@ export async function GET(req: NextRequest) {
     );
     const { data, error: dbError } = await adminSupabase
       .from('profiles')
-      .select('id, full_name, username, total_xp, university, year_of_study, degree_programme, institutions(name)')
-      .order('total_xp', { ascending: false })
+      .select('id, full_name, username, university, year_of_study, degree_programme, institutions(name)')
+      .order('created_at', { ascending: false })
       .limit(50);
 
     if (dbError) throw dbError;

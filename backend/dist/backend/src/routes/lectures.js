@@ -108,17 +108,42 @@ router.post('/:id/convert', async (req, res) => {
         }
         const converterBase = (env_1.env.CONVERTER_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
         const secret = (env_1.env.CONVERTER_SECRET || 'zT9xK2mP7vL4wQ8rN5bH1jC6dF3gY0').trim();
-        const formData = new FormData();
-        formData.append('lecture_id', String(lectureId));
-        formData.append('user_id', String(userId));
-        formData.append('file_url', String(fileUrl));
-        const convertRes = await fetch(`${converterBase}/convert`, {
-            method: 'POST',
-            headers: {
-                'X-Converter-Secret': secret,
-            },
-            body: formData,
-        });
+        // Render free-tier converter may be waking from cold sleep. Retry with backoff.
+        let convertRes = null;
+        let lastError = null;
+        for (let attempt = 1; attempt <= 4; attempt++) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s per attempt
+                const formData = new FormData();
+                formData.append('lecture_id', String(lectureId));
+                formData.append('user_id', String(userId));
+                formData.append('file_url', String(fileUrl));
+                convertRes = await fetch(`${converterBase}/convert`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Converter-Secret': secret,
+                    },
+                    body: formData,
+                    signal: controller.signal,
+                });
+                clearTimeout(timeoutId);
+                if (convertRes.ok || (convertRes.status !== 502 && convertRes.status !== 503 && convertRes.status !== 504)) {
+                    break;
+                }
+                console.warn(`[Converter Dispatch] Attempt ${attempt} returned HTTP ${convertRes.status}. Retrying in case service is waking up...`);
+            }
+            catch (err) {
+                lastError = err;
+                console.warn(`[Converter Dispatch] Attempt ${attempt} failed: ${err.message}. Retrying...`);
+            }
+            if (attempt < 4) {
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+            }
+        }
+        if (!convertRes) {
+            throw lastError || new Error('Could not connect to slide converter service on Render after retries.');
+        }
         if (!convertRes.ok) {
             const errText = await convertRes.text().catch(() => '');
             return res.status(convertRes.status).json({
