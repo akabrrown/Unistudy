@@ -9,9 +9,9 @@ router.post('/', async (req: Request, res: Response) => {
   // express.raw() passes req.body as a Buffer
   const payloadBuffer = req.body as Buffer;
   
-  const webhookSecret = env.PAYSTACK_WEBHOOK_SECRET;
+  const webhookSecret = env.PAYSTACK_WEBHOOK_SECRET || env.PAYSTACK_SECRET_KEY;
   if (!webhookSecret) {
-    console.error('PAYSTACK_WEBHOOK_SECRET is not configured');
+    console.error('Paystack webhook secret is not configured');
     return res.status(500).send('Webhook not configured');
   }
 
@@ -19,38 +19,50 @@ router.post('/', async (req: Request, res: Response) => {
     .update(payloadBuffer)
     .digest('hex');
   
-  if (hash !== req.headers['x-paystack-signature']) {
+  const signature = req.headers['x-paystack-signature'] as string;
+  
+  if (
+    !signature ||
+    typeof signature !== 'string' ||
+    hash.length !== signature.length ||
+    !crypto.timingSafeEqual(Buffer.from(hash, 'utf-8'), Buffer.from(signature, 'utf-8'))
+  ) {
     return res.status(401).send('Invalid signature');
   }
 
-  const event = JSON.parse(payloadBuffer.toString('utf8'));
+  try {
+    const event = JSON.parse(payloadBuffer.toString('utf8'));
 
-  if (event.event === 'charge.success') {
-    const { reference, customer, metadata, amount } = event.data;
-    
-    // In metadata we expect to find the userId
-    if (metadata && metadata.userId) {
-      const plan = metadata.plan || 'pro';
+    if (event.event === 'charge.success') {
+      const { reference, customer, metadata, amount } = event.data;
       
-      // Update profile
-      await supabaseAdmin
-        .from('profiles')
-        .update({ plan: plan })
-        .eq('id', metadata.userId);
+      if (metadata && (metadata.userId || metadata.user_id)) {
+        const userId = metadata.userId || metadata.user_id;
+        const plan = metadata.plan || 'pro';
         
-      // Record the transaction audit
-      await supabaseAdmin
-        .from('payment_transactions')
-        .insert({
-          user_id: metadata.userId,
-          amount: amount,
-          status: 'success',
-          reference: reference
-        });
+        // Update profile
+        await supabaseAdmin
+          .from('profiles')
+          .update({ plan: plan })
+          .eq('id', userId);
+          
+        // Record the transaction audit
+        await supabaseAdmin
+          .from('payment_transactions')
+          .insert({
+            user_id: userId,
+            amount: amount,
+            status: 'success',
+            reference: reference
+          });
+      }
     }
-  }
 
-  res.sendStatus(200);
+    res.sendStatus(200);
+  } catch (err) {
+    console.error('Failed to parse Paystack webhook payload:', err);
+    res.status(400).send('Bad Request');
+  }
 });
 
 export default router;

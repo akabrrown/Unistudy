@@ -2,7 +2,40 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
+import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { checkRateLimit } from '@/lib/security/rateLimiter'
+
+const LoginSchema = z.object({
+  email: z.string().trim().email('Please enter a valid email address').max(255),
+  password: z.string().min(6, 'Password must be at least 6 characters').max(128, 'Password is too long'),
+});
+
+const SignupSchema = z.object({
+  email: z.string().trim().email('Please enter a valid email address').max(255),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(128, 'Password is too long'),
+  username: z.string().trim().min(3, 'Username must be at least 3 characters').max(30, 'Username cannot exceed 30 characters')
+    .regex(/^[a-zA-Z0-9_-]+$/, 'Username can only contain letters, numbers, hyphens, and underscores'),
+  fullName: z.string().trim().min(1, 'Full name is required').max(100, 'Full name cannot exceed 100 characters'),
+});
+
+async function getClientIp(): Promise<string> {
+  try {
+    const headersList = await headers();
+    const forwarded = headersList.get('x-forwarded-for');
+    if (forwarded) {
+      return forwarded.split(',')[0].trim();
+    }
+    const realIp = headersList.get('x-real-ip');
+    if (realIp) {
+      return realIp.trim();
+    }
+  } catch (e) {
+    // If headers are unavailable, return fallback
+  }
+  return 'unknown_client';
+}
 
 async function isPasswordLeaked(password: string): Promise<boolean> {
   try {
@@ -15,7 +48,9 @@ async function isPasswordLeaked(password: string): Promise<boolean> {
     const prefix = hashHex.slice(0, 5);
     const suffix = hashHex.slice(5);
 
-    const response = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
+    const response = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+      headers: { 'User-Agent': 'UniStudy-Security-Audit' },
+    });
     if (!response.ok) return false;
     
     const text = await response.text();
@@ -36,29 +71,65 @@ async function isPasswordLeaked(password: string): Promise<boolean> {
 }
 
 export async function login(formData: FormData) {
-  const supabase = await createClient()
-
-  const data = {
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
+  const ip = await getClientIp();
+  const rawEmail = (formData.get('email') as string) || '';
+  const rateLimitKey = `auth:login:${ip}:${rawEmail.toLowerCase()}`;
+  
+  // Rate limit: 5 login attempts per 15 minutes
+  const rateCheck = await checkRateLimit(rateLimitKey, { limit: 5, windowSeconds: 15 * 60 });
+  if (!rateCheck.success) {
+    redirect('/login?error=Too many login attempts. Please wait 15 minutes before trying again.');
   }
 
-  const { error } = await supabase.auth.signInWithPassword(data)
+  const parseResult = LoginSchema.safeParse({
+    email: formData.get('email'),
+    password: formData.get('password'),
+  });
+
+  if (!parseResult.success) {
+    const errorMsg = parseResult.error.issues[0]?.message || 'Invalid email or password format';
+    redirect(`/login?error=${encodeURIComponent(errorMsg)}`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithPassword({
+    email: parseResult.data.email,
+    password: parseResult.data.password,
+  });
 
   if (error) {
-    redirect('/login?error=Invalid email or password')
+    redirect('/login?error=Invalid email or password');
   }
 
-  revalidatePath('/', 'layout')
-  redirect('/dashboard')
+  revalidatePath('/', 'layout');
+  redirect('/dashboard');
 }
 
 export async function signup(formData: FormData) {
-  const supabase = await createClient();
+  const ip = await getClientIp();
+  const signupRateKey = `auth:signup:${ip}`;
+  
+  // Rate limit: 5 signups per 15 minutes per IP
+  const rateCheck = await checkRateLimit(signupRateKey, { limit: 5, windowSeconds: 15 * 60 });
+  if (!rateCheck.success) {
+    redirect('/signup?error=Too many accounts created from this network. Please wait 15 minutes.');
+  }
 
-  const desiredUsername = formData.get('username') as string;
+  const parseResult = SignupSchema.safeParse({
+    email: formData.get('email'),
+    password: formData.get('password'),
+    username: formData.get('username'),
+    fullName: formData.get('fullName'),
+  });
 
-  // Server-side username uniqueness check (bypassing RLS)
+  if (!parseResult.success) {
+    const errorMsg = parseResult.error.issues[0]?.message || 'Please check your input details.';
+    redirect(`/signup?error=${encodeURIComponent(errorMsg)}`);
+  }
+
+  const { email, password, username, fullName } = parseResult.data;
+
+  // Server-side username uniqueness check (bypassing RLS with service role)
   const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
   const adminSupabase = createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -68,7 +139,7 @@ export async function signup(formData: FormData) {
   const { data: existingUser, error: checkError } = await adminSupabase
     .from('profiles')
     .select('username')
-    .eq('username', desiredUsername)
+    .eq('username', username)
     .maybeSingle();
 
   if (checkError) {
@@ -76,35 +147,32 @@ export async function signup(formData: FormData) {
   }
 
   if (existingUser) {
-    redirect(`/signup?error=Username '${desiredUsername}' is already taken. Please choose another.`);
+    redirect(`/signup?error=Username '${encodeURIComponent(username)}' is already taken. Please choose another.`);
   }
 
-  const password = formData.get('password') as string;
   const isLeaked = await isPasswordLeaked(password);
-  
   if (isLeaked) {
-    redirect(`/signup?error=This password has appeared in a data breach. Please choose a different, more secure password.`);
+    redirect(`/signup?error=This password has appeared in a known data breach. Please choose a different, more secure password.`);
   }
 
-  const data = {
-    email: formData.get('email') as string,
+  const supabase = await createClient();
+  const { data: authData, error } = await supabase.auth.signUp({
+    email,
     password,
     options: {
       data: {
-        username: formData.get('username') as string,
-        full_name: formData.get('fullName') as string,
+        username,
+        full_name: fullName,
       },
     },
-  };
-
-  const { data: authData, error } = await supabase.auth.signUp(data);
+  });
 
   if (error) {
-    const errorMsg = typeof error.message === 'string' ? error.message : JSON.stringify(error);
+    const errorMsg = typeof error.message === 'string' ? error.message : 'Signup failed. Please try again.';
     redirect(`/signup?error=${encodeURIComponent(errorMsg)}`);
   }
 
-  // Refresh materialised view
+  // Refresh materialized view safely
   try {
     await supabase.rpc('refresh_institution_student_counts');
   } catch (e) {
@@ -114,14 +182,9 @@ export async function signup(formData: FormData) {
   // Trigger initial planner generation in the background
   if (authData?.user?.id) {
     try {
-      const adminSupabase2 = createSupabaseClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-      
-      await adminSupabase2.from('profiles').update({
-        username: formData.get('username') as string,
-        full_name: formData.get('fullName') as string,
+      await adminSupabase.from('profiles').update({
+        username,
+        full_name: fullName,
       }).eq('id', authData.user.id);
       
       const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
@@ -138,17 +201,16 @@ export async function signup(formData: FormData) {
   revalidatePath('/', 'layout');
   
   if (authData?.session) {
-    // If Email Confirmations are turned OFF in Supabase, they are logged in instantly.
+    // Instant session established
     redirect('/onboarding');
   } else {
-    // If Email Confirmations are ON, they need to click the link in their email.
+    // Email verification link sent
     redirect('/login?message=Please check your email for the confirmation link to sign in.');
   }
 }
 
-
 export async function signout() {
-  const supabase = await createClient()
-  await supabase.auth.signOut()
-  redirect('/')
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect('/');
 }

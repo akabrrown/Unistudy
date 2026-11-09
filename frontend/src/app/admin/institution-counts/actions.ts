@@ -67,3 +67,4 @@ export async function fetchInstitutionCountsAction(): Promise<{ data: Institutio
     return { data: [], error: err.message || 'Failed to fetch counts' };
   }
 }
+

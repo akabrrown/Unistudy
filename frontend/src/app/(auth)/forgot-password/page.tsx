@@ -96,8 +96,12 @@ export default function ForgotPasswordPage() {
   // Step 3: Update Password
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters.')
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters long.')
+      return
+    }
+    if (newPassword.length > 128) {
+      setError('Password cannot exceed 128 characters.')
       return
     }
 
