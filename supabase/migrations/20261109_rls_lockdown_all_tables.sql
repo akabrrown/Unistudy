@@ -224,3 +224,4 @@ CREATE POLICY "Admins can insert audit logs"
   WITH CHECK (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
   );
+
