@@ -37,10 +37,30 @@ import { useModelStore } from '../stores/modelStore';
 
 async function buildHeaders(options: RequestInit): Promise<Headers> {
   const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  let token: string | null = null;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    token = session?.access_token || null;
+  } catch (e) {
+    // client session error fallback
+  }
+
+  // Fallback: If client browser session is uninitialized, query server token bridge
+  if (!token && typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/auth/token');
+      if (res.ok) {
+        const json = await res.json();
+        token = json.accessToken || null;
+      }
+    } catch (e) {
+      // safe fallback
+    }
+  }
+
   const headers = new Headers(options.headers || {});
-  if (session?.access_token) {
-    headers.set('Authorization', `Bearer ${session.access_token}`);
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
   }
   if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
