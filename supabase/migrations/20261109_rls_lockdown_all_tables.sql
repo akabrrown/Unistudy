@@ -21,6 +21,19 @@ CREATE POLICY "Users can manage their own courses"
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+-- Helper function: check admin without triggering RLS recursion
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'
+  );
+$$;
+
 -- 2. LECTURES
 ALTER TABLE IF EXISTS public.lectures ENABLE ROW LEVEL SECURITY;
 
@@ -31,11 +44,24 @@ DROP POLICY IF EXISTS "Users can update own lectures" ON public.lectures;
 DROP POLICY IF EXISTS "Users can delete own lectures" ON public.lectures;
 DROP POLICY IF EXISTS "Users can manage their own lectures" ON public.lectures;
 
+-- Ownership for lectures is proven via course_id referencing user-owned courses
 CREATE POLICY "Users can manage their own lectures"
   ON public.lectures
   FOR ALL
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.courses
+      WHERE public.courses.id = public.lectures.course_id
+      AND public.courses.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.courses
+      WHERE public.courses.id = public.lectures.course_id
+      AND public.courses.user_id = auth.uid()
+    )
+  );
 
 -- 3. SLIDES
 ALTER TABLE IF EXISTS public.slides ENABLE ROW LEVEL SECURITY;
@@ -43,15 +69,18 @@ ALTER TABLE IF EXISTS public.slides ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow public read access to slides" ON public.slides;
 DROP POLICY IF EXISTS "Users can view slides of their own lectures" ON public.slides;
 DROP POLICY IF EXISTS "Users can manage slides of their own lectures" ON public.slides;
+DROP POLICY IF EXISTS "Users can modify slides of their own lectures" ON public.slides;
 
+-- Ownership for slides is proven via lecture_id -> course_id -> user-owned courses
 CREATE POLICY "Users can view slides of their own lectures"
   ON public.slides
   FOR SELECT
   USING (
     EXISTS (
       SELECT 1 FROM public.lectures
+      JOIN public.courses ON public.courses.id = public.lectures.course_id
       WHERE public.lectures.id = public.slides.lecture_id
-      AND public.lectures.user_id = auth.uid()
+      AND public.courses.user_id = auth.uid()
     )
   );
 
@@ -61,15 +90,17 @@ CREATE POLICY "Users can modify slides of their own lectures"
   USING (
     EXISTS (
       SELECT 1 FROM public.lectures
+      JOIN public.courses ON public.courses.id = public.lectures.course_id
       WHERE public.lectures.id = public.slides.lecture_id
-      AND public.lectures.user_id = auth.uid()
+      AND public.courses.user_id = auth.uid()
     )
   )
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.lectures
+      JOIN public.courses ON public.courses.id = public.lectures.course_id
       WHERE public.lectures.id = public.slides.lecture_id
-      AND public.lectures.user_id = auth.uid()
+      AND public.courses.user_id = auth.uid()
     )
   );
 
@@ -109,7 +140,7 @@ CREATE POLICY "Users can view their own profile"
   FOR SELECT
   USING (
     auth.uid() = id
-    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    OR public.is_admin()
   );
 
 CREATE POLICY "Users can update their own profile"
@@ -122,7 +153,7 @@ CREATE POLICY "Admins can view and manage all profiles"
   ON public.profiles
   FOR ALL
   USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    public.is_admin()
   );
 
 -- 7. CREDIT WALLETS
@@ -202,10 +233,10 @@ CREATE POLICY "Admins can manage API keys"
   ON public.ai_api_keys
   FOR ALL
   USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    public.is_admin()
   )
   WITH CHECK (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    public.is_admin()
   );
 
 DROP POLICY IF EXISTS "Admins can view audit logs" ON public.admin_audit_logs;
@@ -215,13 +246,13 @@ CREATE POLICY "Admins can view audit logs"
   ON public.admin_audit_logs
   FOR SELECT
   USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    public.is_admin()
   );
 
 CREATE POLICY "Admins can insert audit logs"
   ON public.admin_audit_logs
   FOR INSERT
   WITH CHECK (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    public.is_admin()
   );
 

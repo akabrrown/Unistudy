@@ -30,20 +30,36 @@ router.get('/', async (req, res) => {
         return res.json([]);
     }
     const supabase = (0, supabase_1.supabaseAsUser)(token);
-    const { data, error } = await supabase
+    let { data, error } = await supabase
         .from('courses')
         .select('*, lectures(id, title), past_papers(id, title, year, exam_type, status)')
         .order('created_at', { ascending: false });
-    if (error)
-        return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+    if (error) {
+        console.warn('[Courses] Join query failed, falling back to direct select:', error.message);
+        const fallback = await supabase
+            .from('courses')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (fallback.error) {
+            console.error('[Courses] Direct fetch failed:', fallback.error.message);
+            return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? fallback.error.message : undefined });
+        }
+        data = fallback.data || [];
+    }
     if (data) {
         data.forEach((c) => {
             if (Array.isArray(c.lectures)) {
                 c.lectures = c.lectures.filter((l) => !l.title?.startsWith('[FAILED'));
             }
+            else {
+                c.lectures = [];
+            }
+            if (!Array.isArray(c.past_papers)) {
+                c.past_papers = [];
+            }
         });
     }
-    res.json(data);
+    res.json(data || []);
 });
 router.get('/calendar-events', auth_1.authenticateUser, async (req, res) => {
     const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
