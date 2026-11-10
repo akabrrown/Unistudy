@@ -28,17 +28,32 @@ export function InstitutionSelect({ initialInstitution }: InstitutionSelectProps
 
 
       try {
-        const res = await fetch('/api/institutions/ghana')
-        if (!res.ok) throw new Error('Network response was not ok')
-        const data = await res.json()
-        const formatted = data.map((inst: any) => ({
-          id: inst.name,
+        const res = await fetch('/api/institutions?limit=100');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            const formatted = data.map((inst: any) => ({
+              id: inst.id,
+              name: inst.name,
+            }));
+            setInstitutions(formatted);
+            setLoading(false);
+            return;
+          }
+        }
+        // Fallback to Ghana proxy endpoint if primary database list is unreachable
+        const ghanaRes = await fetch('/api/institutions/ghana');
+        if (!ghanaRes.ok) throw new Error('Network response was not ok');
+        const ghanaData = await ghanaRes.json();
+        const list = Array.isArray(ghanaData) ? ghanaData : (ghanaData.universities || []);
+        const formatted = list.map((inst: any) => ({
+          id: inst.id || inst.name,
           name: inst.name,
-        }))
-        setInstitutions(formatted)
+        }));
+        setInstitutions(formatted);
       } catch (error) {
-        console.error('Failed to fetch institutions:', error)
-        setInstitutions([])
+        console.error('Failed to fetch institutions:', error);
+        setInstitutions([]);
       }
       setLoading(false)
     }

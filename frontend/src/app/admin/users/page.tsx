@@ -233,7 +233,7 @@ export default function AdminUsersPage() {
               {filteredAndSortedUsers.map((user) => {
                 const activeSub = Array.isArray(user.subscriptions) ? user.subscriptions.find((s: any) => s.status === 'active') : null;
                 const planName = activeSub ? activeSub.plan_id : (user.plan || 'free');
-                const institutionName = user.institutions?.name || user.university || (user.institution_id ? 'University of Professional Studies' : 'Not specified');
+                const institutionName = user.institutions?.name || user.university || (user.institution_id && !/^[0-9a-fA-F-]{36}$/.test(user.institution_id) ? user.institution_id : 'Not specified');
 
                 return (
                   <tr 
@@ -318,7 +318,7 @@ export default function AdminUsersPage() {
                     <div>
                       <span className="text-muted-foreground text-xs block mb-0.5">Institution</span>
                       <span className="font-medium text-foreground">
-                        {selectedUser.institutions?.name || selectedUser.university || (selectedUser.institution_id ? 'University of Professional Studies' : 'Not specified')}
+                        {selectedUser.institutions?.name || selectedUser.university || (selectedUser.institution_id && !/^[0-9a-fA-F-]{36}$/.test(selectedUser.institution_id) ? selectedUser.institution_id : 'Not specified')}
                         {selectedUser.institutions?.abbreviation ? ` (${selectedUser.institutions.abbreviation})` : ''}
                       </span>
                     </div>

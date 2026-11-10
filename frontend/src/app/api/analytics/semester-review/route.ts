@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     // 3. Fetch profile stats
     const { data: profile } = await supabase
       .from('profiles')
-      .select('study_streak, total_xp')
+      .select('study_streak')
       .eq('id', userId)
       .single();
 
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
       hardestLecture,
       bestQuiz: bestQuizScore,
       streak: profile?.study_streak || 0,
-      totalHours: Math.max(1, Math.round((profile?.total_xp || 0) / 100)),
+      totalHours: Math.max(1, (coursesCount || 1) * 4 + (quizzes?.length || 0) * 2),
     };
 
     let narrative: string;

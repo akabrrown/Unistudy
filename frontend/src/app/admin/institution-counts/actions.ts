@@ -1,6 +1,7 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/security/adminGuard';
 
 export interface InstitutionWithCount {
   id: string;
@@ -14,16 +15,23 @@ export interface InstitutionWithCount {
 
 export async function fetchInstitutionCountsAction(): Promise<{ data: InstitutionWithCount[]; error?: string }> {
   try {
-    const supabase = await createClient();
+    // 1. Guard server action so only verified admins can invoke
+    await requireAdmin();
+
+    // 2. Use admin service role client to aggregate platform-wide counts safely without RLS truncation
+    const supabaseAdmin = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     const [institutionsRes, profilesRes] = await Promise.all([
-      supabase
+      supabaseAdmin
         .from('institutions')
         .select('id, name, abbreviation, type, domain, verified')
         .order('name'),
-      supabase
+      supabaseAdmin
         .from('profiles')
-        .select('institution_id')
+        .select('institution_id, university')
     ]);
 
     if (institutionsRes.error) {
@@ -41,14 +49,20 @@ export async function fetchInstitutionCountsAction(): Promise<{ data: Institutio
           countsById.set(val, (countsById.get(val) || 0) + 1);
           countsByName.set(val.toLowerCase(), (countsByName.get(val.toLowerCase()) || 0) + 1);
         }
+        if (p.university) {
+          const uVal = p.university.trim().toLowerCase();
+          countsByName.set(uVal, (countsByName.get(uVal) || 0) + 1);
+        }
       }
     }
 
     const data: InstitutionWithCount[] = (institutionsRes.data || []).map((inst) => {
       const byId = countsById.get(inst.id) || 0;
       const byName = inst.name ? (countsByName.get(inst.name.toLowerCase().trim()) || 0) : 0;
-      // Prefer ID match; if user entered name as institution_id, use that
-      const studentCount = byId > 0 ? byId : byName;
+      const byAbbr = inst.abbreviation ? (countsByName.get(inst.abbreviation.toLowerCase().trim()) || 0) : 0;
+      
+      // Compute best matched student count
+      const studentCount = Math.max(byId, byName, byAbbr);
 
       return {
         id: inst.id,

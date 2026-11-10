@@ -87,6 +87,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function loadSettings() {
       try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          // No user session active; retain default settings without sending unauthenticated requests
+          setLoading(false);
+          return;
+        }
+
         const data = await apiFetch('/settings/accessibility');
         if (data && data.settings) {
           setSettings(data.settings);
