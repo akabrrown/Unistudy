@@ -4,16 +4,17 @@
     "slug": "unistudy-mobile",
     "version": "1.0.0",
     "scheme": "unistudy",
-    "orientation": "default",
+    "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash-new.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FAFAFA"
+      "backgroundColor": "#0B0814"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.unistudy.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +23,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.anonymous.unistudymobile"
+      "package": "com.unistudy.app"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -32,14 +33,10 @@
       "expo-router",
       "expo-secure-store",
       "expo-asset",
-      "expo-font",
-      "expo-sqlite"
+      "expo-font"
     ],
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "ae43c841-6601-4173-85aa-2002dc1761bd"
-      }
+      "router": {}
     }
   }
 }

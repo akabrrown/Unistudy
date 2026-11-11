@@ -1,396 +1,791 @@
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, useColorScheme, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  ScrollView,
+  RefreshControl,
+  Animated,
+  Dimensions,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSettings } from '../../lib/SettingsContext';
+import { apiFetch } from '../../lib/api';
+import { OfflineManager, PendingRating } from '../../lib/offline';
+import { resolveCourseColor } from '../../lib/constants/courses';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useEffect } from 'react';
-import { useAuth } from '../../lib/AuthContext';
-import { supabase } from '../../lib/supabase';
-import { Colors, useThemeColors } from '../../constants/Colors';
-import Constants from 'expo-constants';
 
-// Simplified SM2 constants for mobile offline-first
-function calculateNextReview(current: any, rating: 'hard'|'good'|'easy') {
-  let { ease_factor, interval_days, repetitions } = current;
-  
-  if (rating === 'hard') {
-    repetitions = 0;
-    interval_days = 1;
-    ease_factor = Math.max(1.3, ease_factor - 0.2);
-  } else if (rating === 'good') {
-    repetitions += 1;
-    if (repetitions === 1) interval_days = 1;
-    else if (repetitions === 2) interval_days = 6;
-    else interval_days = Math.round(interval_days * ease_factor);
-  } else if (rating === 'easy') {
-    repetitions += 1;
-    if (repetitions === 1) interval_days = 4;
-    else if (repetitions === 2) interval_days = 10;
-    else {
-      ease_factor += 0.15;
-      interval_days = Math.round(interval_days * ease_factor * 1.3);
-    }
-  }
+const { width } = Dimensions.get('window');
 
-  const nextDate = new Date();
-  nextDate.setDate(nextDate.getDate() + interval_days);
-  
-  return { ease_factor, interval_days, repetitions, next_review: nextDate.toISOString() };
+interface Flashcard {
+  id: string;
+  question: string;
+  answer: string;
+  lecture_id?: string;
+  course_id?: string;
+  course_code?: string;
+  course_colour?: string;
+  ease_factor?: number;
+  interval_days?: number;
+  repetitions?: number;
+  next_review?: string;
 }
 
 export default function FlashcardsScreen() {
-  const { user, loading: authLoading } = useAuth();
-  const [cards, setCards] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [flipped, setFlipped] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const { colors } = useSettings();
 
-  const theme = useColorScheme() ?? 'light';
-  const colors = useThemeColors();
-  const styles = getStyles(colors, theme === 'dark');
+  const [cards, setCards] = useState<Flashcard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [filterCourse, setFilterCourse] = useState<string>('all');
+
+  // Study Session State
+  const [isStudying, setIsStudying] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [studySessionCompleted, setStudySessionCompleted] = useState(false);
+  const [sessionReviewedCount, setSessionReviewedCount] = useState(0);
+
+  // Flip Animation
+  const [flipAnim] = useState(new Animated.Value(0));
+
+  const loadFlashcards = useCallback(async () => {
+    try {
+      // 1. Sync pending offline ratings first
+      await OfflineManager.syncPendingRatings();
+
+      // 2. Fetch due flashcards from backend
+      const res = await apiFetch('/flashcards?due=true');
+      const loadedCards: Flashcard[] = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      setCards(loadedCards);
+      await OfflineManager.cacheFlashcards(loadedCards);
+    } catch (e: any) {
+      console.warn('Network fetch failed, reading from offline cache:', e.message);
+      const cached = await OfflineManager.getCachedFlashcards();
+      if (cached.length > 0) {
+        setCards(cached);
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (authLoading || !user) return;
-    
-    async function fetchCards() {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+    loadFlashcards();
+  }, [loadFlashcards]);
 
-        const debuggerHost = Constants.expoConfig?.hostUri;
-        const localIp = debuggerHost?.split(':')[0];
-        
-        let baseUrl = 'https://unistudy-ai.vercel.app';
-        if (localIp) {
-          if (localIp.includes('exp.direct') || localIp.includes('ngrok')) {
-            // Tunneling Metro, but backend is separate. Fallback to 10.0.2.2 for emulator
-            baseUrl = Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
-          } else {
-            baseUrl = `http://${localIp}:8000`;
-          }
-        }
-
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData?.session?.access_token;
-
-        const res = await fetch(`${baseUrl}/api/cards`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        const contentType = res.headers.get("content-type");
-        if (res.ok && contentType && contentType.indexOf("application/json") !== -1) {
-          const json = await res.json();
-          setCards(json.data || []);
-        } else {
-          console.log('Flashcards API returned non-JSON or error status', res.status);
-        }
-      } catch (err) {
-        console.log('Error fetching cards (timeout or offline):', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchCards();
-  }, [user, authLoading]);
-
-  const handleReview = async (rating: 'hard'|'good'|'easy') => {
-    if (submitting) return;
-    setSubmitting(true);
-    
-    const card = cards[currentIndex];
-    const isQuiz = card.type === 'quiz';
-    
-    if (isQuiz) {
-      // For quizzes, just record attempt
-      const debuggerHost = Constants.expoConfig?.hostUri;
-      const localIp = debuggerHost?.split(':')[0];
-      
-      let baseUrl = 'https://unistudy-ai.vercel.app';
-      if (localIp) {
-        if (localIp.includes('exp.direct') || localIp.includes('ngrok')) {
-          baseUrl = Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
-        } else {
-          baseUrl = `http://${localIp}:8000`;
-        }
-      }
-
-      const { data: sessionData } = await supabase.auth.getSession();
-      
-      await fetch(`${baseUrl}/api/quizzes/attempt`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${sessionData?.session?.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ questionId: card.id, isCorrect: rating !== 'hard' })
-      });
-    } else {
-      const nextData = calculateNextReview({
-        ease_factor: card.ease_factor || 2.5,
-        interval_days: card.interval_days || 1,
-        repetitions: card.repetitions || 0
-      }, rating);
-
-      const { error } = await supabase
-        .from('flashcards')
-        .update({
-          ease_factor: nextData.ease_factor,
-          interval_days: nextData.interval_days,
-          repetitions: nextData.repetitions,
-          next_review: nextData.next_review,
-          last_rating: rating === 'hard' ? 1 : rating === 'good' ? 4 : 5
-        })
-        .eq('id', card.id);
-
-      if (error) {
-        Alert.alert('Error', 'Failed to save review');
-        setSubmitting(false);
-        return;
-      }
-    }
-
-    // Award XP
-    const { data: profile } = await supabase.from('profiles').select('total_xp').eq('id', user?.id).single();
-    if (profile) {
-      await supabase.from('profiles').update({ total_xp: profile.total_xp + 5 }).eq('id', user?.id);
-    }
-    
-    setFlipped(false);
-    if (currentIndex < cards.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    } else {
-      // Refresh cards
-      setCards([]);
-    }
-    setSubmitting(false);
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadFlashcards();
   };
 
-
-  if (loading || authLoading) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.tint} />
-      </View>
-    );
-  }
-
-  if (cards.length === 0 || currentIndex >= cards.length) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Ionicons name="checkmark-circle" size={80} color={colors.success} />
-        <Text style={styles.doneTitle}>You're all caught up!</Text>
-        <Text style={styles.doneSub}>Awesome job. Check back tomorrow for more reviews.</Text>
-        
-        <TouchableOpacity 
-          style={{ marginTop: 32, paddingHorizontal: 24, paddingVertical: 14, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}
-          onPress={() => {
-            Alert.alert(
-              'Regenerate Flashcards',
-              'This will clear your current flashcards. Proceed?',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { 
-                  text: 'Regenerate', 
-                  style: 'destructive',
-                  onPress: async () => {
-                    setLoading(true);
-                    await supabase.from('flashcards').delete().eq('user_id', user?.id);
-                    Alert.alert('Cleared!', 'Please visit the web dashboard to generate new flashcards from your slide decks.');
-                    setLoading(false);
-                  }
-                }
-              ]
-            );
-          }}
-        >
-          <Ionicons name="refresh" size={20} color={colors.tint} style={{ marginRight: 8 }} />
-          <Text style={{ color: colors.tint, fontWeight: 'bold', fontSize: 16 }}>Regenerate Flashcards</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  const handleFlip = () => {
+    if (isFlipped) {
+      Animated.spring(flipAnim, {
+        toValue: 0,
+        friction: 8,
+        tension: 10,
+        useNativeDriver: true,
+      }).start();
+      setIsFlipped(false);
+    } else {
+      Animated.spring(flipAnim, {
+        toValue: 180,
+        friction: 8,
+        tension: 10,
+        useNativeDriver: true,
+      }).start();
+      setIsFlipped(true);
+    }
+  };
 
   const currentCard = cards[currentIndex];
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.badge}>
-          <Ionicons name="cloud-done" size={16} color={colors.success} />
-          <Text style={styles.badgeText}>Synced</Text>
-        </View>
-        <Text style={styles.count}>{currentIndex + 1}/{cards.length} Due</Text>
-      </View>
+  const handleRateCard = async (rating: number) => {
+    if (!currentCard) return;
 
-      <TouchableOpacity 
-        style={styles.flashcard}
-        activeOpacity={0.9}
-        onPress={() => !submitting && setFlipped(!flipped)}
-        disabled={submitting}
-      >
-        <View style={styles.cardInner}>
-          {!flipped ? (
-            <View style={styles.cardContent}>
-              <Text style={styles.cardLabel}>{currentCard.type === 'quiz' ? 'QUIZ QUESTION' : 'QUESTION'}</Text>
-              <Text style={styles.cardText}>{currentCard.front || currentCard.question}</Text>
+    const ease = currentCard.ease_factor || 2.5;
+    const interval = currentCard.interval_days || 1;
+    const reps = currentCard.repetitions || 0;
+
+    const pendingItem: PendingRating = {
+      cardId: currentCard.id,
+      rating,
+      currentData: {
+        ease_factor: ease,
+        interval_days: interval,
+        repetitions: reps,
+      },
+      timestamp: Date.now(),
+    };
+
+    // Optimistically update
+    setSessionReviewedCount(prev => prev + 1);
+
+    try {
+      const isOnline = await OfflineManager.isOnline();
+      if (isOnline) {
+        await apiFetch('/flashcards/review', {
+          method: 'POST',
+          body: JSON.stringify({
+            cardId: currentCard.id,
+            rating,
+            currentData: pendingItem.currentData,
+          }),
+        });
+      } else {
+        await OfflineManager.recordRatingOffline(pendingItem);
+      }
+    } catch {
+      await OfflineManager.recordRatingOffline(pendingItem);
+    }
+
+    // Move to next card
+    if (currentIndex + 1 < cards.length) {
+      setIsFlipped(false);
+      flipAnim.setValue(0);
+      setCurrentIndex(prev => prev + 1);
+    } else {
+      setStudySessionCompleted(true);
+    }
+  };
+
+  const startReview = () => {
+    if (cards.length === 0) return;
+    setCurrentIndex(0);
+    setIsFlipped(false);
+    flipAnim.setValue(0);
+    setSessionReviewedCount(0);
+    setStudySessionCompleted(false);
+    setIsStudying(true);
+  };
+
+  const exitReview = () => {
+    setIsStudying(false);
+    loadFlashcards();
+  };
+
+  const frontInterpolate = flipAnim.interpolate({
+    inputRange: [0, 180],
+    outputRange: ['0deg', '180deg'],
+  });
+
+  const backInterpolate = flipAnim.interpolate({
+    inputRange: [0, 180],
+    outputRange: ['180deg', '360deg'],
+  });
+
+  // Extract unique courses for filter
+  const courseOptions = Array.from(new Set(cards.map(c => c.course_code).filter(Boolean)));
+
+  const filteredCards = filterCourse === 'all'
+    ? cards
+    : cards.filter(c => c.course_code === filterCourse);
+
+  // Study View
+  if (isStudying) {
+    if (studySessionCompleted) {
+      return (
+        <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bgPage }]}>
+          <View style={styles.completedContainer}>
+            <View style={[styles.celebrationBadge, { backgroundColor: '#10B98125' }]}>
+              <Ionicons name="trophy" size={56} color="#10B981" />
             </View>
+            <Text style={[styles.completedTitle, { color: colors.textPrimary }]}>Session Complete!</Text>
+            <Text style={[styles.completedSubtitle, { color: colors.textSecondary }]}>
+              You reviewed {sessionReviewedCount} cards today. Your memory retention is stronger!
+            </Text>
+            <View style={[styles.rewardCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+              <Ionicons name="sparkles" size={24} color={colors.primaryViolet} />
+              <Text style={[styles.rewardText, { color: colors.textPrimary }]}>
+                +{(sessionReviewedCount * 5)} Knowledge Points (XP)
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.finishBtn, { backgroundColor: colors.primaryViolet }]}
+              onPress={exitReview}
+            >
+              <Text style={styles.finishBtnText}>Return to Decks</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      );
+    }
+
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bgPage }]}>
+        {/* Study Top Bar */}
+        <View style={styles.studyHeader}>
+          <TouchableOpacity onPress={exitReview} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="close" size={26} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <View style={styles.progressContainer}>
+            <View style={[styles.progressBarTrack, { backgroundColor: colors.bgSubtle }]}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    backgroundColor: colors.primaryViolet,
+                    width: `${((currentIndex + 1) / cards.length) * 100}%`,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={[styles.progressText, { color: colors.textSecondary }]}>
+              {currentIndex + 1} of {cards.length}
+            </Text>
+          </View>
+          <View style={{ width: 26 }} />
+        </View>
+
+        {/* Flip Flashcard */}
+        <View style={styles.cardArea}>
+          <TouchableOpacity activeOpacity={1} onPress={handleFlip} style={styles.cardTouch}>
+            {/* Front Card */}
+            <Animated.View
+              style={[
+                styles.flipCard,
+                styles.flipCardFront,
+                {
+                  backgroundColor: colors.bgCard,
+                  borderColor: isFlipped ? 'transparent' : colors.border,
+                  transform: [{ rotateY: frontInterpolate }],
+                  backfaceVisibility: 'hidden',
+                },
+              ]}
+            >
+              {currentCard?.course_code && (
+                <View style={[styles.cardCourseBadge, { backgroundColor: colors.bgSubtle }]}>
+                  <Text style={[styles.cardCourseText, { color: colors.primaryViolet }]}>
+                    {currentCard.course_code}
+                  </Text>
+                </View>
+              )}
+              <Text style={[styles.cardPromptLabel, { color: colors.textMuted }]}>QUESTION</Text>
+              <Text style={[styles.cardQuestionText, { color: colors.textPrimary }]}>
+                {currentCard?.question}
+              </Text>
+              <View style={styles.tapToFlipHint}>
+                <Ionicons name="sync" size={14} color={colors.textMuted} style={{ marginRight: 6 }} />
+                <Text style={[styles.tapToFlipText, { color: colors.textMuted }]}>Tap card to flip answer</Text>
+              </View>
+            </Animated.View>
+
+            {/* Back Card */}
+            <Animated.View
+              style={[
+                styles.flipCard,
+                styles.flipCardBack,
+                {
+                  backgroundColor: colors.bgCard,
+                  borderColor: isFlipped ? colors.primaryViolet : colors.border,
+                  transform: [{ rotateY: backInterpolate }],
+                  backfaceVisibility: 'hidden',
+                },
+              ]}
+            >
+              <Text style={[styles.cardPromptLabel, { color: colors.primaryViolet }]}>ANSWER</Text>
+              <ScrollView style={styles.answerScroll} contentContainerStyle={{ paddingBottom: 10 }}>
+                <Text style={[styles.cardAnswerText, { color: colors.textPrimary }]}>
+                  {currentCard?.answer}
+                </Text>
+              </ScrollView>
+              <View style={styles.tapToFlipHint}>
+                <Ionicons name="sync" size={14} color={colors.textMuted} style={{ marginRight: 6 }} />
+                <Text style={[styles.tapToFlipText, { color: colors.textMuted }]}>Tap to flip back</Text>
+              </View>
+            </Animated.View>
+          </TouchableOpacity>
+        </View>
+
+        {/* SM-2 Rating Buttons */}
+        <View style={styles.ratingsContainer}>
+          <Text style={[styles.rateTitle, { color: colors.textSecondary }]}>
+            {isFlipped ? 'How well did you know this?' : 'Flip card to rate recall'}
+          </Text>
+          <View style={styles.ratingsRow}>
+            {[
+              { label: 'Again', rating: 1, color: '#EF4444', desc: '< 10m' },
+              { label: 'Hard', rating: 3, color: '#F59E0B', desc: '1 day' },
+              { label: 'Good', rating: 4, color: '#3B82F6', desc: '3 days' },
+              { label: 'Easy', rating: 5, color: '#10B981', desc: '7 days' },
+            ].map(r => (
+              <TouchableOpacity
+                key={r.label}
+                style={[
+                  styles.rateBtn,
+                  { backgroundColor: colors.bgCard, borderColor: r.color },
+                  !isFlipped && styles.rateBtnDisabled,
+                ]}
+                onPress={() => isFlipped && handleRateCard(r.rating)}
+                disabled={!isFlipped}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.rateBtnLabel, { color: r.color }]}>{r.label}</Text>
+                <Text style={[styles.rateBtnDesc, { color: colors.textMuted }]}>{r.desc}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Decks & Overview Screen
+  return (
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bgPage }]} edges={['top']}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primaryViolet} />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>Spaced Repetition</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              Scientific SM-2 algorithm to guarantee long-term exam recall.
+            </Text>
+          </View>
+        </View>
+
+        {/* Due Cards Summary Banner */}
+        <View style={[styles.summaryCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+          <View style={styles.summaryTop}>
+            <View>
+              <Text style={[styles.dueNumber, { color: colors.primaryViolet }]}>{cards.length}</Text>
+              <Text style={[styles.dueLabel, { color: colors.textPrimary }]}>Flashcards Ready For Review</Text>
+            </View>
+            <View style={[styles.dueIconWrap, { backgroundColor: colors.primaryViolet + '20' }]}>
+              <Ionicons name="albums" size={32} color={colors.primaryViolet} />
+            </View>
+          </View>
+
+          {cards.length > 0 ? (
+            <TouchableOpacity
+              style={[styles.startSessionBtn, { backgroundColor: colors.primaryViolet }]}
+              onPress={startReview}
+            >
+              <Ionicons name="play" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.startSessionText}>Start Daily Review ({cards.length})</Text>
+            </TouchableOpacity>
           ) : (
-            <View style={[styles.cardContent, styles.cardContentBack]}>
-              <Text style={[styles.cardLabel, { color: colors.tint }]}>ANSWER</Text>
-              <Text style={styles.cardText}>{currentCard.back || currentCard.correct_answer}</Text>
-              {currentCard.type === 'quiz' && currentCard.explanation && (
-                <Text style={styles.explanation}>{currentCard.explanation}</Text>
-              )}
-              {currentCard.tags && currentCard.tags.length > 0 && (
-                <Text style={styles.explanation}>Tags: {currentCard.tags.join(', ')}</Text>
-              )}
+            <View style={styles.allDoneNotice}>
+              <Ionicons name="checkmark-circle" size={20} color="#10B981" style={{ marginRight: 6 }} />
+              <Text style={{ color: '#10B981', fontWeight: '700' }}>All caught up! Check back tomorrow.</Text>
             </View>
           )}
-          <Text style={styles.tapToFlip}>{submitting ? 'Saving...' : 'Tap to flip'}</Text>
         </View>
-      </TouchableOpacity>
 
-      {flipped && !submitting && (
-        <View style={styles.actions}>
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme === 'dark' ? '#3B1D1D' : '#FFEBEE' }]} onPress={() => handleReview('hard')}>
-            <Text style={[styles.actionText, { color: colors.destructive }]}>Hard</Text>
-            <Text style={styles.actionSub}>&lt; 1m</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme === 'dark' ? '#3E2723' : '#FFF3E0' }]} onPress={() => handleReview('good')}>
-            <Text style={[styles.actionText, { color: colors.warning }]}>Good</Text>
-            <Text style={styles.actionSub}>Medium</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme === 'dark' ? '#1B5E20' : '#E8F5E9' }]} onPress={() => handleReview('easy')}>
-            <Text style={[styles.actionText, { color: colors.success }]}>Easy</Text>
-            <Text style={styles.actionSub}>Longer</Text>
-          </TouchableOpacity>
+        {/* Course Filter Pills */}
+        {courseOptions.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPills}>
+            <TouchableOpacity
+              style={[
+                styles.pill,
+                {
+                  backgroundColor: filterCourse === 'all' ? colors.primaryViolet : colors.bgCard,
+                  borderColor: filterCourse === 'all' ? colors.primaryViolet : colors.border,
+                },
+              ]}
+              onPress={() => setFilterCourse('all')}
+            >
+              <Text style={{ color: filterCourse === 'all' ? '#FFFFFF' : colors.textPrimary, fontWeight: '600' }}>
+                All Courses ({cards.length})
+              </Text>
+            </TouchableOpacity>
+
+            {courseOptions.map(code => {
+              const count = cards.filter(c => c.course_code === code).length;
+              const active = filterCourse === code;
+              return (
+                <TouchableOpacity
+                  key={code}
+                  style={[
+                    styles.pill,
+                    {
+                      backgroundColor: active ? colors.primaryViolet : colors.bgCard,
+                      borderColor: active ? colors.primaryViolet : colors.border,
+                    },
+                  ]}
+                  onPress={() => setFilterCourse(code!)}
+                >
+                  <Text style={{ color: active ? '#FFFFFF' : colors.textPrimary, fontWeight: '600' }}>
+                    {code} ({count})
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
+        {/* Cards Preview List */}
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Queue Preview</Text>
+          <Text style={[styles.countText, { color: colors.textMuted }]}>{filteredCards.length} cards</Text>
         </View>
-      )}
-    </View>
+
+        {loading ? (
+          <ActivityIndicator size="small" color={colors.primaryViolet} style={{ marginVertical: 30 }} />
+        ) : filteredCards.length === 0 ? (
+          <View style={[styles.emptyCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+            <Ionicons name="sparkles-outline" size={36} color={colors.primaryViolet} style={{ marginBottom: 10 }} />
+            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No cards in review queue</Text>
+            <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
+              Flashcards are automatically generated from your lecture slides. Upload your syllabus or slide decks to create your deck!
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.cardList}>
+            {filteredCards.slice(0, 10).map((card, idx) => (
+              <View
+                key={card.id || idx}
+                style={[styles.cardItem, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+              >
+                <View style={styles.cardItemHeader}>
+                  <Text style={[styles.cardItemCode, { color: colors.primaryViolet }]}>
+                    {card.course_code || 'MODULE'}
+                  </Text>
+                  <Text style={[styles.cardItemIndex, { color: colors.textMuted }]}>#{idx + 1}</Text>
+                </View>
+                <Text style={[styles.cardItemQ, { color: colors.textPrimary }]} numberOfLines={2}>
+                  {card.question}
+                </Text>
+                <Text style={[styles.cardItemA, { color: colors.textSecondary }]} numberOfLines={2}>
+                  {card.answer}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
-  container: {
+const styles = StyleSheet.create({
+  safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
+  },
+  scrollContent: {
     padding: 20,
-    justifyContent: 'center',
-  },
-  doneTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginTop: 20,
-    marginBottom: 8,
-  },
-  doneSub: {
-    fontSize: 16,
-    color: colors.textMuted,
-    textAlign: 'center',
-    paddingHorizontal: 32,
+    paddingBottom: 40,
   },
   header: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    right: 20,
+    marginBottom: 18,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  summaryCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 20,
+    marginBottom: 20,
+  },
+  summaryTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 16,
   },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.input,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+  dueNumber: {
+    fontSize: 38,
+    fontWeight: '900',
+    lineHeight: 44,
   },
-  badgeText: {
-    marginLeft: 6,
-    fontSize: 12,
-    color: colors.textMuted,
-    fontWeight: '600',
-  },
-  count: {
+  dueLabel: {
     fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.textMuted,
+    fontWeight: '700',
+    marginTop: 2,
   },
-  flashcard: {
-    height: 400,
-    backgroundColor: colors.card,
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: isDark ? 0.3 : 0.1,
-    shadowRadius: 16,
-    elevation: 8,
-    marginBottom: 40,
-  },
-  cardInner: {
-    flex: 1,
-    padding: 32,
-    justifyContent: 'space-between',
-  },
-  cardContent: {
-    flex: 1,
+  dueIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    alignItems: 'center',
     justifyContent: 'center',
+  },
+  startSessionBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    height: 50,
+    borderRadius: 14,
   },
-  cardContentBack: {
-    backgroundColor: colors.background,
-    margin: -32,
-    padding: 32,
-    borderRadius: 24,
+  startSessionText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 15,
   },
-  cardLabel: {
+  allDoneNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  filterPills: {
+    gap: 8,
+    marginBottom: 20,
+  },
+  pill: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  countText: {
+    fontSize: 13,
+  },
+  emptyCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 24,
+    alignItems: 'center',
+    textAlign: 'center',
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  emptyDesc: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    maxWidth: 260,
+  },
+  cardList: {
+    gap: 12,
+  },
+  cardItem: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+  },
+  cardItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cardItemCode: {
     fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.textMuted,
-    letterSpacing: 2,
-    marginBottom: 24,
+    fontWeight: '700',
   },
-  cardText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.text,
-    textAlign: 'center',
+  cardItemIndex: {
+    fontSize: 12,
   },
-  explanation: {
-    fontSize: 14,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: 24,
+  cardItemQ: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 6,
     lineHeight: 20,
   },
-  tapToFlip: {
-    textAlign: 'center',
-    color: colors.textMuted,
-    fontSize: 14,
+  cardItemA: {
+    fontSize: 13,
+    lineHeight: 18,
   },
-  actions: {
+
+  // Study View Styles
+  studyHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 10,
-  },
-  actionBtn: {
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 16,
-    width: '30%',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
-  actionText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  progressContainer: {
+    flex: 1,
+    marginHorizontal: 16,
+    alignItems: 'center',
+  },
+  progressBarTrack: {
+    width: '100%',
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
     marginBottom: 4,
   },
-  actionSub: {
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  cardArea: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    marginVertical: 10,
+  },
+  cardTouch: {
+    width: width - 40,
+    height: 380,
+  },
+  flipCard: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    borderRadius: 24,
+    borderWidth: 2,
+    padding: 24,
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  flipCardFront: {},
+  flipCardBack: {},
+  cardCourseBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  cardCourseText: {
     fontSize: 12,
-    color: colors.textMuted,
-  }
+    fontWeight: '700',
+  },
+  cardPromptLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  cardQuestionText: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 28,
+  },
+  answerScroll: {
+    flex: 1,
+    marginVertical: 10,
+  },
+  cardAnswerText: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  tapToFlipHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tapToFlipText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  ratingsContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+  },
+  rateTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  ratingsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  rateBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rateBtnDisabled: {
+    opacity: 0.35,
+  },
+  rateBtnLabel: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  rateBtnDesc: {
+    fontSize: 10,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  completedContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+  },
+  celebrationBadge: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  completedTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  completedSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  rewardCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 10,
+    marginBottom: 32,
+  },
+  rewardText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  finishBtn: {
+    width: '100%',
+    height: 52,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  finishBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
 });

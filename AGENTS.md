@@ -3,7 +3,7 @@
 ## 1. Authentication & Credentials
 - All user passwords must be hashed using bcrypt (cost >= 10) via Supabase GoTrue.
 - Server-side Zod validation is mandatory on all auth server actions (`login`, `signup`, `resetPassword`).
-- Login attempts are rate-limited to 5 attempts per 15 minutes per IP/email.
+c- Login attempts are rate-limited to 5 attempts per 15 minutes per IP/email.
 - Signup attempts are rate-limited to 5 accounts per 15 minutes per IP.
 - Passwords must be checked against HaveIBeenPwned API before signup/reset to reject breached credentials.
 - Passwords must be between 8 and 128 characters (protects against bcrypt 72-byte truncation issues and ReDoS).

@@ -20,3 +20,4 @@ export async function GET() {
     return NextResponse.json({ accessToken: null, error: err.message }, { status: 500 });
   }
 }
+

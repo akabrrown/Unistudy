@@ -1,614 +1,334 @@
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, useColorScheme, Modal, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useAuth } from '../../lib/AuthContext';
-import { useQuery, usePowerSync } from '@powersync/react-native';
-import { supabase } from '../../lib/supabase';
-import { Colors, useThemeColors } from '../../constants/Colors';
-import NetInfo from '@react-native-community/netinfo';
-import { isCourseDownloaded, downloadCourse, removeDownloadedCourse } from '../../lib/sync';
-import { getDb } from '../../lib/db';
-import * as DocumentPicker from 'expo-document-picker';
-import Constants from 'expo-constants';
-import { CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from '../../utils/cloudinary';
+import { useSettings } from '../../lib/SettingsContext';
+import { apiFetch } from '../../lib/api';
+import { resolveCourseColor } from '../../lib/constants/courses';
+import { Ionicons } from '@expo/vector-icons';
 
-export default function CourseDetailScreen() {
-  const router = useRouter();
+interface Lecture {
+  id: string;
+  course_id: string;
+  title: string;
+  lecture_number?: number;
+  slide_count?: number;
+  slides?: any[];
+  created_at?: string;
+}
+
+interface CourseDetails {
+  id: string;
+  course_code: string;
+  title: string;
+  semester?: number;
+  year?: number;
+  colour?: string;
+  lectures?: Lecture[];
+}
+
+export default function CourseDetailsScreen() {
   const { courseId } = useLocalSearchParams<{ courseId: string }>();
-  const theme = useColorScheme() ?? 'light';
-  const colors = useThemeColors();
-  const isDark = theme === 'dark';
-  const styles = getStyles(colors, isDark);
+  const { colors } = useSettings();
+  const router = useRouter();
 
-  const powersync = usePowerSync();
-  const { data: coursesData, isLoading: isCourseLoading } = useQuery('SELECT * FROM courses WHERE id = ?', [courseId]);
-  const course = coursesData?.[0];
+  const [course, setCourse] = useState<CourseDetails | null>(null);
+  const [lectures, setLectures] = useState<Lecture[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { data: lectures, isLoading: isLecturesLoading } = useQuery('SELECT * FROM lectures WHERE course_id = ? ORDER BY created_at DESC', [courseId]);
+  const fetchCourseData = useCallback(async () => {
+    if (!courseId) return;
+    try {
+      const [courseData, lecturesData] = await Promise.allSettled([
+        apiFetch(`/courses/${courseId}`),
+        apiFetch(`/lectures?courseId=${courseId}`),
+      ]);
 
-  const loading = isCourseLoading || (isLecturesLoading && lectures.length === 0);
-  const [downloading, setDownloading] = useState(false);
-  const [isDownloaded, setIsDownloaded] = useState(false);
-  const { user } = useAuth();
-
-  const [uploadModalVisible, setUploadModalVisible] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<any>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-
-  const checkDownloaded = async () => {
-    const downloaded = await isCourseDownloaded(courseId);
-    setIsDownloaded(downloaded);
-  };
-
-  useEffect(() => {
-    if (courseId) checkDownloaded();
+      if (courseData.status === 'fulfilled' && courseData.value) {
+        setCourse(courseData.value);
+      }
+      if (lecturesData.status === 'fulfilled' && Array.isArray(lecturesData.value)) {
+        setLectures(lecturesData.value);
+      }
+    } catch (e: any) {
+      console.warn('Failed to fetch course details:', e.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, [courseId]);
 
-  const handlePickFile = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.ms-powerpoint'],
-        copyToCacheDirectory: true,
-      });
+  useEffect(() => {
+    fetchCourseData();
+  }, [fetchCourseData]);
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        setSelectedFile(result.assets[0]);
-      }
-    } catch (err) {
-      console.error(err);
-      Alert.alert('Error', 'Failed to pick file.');
-    }
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchCourseData();
   };
 
-  const handleUploadLecture = async () => {
-    if (!selectedFile || !user) return;
-
-    setIsUploading(true);
-    try {
-      // 1. Create Placeholder
-      const { data: newLecture, error: insertError } = await supabase
-        .from('lectures')
-        .insert({
-          course_id: courseId,
-          title: selectedFile.name,
-          file_url: '',
-        })
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-
-      // 2. Upload to Cloudinary
-      const formDataCloudinary = new FormData();
-      formDataCloudinary.append('file', {
-        uri: selectedFile.uri,
-        name: selectedFile.name,
-        type: selectedFile.mimeType || 'application/pdf',
-      } as any);
-      formDataCloudinary.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-
-      const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`;
-      const cloudRes = await fetch(uploadUrl, {
-        method: 'POST',
-        body: formDataCloudinary,
-      });
-
-      const cloudData = await cloudRes.json();
-      if (!cloudRes.ok) throw new Error(cloudData.error?.message || 'Failed to upload to Cloudinary');
-
-      // 3. Update Lecture
-      await supabase
-        .from('lectures')
-        .update({ file_url: cloudData.secure_url })
-        .eq('id', newLecture.id);
-
-      // 4. Send to FastAPI
-      setIsUploading(false);
-      setIsProcessing(true);
-
-      const formDataFastAPI = new FormData();
-      formDataFastAPI.append('file', {
-        uri: selectedFile.uri,
-        name: selectedFile.name,
-        type: selectedFile.mimeType || 'application/pdf',
-      } as any);
-      formDataFastAPI.append('lecture_id', newLecture.id);
-      formDataFastAPI.append('user_id', user.id);
-
-      const debuggerHost = Constants.expoConfig?.hostUri;
-      const localIp = debuggerHost?.split(':')[0];
-      const fastApiUrl = localIp 
-        ? `http://${localIp}:8000/convert` 
-        : (Platform.OS === 'android' ? 'http://10.0.2.2:8000/convert' : 'http://localhost:8000/convert');
-
-      const convertRes = await fetch(fastApiUrl, {
-        method: 'POST',
-        body: formDataFastAPI,
-      });
-
-      if (!convertRes.ok) {
-        const errText = await convertRes.text();
-        throw new Error(`Conversion failed: ${errText}`);
-      }
-
-      Alert.alert('Success', 'Lecture uploaded and processed successfully!');
-      setUploadModalVisible(false);
-      setSelectedFile(null);
-    } catch (err: any) {
-      console.error(err);
-      Alert.alert('Error', err.message);
-    } finally {
-      setIsUploading(false);
-      setIsProcessing(false);
-    }
-  };
-
-  const deleteLecture = async (id: string) => {
-    Alert.alert('Confirm Delete', 'Are you sure you want to delete this lecture?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            await powersync.execute('DELETE FROM lectures WHERE id = ?', [id]);
-          } catch (err: any) {
-            Alert.alert('Error', err.message);
-          }
-        }
-      }
-    ]);
-  };
-
-  const handleLectureOptions = (lecture: any) => {
-    Alert.alert(
-      lecture.title || 'Lecture Options',
-      'Choose an action',
-      [
-        { text: 'Delete', onPress: () => deleteLecture(lecture.id), style: 'destructive' },
-        { text: 'Cancel', style: 'cancel' }
-      ],
-      { cancelable: true }
-    );
-  };
-
-  const toggleSelection = (id: string) => {
-    setSelectedIds(prev => {
-      if (prev.includes(id)) {
-        const next = prev.filter(i => i !== id);
-        if (next.length === 0) setSelectionMode(false);
-        return next;
-      }
-      return [...prev, id];
-    });
-  };
-
-  const handlePress = (item: any) => {
-    if (selectionMode) {
-      toggleSelection(item.id);
-    } else {
-      router.push(`/lecture/${item.id}`);
-    }
-  };
-
-  const handleLongPress = (item: any) => {
-    if (!selectionMode) {
-      setSelectionMode(true);
-      setSelectedIds([item.id]);
-    }
-  };
-
-  const handleBulkDelete = () => {
-    if (selectedIds.length === 0) return;
-    Alert.alert('Bulk Delete', `Are you sure you want to delete ${selectedIds.length} lecture${selectedIds.length > 1 ? 's' : ''}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            for (const id of selectedIds) {
-              await powersync.execute('DELETE FROM lectures WHERE id = ?', [id]);
-            }
-            setSelectionMode(false);
-            setSelectedIds([]);
-          } catch (err: any) {
-            Alert.alert('Error', err.message);
-          }
-        }
-      }
-    ]);
-  };
-
-  const handleDownloadToggle = async () => {
-    if (isDownloaded) {
-      const success = await removeDownloadedCourse(courseId);
-      if (success) setIsDownloaded(false);
-    } else {
-      setDownloading(true);
-      try {
-        await downloadCourse(courseId);
-        setIsDownloaded(true);
-      } catch (err) {
-        console.error(err);
-      }
-      setDownloading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.tint} />
-      </View>
-    );
-  }
-
-  if (!course) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: colors.textMuted, fontSize: 16 }}>Course not found.</Text>
-      </View>
-    );
-  }
+  const ribbonColor = resolveCourseColor(course?.colour);
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.downloadBtn, isDownloaded && styles.downloadedBtn]} 
-            onPress={handleDownloadToggle}
-            disabled={downloading}
-          >
-            {downloading ? (
-              <ActivityIndicator size="small" color={colors.tint} />
-            ) : (
-              <Ionicons 
-                name={isDownloaded ? "checkmark-circle" : "cloud-download-outline"} 
-                size={22} 
-                color={isDownloaded ? "#4CAF50" : colors.tint} 
-              />
-            )}
-          </TouchableOpacity>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.bgPage }]}
+      contentContainerStyle={styles.scrollContent}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primaryViolet} />
+      }
+    >
+      {loading ? (
+        <View style={styles.centerBox}>
+          <ActivityIndicator size="large" color={colors.primaryViolet} />
         </View>
-        <View style={styles.headerInfo}>
-          <Text style={styles.courseCode}>{course.course_code || 'Course'}</Text>
-          <Text style={styles.courseTitle} numberOfLines={2}>{course.title}</Text>
-          <Text style={styles.lectureCount}>{lectures.length} lecture{lectures.length !== 1 ? 's' : ''}</Text>
-        </View>
-      </View>
-
-      {/* Lectures list */}
-      {lectures.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="document-text-outline" size={56} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>No lectures yet</Text>
-          <Text style={styles.emptySubtext}>Upload lecture materials on the web app to see them here.</Text>
+      ) : !course ? (
+        <View style={styles.centerBox}>
+          <Text style={[styles.errorText, { color: colors.textPrimary }]}>Course not found.</Text>
         </View>
       ) : (
-        <FlatList
-          data={lectures}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item, index }) => {
-            const isSelected = selectedIds.includes(item.id);
-            return (
-              <TouchableOpacity 
-                style={[styles.lectureCard, isSelected && { borderColor: colors.tint, borderWidth: 2 }]} 
-                onPress={() => handlePress(item)}
-                onLongPress={() => handleLongPress(item)}
-              >
-                <View style={styles.lectureNumber}>
-                  {selectionMode ? (
-                    <Ionicons 
-                      name={isSelected ? "checkmark-circle" : "ellipse-outline"} 
-                      size={24} 
-                      color={isSelected ? colors.tint : colors.textMuted} 
-                    />
-                  ) : (
-                    <Text style={styles.lectureNumberText}>{index + 1}</Text>
-                  )}
+        <>
+          {/* Course Banner Card */}
+          <View style={[styles.bannerCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+            <View style={[styles.colorBannerStripe, { backgroundColor: ribbonColor }]} />
+            <View style={styles.bannerContent}>
+              <View style={styles.bannerBadgeRow}>
+                <View style={[styles.codeBadge, { backgroundColor: ribbonColor + '25' }]}>
+                  <Text style={[styles.codeBadgeText, { color: ribbonColor }]}>{course.course_code}</Text>
                 </View>
-                <View style={styles.lectureInfo}>
-                  <Text style={styles.lectureTitle} numberOfLines={1}>{item.title || `Lecture ${index + 1}`}</Text>
-                  <Text style={styles.lectureDate}>
-                    {new Date(item.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </Text>
-                </View>
-                {!selectionMode && (
-                  <TouchableOpacity onPress={() => handleLectureOptions(item)} style={{ padding: 8, margin: -8 }}>
-                    <Ionicons name="ellipsis-vertical" size={20} color={colors.textMuted} />
-                  </TouchableOpacity>
+                {course.semester && (
+                  <View style={[styles.semesterBadge, { backgroundColor: colors.bgSubtle }]}>
+                    <Text style={[styles.semesterText, { color: colors.textSecondary }]}>
+                      Semester {course.semester} • {course.year || new Date().getFullYear()}
+                    </Text>
+                  </View>
                 )}
-              </TouchableOpacity>
-            );
-          }}
-        />
-      )}
+              </View>
 
-      {/* FAB or Bulk Actions */}
-      {selectionMode ? (
-        <View style={styles.bulkActionsContainer}>
-          <TouchableOpacity 
-            style={[styles.bulkBtn, { backgroundColor: colors.card }]}
-            onPress={() => {
-              setSelectionMode(false);
-              setSelectedIds([]);
-            }}
-          >
-            <Ionicons name="close" size={24} color={colors.text} />
-            <Text style={{ color: colors.text, marginLeft: 8, fontWeight: '600' }}>Cancel</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.bulkBtn, { backgroundColor: '#F44336', opacity: selectedIds.length === 0 ? 0.5 : 1 }]}
-            onPress={handleBulkDelete}
-            disabled={selectedIds.length === 0}
-          >
-            <Ionicons name="trash-outline" size={24} color="#fff" />
-            <Text style={{ color: '#fff', marginLeft: 8, fontWeight: '600' }}>Delete ({selectedIds.length})</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <TouchableOpacity 
-          style={[styles.fab, { backgroundColor: colors.tint }]}
-          onPress={() => setUploadModalVisible(true)}
-        >
-          <Ionicons name="add" size={28} color="#fff" />
-        </TouchableOpacity>
-      )}
+              <Text style={[styles.courseTitle, { color: colors.textPrimary }]}>{course.title}</Text>
 
-      {/* Upload Modal */}
-      <Modal visible={uploadModalVisible} animationType="slide" transparent={true} onRequestClose={() => setUploadModalVisible(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalBackdrop}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Upload Lecture</Text>
-              <TouchableOpacity onPress={() => setUploadModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
+              {/* Course Action Shortcut Buttons */}
+              <View style={styles.shortcutsRow}>
+                <TouchableOpacity
+                  style={[styles.shortcutBtn, { backgroundColor: colors.bgSubtle, borderColor: colors.border }]}
+                  onPress={() => router.push('/(tabs)/flashcards')}
+                >
+                  <Ionicons name="albums" size={16} color={colors.primaryViolet} style={{ marginRight: 6 }} />
+                  <Text style={[styles.shortcutText, { color: colors.textPrimary }]}>Flashcards</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.shortcutBtn, { backgroundColor: colors.bgSubtle, borderColor: colors.border }]}
+                  onPress={() => router.push('/(tabs)/past-papers')}
+                >
+                  <Ionicons name="document-text" size={16} color="#EC4899" style={{ marginRight: 6 }} />
+                  <Text style={[styles.shortcutText, { color: colors.textPrimary }]}>Past Papers</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            
-            <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>
-              Select a PDF or PPTX file. We will extract the slides and prepare them for AI processing.
-            </Text>
-
-            <TouchableOpacity 
-              style={[styles.pickerBtn, { borderColor: colors.tint, backgroundColor: isDark ? '#222' : '#f9f9f9' }]} 
-              onPress={handlePickFile}
-              disabled={isUploading || isProcessing}
-            >
-              <Ionicons name="cloud-upload-outline" size={32} color={colors.tint} style={{ marginBottom: 8 }} />
-              <Text style={[styles.pickerBtnText, { color: colors.text }]}>
-                {selectedFile ? selectedFile.name : 'Tap to select file'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.uploadBtn, { backgroundColor: colors.tint, opacity: (!selectedFile || isUploading || isProcessing) ? 0.6 : 1 }]} 
-              onPress={handleUploadLecture}
-              disabled={!selectedFile || isUploading || isProcessing}
-            >
-              {(isUploading || isProcessing) ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <ActivityIndicator color="#fff" size="small" style={{ marginRight: 8 }} />
-                  <Text style={styles.uploadBtnText}>
-                    {isProcessing ? 'Processing AI...' : 'Uploading...'}
-                  </Text>
-                </View>
-              ) : (
-                <Text style={styles.uploadBtnText}>Upload & Process</Text>
-              )}
-            </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
-    </View>
+
+          {/* Lectures Header */}
+          <View style={styles.lecturesHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+              Lectures & Slide Decks ({lectures.length})
+            </Text>
+          </View>
+
+          {/* Lectures List */}
+          {lectures.length === 0 ? (
+            <View style={[styles.emptyLecturesBox, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+              <Ionicons name="documents-outline" size={38} color={colors.primaryViolet} />
+              <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No lectures uploaded yet</Text>
+              <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
+                Upload course lecture slides or notes via the web portal or scanner tool to begin studying.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.lecturesList}>
+              {lectures.map((lecture, idx) => (
+                <TouchableOpacity
+                  key={lecture.id}
+                  style={[styles.lectureCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+                  onPress={() => router.push({ pathname: '/lecture/[lectureId]', params: { lectureId: lecture.id } })}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.lectureNumberBadge, { backgroundColor: colors.primaryViolet + '20' }]}>
+                    <Text style={[styles.lectureNumberText, { color: colors.primaryViolet }]}>
+                      {idx + 1}
+                    </Text>
+                  </View>
+
+                  <View style={styles.lectureInfo}>
+                    <Text style={[styles.lectureTitle, { color: colors.textPrimary }]}>
+                      {lecture.title || `Lecture ${idx + 1}`}
+                    </Text>
+                    <View style={styles.lectureMeta}>
+                      <Ionicons name="images-outline" size={14} color={colors.textMuted} style={{ marginRight: 4 }} />
+                      <Text style={[styles.lectureSlideCount, { color: colors.textSecondary }]}>
+                        {lecture.slide_count ? `${lecture.slide_count} Slides` : 'Interactive Slides'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </>
+      )}
+    </ScrollView>
   );
 }
 
-const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    backgroundColor: colors.card,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
   },
-  backBtn: {
-    width: 44,
-    height: 44,
+  centerBox: {
+    paddingVertical: 50,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  downloadBtn: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(108, 75, 180, 0.1)',
-  },
-  downloadedBtn: {
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-  },
-  headerInfo: {},
-  courseCode: {
-    fontSize: 14,
+  errorText: {
+    fontSize: 16,
     fontWeight: '600',
-    color: colors.tint,
-    marginBottom: 4,
-    textTransform: 'uppercase',
+  },
+  bannerCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginBottom: 24,
+  },
+  colorBannerStripe: {
+    height: 8,
+    width: '100%',
+  },
+  bannerContent: {
+    padding: 20,
+  },
+  bannerBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  codeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  codeBadgeText: {
+    fontSize: 13,
+    fontWeight: '800',
     letterSpacing: 0.5,
   },
+  semesterBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  semesterText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   courseTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 8,
+    fontSize: 22,
+    fontWeight: '800',
+    lineHeight: 28,
+    marginBottom: 16,
   },
-  lectureCount: {
-    fontSize: 14,
-    color: colors.textMuted,
+  shortcutsRow: {
+    flexDirection: 'row',
+    gap: 10,
   },
-  list: {
-    padding: 20,
+  shortcutBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  shortcutText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  lecturesHeader: {
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  emptyLecturesBox: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 28,
+    alignItems: 'center',
+    textAlign: 'center',
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  emptySub: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    maxWidth: 260,
+  },
+  lecturesList: {
+    gap: 12,
   },
   lectureCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: 14,
+    borderRadius: 18,
+    borderWidth: 1,
     padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: isDark ? 0.2 : 0.04,
-    shadowRadius: 4,
-    elevation: 1,
   },
-  lectureNumber: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: colors.accent,
-    justifyContent: 'center',
+  lectureNumberBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 14,
   },
   lectureNumberText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.tint,
+    fontSize: 15,
+    fontWeight: '800',
   },
   lectureInfo: {
     flex: 1,
   },
   lectureTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 3,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
   },
-  lectureDate: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 20,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  modalBackdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  modalContent: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-  },
-  modalHeader: {
+  lectureMeta: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  pickerBtn: {
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  pickerBtnText: {
-    fontSize: 16,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  uploadBtn: {
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  uploadBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  progressText: {
-    marginTop: 12,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  bulkActionsContainer: {
-    position: 'absolute',
-    bottom: 24,
-    left: 24,
-    right: 24,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 16,
-  },
-  bulkBtn: {
-    flex: 1,
-    height: 56,
-    borderRadius: 28,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-    marginHorizontal: 8,
+  lectureSlideCount: {
+    fontSize: 12,
   },
 });

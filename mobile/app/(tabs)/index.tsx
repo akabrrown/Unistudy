@@ -1,527 +1,620 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, useColorScheme, Platform } from 'react-native';
-import Constants from 'expo-constants';
-
-// Resolve backend URL for both emulator and physical device
-function getBaseUrl(): string {
-  const hostUri = Constants?.expoConfig?.hostUri;
-  if (hostUri) {
-    const ip = hostUri.split('://')[1].split(':')[0];
-    return `http://${ip}:8000`;
-  }
-  return Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
-}
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  RefreshControl,
+  ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
 import { useAuth } from '../../lib/AuthContext';
-import { supabase } from '../../lib/supabase';
-import { useQuery, usePowerSync } from '@powersync/react-native';
-import { Colors, useThemeColors } from '../../constants/Colors';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSettings } from '../../lib/SettingsContext';
+import { apiFetch } from '../../lib/api';
+import { getCuratedDailyQuote } from '../../lib/constants/quotes';
+import { resolveCourseColor } from '../../lib/constants/courses';
+import { OfflineManager } from '../../lib/offline';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function DashboardScreen() {
+  const { user, profile } = useAuth();
+  const { colors } = useSettings();
   const router = useRouter();
-  const theme = useColorScheme() ?? 'light';
-  const colors = useThemeColors();
-  const insets = useSafeAreaInsets();
-  const styles = getStyles(colors, theme === 'dark', insets);
-  const { user, loading: authLoading } = useAuth();
-  
-  const [profile, setProfile] = useState<any>(null);
-  const { data: courses = [] } = useQuery('SELECT * FROM courses ORDER BY created_at DESC LIMIT 3');
-  const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
-  const [quote, setQuote] = useState<{ quote: string, author: string } | null>(null);
+
+  const [courses, setCourses] = useState<any[]>([]);
+  const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedMood, setSelectedMood] = useState<string | null>(null);
+
+  const dailyQuote = getCuratedDailyQuote();
+
+  const loadDashboardData = useCallback(async () => {
+    try {
+      const [coursesRes, examsRes] = await Promise.allSettled([
+        apiFetch('/courses'),
+        apiFetch('/calendar/events?type=exam&limit=4'),
+      ]);
+
+      if (coursesRes.status === 'fulfilled' && Array.isArray(coursesRes.value)) {
+        setCourses(coursesRes.value);
+        OfflineManager.cacheCourses(coursesRes.value);
+      } else {
+        // Fallback to offline cache
+        const cached = await OfflineManager.getCachedCourses();
+        if (cached.length > 0) setCourses(cached);
+      }
+
+      if (examsRes.status === 'fulfilled' && Array.isArray(examsRes.value)) {
+        setUpcomingExams(examsRes.value);
+      }
+    } catch (err) {
+      console.warn('Dashboard fetch error:', err);
+      const cached = await OfflineManager.getCachedCourses();
+      if (cached.length > 0) setCourses(cached);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      router.replace('/login');
-      return;
-    }
+    loadDashboardData();
+  }, [loadDashboardData]);
 
-    async function fetchData() {
-      try {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user?.id)
-          .single();
-        
-        if (profileData) setProfile(profileData);
-
-        const today = new Date().toISOString().split('T')[0];
-        const { data: eventsData } = await supabase
-          .from('calendar_events')
-          .select('*')
-          .eq('user_id', user?.id)
-          .gte('date', today)
-          .order('date', { ascending: true })
-          .limit(3);
-          
-        if (eventsData) setUpcomingEvents(eventsData);
-
-        // Fetch Quote of the Day from Backend (with timeout)
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-
-          // Determine backend URL (backend runs on port 8000)
-          const baseUrl = getBaseUrl();
-
-          try {
-            const res = await fetch(`${baseUrl}/api/settings/daily-quote`, {
-              signal: controller.signal,
-            });
-
-            clearTimeout(timeoutId);
-
-            if (res.ok) {
-              const data = await res.json();
-              if (data?.quote) {
-                setQuote({ quote: data.quote, author: data.author });
-              } else {
-                setQuote({ quote: 'Stay motivated!', author: 'Unistudy' });
-              }
-            } else {
-              console.error('Quote fetch error:', res.status);
-              setQuote({ quote: 'Stay motivated!', author: 'Unistudy' });
-            }
-          } catch (err) {
-            console.error('Cards fetch error (exception):', err);
-            setQuote({ quote: 'Stay motivated!', author: 'Unistudy' });
-          }
-        } catch (err) {
-          console.log('Dashboard fetch failed (offline mode)');
-        }
-      } catch (err) {
-        console.log('Dashboard fetch failed (offline mode)');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchData();
-  }, [user, authLoading]);
-
-  if (loading || authLoading) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.tint} />
-      </View>
-    );
-  }
-
-  const displayUsername = profile?.username ? `@${profile.username}` : (profile?.full_name?.split(' ')[0] || 'Student');
-  
-  const hour = new Date().getHours();
-  const timeEmoji = hour >= 6 && hour < 18 ? '☀️' : '🌙';
-
-  const formatEventDate = (dateString: string, timeString?: string) => {
-    const d = new Date(dateString);
-    const datePart = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    if (!timeString) return datePart;
-    const timeParts = timeString.split(':');
-    const dTime = new Date();
-    dTime.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]));
-    const timeFormatted = dTime.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-    return `${datePart} at ${timeFormatted}`;
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadDashboardData();
   };
 
-  // Parse YYYY-MM-DD as local date without timezone shift
-  const parseDate = (dateStr: string) => {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    return new Date(year, month - 1, day);
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
   };
 
-  const getCountdownText = (dateString: string, timeString?: string) => {
-    const eventDate = parseDate(dateString);
-    if (timeString) {
-      const [h, m] = timeString.split(':');
-      eventDate.setHours(parseInt(h), parseInt(m), 0, 0);
-    }
-    const now = new Date();
-    const diffMs = eventDate.getTime() - now.getTime();
-    
-    if (diffMs < 0) return 'Past';
-    
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    
-    if (diffDays > 0) {
-      return `in ${diffDays} day${diffDays > 1 ? 's' : ''}`;
-    }
-    if (diffHours > 0) {
-      return `in ${diffHours} hr${diffHours > 1 ? 's' : ''}`;
-    }
-    return 'soon';
-  };
-
-  const getEventIcon = (type: string) => {
-    switch (type) {
-      case 'exam': return 'document-text';
-      case 'assignment': return 'create';
-      case 'session': return 'time';
-      default: return 'calendar';
-    }
-  };
+  const displayName = profile?.full_name ? profile.full_name.split(' ')[0] : 'Scholar';
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.leftHeader}>
-          <Text style={styles.greeting}>Greetings, {displayUsername} {timeEmoji}</Text>
-        </View>
-      </View>
-      
-      {quote && (
-        <View style={styles.quoteCard}>
-          <Ionicons name="chatbubbles" size={24} color={colors.tint} style={{ marginBottom: 8 }} />
-          <Text style={styles.quoteText}>"{quote.quote}"</Text>
-          <Text style={styles.quoteAuthor}>— {quote.author}</Text>
-        </View>
-      )}
-
-      <TouchableOpacity 
-        style={styles.captureCard}
-        onPress={() => router.push('/camera')}
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bgPage }]} edges={['top']}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primaryViolet} />
+        }
       >
-        <View style={styles.captureIconContainer}>
-          <Ionicons name="camera" size={32} color="#fff" />
-        </View>
-        <View style={styles.captureTextContainer}>
-          <Text style={styles.captureTitle}>Quick Capture</Text>
-          <Text style={styles.captureSubtitle}>Snap a whiteboard or slide for AI explanation.</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={24} color="#fff" />
-      </TouchableOpacity>
-
-      <Text style={styles.sectionTitle}>Due Today</Text>
-      <View style={styles.dueCard}>
-        <View style={styles.dueLeft}>
-          <View style={styles.iconBox}><Ionicons name="albums" size={24} color={colors.tint} /></View>
+        {/* Top Header */}
+        <View style={styles.header}>
           <View>
-            <Text style={styles.dueTitle}>Daily Reviews</Text>
-            <Text style={styles.dueSubtitle}>Check Flashcards tab</Text>
+            <Text style={[styles.greeting, { color: colors.textSecondary }]}>
+              {getGreeting()}, {displayName} 👋
+            </Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>Your Study Desk</Text>
+            {profile?.institution_name && (
+              <View style={styles.institutionBadge}>
+                <Ionicons name="school" size={13} color={colors.primaryViolet} style={{ marginRight: 4 }} />
+                <Text style={[styles.institutionText, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {profile.institution_name}
+                </Text>
+              </View>
+            )}
           </View>
-        </View>
-        <TouchableOpacity style={styles.studyBtn} onPress={() => router.push('/flashcards')}>
-          <Text style={styles.studyBtnText}>Study</Text>
-        </TouchableOpacity>
-      </View>
-      
-      <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionTitle}>Upcoming Events</Text>
-      </View>
-      
-      {upcomingEvents.length === 0 ? (
-        <View style={styles.emptyEventCard}>
-          <Text style={styles.emptyEventText}>No upcoming events scheduled.</Text>
-        </View>
-      ) : (
-        upcomingEvents.map((event) => (
-          <View key={event.id} style={styles.eventCard}>
-            <View style={styles.eventIconBox}>
-              <Ionicons name={getEventIcon(event.type)} size={20} color={colors.tint} />
-            </View>
-            <View style={styles.eventInfo}>
-              <Text style={styles.eventTitle}>{event.title}</Text>
-              <Text style={styles.eventTime}>{formatEventDate(event.date, event.time)} • {getCountdownText(event.date, event.time)}</Text>
-            </View>
-            <View style={styles.eventTypeBadge}>
-              <Text style={styles.eventTypeText}>{event.type}</Text>
-            </View>
-          </View>
-        ))
-      )}
 
-      <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Recent Courses</Text>
-      
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll} contentContainerStyle={styles.horizontalScrollContent}>
-        {courses.length === 0 ? (
-          <View style={styles.emptyCourseCard}>
-            <Text style={styles.emptyCourseText}>No courses created yet.</Text>
-            <Text style={styles.emptyCourseSubtext}>Create one on the web app!</Text>
+          <TouchableOpacity
+            style={[styles.profileAvatar, { backgroundColor: colors.bgSubtle, borderColor: colors.border }]}
+            onPress={() => router.push('/(tabs)/profile')}
+          >
+            <Text style={[styles.avatarInitial, { color: colors.primaryViolet }]}>
+              {displayName.charAt(0).toUpperCase()}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Anxiety & Study Mood Check-In */}
+        <View style={[styles.moodCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>How are you feeling today?</Text>
+          <View style={styles.moodRow}>
+            {[
+              { id: 'confident', emoji: '💪', label: 'Confident' },
+              { id: 'calm', emoji: '😌', label: 'Calm' },
+              { id: 'anxious', emoji: '😰', label: 'Anxious' },
+              { id: 'overwhelmed', emoji: '🤯', label: 'Tired' },
+            ].map(mood => {
+              const active = selectedMood === mood.id;
+              return (
+                <TouchableOpacity
+                  key={mood.id}
+                  style={[
+                    styles.moodItem,
+                    {
+                      backgroundColor: active ? colors.primaryViolet + '25' : colors.bgSubtle,
+                      borderColor: active ? colors.primaryViolet : 'transparent',
+                    },
+                  ]}
+                  onPress={() => setSelectedMood(mood.id)}
+                >
+                  <Text style={styles.moodEmoji}>{mood.emoji}</Text>
+                  <Text style={[styles.moodLabel, { color: active ? colors.primaryViolet : colors.textSecondary }]}>
+                    {mood.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Daily Motivational Quote */}
+        <View style={[styles.quoteCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+          <View style={styles.quoteHeader}>
+            <Ionicons name="sparkles" size={16} color={colors.primaryViolet} style={{ marginRight: 6 }} />
+            <Text style={[styles.quoteBadgeText, { color: colors.primaryViolet }]}>Daily Inspiration</Text>
+          </View>
+          <Text style={[styles.quoteText, { color: colors.textPrimary }]}>"{dailyQuote.quote}"</Text>
+          <Text style={[styles.quoteAuthor, { color: colors.textSecondary }]}>— {dailyQuote.author}</Text>
+        </View>
+
+        {/* Study Stats / Effort Tracker */}
+        <View style={styles.statsRow}>
+          <View style={[styles.statBox, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+            <View style={[styles.statIconBadge, { backgroundColor: '#F59E0B20' }]}>
+              <Ionicons name="flame" size={20} color="#F59E0B" />
+            </View>
+            <Text style={[styles.statValue, { color: colors.textPrimary }]}>{profile?.streak_days || 1} Days</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Study Streak</Text>
+          </View>
+
+          <View style={[styles.statBox, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+            <View style={[styles.statIconBadge, { backgroundColor: '#10B98120' }]}>
+              <Ionicons name="book" size={20} color="#10B981" />
+            </View>
+            <Text style={[styles.statValue, { color: colors.textPrimary }]}>{courses.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Active Modules</Text>
+          </View>
+
+          <View style={[styles.statBox, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+            <View style={[styles.statIconBadge, { backgroundColor: '#8C52FF20' }]}>
+              <Ionicons name="ribbon" size={20} color="#8C52FF" />
+            </View>
+            <Text style={[styles.statValue, { color: colors.textPrimary }]}>{profile?.study_points || 0} XP</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Knowledge Points</Text>
+          </View>
+        </View>
+
+        {/* Quick Action Tools */}
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Quick Tools</Text>
+        </View>
+        <View style={styles.toolsRow}>
+          <TouchableOpacity
+            style={[styles.toolBtn, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+            onPress={() => router.push('/calculator')}
+          >
+            <View style={[styles.toolIconWrap, { backgroundColor: '#3B82F620' }]}>
+              <Ionicons name="calculator" size={22} color="#3B82F6" />
+            </View>
+            <Text style={[styles.toolLabel, { color: colors.textPrimary }]}>AI Math</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.toolBtn, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+            onPress={() => router.push('/camera')}
+          >
+            <View style={[styles.toolIconWrap, { backgroundColor: '#10B98120' }]}>
+              <Ionicons name="scan" size={22} color="#10B981" />
+            </View>
+            <Text style={[styles.toolLabel, { color: colors.textPrimary }]}>Scan Notes</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.toolBtn, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+            onPress={() => router.push('/essay-grader')}
+          >
+            <View style={[styles.toolIconWrap, { backgroundColor: '#EC489920' }]}>
+              <Ionicons name="document-text" size={22} color="#EC4899" />
+            </View>
+            <Text style={[styles.toolLabel, { color: colors.textPrimary }]}>Grade Essay</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.toolBtn, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+            onPress={() => router.push('/(tabs)/flashcards')}
+          >
+            <View style={[styles.toolIconWrap, { backgroundColor: '#8C52FF20' }]}>
+              <Ionicons name="albums" size={22} color="#8C52FF" />
+            </View>
+            <Text style={[styles.toolLabel, { color: colors.textPrimary }]}>Flashcards</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Upcoming Exams Card */}
+        {upcomingExams.length > 0 && (
+          <View style={[styles.examsCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+            <View style={styles.examsHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="calendar-outline" size={18} color="#EF4444" style={{ marginRight: 6 }} />
+                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Upcoming Exams</Text>
+              </View>
+              <TouchableOpacity onPress={() => router.push('/study-calendar')}>
+                <Text style={{ fontSize: 13, color: colors.primaryViolet, fontWeight: '600' }}>View All</Text>
+              </TouchableOpacity>
+            </View>
+
+            {upcomingExams.map(exam => (
+              <View key={exam.id} style={[styles.examItem, { borderBottomColor: colors.border }]}>
+                <View>
+                  <Text style={[styles.examTitle, { color: colors.textPrimary }]}>{exam.title}</Text>
+                  <Text style={[styles.examDate, { color: colors.textSecondary }]}>
+                    {new Date(exam.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </Text>
+                </View>
+                <View style={styles.examTag}>
+                  <Text style={styles.examTagText}>Exam</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Recent Courses Section */}
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>My Courses</Text>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/courses')}>
+            <Text style={[styles.seeAllText, { color: colors.primaryViolet }]}>View All ({courses.length})</Text>
+          </TouchableOpacity>
+        </View>
+
+        {loading ? (
+          <ActivityIndicator size="small" color={colors.primaryViolet} style={{ marginVertical: 24 }} />
+        ) : courses.length === 0 ? (
+          <View style={[styles.emptyCoursesCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+            <View style={[styles.emptyIconBadge, { backgroundColor: colors.bgSubtle }]}>
+              <Ionicons name="book-outline" size={32} color={colors.primaryViolet} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No active courses yet</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+              Organize your materials by adding your first university course.
+            </Text>
+            <TouchableOpacity
+              style={[styles.addCourseBtn, { backgroundColor: colors.primaryViolet }]}
+              onPress={() => router.push('/(tabs)/courses')}
+            >
+              <Ionicons name="add" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.addCourseBtnText}>Add Course</Text>
+            </TouchableOpacity>
           </View>
         ) : (
-          courses.map((course, i) => (
-            <View key={course.id} style={styles.courseCard}>
-              <View style={[styles.courseIcon, { backgroundColor: i % 2 === 0 ? (theme === 'dark' ? '#3B1D5E' : '#E8DEF8') : (theme === 'dark' ? '#0B2D70' : '#D3E3FD') }]}>
-                <Ionicons name={i % 2 === 0 ? 'flask' : 'code'} size={24} color={i % 2 === 0 ? (theme === 'dark' ? '#B39DDB' : '#5B2D8E') : (theme === 'dark' ? '#90CAF9' : '#0B57D0')} />
-              </View>
-              <Text style={styles.courseTitle} numberOfLines={1}>{course.course_code || course.title}</Text>
-              <Text style={styles.courseSubtitle}>{course.lectures?.length || 0} Lectures</Text>
-            </View>
-          ))
+          <View style={styles.coursesList}>
+            {courses.slice(0, 3).map(course => {
+              const ribbonColor = resolveCourseColor(course.colour);
+              return (
+                <TouchableOpacity
+                  key={course.id}
+                  style={[styles.courseCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+                  onPress={() => router.push({ pathname: '/course/[courseId]', params: { courseId: course.id } })}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.colorRibbon, { backgroundColor: ribbonColor }]} />
+                  <View style={styles.courseCardBody}>
+                    <View style={styles.courseCardHeader}>
+                      <Text style={[styles.courseCode, { color: ribbonColor }]}>
+                        {course.course_code || 'COURSE'}
+                      </Text>
+                      {course.semester && (
+                        <View style={[styles.semesterBadge, { backgroundColor: colors.bgSubtle }]}>
+                          <Text style={[styles.semesterText, { color: colors.textSecondary }]}>
+                            Sem {course.semester}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[styles.courseTitleText, { color: colors.textPrimary }]} numberOfLines={2}>
+                      {course.title}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         )}
       </ScrollView>
-      <View style={{ height: 40 }} />
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const getStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.create({
-  container: {
+const styles = StyleSheet.create({
+  safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
+  },
+  scrollContent: {
     padding: 20,
-    paddingTop: Math.max(insets.top + 20, 60),
+    paddingBottom: 40,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  leftHeader: {
     alignItems: 'flex-start',
-  },
-  rightHeader: {
-    alignItems: 'flex-end',
+    marginBottom: 20,
   },
   greeting: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.text,
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  institutionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  institutionText: {
+    fontSize: 12,
+    fontWeight: '500',
+    maxWidth: 220,
+  },
+  profileAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitial: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  moodCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 16,
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  moodRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  moodItem: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moodEmoji: {
+    fontSize: 22,
+    marginBottom: 4,
+  },
+  moodLabel: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   quoteCard: {
-    backgroundColor: isDark ? '#2C2C2C' : '#F8F9FA',
     borderRadius: 16,
+    borderWidth: 1,
     padding: 16,
-    marginBottom: 24,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.tint,
+    marginBottom: 16,
+  },
+  quoteHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  quoteBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   quoteText: {
-    fontSize: 16,
+    fontSize: 14,
     fontStyle: 'italic',
-    color: colors.text,
-    lineHeight: 22,
-    marginBottom: 8,
+    lineHeight: 20,
+    marginBottom: 6,
   },
   quoteAuthor: {
-    fontSize: 14,
-    color: colors.textMuted,
+    fontSize: 12,
     fontWeight: '600',
     textAlign: 'right',
   },
-
-  captureCard: {
-    backgroundColor: colors.tint,
-    borderRadius: 16,
-    padding: 20,
+  statsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: colors.tint,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-    marginBottom: 32,
+    gap: 10,
+    marginBottom: 20,
   },
-  captureIconContainer: {
-    width: 50,
-    height: 50,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  captureTextContainer: {
+  statBox: {
     flex: 1,
-  },
-  captureTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  captureSubtitle: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
-  },
-  deleteBtn: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    padding: 4,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: 16,
-  },
-  dueCard: {
-    backgroundColor: colors.card,
     borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: isDark ? 0.3 : 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    marginBottom: 32,
-  },
-  dueLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconBox: {
-    width: 48,
-    height: 48,
-    backgroundColor: colors.accent,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  dueTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  dueSubtitle: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  studyBtn: {
-    backgroundColor: colors.tint,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  studyBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  eventCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: isDark ? 0.2 : 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  eventIconBox: {
-    width: 40,
-    height: 40,
-    backgroundColor: isDark ? '#3B1D5E' : '#F3E8FF',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  eventInfo: {
-    flex: 1,
-  },
-  eventTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  eventTime: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  eventTypeBadge: {
-    backgroundColor: isDark ? '#424242' : '#F5F5F5',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  eventTypeText: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textTransform: 'capitalize',
-    fontWeight: '500',
-  },
-  emptyEventCard: {
-    backgroundColor: isDark ? '#222' : '#F9F9F9',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 16,
-    borderStyle: 'dashed',
     borderWidth: 1,
-    borderColor: colors.border,
+    padding: 12,
+    alignItems: 'center',
   },
-  emptyEventText: {
-    color: colors.textMuted,
-    fontStyle: 'italic',
-  },
-  horizontalScroll: {
-    overflow: 'visible',
-    marginHorizontal: -20, // Negative margin to break out of container padding
-  },
-  horizontalScrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 20, // Extra padding for shadows
-  },
-  courseCard: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 20,
-    marginRight: 16,
-    width: 160,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: isDark ? 0.3 : 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+  statIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 8,
   },
-  emptyCourseCard: {
-    backgroundColor: colors.input,
-    borderRadius: 16,
-    padding: 20,
-    marginRight: 16,
-    width: 250,
-    justifyContent: 'center',
+  statValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  emptyCourseText: {
-    color: colors.textMuted,
-    fontWeight: 'bold',
-  },
-  emptyCourseSubtext: {
-    color: colors.textMuted,
-    fontSize: 12,
+    marginBottom: 12,
     marginTop: 4,
   },
-  courseIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
   },
-  courseTitle: {
+  seeAllText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  toolsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 20,
+  },
+  toolBtn: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toolIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  toolLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  examsCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 20,
+  },
+  examsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  examItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  examTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  examDate: {
+    fontSize: 12,
+  },
+  examTag: {
+    backgroundColor: '#EF444420',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  examTagText: {
+    color: '#EF4444',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  emptyCoursesCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 24,
+    alignItems: 'center',
+    textAlign: 'center',
+  },
+  emptyIconBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptyTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.text,
+    fontWeight: '700',
     marginBottom: 4,
   },
-  courseSubtitle: {
+  emptySubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+    maxWidth: 240,
+  },
+  addCourseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  addCourseBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
     fontSize: 14,
-    color: colors.textMuted,
-  }
+  },
+  coursesList: {
+    gap: 12,
+  },
+  courseCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+    flexDirection: 'row',
+  },
+  colorRibbon: {
+    width: 6,
+  },
+  courseCardBody: {
+    flex: 1,
+    padding: 14,
+  },
+  courseCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  courseCode: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  semesterBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  semesterText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  courseTitleText: {
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
 });
