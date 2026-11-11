@@ -4,10 +4,17 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
 import { z } from 'zod';
 import { highCostRatelimit } from '@/lib/ratelimit';
+import {
+  buildEssayGraderPrompt,
+  buildPerfectEssayRewritePrompt,
+  parseEssayReportJson,
+  normalizeEssayReport,
+  buildDeterministicEssayReport,
+} from '../../../../../../shared/lib/essayGrader';
 
 const RequestSchema = z.object({
-  prompt: z.string().min(10, 'Prompt is too short'),
-  essay: z.string().min(50, 'Essay is too short to grade'),
+  prompt: z.string().trim().min(10, 'Prompt is too short (minimum 10 characters)').max(4000, 'Prompt is too long'),
+  essay: z.string().trim().min(50, 'Essay is too short to grade (minimum 50 characters)').max(30000, 'Essay exceeds maximum length'),
 });
 
 const GEMINI_CANDIDATE_MODELS = [
@@ -16,6 +23,48 @@ const GEMINI_CANDIDATE_MODELS = [
   'gemini-2.0-flash',
   'gemini-1.5-pro',
 ];
+
+async function generateModelEssayFallback(
+  prompt: string,
+  essay: string,
+  weaknesses: string[]
+): Promise<string | null> {
+  const rewritePrompt = buildPerfectEssayRewritePrompt(prompt, essay, weaknesses);
+
+  if (process.env.GEMINI_API_KEY) {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    for (const modelName of GEMINI_CANDIDATE_MODELS) {
+      try {
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          generationConfig: { maxOutputTokens: 4096 },
+        });
+        const res = await model.generateContent(rewritePrompt);
+        const text = res.response.text().trim();
+        if (text.length >= 120) return text;
+      } catch (err: unknown) {
+        console.warn(`Gemini ${modelName} rewrite pass failed:`, err instanceof Error ? err.message : err);
+      }
+    }
+  }
+
+  if (process.env.GROQ_API_KEY) {
+    try {
+      const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+      const completion = await groq.chat.completions.create({
+        messages: [{ role: 'user', content: rewritePrompt }],
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 4096,
+      });
+      const text = completion.choices[0]?.message?.content?.trim() || '';
+      if (text.length >= 120) return text;
+    } catch (err: unknown) {
+      console.warn('Groq rewrite pass failed:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  return null;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,39 +83,24 @@ export async function POST(req: NextRequest) {
       console.warn('Rate limiter warning (proceeding gracefully):', rateLimitErr);
     }
 
-    let body;
+    let body: unknown;
     try {
       body = await req.json();
     } catch {
       return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
     }
-    const { prompt, essay } = RequestSchema.parse(body);
 
-    const systemPrompt = `
-      You are an expert, strict but fair university professor grading an academic essay.
-      
-      Essay Prompt / Topic:
-      ${prompt}
-      
-      Student's Essay:
-      ${essay}
-      
-      Please provide a structured grading report in JSON format with the following keys:
-      - score: A percentage out of 100 (integer)
-      - grade: A letter grade (e.g. A, B+, B, C, D, F)
-      - thesis_score: Score out of 100 for thesis and argument clarity (integer)
-      - evidence_score: Score out of 100 for evidence and logic (integer)
-      - structure_score: Score out of 100 for structure and flow (integer)
-      - grammar_score: Score out of 100 for grammar, spelling, and academic tone (integer)
-      - feedback: A comprehensive 3-4 sentence overall feedback.
-      - strengths: An array of 2-3 specific strengths of the essay.
-      - weaknesses: An array of 2-3 specific weaknesses or areas for improvement.
-      - grammar: A brief 1-2 sentence comment on grammar, spelling, and vocabulary.
-      
-      Return ONLY valid JSON. Do not include markdown formatting or code blocks.
-    `;
+    const parsedInput = RequestSchema.safeParse(body);
+    if (!parsedInput.success) {
+      return NextResponse.json(
+        { error: parsedInput.error.issues[0]?.message || 'Invalid essay payload' },
+        { status: 400 }
+      );
+    }
+    const { prompt, essay } = parsedInput.data;
 
-    let parsedReport: any = null;
+    const systemPrompt = buildEssayGraderPrompt(prompt, essay);
+    let parsedReport: Record<string, unknown> | null = null;
 
     // 1. Try Gemini models with fallback
     if (process.env.GEMINI_API_KEY) {
@@ -75,25 +109,22 @@ export async function POST(req: NextRequest) {
         try {
           const model = genAI.getGenerativeModel({
             model: modelName,
-            generationConfig: { responseMimeType: 'application/json' },
+            generationConfig: {
+              responseMimeType: 'application/json',
+              maxOutputTokens: 4096,
+            },
           });
           const result = await model.generateContent(systemPrompt);
-          const rawText = result.response.text().trim();
-          
-          const cleanJson = rawText
-            .replace(/^```json/i, '')
-            .replace(/^```/, '')
-            .replace(/```$/, '')
-            .trim();
-
-          const jsonStart = cleanJson.indexOf('{');
-          const jsonEnd = cleanJson.lastIndexOf('}');
-          if (jsonStart !== -1 && jsonEnd !== -1) {
-            parsedReport = JSON.parse(cleanJson.slice(jsonStart, jsonEnd + 1));
+          const candidate = parseEssayReportJson(result.response.text());
+          if (candidate) {
+            parsedReport = candidate;
             break;
           }
-        } catch (geminiErr: any) {
-          console.warn(`Gemini model ${modelName} failed on essay grading:`, geminiErr?.message);
+        } catch (geminiErr: unknown) {
+          console.warn(
+            `Gemini model ${modelName} failed on essay grading:`,
+            geminiErr instanceof Error ? geminiErr.message : geminiErr
+          );
         }
       }
     }
@@ -106,65 +137,44 @@ export async function POST(req: NextRequest) {
           messages: [{ role: 'user', content: systemPrompt }],
           model: 'llama-3.3-70b-versatile',
           response_format: { type: 'json_object' },
+          max_tokens: 4096,
         });
 
-        const rawContent = completion.choices[0]?.message?.content?.trim() || '';
-        const jsonStart = rawContent.indexOf('{');
-        const jsonEnd = rawContent.lastIndexOf('}');
-        if (jsonStart !== -1 && jsonEnd !== -1) {
-          parsedReport = JSON.parse(rawContent.slice(jsonStart, jsonEnd + 1));
+        const candidate = parseEssayReportJson(completion.choices[0]?.message?.content || '');
+        if (candidate) {
+          parsedReport = candidate;
         }
-      } catch (groqErr: any) {
-        console.warn('Groq fallback failed on essay grading:', groqErr?.message);
+      } catch (groqErr: unknown) {
+        console.warn(
+          'Groq fallback failed on essay grading:',
+          groqErr instanceof Error ? groqErr.message : groqErr
+        );
       }
     }
 
-    // 3. Fallback deterministic report if all external AI APIs fail
-    if (!parsedReport) {
-      const wordCount = essay.split(/\s+/).filter(Boolean).length;
-      const baseScore = Math.min(85, Math.max(65, Math.round(wordCount / 5)));
-      parsedReport = {
-        score: baseScore,
-        overall_score: baseScore,
-        grade: baseScore >= 80 ? 'A' : baseScore >= 70 ? 'B+' : 'B',
-        thesis_score: Math.min(100, baseScore + 2),
-        evidence_score: Math.max(60, baseScore - 3),
-        structure_score: baseScore,
-        grammar_score: Math.min(95, baseScore + 5),
-        feedback: 'The essay presents a clear thesis and addresses the prompt. Arguments are structured with logical flow, though incorporating more primary literature citations will elevate the academic rigor.',
-        strengths: [
-          'Direct response to the essay prompt in the introduction',
-          'Logical paragraph sequencing and topic transitions',
-          'Academic vocabulary and formal tone maintained',
-        ],
-        weaknesses: [
-          'Could deepen theoretical critique in the central analysis',
-          'Expand on opposing counterarguments in the penultimate section',
-        ],
-        grammar: 'Sound grammar and syntax with minor stylistic opportunities for concise phrasing.',
-      };
+    // 3. Secondary AI pass if grading JSON succeeded but omitted/truncated perfect_essay
+    if (parsedReport) {
+      const existingPerfect =
+        typeof parsedReport.perfect_essay === 'string' ? parsedReport.perfect_essay.trim() : '';
+      if (existingPerfect.length < 120) {
+        const rawWeaknesses = Array.isArray(parsedReport.weaknesses)
+          ? parsedReport.weaknesses.map((w) => String(w))
+          : [];
+        const rewritten = await generateModelEssayFallback(prompt, essay, rawWeaknesses);
+        if (rewritten) {
+          parsedReport.perfect_essay = rewritten;
+        }
+      }
     }
 
-    // Ensure all required fields exist for both web and mobile
-    const overallScore = typeof parsedReport.score === 'number' ? parsedReport.score : (parsedReport.overall_score || 80);
-    const finalReport = {
-      score: overallScore,
-      overall_score: overallScore,
-      grade: parsedReport.grade || (overallScore >= 80 ? 'A' : overallScore >= 70 ? 'B' : 'C'),
-      thesis_score: parsedReport.thesis_score || overallScore,
-      evidence_score: parsedReport.evidence_score || Math.max(50, overallScore - 4),
-      structure_score: parsedReport.structure_score || overallScore,
-      grammar_score: parsedReport.grammar_score || Math.min(100, overallScore + 4),
-      feedback: parsedReport.feedback || 'Solid academic structure and clear argumentation.',
-      strengths: Array.isArray(parsedReport.strengths) ? parsedReport.strengths : ['Clear central premise', 'Good vocabulary'],
-      weaknesses: Array.isArray(parsedReport.weaknesses) ? parsedReport.weaknesses : ['Include more empirical data'],
-      improvements: Array.isArray(parsedReport.weaknesses) ? parsedReport.weaknesses : ['Include more empirical data'],
-      grammar: parsedReport.grammar || 'Appropriate university-level syntax.',
-    };
+    const finalReport = parsedReport
+      ? normalizeEssayReport(parsedReport, prompt, essay)
+      : buildDeterministicEssayReport(prompt, essay);
 
     return NextResponse.json({ report: finalReport });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Essay Grader Error:', err);
-    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
+    const msg = err instanceof Error ? err.message : 'Internal server error';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

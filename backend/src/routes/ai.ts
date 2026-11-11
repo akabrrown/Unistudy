@@ -580,63 +580,64 @@ router.post('/anxiety-response', withAIQuota('chat_message'), async (req: Reques
 
 router.post('/grade-essay', async (req: Request, res: Response) => {
   try {
-    const { essay, prompt } = req.body;
-    if (!essay || typeof essay !== 'string' || essay.trim().length < 50) {
-      return res.status(400).json({ error: 'Essay is too short to grade (minimum 50 characters)' });
-    }
-
-    const { chatCompletionWithFallback } = await import('../lib/ai/safeGroq');
-    const systemPrompt = `
-      You are an expert, strict but fair university professor grading an academic essay.
-      
-      Essay Prompt / Topic:
-      ${prompt || 'General University Essay'}
-      
-      Student's Essay:
-      ${essay}
-      
-      Please provide a structured grading report in JSON format with the following keys:
-      - score: A percentage out of 100 (integer)
-      - grade: A letter grade (e.g. A, B+, B, C, D, F)
-      - thesis_score: Score out of 100 for thesis and argument clarity (integer)
-      - evidence_score: Score out of 100 for evidence and logic (integer)
-      - structure_score: Score out of 100 for structure and flow (integer)
-      - grammar_score: Score out of 100 for grammar, spelling, and academic tone (integer)
-      - feedback: A comprehensive 3-4 sentence overall feedback.
-      - strengths: An array of 2-3 specific strengths of the essay.
-      - weaknesses: An array of 2-3 specific weaknesses or areas for improvement.
-      - grammar: A brief 1-2 sentence comment on grammar, spelling, and vocabulary.
-      
-      Return ONLY valid JSON.
-    `;
-
-    const rawJson = await chatCompletionWithFallback({
-      messages: [{ role: 'user', content: systemPrompt }],
-      response_format: { type: 'json_object' },
+    const { z } = await import('zod');
+    const GradeEssaySchema = z.object({
+      prompt: z.string().trim().max(4000).optional(),
+      essay: z.string().trim().min(50, 'Essay is too short to grade (minimum 50 characters)').max(30000),
     });
 
-    const start = rawJson.indexOf('{');
-    const end = rawJson.lastIndexOf('}');
-    let parsed: any = null;
-    if (start !== -1 && end !== -1) {
-      parsed = JSON.parse(rawJson.slice(start, end + 1));
+    const parsedInput = GradeEssaySchema.safeParse(req.body);
+    if (!parsedInput.success) {
+      return res.status(400).json({ error: parsedInput.error.issues[0]?.message || 'Invalid essay payload' });
     }
 
-    const overallScore = typeof parsed?.score === 'number' ? parsed.score : (parsed?.overall_score || 82);
-    const finalReport = {
-      score: overallScore,
-      overall_score: overallScore,
-      grade: parsed?.grade || (overallScore >= 80 ? 'A' : overallScore >= 70 ? 'B' : 'C'),
-      thesis_score: parsed?.thesis_score || overallScore,
-      evidence_score: parsed?.evidence_score || Math.max(50, overallScore - 4),
-      structure_score: parsed?.structure_score || overallScore,
-      grammar_score: parsed?.grammar_score || Math.min(100, overallScore + 4),
-      feedback: parsed?.feedback || 'Solid academic structure and clear argumentation.',
-      strengths: Array.isArray(parsed?.strengths) ? parsed.strengths : ['Clear central premise', 'Good vocabulary'],
-      weaknesses: Array.isArray(parsed?.weaknesses) ? parsed.weaknesses : ['Include more empirical data'],
-      improvements: Array.isArray(parsed?.weaknesses) ? parsed.weaknesses : ['Include more empirical data'],
-      grammar: parsed?.grammar || 'Appropriate university-level syntax.',
-    };
+    const essay = parsedInput.data.essay;
+    const prompt = parsedInput.data.prompt || 'General University Essay';
+
+    const { chatCompletionWithFallback } = await import('../lib/ai/safeGroq');
+    const {
+      buildEssayGraderPrompt,
+      buildPerfectEssayRewritePrompt,
+      parseEssayReportJson,
+      normalizeEssayReport,
+      buildDeterministicEssayReport,
+    } = await import('../../../shared/lib/essayGrader');
+
+    const systemPrompt = buildEssayGraderPrompt(prompt, essay);
+    let parsed: Record<string, unknown> | null = null;
+
+    try {
+      const rawJson = await chatCompletionWithFallback({
+        messages: [{ role: 'user', content: systemPrompt }],
+        response_format: { type: 'json_object' },
+        max_tokens: 4096,
+      });
+      parsed = parseEssayReportJson(rawJson);
+    } catch (aiErr: unknown) {
+      console.warn('AI completion failed on backend essay grading, using fallback report:', aiErr instanceof Error ? aiErr.message : aiErr);
+    }
+
+    if (parsed) {
+      const existingPerfect = typeof parsed.perfect_essay === 'string' ? parsed.perfect_essay.trim() : '';
+      if (existingPerfect.length < 120) {
+        try {
+          const weaknesses = Array.isArray(parsed.weaknesses) ? parsed.weaknesses.map((w) => String(w)) : [];
+          const rewritten = await chatCompletionWithFallback({
+            messages: [{ role: 'user', content: buildPerfectEssayRewritePrompt(prompt, essay, weaknesses) }],
+            max_tokens: 4096,
+          });
+          if (rewritten && rewritten.trim().length >= 120) {
+            parsed.perfect_essay = rewritten.trim();
+          }
+        } catch (rewriteErr: unknown) {
+          console.warn('Second-pass 100/100 essay rewrite failed:', rewriteErr instanceof Error ? rewriteErr.message : rewriteErr);
+        }
+      }
+    }
+
+    const finalReport = parsed
+      ? normalizeEssayReport(parsed, prompt, essay)
+      : buildDeterministicEssayReport(prompt, essay);
 
     res.json({ success: true, report: finalReport });
   } catch (err: any) {

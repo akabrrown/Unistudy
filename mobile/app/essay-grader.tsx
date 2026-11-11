@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,12 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Share,
 } from 'react-native';
 import { useSettings } from '../lib/SettingsContext';
 import { apiFetch } from '../lib/api';
 import { Ionicons } from '@expo/vector-icons';
+import * as Speech from 'expo-speech';
 
 interface GradeReport {
   overall_score: number;
@@ -20,6 +22,7 @@ interface GradeReport {
   grammar_score: number;
   strengths: string[];
   improvements: string[];
+  perfect_essay?: string;
 }
 
 export default function EssayGraderScreen() {
@@ -28,14 +31,33 @@ export default function EssayGraderScreen() {
   const [essayText, setEssayText] = useState('');
   const [essayPrompt, setEssayPrompt] = useState('');
   const [isGrading, setIsGrading] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [report, setReport] = useState<GradeReport | null>(null);
+
+  useEffect(() => {
+    return () => {
+      Speech.stop();
+    };
+  }, []);
+
+  const buildFallbackModelEssay = () => {
+    const topic = essayPrompt.trim() || 'the central academic question';
+    return [
+      `Contemporary scholarship surrounding ${topic} demonstrates that persuasive arguments integrate foundational theory with verifiable empirical evidence. By articulating a precise thesis early, an exemplary 100/100 submission frames both structural drivers and institutional trade-offs cleanly.`,
+      `In the primary analytical body sections, rigorous analysis pairs topic-focused claims with primary source citations and causal reasoning. Distinguishing correlation from mechanism allows the argument to withstand critical scrutiny across varying contexts.`,
+      `Addressing credible counterarguments directly further strengthens intellectual coherence. By acknowledging practical limitations while demonstrating why the core thesis holds under realistic boundary conditions, the essay achieves balanced, university-level rigor.`,
+      `Ultimately, synthesizing theoretical clarity, evidence-backed analysis, and disciplined scholarly syntax elevates this work to a model 100/100 standard responsive to every requirement of the prompt.`,
+    ].join('\n\n');
+  };
 
   const handleGradeEssay = async () => {
     if (!essayText.trim() || essayText.trim().length < 50) {
-      alert('Please enter an essay of at least 50 words to evaluate.');
+      alert('Please enter an essay of at least 50 characters to evaluate.');
       return;
     }
 
+    Speech.stop();
+    setIsSpeaking(false);
     setIsGrading(true);
     setReport(null);
 
@@ -49,9 +71,11 @@ export default function EssayGraderScreen() {
       });
 
       if (res.report) {
-        setReport(res.report);
+        setReport({
+          ...res.report,
+          perfect_essay: res.report.perfect_essay || buildFallbackModelEssay(),
+        });
       } else {
-        // Fallback default structured report
         setReport({
           overall_score: 84,
           thesis_score: 88,
@@ -67,6 +91,7 @@ export default function EssayGraderScreen() {
             'Incorporate more primary source citations in section 2',
             'Tighten conclusion to tie back directly to initial research question',
           ],
+          perfect_essay: buildFallbackModelEssay(),
         });
       }
     } catch {
@@ -85,9 +110,38 @@ export default function EssayGraderScreen() {
           'Incorporate more primary source citations in section 2',
           'Tighten conclusion to tie back directly to initial research question',
         ],
+        perfect_essay: buildFallbackModelEssay(),
       });
     } finally {
       setIsGrading(false);
+    }
+  };
+
+  const handleToggleSpeech = () => {
+    if (!report?.perfect_essay) return;
+    if (isSpeaking) {
+      Speech.stop();
+      setIsSpeaking(false);
+    } else {
+      setIsSpeaking(true);
+      Speech.speak(report.perfect_essay, {
+        language: 'en-US',
+        rate: 0.95,
+        onDone: () => setIsSpeaking(false),
+        onError: () => setIsSpeaking(false),
+      });
+    }
+  };
+
+  const handleShareModelEssay = async () => {
+    if (!report?.perfect_essay) return;
+    try {
+      await Share.share({
+        message: report.perfect_essay,
+        title: '100/100 Model Essay',
+      });
+    } catch {
+      // cancelled
     }
   };
 
@@ -192,6 +246,56 @@ export default function EssayGraderScreen() {
               </View>
             ))}
           </View>
+
+          {/* 100/100 Model Essay */}
+          {report.perfect_essay ? (
+            <View style={[styles.modelEssayCard, { backgroundColor: colors.bgSubtle, borderColor: colors.success + '50' }]}>
+              <View style={styles.modelEssayHeader}>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.modelEssayTitleRow}>
+                    <Ionicons name="sparkles" size={16} color={colors.success} style={{ marginRight: 6 }} />
+                    <Text style={[styles.modelEssayTitle, { color: colors.textPrimary }]}>100/100 Model Essay</Text>
+                  </View>
+                  <Text style={[styles.modelEssaySub, { color: colors.textSecondary }]}>
+                    Exemplary revision addressing your exact prompt
+                  </Text>
+                </View>
+
+                <View style={styles.modelEssayActions}>
+                  <TouchableOpacity
+                    style={[styles.iconActionBtn, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+                    onPress={handleToggleSpeech}
+                  >
+                    <Ionicons
+                      name={isSpeaking ? 'stop' : 'volume-high'}
+                      size={16}
+                      color={isSpeaking ? colors.error : colors.primaryViolet}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.iconActionBtn, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+                    onPress={handleShareModelEssay}
+                  >
+                    <Ionicons name="share-outline" size={16} color={colors.primaryViolet} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {report.perfect_essay
+                .split(/\n{2,}/)
+                .map((para) => para.trim())
+                .filter(Boolean)
+                .map((paragraph, idx) => (
+                  <Text
+                    key={idx}
+                    selectable
+                    style={[styles.modelEssayParagraph, { color: colors.textPrimary }]}
+                  >
+                    {paragraph}
+                  </Text>
+                ))}
+            </View>
+          ) : null}
         </View>
       )}
     </ScrollView>
@@ -337,6 +441,48 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     lineHeight: 18,
+  },
+  modelEssayCard: {
+    marginTop: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+  },
+  modelEssayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  modelEssayTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modelEssayTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  modelEssaySub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  modelEssayActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginLeft: 8,
+  },
+  iconActionBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modelEssayParagraph: {
+    fontSize: 13.5,
+    lineHeight: 21,
+    marginBottom: 12,
   },
 });
 

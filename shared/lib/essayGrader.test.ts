@@ -1,0 +1,66 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  buildEssayGraderPrompt,
+  parseEssayReportJson,
+  normalizeEssayReport,
+  buildDeterministicEssayReport,
+  type EssayGradingReport,
+} from './essayGrader';
+
+test('buildEssayGraderPrompt delimits untrusted prompt and essay and requests perfect_essay', () => {
+  const prompt = 'Analyze the economic drivers of the Industrial Revolution.';
+  const essay = 'The Industrial Revolution began in Britain in the eighteenth century and transformed agrarian economies into mechanized industrial hubs.';
+
+  const fullPrompt = buildEssayGraderPrompt(prompt, essay);
+
+  assert.match(fullPrompt, /<essay_prompt>[\s\S]*Analyze the economic drivers/);
+  assert.match(fullPrompt, /<student_essay>[\s\S]*agrarian economies/);
+  assert.match(fullPrompt, /perfect_essay/);
+  assert.match(fullPrompt, /100\/100/);
+});
+
+test('parseEssayReportJson strips markdown fences and parses JSON payload with perfect_essay', () => {
+  const raw = '```json\n{\n  "score": 84,\n  "grade": "A-",\n  "thesis_score": 85,\n  "evidence_score": 80,\n  "structure_score": 86,\n  "grammar_score": 88,\n  "feedback": "Strong thesis and clear progression.",\n  "strengths": ["Focused thesis"],\n  "weaknesses": ["Needs quantitative citations"],\n  "grammar": "Formal academic register.",\n  "perfect_essay": "Introduction paragraph.\\n\\nBody paragraph one with evidence.\\n\\nConclusion synthesizing the argument."\n}\n```';
+
+  const parsed = parseEssayReportJson(raw);
+  assert.ok(parsed);
+  assert.equal(parsed.score, 84);
+  assert.match(String(parsed.perfect_essay), /Body paragraph one/);
+});
+
+test('normalizeEssayReport clamps scores and guarantees non-empty perfect_essay even when omitted by LLM', () => {
+  const partialReport = {
+    score: 108,
+    grade: 'A+',
+    feedback: 'Outstanding essay.',
+    strengths: ['Clear claim'],
+    weaknesses: ['Deepen counterargument'],
+  };
+
+  const normalized: EssayGradingReport = normalizeEssayReport(
+    partialReport,
+    'Evaluate the impact of renewable energy grids on grid stability.',
+    'Renewable energy sources like solar and wind introduce intermittency challenges, yet grid-scale battery storage and smart inverters allow utilities to balance frequency reliably.'
+  );
+
+  assert.equal(normalized.score, 100);
+  assert.equal(normalized.overall_score, 100);
+  assert.equal(normalized.thesis_score, 100);
+  assert.ok(normalized.perfect_essay.length >= 200);
+  assert.match(normalized.perfect_essay, /\n\n/);
+  assert.deepEqual(normalized.improvements, normalized.weaknesses);
+});
+
+test('buildDeterministicEssayReport returns complete rubric and multi-paragraph 100/100 essay', () => {
+  const prompt = 'Discuss how asymmetric encryption secures modern web communication.';
+  const essay = 'Public key cryptography uses pairs of keys. Anyone can encrypt a message with the public key, while only the holder of the matching private key can decrypt it, enabling TLS handshakes across untrusted networks.';
+
+  const report = buildDeterministicEssayReport(prompt, essay);
+
+  assert.ok(report.score >= 60 && report.score <= 100);
+  assert.ok(report.strengths.length >= 2);
+  assert.ok(report.weaknesses.length >= 2);
+  assert.ok(report.perfect_essay.length >= 250);
+  assert.match(report.perfect_essay, /\n\n/);
+});
