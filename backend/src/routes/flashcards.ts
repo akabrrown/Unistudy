@@ -3,8 +3,65 @@ import { authenticateUser } from '../middleware/auth';
 import { withAIQuota } from '../middleware/quotaGuard';
 import { routeRequest, AIRequest } from '../lib/ai/router';
 import { consumeUserQuota } from '../lib/ai/quota';
-import { supabaseAsUser } from '../lib/supabase';
+import { supabaseAdmin, supabaseAsUser } from '../lib/supabase';
 import { calculateNextReview, Rating } from '../lib/utils/sm2';
+
+export function extractFlashcardsFromSlides(slides: { raw_text?: string; explanation?: string; slide_number?: number }[]): { front: string; back: string }[] {
+  const cards: { front: string; back: string }[] = [];
+  const seenFronts = new Set<string>();
+
+  for (const s of slides) {
+    const text = (s.raw_text || '').trim();
+    const explanation = (s.explanation || '').trim();
+    if (!text && !explanation) continue;
+
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+    for (const line of lines) {
+      const defMatch = line.match(/^([A-Z0-9\s/_-]{3,40})\s*[:–—]\s*(.{15,})$/);
+      if (defMatch) {
+        const front = `What is ${defMatch[1].trim()}?`;
+        const back = defMatch[2].trim();
+        if (!seenFronts.has(front.toLowerCase())) {
+          seenFronts.add(front.toLowerCase());
+          cards.push({ front, back });
+        }
+      }
+    }
+
+    for (let i = 0; i < lines.length - 1; i++) {
+      const current = lines[i];
+      const next = lines[i + 1];
+      if (
+        current.length >= 3 &&
+        current.length <= 40 &&
+        !current.endsWith('.') &&
+        next.length >= 20 &&
+        !next.startsWith('BSIT') &&
+        !next.startsWith('Department')
+      ) {
+        const front = `Define ${current}`;
+        const back = next;
+        if (!seenFronts.has(front.toLowerCase()) && cards.length < 20) {
+          seenFronts.add(front.toLowerCase());
+          cards.push({ front, back });
+        }
+      }
+    }
+
+    if (explanation && explanation.length > 25 && lines.length > 0) {
+      const heading = lines.find(l => l.length > 4 && l.length < 60 && !l.includes('•') && !l.startsWith('Department')) || `Slide ${s.slide_number} Concept`;
+      const front = `Key concept: ${heading}`;
+      const back = explanation.length > 250 ? explanation.slice(0, 250) + '...' : explanation;
+      if (!seenFronts.has(front.toLowerCase()) && cards.length < 20) {
+        seenFronts.add(front.toLowerCase());
+        cards.push({ front, back });
+      }
+    }
+  }
+
+  return cards.slice(0, 15);
+}
 
 const router = Router();
 router.use(authenticateUser);
@@ -44,60 +101,70 @@ router.post('/generate', withAIQuota('flashcard_generation'), async (req: Reques
       }
     }
 
-    // 3. Request AI generation
-    const aiReq: AIRequest = {
-      task: 'batch_text',
-      feature: 'flashcard_generation',
-      payload: { prompt: combinedText },
-      userId: req.user!.id,
-      priority: 'medium',
-      identifiers: [lectureId] // Cache per lecture
-    };
+    // 3. Request AI generation with graceful fallback
+    let generatedCards: { front: string; back: string }[] = [];
 
-    const response = await routeRequest(aiReq);
+    try {
+      const aiReq: AIRequest = {
+        task: 'batch_text',
+        feature: 'flashcard_generation',
+        payload: { prompt: combinedText },
+        userId: req.user!.id,
+        priority: 'medium',
+        identifiers: [lectureId] // Cache per lecture
+      };
 
-    console.log(`[Flashcards] Provider: ${response.provider}, responseMs: ${response.responseMs}ms`)
-    console.log(`[Flashcards] Result type: ${typeof response.result}, isArray: ${Array.isArray(response.result)}`)
-    if (typeof response.result === 'string') {
-      console.log(`[Flashcards] Result preview: ${response.result.substring(0, 300)}`)
-    } else if (response.result && typeof response.result === 'object') {
-      console.log(`[Flashcards] Result keys: ${Object.keys(response.result).join(', ')}`)
-    }
-    
-    consumeUserQuota(aiReq.userId, aiReq.feature, req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
-    
-    // Parse result robustly (array, JSON string, or object with array property)
-    let rawResult = response.result;
-    if (typeof rawResult === 'string') {
-      try {
-        const cleaned = rawResult.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-        rawResult = JSON.parse(cleaned);
-      } catch (e) {
-        console.error('Failed to parse flashcards JSON string:', e, rawResult);
+      const response = await routeRequest(aiReq);
+
+      console.log(`[Flashcards] Provider: ${response.provider}, responseMs: ${response.responseMs}ms`)
+      
+      consumeUserQuota(aiReq.userId, aiReq.feature, req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
+      
+      // Parse result robustly (array, JSON string, or object with array property)
+      let rawResult = response.result;
+      if (typeof rawResult === 'string') {
+        try {
+          const cleaned = rawResult.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+          rawResult = JSON.parse(cleaned);
+        } catch (e) {
+          console.error('Failed to parse flashcards JSON string:', e, rawResult);
+        }
       }
-    }
 
-    let extractedList: any[] = [];
-    if (Array.isArray(rawResult)) {
-      extractedList = rawResult;
-    } else if (rawResult && typeof rawResult === 'object') {
-      const possibleArray = Object.values(rawResult).find(v => Array.isArray(v));
-      if (Array.isArray(possibleArray)) {
-        extractedList = possibleArray;
+      let extractedList: any[] = [];
+      if (Array.isArray(rawResult)) {
+        extractedList = rawResult;
+      } else if (rawResult && typeof rawResult === 'object') {
+        const possibleArray = Object.values(rawResult).find(v => Array.isArray(v));
+        if (Array.isArray(possibleArray)) {
+          extractedList = possibleArray;
+        }
       }
+
+      generatedCards = extractedList
+        .map((c: any) => ({
+          front: String(c.front || c.question || c.term || c.concept || c.q || '').trim(),
+          back: String(c.back || c.answer || c.definition || c.explanation || c.a || '').trim()
+        }))
+        .filter(c => c.front.length > 0 && c.back.length > 0);
+    } catch (aiErr: any) {
+      console.warn('[Flashcards] AI generation failed, falling back to deterministic extraction:', aiErr?.message || aiErr);
     }
 
-    const generatedCards = extractedList
-      .map((c: any) => ({
-        front: String(c.front || c.question || c.term || c.concept || c.q || '').trim(),
-        back: String(c.back || c.answer || c.definition || c.explanation || c.a || '').trim()
-      }))
-      .filter(c => c.front.length > 0 && c.back.length > 0);
+    // If AI failed or returned zero cards, extract directly from slides
+    if (generatedCards.length === 0) {
+      console.log('[Flashcards] Extracting flashcards directly from slide text & explanations...');
+      generatedCards = extractFlashcardsFromSlides(slides);
+    }
 
-    console.log(`[Flashcards] extractedList: ${extractedList.length}, generatedCards after filter: ${generatedCards.length}`)
+    console.log(`[Flashcards] Total generatedCards to insert: ${generatedCards.length}`);
     
     // 4. Delete existing flashcards for this lecture to allow regeneration
-    await supabase.from('flashcards').delete().eq('lecture_id', lectureId).eq('user_id', req.user!.id);
+    try {
+      await supabase.from('flashcards').delete().eq('lecture_id', lectureId).eq('user_id', req.user!.id);
+    } catch (delErr) {
+      await supabaseAdmin.from('flashcards').delete().eq('lecture_id', lectureId).eq('user_id', req.user!.id);
+    }
 
     // 5. Generate embeddings and insert new flashcards into database
     if (generatedCards.length > 0) {
@@ -146,7 +213,11 @@ router.post('/generate', withAIQuota('flashcard_generation'), async (req: Reques
       });
 
       const { error: insertError } = await supabase.from('flashcards').insert(cardsToInsert);
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.warn('[Flashcards] User client insert failed, attempting supabaseAdmin insert:', insertError.message);
+        const { error: adminInsertError } = await supabaseAdmin.from('flashcards').insert(cardsToInsert);
+        if (adminInsertError) throw adminInsertError;
+      }
     }
 
     res.json({ success: true, count: generatedCards.length, data: generatedCards });

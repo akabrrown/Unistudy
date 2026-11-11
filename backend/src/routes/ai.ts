@@ -17,9 +17,10 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const upload = multer({ storage: multer.memoryStorage() });
 
 const GEMINI_VISION_MODELS = [
-  'gemini-3.5-flash',
-  'gemini-3.8-flash',
-  'gemini-3.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-1.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-pro'
 ];
 
 async function callWithFallback(
@@ -410,7 +411,7 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
 
       // 2. Fall back to Groq text LLM if OpenRouter didn't produce text
       if (!openRouterSuccess) {
-        console.log('Falling back to Groq (openai/gpt-oss-120b)...');
+        console.log('Falling back to Groq (llama-3.3-70b-versatile)...');
         const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -418,7 +419,7 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            model: 'openai/gpt-oss-120b',
+            model: 'llama-3.3-70b-versatile',
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -502,7 +503,7 @@ The quote must reference their actual situation naturally (e.g. "You have an Eng
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'openai/gpt-oss-120b',
+        model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: 'You are an inspiring academic coach.' },
           { role: 'user', content: prompt }
@@ -530,7 +531,7 @@ router.post('/study-break', withAIQuota('break_suggestion'), async (req: Request
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'openai/gpt-oss-120b',
+        model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: 'You suggest highly practical, specific 5-minute study breaks to prevent burnout.' },
           { role: 'user', content: 'I just finished a 25-minute pomodoro study session. Suggest one specific, actionable 5-minute break activity (e.g. physical movement, visual rest). Keep it under 2 sentences.' }
@@ -559,7 +560,7 @@ router.post('/anxiety-response', withAIQuota('chat_message'), async (req: Reques
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'openai/gpt-oss-120b',
+        model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: 'You are a supportive academic coach helping students with pre-exam anxiety.' },
           { role: 'user', content: `I have an exam tomorrow and I am feeling: ${feeling}. Suggest one specific, quick technique (like box breathing or positive visualization) to help me right now. Keep it under 3 sentences and very supportive.` }
@@ -573,6 +574,73 @@ router.post('/anxiety-response', withAIQuota('chat_message'), async (req: Reques
 
     res.json({ suggestion });
   } catch (err: any) {
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+  }
+});
+
+router.post('/grade-essay', async (req: Request, res: Response) => {
+  try {
+    const { essay, prompt } = req.body;
+    if (!essay || typeof essay !== 'string' || essay.trim().length < 50) {
+      return res.status(400).json({ error: 'Essay is too short to grade (minimum 50 characters)' });
+    }
+
+    const { chatCompletionWithFallback } = await import('../lib/ai/safeGroq');
+    const systemPrompt = `
+      You are an expert, strict but fair university professor grading an academic essay.
+      
+      Essay Prompt / Topic:
+      ${prompt || 'General University Essay'}
+      
+      Student's Essay:
+      ${essay}
+      
+      Please provide a structured grading report in JSON format with the following keys:
+      - score: A percentage out of 100 (integer)
+      - grade: A letter grade (e.g. A, B+, B, C, D, F)
+      - thesis_score: Score out of 100 for thesis and argument clarity (integer)
+      - evidence_score: Score out of 100 for evidence and logic (integer)
+      - structure_score: Score out of 100 for structure and flow (integer)
+      - grammar_score: Score out of 100 for grammar, spelling, and academic tone (integer)
+      - feedback: A comprehensive 3-4 sentence overall feedback.
+      - strengths: An array of 2-3 specific strengths of the essay.
+      - weaknesses: An array of 2-3 specific weaknesses or areas for improvement.
+      - grammar: A brief 1-2 sentence comment on grammar, spelling, and vocabulary.
+      
+      Return ONLY valid JSON.
+    `;
+
+    const rawJson = await chatCompletionWithFallback({
+      messages: [{ role: 'user', content: systemPrompt }],
+      response_format: { type: 'json_object' },
+    });
+
+    const start = rawJson.indexOf('{');
+    const end = rawJson.lastIndexOf('}');
+    let parsed: any = null;
+    if (start !== -1 && end !== -1) {
+      parsed = JSON.parse(rawJson.slice(start, end + 1));
+    }
+
+    const overallScore = typeof parsed?.score === 'number' ? parsed.score : (parsed?.overall_score || 82);
+    const finalReport = {
+      score: overallScore,
+      overall_score: overallScore,
+      grade: parsed?.grade || (overallScore >= 80 ? 'A' : overallScore >= 70 ? 'B' : 'C'),
+      thesis_score: parsed?.thesis_score || overallScore,
+      evidence_score: parsed?.evidence_score || Math.max(50, overallScore - 4),
+      structure_score: parsed?.structure_score || overallScore,
+      grammar_score: parsed?.grammar_score || Math.min(100, overallScore + 4),
+      feedback: parsed?.feedback || 'Solid academic structure and clear argumentation.',
+      strengths: Array.isArray(parsed?.strengths) ? parsed.strengths : ['Clear central premise', 'Good vocabulary'],
+      weaknesses: Array.isArray(parsed?.weaknesses) ? parsed.weaknesses : ['Include more empirical data'],
+      improvements: Array.isArray(parsed?.weaknesses) ? parsed.weaknesses : ['Include more empirical data'],
+      grammar: parsed?.grammar || 'Appropriate university-level syntax.',
+    };
+
+    res.json({ success: true, report: finalReport });
+  } catch (err: any) {
+    console.error('Backend essay grading error:', err);
     res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });

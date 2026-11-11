@@ -34,3 +34,4 @@ export function getCuratedDailyQuote(dateStr?: string): MotivationalQuote {
   const index = Math.abs(dayOfYear) % CURATED_DAILY_QUOTES.length;
   return CURATED_DAILY_QUOTES[index];
 }
+

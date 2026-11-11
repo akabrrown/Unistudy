@@ -63,7 +63,7 @@ Do not include any greeting, explanation, or extra characters.`
       }
     } else if (process.env.GEMINI_API_KEY) {
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
       const resAI = await model.generateContent(
         'Generate a single inspiring motivational quote for university students. Format strictly as: "Quote text" - Author Name'
       );

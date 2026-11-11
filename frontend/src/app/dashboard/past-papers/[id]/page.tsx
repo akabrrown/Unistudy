@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Clock, FileText, Bot, FileQuestion, ArrowRight } from 'lucide-react'
+import { ArrowLeft, Clock, FileText, Bot, FileQuestion, ArrowRight, Trash2, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { apiFetch } from '@/lib/api/client'
+import { toast } from 'sonner'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -54,6 +56,7 @@ export default function PastPaperDetails() {
   const [paper, setPaper] = useState<any>(null)
   const [questions, setQuestions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [isDeleting, setIsDeleting] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -145,6 +148,29 @@ export default function PastPaperDetails() {
     }
   }
 
+  const handleDeletePaper = async () => {
+    if (!paper) return
+    if (!confirm('Are you sure you want to delete this past question paper? All extracted questions and attempts will be permanently deleted.')) return
+
+    setIsDeleting(true)
+    try {
+      await apiFetch(`/past-papers/${paper.id}`, { method: 'DELETE' })
+      toast.success('Past paper deleted successfully')
+      router.push('/dashboard/past-papers')
+    } catch (err: any) {
+      console.warn('Backend delete error, trying direct Supabase fallback:', err?.message)
+      try {
+        const { error } = await supabase.from('past_papers').delete().eq('id', paper.id)
+        if (error) throw error
+        toast.success('Past paper deleted successfully')
+        router.push('/dashboard/past-papers')
+      } catch (fallbackErr: any) {
+        toast.error(fallbackErr?.message || err?.message || 'Failed to delete past paper')
+        setIsDeleting(false)
+      }
+    }
+  }
+
   const mcqQuestions = questions.filter(q => q.isMcq)
   const theoryQuestions = questions.filter(q => !q.isMcq)
 
@@ -171,9 +197,21 @@ export default function PastPaperDetails() {
           </div>
           <p className="text-muted-foreground">{paper.courses?.course_name}</p>
         </div>
-        <Button onClick={startAttempt} size="lg" className="gap-2 shadow-lg shadow-primary/20">
-          Start Attempt <ArrowRight className="w-4 h-4" />
-        </Button>
+        <div className="flex items-center gap-2.5">
+          <Button
+            onClick={handleDeletePaper}
+            variant="outline"
+            size="lg"
+            disabled={isDeleting}
+            className="text-destructive hover:bg-destructive/10 hover:border-destructive/30"
+          >
+            {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+            Delete Paper
+          </Button>
+          <Button onClick={startAttempt} size="lg" className="gap-2 shadow-lg shadow-primary/20">
+            Start Attempt <ArrowRight className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

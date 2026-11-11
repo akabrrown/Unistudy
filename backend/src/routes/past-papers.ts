@@ -73,7 +73,7 @@ ${extractedText}
         // 2. Scanned or image-based PDF: Use Gemini Multimodal PDF parsing
         console.log(`[Past Papers] Running Multimodal/Vision PDF extraction (text length was ${extractedText.length})...`);
         const base64Pdf = fileBuffer.toString('base64');
-        const geminiModels = ['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+        const geminiModels = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
         const geminiKey = process.env.GEMINI_API_KEY;
 
         if (geminiKey) {
@@ -503,7 +503,7 @@ router.post('/grade', withAIQuota('past_paper_grading'), async (req, res) => {
         let parsedResult: any = null;
         try {
             const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-            for (const modelName of ['gemini-3.5-flash', 'gemini-3.8-flash']) {
+            for (const modelName of ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro']) {
                 try {
                     const model = genAI.getGenerativeModel({ model: modelName });
                     const result = await model.generateContent(prompt);
@@ -558,7 +558,7 @@ router.post('/chat', withAIQuota('past_paper_question'), async (req, res) => {
         let replyText = "";
         try {
             const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-            for (const modelName of ['gemini-3.5-flash', 'gemini-3.8-flash']) {
+            for (const modelName of ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro']) {
                 try {
                     const model = genAI.getGenerativeModel({ model: modelName });
                     const result = await model.generateContent(prompt);
@@ -592,14 +592,24 @@ router.delete('/:id', async (req, res) => {
         // Check ownership
         const { data: paper, error: fetchErr } = await supabaseAdmin
             .from('past_papers')
-            .select('user_id')
+            .select('id, user_id')
             .eq('id', paperId)
-            .single();
+            .maybeSingle();
             
         if (fetchErr) throw fetchErr;
-        if (paper.user_id !== req.user!.id) {
+        if (!paper) {
+            return res.status(404).json({ error: 'Past paper not found' });
+        }
+        if (paper.user_id !== req.user!.id && req.user!.role !== 'admin') {
             return res.status(403).json({ error: 'Unauthorized to delete this paper' });
         }
+
+        // Clean up child tables to guarantee zero FK restriction errors
+        await Promise.allSettled([
+            supabaseAdmin.from('past_paper_questions').delete().eq('past_paper_id', paperId),
+            supabaseAdmin.from('past_paper_pages').delete().eq('past_paper_id', paperId),
+            supabaseAdmin.from('past_paper_attempts').delete().eq('past_paper_id', paperId),
+        ]);
 
         const { error: delErr } = await supabaseAdmin
             .from('past_papers')
@@ -608,10 +618,52 @@ router.delete('/:id', async (req, res) => {
             
         if (delErr) throw delErr;
         
-        res.json({ success: true });
+        res.json({ success: true, message: 'Past paper deleted successfully' });
     } catch (err: any) {
         console.error('Error deleting paper:', err);
-        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+        res.status(500).json({ error: err.message || 'Failed to delete past paper', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+    }
+});
+
+router.post('/delete-batch', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: 'Missing or empty ids array' });
+        }
+
+        // Filter to only papers owned by user (or any if admin)
+        let query = supabaseAdmin.from('past_papers').select('id, user_id').in('id', ids);
+        if (req.user!.role !== 'admin') {
+            query = query.eq('user_id', req.user!.id);
+        }
+        const { data: papersToDelete, error: fetchErr } = await query;
+        if (fetchErr) throw fetchErr;
+
+        if (!papersToDelete || papersToDelete.length === 0) {
+            return res.status(404).json({ error: 'No matching papers found to delete' });
+        }
+
+        const validIds = papersToDelete.map(p => p.id);
+
+        // Delete child tables
+        await Promise.allSettled([
+            supabaseAdmin.from('past_paper_questions').delete().in('past_paper_id', validIds),
+            supabaseAdmin.from('past_paper_pages').delete().in('past_paper_id', validIds),
+            supabaseAdmin.from('past_paper_attempts').delete().in('past_paper_id', validIds),
+        ]);
+
+        const { error: delErr } = await supabaseAdmin
+            .from('past_papers')
+            .delete()
+            .in('id', validIds);
+
+        if (delErr) throw delErr;
+
+        res.json({ success: true, count: validIds.length });
+    } catch (err: any) {
+        console.error('Error deleting batch papers:', err);
+        res.status(500).json({ error: err.message || 'Failed to delete past papers', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 

@@ -46,13 +46,47 @@ export default function CoursesPage() {
 
   const fetchCourses = async () => {
     try {
-      const data = await apiFetch('/courses')
+      let data: any[] | null = null;
+      try {
+        const fetched = await apiFetch('/courses');
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          data = fetched;
+        }
+      } catch (apiErr) {
+        console.warn('apiFetch /courses failed, attempting direct Supabase query:', apiErr);
+      }
+
+      // If apiFetch returned empty array or failed, query Supabase directly
+      if (!data || data.length === 0) {
+        const { data: dbData, error } = await supabase
+          .from('courses')
+          .select('*, lectures(id, title), past_papers(id, title, year, exam_type, status)')
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(dbData)) {
+          data = dbData;
+        }
+      }
+
+      if (Array.isArray(data)) {
+        data.forEach((c: any) => {
+          if (Array.isArray(c.lectures)) {
+            c.lectures = c.lectures.filter((l: any) => !l.title?.startsWith('[FAILED'));
+          } else {
+            c.lectures = [];
+          }
+          if (!Array.isArray(c.past_papers)) {
+            c.past_papers = [];
+          }
+        });
+      }
+
       setCourses(data || []);
       console.log('Fetched courses:', data || []);
     } catch (err: any) {
-      toast.error(err.message)
+      toast.error(err.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -67,8 +101,14 @@ export default function CoursesPage() {
         await apiFetch(`/courses/${id}`, { method: 'DELETE' })
         toast.success('Course deleted')
       } catch (err: any) {
-        setCourses(previousCourses)
-        toast.error(err.message)
+        // Fallback to direct supabase delete
+        const { error } = await supabase.from('courses').delete().eq('id', id);
+        if (!error) {
+          toast.success('Course deleted');
+        } else {
+          setCourses(previousCourses)
+          toast.error(err.message)
+        }
       }
     }
   }
@@ -89,12 +129,34 @@ export default function CoursesPage() {
         year: parseInt(newCourseYear) || new Date().getFullYear()
       }
 
-      const fetchedCourse = await apiFetch('/courses', {
-        method: 'POST',
-        body: JSON.stringify(newCourseData)
-      });
+      let fetchedCourse: any = null;
+      try {
+        fetchedCourse = await apiFetch('/courses', {
+          method: 'POST',
+          body: JSON.stringify(newCourseData)
+        });
+      } catch (apiErr) {
+        console.warn('apiFetch POST /courses failed, falling back to direct Supabase insert:', apiErr);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data, error } = await supabase
+            .from('courses')
+            .insert({ ...newCourseData, user_id: user.id })
+            .select('*, lectures(id)')
+            .single();
+          if (!error && data) {
+            fetchedCourse = data;
+          } else {
+            throw error || apiErr;
+          }
+        } else {
+          throw apiErr;
+        }
+      }
       
-      setCourses(prev => [fetchedCourse, ...prev]);
+      if (fetchedCourse) {
+        setCourses(prev => [fetchedCourse, ...prev]);
+      }
 
       setNewCourseCode('');
       setNewCourseName('');
@@ -121,17 +183,38 @@ export default function CoursesPage() {
   const handleUpdateCourse = async () => {
     if (!editCourseId) return;
     try {
-      const updatedCourse = await apiFetch(`/courses/${editCourseId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          course_code: editCourseCode.toUpperCase(),
-          title: editCourseName,
-          colour: editCourseColor,
-          semester: parseInt(editCourseSemester) || 1,
-          year: parseInt(editCourseYear) || new Date().getFullYear()
-        })
-      });
-      setCourses(courses.map(c => c.id === editCourseId ? updatedCourse : c));
+      const updatePayload = {
+        course_code: editCourseCode.toUpperCase(),
+        title: editCourseName,
+        colour: editCourseColor,
+        semester: parseInt(editCourseSemester) || 1,
+        year: parseInt(editCourseYear) || new Date().getFullYear()
+      };
+
+      let updatedCourse: any = null;
+      try {
+        updatedCourse = await apiFetch(`/courses/${editCourseId}`, {
+          method: 'PATCH',
+          body: JSON.stringify(updatePayload)
+        });
+      } catch (apiErr) {
+        console.warn('apiFetch PATCH /courses failed, falling back to direct Supabase update:', apiErr);
+        const { data, error } = await supabase
+          .from('courses')
+          .update(updatePayload)
+          .eq('id', editCourseId)
+          .select('*, lectures(id)')
+          .single();
+        if (!error && data) {
+          updatedCourse = data;
+        } else {
+          throw error || apiErr;
+        }
+      }
+
+      if (updatedCourse) {
+        setCourses(courses.map(c => c.id === editCourseId ? updatedCourse : c));
+      }
       setIsEditDialogOpen(false);
       toast.success('Course updated');
     } catch (err: any) {
@@ -143,11 +226,29 @@ export default function CoursesPage() {
     e.preventDefault();
     e.stopPropagation();
     try {
-      const updatedCourse = await apiFetch(`/courses/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ is_archived: !isArchived })
-      });
-      setCourses(courses.map(c => c.id === id ? updatedCourse : c));
+      let updatedCourse: any = null;
+      try {
+        updatedCourse = await apiFetch(`/courses/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ is_archived: !isArchived })
+        });
+      } catch (apiErr) {
+        const { data, error } = await supabase
+          .from('courses')
+          .update({ is_archived: !isArchived })
+          .eq('id', id)
+          .select('*, lectures(id)')
+          .single();
+        if (!error && data) {
+          updatedCourse = data;
+        } else {
+          throw error || apiErr;
+        }
+      }
+
+      if (updatedCourse) {
+        setCourses(courses.map(c => c.id === id ? updatedCourse : c));
+      }
       toast.success(isArchived ? 'Course restored' : 'Course archived');
     } catch (err: any) {
       toast.error(err.message || 'Error archiving course');

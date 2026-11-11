@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/security/adminGuard';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+const GEMINI_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-1.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-pro',
+];
+
 export async function POST(req: NextRequest) {
   try {
     const { error } = await requireAuth();
@@ -23,9 +30,6 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(arrayBuffer);
     const base64Image = buffer.toString('base64');
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
-
     const prompt = `
       You are an expert transcriber and academic assistant.
       The attached image contains handwritten (or typed) study notes.
@@ -36,12 +40,26 @@ export async function POST(req: NextRequest) {
       Do not add external information, just transcribe and format what is in the image.
     `;
 
-    const result = await model.generateContent([
-      prompt,
-      { inlineData: { data: base64Image, mimeType: file.type } }
-    ]);
+    let transcription = '';
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-    const transcription = result.response.text();
+    for (const modelName of GEMINI_MODELS) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent([
+          prompt,
+          { inlineData: { data: base64Image, mimeType: file.type } },
+        ]);
+        transcription = result.response.text();
+        if (transcription) break;
+      } catch (err: any) {
+        console.warn(`Gemini scan notes model ${modelName} failed:`, err?.message);
+      }
+    }
+
+    if (!transcription) {
+      return NextResponse.json({ error: 'Could not transcribe image. Please ensure image is clear and try again.' }, { status: 500 });
+    }
 
     return NextResponse.json({ transcription });
   } catch (err: any) {

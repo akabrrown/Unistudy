@@ -119,3 +119,4 @@ export function getThemeColors(isDark: boolean, isHighContrast: boolean = false)
     isDark,
   };
 }
+

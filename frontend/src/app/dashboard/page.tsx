@@ -21,7 +21,7 @@ export default async function DashboardPage() {
   if (user) {
     const { data: coursesData } = await supabase
       .from('courses')
-      .select('*, lectures!inner(id)')
+      .select('*, lectures(id)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
     

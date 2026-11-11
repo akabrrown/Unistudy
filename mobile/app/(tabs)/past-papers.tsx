@@ -201,6 +201,30 @@ export default function PastPapersScreen() {
     setExamSubmitted(false);
   };
 
+  const handleDeletePaper = (paper: PastPaper) => {
+    Alert.alert(
+      'Delete Past Paper',
+      `Are you sure you want to delete "${paper.title}"? All associated questions and practice records will be permanently removed.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const previous = [...papers];
+            setPapers(prev => prev.filter(p => p.id !== paper.id));
+            try {
+              await apiFetch(`/past-papers/${paper.id}`, { method: 'DELETE' });
+            } catch (err: any) {
+              setPapers(previous);
+              Alert.alert('Error', err?.message || 'Failed to delete past paper');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const formatTimer = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -502,6 +526,14 @@ export default function PastPapersScreen() {
                     <Ionicons name="timer-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
                     <Text style={styles.practiceBtnText}>Start Exam Drill</Text>
                   </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.deletePaperBtn, { backgroundColor: colors.error + '18', borderColor: colors.error + '40' }]}
+                    onPress={() => handleDeletePaper(paper)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={colors.error} />
+                  </TouchableOpacity>
                 </View>
               </View>
             ))}
@@ -605,6 +637,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 13,
+  },
+  deletePaperBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // Exam Simulator View
@@ -813,3 +853,4 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+

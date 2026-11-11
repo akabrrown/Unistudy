@@ -10,8 +10,8 @@ export function getGroqClient() {
 export async function handleGroqRequest(req: AIRequest) {
   const groq = getGroqClient()
   const model = req.feature === 'daily_brief' || req.feature === 'motivational_quote' || req.feature === 'break_suggestion' 
-    ? 'openai/gpt-oss-20b' 
-    : 'openai/gpt-oss-120b';
+    ? 'llama-3.1-8b-instant' 
+    : 'llama-3.3-70b-versatile';
 
   if (req.feature === 'calculator') {
     const systemPrompt = `You are a strict, methodical AI calculator.
@@ -78,7 +78,7 @@ export async function handleGroqRequest(req: AIRequest) {
     `;
     const songResult = await groq.chat.completions.create({
       messages: [{ role: 'user', content: prompt }],
-      model: 'openai/gpt-oss-120b'
+      model: 'llama-3.3-70b-versatile'
     })
     return songResult.choices[0]?.message?.content || "No song generated."
   }
@@ -94,7 +94,7 @@ export async function handleGroqRequest(req: AIRequest) {
     `;
     const result = await groq.chat.completions.create({
       messages: [{ role: 'user', content: prompt }],
-      model: 'openai/gpt-oss-120b',
+      model: 'llama-3.3-70b-versatile',
       response_format: { type: 'json_object' }
     });
     return result.choices[0]?.message?.content || '{"flashcards": []}';

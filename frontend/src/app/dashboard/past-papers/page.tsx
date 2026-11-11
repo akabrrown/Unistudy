@@ -25,6 +25,7 @@ import Link from 'next/link'
 import { resolveCourseColor } from '@/lib/constants/courses'
 import { UploadModal } from '@/components/past-papers/UploadModal'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 interface CourseItem {
   id: string
@@ -96,24 +97,46 @@ export default function PastPapersDashboard() {
       e.preventDefault()
       e.stopPropagation()
     }
-    if (!confirm(`Are you sure you want to delete ${ids.length} paper(s)?`)) return
-    setIsDeleting(true)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
+    if (!ids || ids.length === 0) return
+    const msg = ids.length === 1 
+      ? 'Are you sure you want to delete this past question paper? All extracted questions and drill data will be permanently removed.' 
+      : `Are you sure you want to delete ${ids.length} past question paper(s)?`;
+    if (!confirm(msg)) return
 
-      for (const id of ids) {
-        await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8005'}/api/past-papers/${id}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${session.access_token}` },
+    const previousPapers = [...papers]
+    // Optimistic UI removal
+    setPapers(prev => prev.filter(p => !ids.includes(p.id)))
+    setSelectedPapers(prev => prev.filter(p => !ids.includes(p)))
+    setIsDeleting(true)
+
+    try {
+      if (ids.length === 1) {
+        await apiFetch(`/past-papers/${ids[0]}`, { method: 'DELETE' })
+      } else {
+        await apiFetch('/past-papers/delete-batch', {
+          method: 'POST',
+          body: JSON.stringify({ ids }),
         })
       }
-      setSelectedPapers([])
-      loadData()
+      toast.success(ids.length === 1 ? 'Past paper deleted' : `${ids.length} past papers deleted`)
     } catch (err: any) {
-      console.error(err)
+      console.warn('Backend delete error, trying direct Supabase fallback:', err?.message)
+      try {
+        const { error: supaErr } = await supabase
+          .from('past_papers')
+          .delete()
+          .in('id', ids)
+
+        if (supaErr) throw supaErr
+        toast.success(ids.length === 1 ? 'Past paper deleted' : `${ids.length} past papers deleted`)
+      } catch (fallbackErr: any) {
+        // Rollback state on failure
+        setPapers(previousPapers)
+        toast.error(fallbackErr?.message || err?.message || 'Failed to delete past paper')
+      }
     } finally {
       setIsDeleting(false)
+      loadData()
     }
   }
 

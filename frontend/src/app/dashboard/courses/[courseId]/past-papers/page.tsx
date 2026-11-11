@@ -5,6 +5,7 @@ import { Upload, FileText, ArrowRight, TrendingUp, AlertTriangle } from 'lucide-
 import Link from 'next/link';
 
 import { CourseUploadPastPaperButton } from '@/components/past-papers/CourseUploadPastPaperButton';
+import { DeletePastPaperButton } from '@/components/past-papers/DeletePastPaperButton';
 
 export default async function PastPapersPage(props: { params: Promise<{ courseId: string }> }) {
   const params = await props.params;
@@ -59,12 +60,15 @@ export default async function PastPapersPage(props: { params: Promise<{ courseId
                     <h3 className="font-semibold text-base">{paper.year} {paper.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm'}</h3>
                     <p className="text-sm text-muted-foreground">Uploaded {new Date(paper.created_at).toLocaleDateString()}</p>
                   </div>
-                  <Link href={`/dashboard/past-papers/${paper.id}`}>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      Attempt
-                      <ArrowRight className="w-3 h-3" />
-                    </Button>
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <DeletePastPaperButton paperId={paper.id} paperTitle={`${paper.year} ${paper.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm'}`} />
+                    <Link href={`/dashboard/past-papers/${paper.id}`}>
+                      <Button variant="outline" size="sm" className="gap-2">
+                        Attempt
+                        <ArrowRight className="w-3 h-3" />
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               ))}
             </div>

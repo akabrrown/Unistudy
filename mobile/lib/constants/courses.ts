@@ -33,3 +33,4 @@ export function resolveCourseColor(colour?: string | null): string {
   }
   return colour;
 }
+
