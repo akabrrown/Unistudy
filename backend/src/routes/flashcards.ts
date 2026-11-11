@@ -5,63 +5,10 @@ import { routeRequest, AIRequest } from '../lib/ai/router';
 import { consumeUserQuota } from '../lib/ai/quota';
 import { supabaseAdmin, supabaseAsUser } from '../lib/supabase';
 import { calculateNextReview, Rating } from '../lib/utils/sm2';
-
-export function extractFlashcardsFromSlides(slides: { raw_text?: string; explanation?: string; slide_number?: number }[]): { front: string; back: string }[] {
-  const cards: { front: string; back: string }[] = [];
-  const seenFronts = new Set<string>();
-
-  for (const s of slides) {
-    const text = (s.raw_text || '').trim();
-    const explanation = (s.explanation || '').trim();
-    if (!text && !explanation) continue;
-
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
-    for (const line of lines) {
-      const defMatch = line.match(/^([A-Z0-9\s/_-]{3,40})\s*[:–—]\s*(.{15,})$/);
-      if (defMatch) {
-        const front = `What is ${defMatch[1].trim()}?`;
-        const back = defMatch[2].trim();
-        if (!seenFronts.has(front.toLowerCase())) {
-          seenFronts.add(front.toLowerCase());
-          cards.push({ front, back });
-        }
-      }
-    }
-
-    for (let i = 0; i < lines.length - 1; i++) {
-      const current = lines[i];
-      const next = lines[i + 1];
-      if (
-        current.length >= 3 &&
-        current.length <= 40 &&
-        !current.endsWith('.') &&
-        next.length >= 20 &&
-        !next.startsWith('BSIT') &&
-        !next.startsWith('Department')
-      ) {
-        const front = `Define ${current}`;
-        const back = next;
-        if (!seenFronts.has(front.toLowerCase()) && cards.length < 20) {
-          seenFronts.add(front.toLowerCase());
-          cards.push({ front, back });
-        }
-      }
-    }
-
-    if (explanation && explanation.length > 25 && lines.length > 0) {
-      const heading = lines.find(l => l.length > 4 && l.length < 60 && !l.includes('•') && !l.startsWith('Department')) || `Slide ${s.slide_number} Concept`;
-      const front = `Key concept: ${heading}`;
-      const back = explanation.length > 250 ? explanation.slice(0, 250) + '...' : explanation;
-      if (!seenFronts.has(front.toLowerCase()) && cards.length < 20) {
-        seenFronts.add(front.toLowerCase());
-        cards.push({ front, back });
-      }
-    }
-  }
-
-  return cards.slice(0, 15);
-}
+import {
+  extractFlashcardsFromSlides,
+  parseFlashcardsJson,
+} from '../../../shared/lib/flashcardExtractor';
 
 const router = Router();
 router.use(authenticateUser);
@@ -120,33 +67,8 @@ router.post('/generate', withAIQuota('flashcard_generation'), async (req: Reques
       
       consumeUserQuota(aiReq.userId, aiReq.feature, req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
       
-      // Parse result robustly (array, JSON string, or object with array property)
-      let rawResult = response.result;
-      if (typeof rawResult === 'string') {
-        try {
-          const cleaned = rawResult.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-          rawResult = JSON.parse(cleaned);
-        } catch (e) {
-          console.error('Failed to parse flashcards JSON string:', e, rawResult);
-        }
-      }
-
-      let extractedList: any[] = [];
-      if (Array.isArray(rawResult)) {
-        extractedList = rawResult;
-      } else if (rawResult && typeof rawResult === 'object') {
-        const possibleArray = Object.values(rawResult).find(v => Array.isArray(v));
-        if (Array.isArray(possibleArray)) {
-          extractedList = possibleArray;
-        }
-      }
-
-      generatedCards = extractedList
-        .map((c: any) => ({
-          front: String(c.front || c.question || c.term || c.concept || c.q || '').trim(),
-          back: String(c.back || c.answer || c.definition || c.explanation || c.a || '').trim()
-        }))
-        .filter(c => c.front.length > 0 && c.back.length > 0);
+      // Parse result robustly using shared parser
+      generatedCards = parseFlashcardsJson(response.result);
     } catch (aiErr: any) {
       console.warn('[Flashcards] AI generation failed, falling back to deterministic extraction:', aiErr?.message || aiErr);
     }
@@ -160,9 +82,8 @@ router.post('/generate', withAIQuota('flashcard_generation'), async (req: Reques
     console.log(`[Flashcards] Total generatedCards to insert: ${generatedCards.length}`);
     
     // 4. Delete existing flashcards for this lecture to allow regeneration
-    try {
-      await supabase.from('flashcards').delete().eq('lecture_id', lectureId).eq('user_id', req.user!.id);
-    } catch (delErr) {
+    const { error: delError } = await supabase.from('flashcards').delete().eq('lecture_id', lectureId).eq('user_id', req.user!.id);
+    if (delError) {
       await supabaseAdmin.from('flashcards').delete().eq('lecture_id', lectureId).eq('user_id', req.user!.id);
     }
 
@@ -230,15 +151,36 @@ router.post('/generate', withAIQuota('flashcard_generation'), async (req: Reques
 router.get('/', async (req: Request, res: Response) => {
   try {
     const supabase = supabaseAsUser(req.user!.jwt);
-    const lectureIdsParam = req.query.lectureIds as string;
-    if (!lectureIdsParam) {
-      return res.status(400).json({ error: 'lectureIds is required' });
+    const lectureIdsParam = req.query.lectureIds as string | undefined;
+    const dueOnly = req.query.due === 'true';
+
+    const buildQuery = (client: typeof supabase) => {
+      let query = client
+        .from('flashcards')
+        .select('*')
+        .eq('user_id', req.user!.id);
+
+      if (lectureIdsParam) {
+        const lectureIds = lectureIdsParam.split(',').filter(Boolean);
+        if (lectureIds.length > 0) {
+          query = query.in('lecture_id', lectureIds);
+        }
+      }
+      if (dueOnly) {
+        query = query.lte('next_review', new Date(Date.now() + 60000).toISOString());
+      }
+      return query;
+    };
+
+    const { data, error } = await buildQuery(supabase);
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return res.json({ data });
     }
-    const lectureIds = lectureIdsParam.split(',');
-    
-    const { data, error } = await supabase.from('flashcards').select('*').in('lecture_id', lectureIds);
-    if (error) throw error;
-    res.json({ data });
+
+    // Fallback to admin client scoped strictly to authenticated req.user.id if RLS blocks user SELECT
+    const { data: adminData, error: adminErr } = await buildQuery(supabaseAdmin);
+    if (adminErr) throw adminErr;
+    res.json({ data: adminData || [] });
   } catch (err: any) {
     res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
@@ -251,22 +193,32 @@ router.post('/review', async (req: Request, res: Response) => {
 
   try {
     const nextData = calculateNextReview(currentData, rating as Rating);
+    const updatePayload = {
+      ease_factor: nextData.ease_factor,
+      interval_days: nextData.interval_days,
+      repetitions: nextData.repetitions,
+      next_review: nextData.next_review.toISOString(),
+      last_rating: rating
+    };
 
-    const { error } = await supabase
+    const { data: updatedRows, error } = await supabase
       .from('flashcards')
-      .update({
-        ease_factor: nextData.ease_factor,
-        interval_days: nextData.interval_days,
-        repetitions: nextData.repetitions,
-        next_review: nextData.next_review.toISOString(),
-        last_rating: rating
-      })
+      .update(updatePayload)
       .eq('id', cardId)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .select('id');
 
-    if (error) {
-      console.error('Error updating flashcard:', error);
-      return res.status(500).json({ error: 'Failed to update flashcard' });
+    if (error || !updatedRows || updatedRows.length === 0) {
+      const { error: adminUpdateErr } = await supabaseAdmin
+        .from('flashcards')
+        .update(updatePayload)
+        .eq('id', cardId)
+        .eq('user_id', userId);
+
+      if (adminUpdateErr) {
+        console.error('Error updating flashcard:', adminUpdateErr);
+        return res.status(500).json({ error: 'Failed to update flashcard' });
+      }
     }
 
     res.json({ success: true, nextData: {

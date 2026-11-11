@@ -7,6 +7,7 @@ import { generateFlashcards, submitFlashcardReview } from '@/app/actions/flashca
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, Loader2, BrainCircuit, Check, X, RotateCcw, Volume2, RefreshCw, Layers, PlayCircle, Lightbulb, Languages } from 'lucide-react'
 import { apiFetch } from '@/lib/api/client'
+import { createClient } from '@/lib/supabase/client'
 import { Rating } from '@/lib/utils/sm2'
 import { ShareButton } from '@/components/study/ShareButton'
 import { useSettings } from '@/contexts/SettingsContext'
@@ -46,20 +47,32 @@ export default function FlashcardsPage() {
     try {
       lecs = await apiFetch(`/lectures/${courseId}`)
     } catch (err) {
-      console.error('Failed to fetch lectures for course:', err)
-    }
-    
-    // Fallback for demo purposes if DB is empty
-    if (!lecs || lecs.length === 0) {
-      lecs = [{ id: '00000000-0000-0000-0000-000000000001', title: 'Lecture 14: DNA Replication', week: 8 }]
+      console.warn('apiFetch lectures failed, querying Supabase directly:', err)
     }
 
-    setLectures(lecs)
-    const lecIds = lecs.map((l: any) => l.id)
-    
-    // Fetch flashcards using Server Action to bypass RLS
+    if (!Array.isArray(lecs) || lecs.length === 0) {
+      try {
+        const supabase = createClient()
+        const { data: dbLectures } = await supabase
+          .from('lectures')
+          .select('*')
+          .eq('course_id', courseId)
+          .order('week', { ascending: true })
+
+        if (Array.isArray(dbLectures) && dbLectures.length > 0) {
+          lecs = dbLectures
+        }
+      } catch (sbErr) {
+        console.error('Supabase lectures fallback failed:', sbErr)
+      }
+    }
+
+    const cleanLectures = (lecs || []).filter((l: any) => !l.title?.startsWith('[FAILED'))
+    setLectures(cleanLectures)
+    const lecIds = cleanLectures.map((l: any) => l.id)
+
     const { getFlashcards } = await import('@/app/actions/flashcards')
-    const res = await getFlashcards(lecIds)
+    const res = lecIds.length > 0 ? await getFlashcards(lecIds) : { data: [] }
     const fetchedCards = res.data || []
     setFlashcards(fetchedCards)
     setLoading(false)
@@ -72,9 +85,17 @@ export default function FlashcardsPage() {
     if (res.error) {
       toast.error(typeof res.error === 'string' ? res.error : 'Failed to generate flashcards')
     } else {
-      toast.success(`Generated ${res.count || 0} flashcards! Opening deck...`)
       const updatedCards = await fetchData()
-      startReview(lectureId, updatedCards)
+      const returnedCards = Array.isArray((res as any).cards) ? (res as any).cards : []
+      let effectiveCards = updatedCards
+
+      if (effectiveCards.filter((c: any) => c.lecture_id === lectureId).length === 0 && returnedCards.length > 0) {
+        effectiveCards = [...updatedCards.filter((c: any) => c.lecture_id !== lectureId), ...returnedCards]
+        setFlashcards(effectiveCards)
+      }
+
+      toast.success(`Generated ${res.count || returnedCards.length || 0} flashcards! Opening deck...`)
+      startReview(lectureId, effectiveCards)
     }
     setGeneratingFor(null)
   }
@@ -83,15 +104,17 @@ export default function FlashcardsPage() {
     const cardsToUse = cardSource || flashcards
     const nowWithBuffer = new Date(Date.now() + 60000)
     let pool = cardsToUse.filter(c => new Date(c.next_review) <= nowWithBuffer)
-    
+
     if (lectureId) {
       const lecturePool = cardsToUse.filter(c => c.lecture_id === lectureId)
       pool = pool.filter(c => c.lecture_id === lectureId)
       if (pool.length === 0 && lecturePool.length > 0) {
         pool = lecturePool
       }
+    } else if (pool.length === 0 && cardsToUse.length > 0) {
+      pool = cardsToUse
     }
-    
+
     if (pool.length === 0) {
       toast.error("No flashcards are currently available for review!")
       return
