@@ -3,9 +3,10 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Microscope, Volume2, PenTool, StickyNote, Monitor, Eye, EyeOff, Loader2, PlaySquare, Play, X, Pin, Frown, Meh, Smile, Zap, Flame, Square, Eraser, RefreshCw, MessageCircle, Send, Hourglass, Pause, Calculator, Music, FileText, DownloadCloud, BookOpen, Languages, ChevronDown, SlidersHorizontal, Maximize, Layers, Check, ArrowRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Microscope, Volume2, PenTool, StickyNote, Monitor, Eye, EyeOff, Loader2, PlaySquare, Play, X, Pin, Frown, Meh, Smile, Zap, Flame, Square, Eraser, RefreshCw, MessageCircle, Send, Hourglass, Pause, Calculator, Music, FileText, DownloadCloud, BookOpen, Languages, ChevronDown, SlidersHorizontal, Maximize, Layers, Check, ArrowRight, Sparkles } from 'lucide-react'
 import { FocusTimer, FocusTimerRef } from '@/components/study/FocusTimer'
 import { CalculatorPanel } from '@/components/study/CalculatorPanel'
+import { TutorFeedbackView } from '@/components/study/TutorFeedbackView'
 import { generateSlideExplanation } from '@/app/actions/explain'
 import { downloadLecturePack } from '@/lib/downloadPack'
 import { getFlashcards } from '@/app/actions/flashcards'
@@ -151,8 +152,9 @@ export default function LectureViewer() {
 
   // AI Chat state
   const [isChatOpen, setIsChatOpen] = useState(false)
+  const [isChatExpanded, setIsChatExpanded] = useState(false)
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false)
-  const [chatMessages, setChatMessages] = useState<{ role: string, content: string }[]>([])
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant' | 'system', content: string }[]>([])
   const [chatInput, setChatInput] = useState('')
   const [isChatLoading, setIsChatLoading] = useState(false)
 
@@ -391,12 +393,13 @@ export default function LectureViewer() {
   }
 
   // AI Chat Handler
-  const handleSendChatMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || isChatLoading) return;
+  const handleSendChatMessage = async (e?: React.FormEvent, customInput?: string) => {
+    if (e) e.preventDefault();
+    const messageToSend = (customInput || chatInput).trim();
+    if (!messageToSend || isChatLoading) return;
     
     const slideId = currentSlide?.id || `${lectureId}-${slideIndex}`;
-    const userMsg = { role: 'user', content: chatInput };
+    const userMsg: { role: 'user' | 'assistant' | 'system'; content: string } = { role: 'user', content: messageToSend };
     const newMessages = [...chatMessages, userMsg];
     
     setChatMessages(newMessages);
@@ -408,26 +411,66 @@ export default function LectureViewer() {
       // Build context for the AI
       const slideText = currentSlide?.raw_text ? `Slide text: ${currentSlide.raw_text}` : '';
       const slideExplanation = explanation ? `AI explanation of slide: ${explanation.replace(/<[^>]*>?/gm, '')}` : '';
+      const activeTutor = settings?.ai_tutor_name || 'Uni';
       
-      const systemPrompt = `You are an AI tutor helping a student understand a slide. Context: Course: ${courseContext}. ${slideText}. ${slideExplanation}. Keep answers concise, helpful, and directly related to the student's question.`;
+      const systemPrompt = `You are ${activeTutor}, an elite university AI tutor helping a student master this material.
+Current Context:
+- Course: ${courseContext}
+- Slide: Slide ${slideIndex + 1}
+- ${slideText}
+- ${slideExplanation}
+
+PEDAGOGICAL & PRESENTATION DIRECTIVES (MANDATORY):
+1. READABLE FORMATTING:
+   - Structure your response using markdown headers (##, ###) for major sections.
+   - Use clean, spaced bullet points instead of dense text blocks.
+   - Highlight core terms, variables, and formulas in **bold**.
+2. INTUITION FIRST:
+   - Provide an intuitive real-world analogy or visual model before technical formulas.
+   - Break multi-step derivations or processes into clear numbered steps (1., 2., 3.).
+3. MATH & CODE:
+   - Format all mathematical notation in standard LaTeX using $...$ for inline or $$...$$ for display equations.
+   - Format code in syntax-highlighted blocks with the language tag.
+4. HIGH-YIELD TAKEAWAYS:
+   - Include a callout block at the end:
+     > 💡 **Key Takeaway:** [Concise 1-2 sentence core concept that is likely tested]
+5. TONE:
+   - Encouraging, ultra-clear, academically rigorous, and pleasant to read.`;
 
       const payloadMessages = [
         ...newMessages
       ];
 
-      const res = await apiFetch('/ai/ask', {
-        method: 'POST',
-        body: JSON.stringify({
-          feature: 'chat_message', // Groq 70b
-          payload: { stream: false, systemPrompt, messages: payloadMessages }
-        })
-      });
+      let res: any = null;
+      try {
+        res = await apiFetch('/ai/ask', {
+          method: 'POST',
+          body: JSON.stringify({
+            feature: 'chat_message', // Groq 70b
+            payload: { stream: false, systemPrompt, messages: payloadMessages }
+          })
+        });
+      } catch (apiErr) {
+        console.warn('[AI Tutor] apiFetch /ai/ask failed, falling back to local route handler:', apiErr);
+        const localRes = await fetch('/api/ai/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            feature: 'chat_message',
+            payload: { stream: false, systemPrompt, messages: payloadMessages }
+          })
+        });
+        if (localRes.ok) {
+          res = await localRes.json();
+        } else {
+          throw apiErr;
+        }
+      }
 
-      if (res.result) {
-        // Handle standard response (non-streamed)
+      if (res?.result) {
         const content = res.result.choices?.[0]?.message?.content || res.result;
         setChatMessages(prev => {
-          const updated = [...prev, { role: 'assistant', content: typeof content === 'string' ? content : JSON.stringify(content) }];
+          const updated: { role: 'user' | 'assistant' | 'system'; content: string }[] = [...prev, { role: 'assistant', content: typeof content === 'string' ? content : JSON.stringify(content) }];
           localStorage.setItem(`slideChat_${slideId}`, JSON.stringify(updated));
           return updated;
         });
@@ -440,6 +483,26 @@ export default function LectureViewer() {
     } finally {
       setIsChatLoading(false);
     }
+  }
+
+  const handleSaveTutorToNotes = async (tutorFeedback: string) => {
+    const slideId = currentSlide?.id || `${lectureId}-${slideIndex}`;
+    const existing = (slideNotes || '').trim();
+    const addition = `\n\n### 💡 Tutor Notes (Slide ${slideIndex + 1}):\n${tutorFeedback}`;
+    const newNotes = existing ? `${existing}${addition}` : addition.trim();
+
+    setSlideNotes(newNotes);
+    localStorage.setItem(`slideNote_${slideId}`, newNotes);
+
+    try {
+      await apiFetch(`/lectures/${slideId}/notes`, {
+        method: 'POST',
+        body: JSON.stringify({ content: newNotes })
+      });
+    } catch {
+      // Offline / local fallback already saved above
+    }
+    toast.success('Added tutor response to slide notes!');
   }
 
   // Fetch real data
@@ -1465,20 +1528,58 @@ export default function LectureViewer() {
 
       {/* AI Chat Panel */}
       {isChatOpen && (
-        <div className="absolute right-0 top-14 bottom-0 w-[400px] bg-card border-l border-border shadow-2xl flex flex-col z-[60] animate-in slide-in-from-right">
-          <div className="flex items-center justify-between p-4 border-b border-border bg-emerald-500/10">
-            <h3 className="font-bold flex items-center gap-2 text-emerald-600"><MessageCircle size={18} /> AI Tutor</h3>
-            <div className="flex gap-1">
+        <div className={`absolute right-0 top-14 bottom-0 ${isChatExpanded ? 'w-[720px] max-w-[95vw]' : 'w-[450px] max-w-[90vw]'} bg-card border-l border-border shadow-2xl flex flex-col z-[60] transition-all duration-300 ease-in-out animate-in slide-in-from-right`}>
+          <div className="flex items-center justify-between p-3.5 border-b border-border bg-emerald-500/10 backdrop-blur-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs ring-1 ring-emerald-500/30">
+                <Sparkles size={16} />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+                  {settings?.ai_tutor_name || 'AI Tutor'}
+                </h3>
+                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Active on Slide {slideIndex + 1}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setIsChatExpanded(!isChatExpanded)}
+                title={isChatExpanded ? "Collapse to standard width" : "Expand for reading"}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Maximize size={15} className={`transition-transform duration-200 ${isChatExpanded ? 'rotate-180 text-emerald-600' : ''}`} />
+              </Button>
+
               {chatMessages.length > 0 && (
-                <Button variant="ghost" size="icon-sm" onClick={() => {
-                  const slideId = currentSlide?.id || `${lectureId}-${slideIndex}`;
-                  localStorage.removeItem(`slideChat_${slideId}`);
-                  setChatMessages([]);
-                }} title="Start New Chat">
-                  <Eraser size={16} className="text-muted-foreground hover:text-destructive transition-colors" />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => {
+                    const slideId = currentSlide?.id || `${lectureId}-${slideIndex}`;
+                    localStorage.removeItem(`slideChat_${slideId}`);
+                    setChatMessages([]);
+                    toast.success('Chat history cleared');
+                  }}
+                  title="Start New Chat"
+                  className="text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <Eraser size={15} />
                 </Button>
               )}
-              <Button variant="ghost" size="icon-sm" onClick={() => setIsChatOpen(false)}>
+
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setIsChatOpen(false)}
+                title="Close AI Tutor"
+                className="text-muted-foreground hover:text-foreground"
+              >
                 <X size={16} />
               </Button>
             </div>
@@ -1486,42 +1587,86 @@ export default function LectureViewer() {
           
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/5">
             {chatMessages.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-20 text-emerald-500" />
-                <p className="text-sm font-medium">Have a question about this slide?</p>
-                <p className="text-xs mt-1">Ask the AI tutor for clarification, examples, or further details.</p>
+              <div className="py-6 px-2 text-center">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shadow-xs">
+                  <MessageCircle className="w-6 h-6" />
+                </div>
+                <h4 className="text-sm font-semibold text-foreground mb-1">
+                  Ask {settings?.ai_tutor_name || 'your AI Tutor'} anything
+                </h4>
+                <p className="text-xs text-muted-foreground max-w-xs mx-auto mb-5 leading-relaxed">
+                  Get high-yield, presentation-ready explanations with analogies, formula breakdowns, and key takeaways for Slide {slideIndex + 1}.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left max-w-sm mx-auto">
+                  {[
+                    { title: "Explain Core Idea", query: "Can you explain the main idea of this slide in simple, intuitive terms?" },
+                    { title: "Real-World Analogy", query: "What is an intuitive real-world analogy to help me remember this concept?" },
+                    { title: "Practice Question", query: "Give me an exam-style practice question based on this slide with an explanation." },
+                    { title: "Key Terms Breakdown", query: "List and define the key technical terms and formulas introduced on this slide." }
+                  ].map((card, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleSendChatMessage(undefined, card.query)}
+                      className="p-2.5 rounded-xl border border-border/70 hover:border-emerald-500/50 bg-card hover:bg-emerald-500/5 transition-all text-left group shadow-2xs cursor-pointer"
+                    >
+                      <div className="text-xs font-semibold text-foreground group-hover:text-emerald-600 transition-colors flex items-center justify-between">
+                        {card.title}
+                        <ArrowRight size={11} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                      <div className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5 leading-snug">
+                        {card.query}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : (
-              chatMessages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-tr-sm' : 'bg-muted border border-border rounded-tl-sm'}`}>
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                  </div>
-                </div>
-              ))
+              <TutorFeedbackView
+                messages={chatMessages}
+                isLoading={isChatLoading}
+                tutorName={settings?.ai_tutor_name || 'AI Tutor'}
+                onSendSuggestion={(suggestionText) => handleSendChatMessage(undefined, suggestionText)}
+                onSaveToNotes={handleSaveTutorToNotes}
+              />
             )}
+
             {isChatLoading && (
-              <div className="flex justify-start">
-                <div className="bg-muted border border-border rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 bg-foreground/30 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                  <span className="w-1.5 h-1.5 bg-foreground/30 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                  <span className="w-1.5 h-1.5 bg-foreground/30 rounded-full animate-bounce"></span>
+              <div className="flex justify-start pr-4 animate-in fade-in">
+                <div className="rounded-2xl rounded-tl-xs bg-card border border-emerald-500/30 px-4 py-3 flex items-center gap-3 shadow-xs">
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center animate-spin">
+                    <Sparkles size={12} />
+                  </div>
+                  <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <span>Structuring explanation</span>
+                    <span className="flex gap-0.5">
+                      <span className="w-1 h-1 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                      <span className="w-1 h-1 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                      <span className="w-1 h-1 bg-emerald-500 rounded-full animate-bounce"></span>
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
           </div>
           
           <div className="p-3 border-t border-border bg-card">
-            <form onSubmit={handleSendChatMessage} className="flex gap-2">
+            <form onSubmit={handleSendChatMessage} className="flex gap-2 items-center">
               <input 
-                className="flex-1 bg-background border border-border rounded-full px-4 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                placeholder="Ask about this slide..."
+                className="flex-1 bg-background border border-border rounded-xl px-4 py-2.5 text-xs sm:text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs transition-colors"
+                placeholder={`Ask ${settings?.ai_tutor_name || 'AI Tutor'} about Slide ${slideIndex + 1}...`}
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 disabled={isChatLoading}
               />
-              <Button type="submit" size="icon" disabled={!chatInput.trim() || isChatLoading} className="rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shrink-0">
-                <Send size={16} />
+              <Button
+                type="submit"
+                size="default"
+                disabled={!chatInput.trim() || isChatLoading}
+                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 px-3.5 shadow-xs"
+              >
+                <Send size={15} />
               </Button>
             </form>
           </div>
