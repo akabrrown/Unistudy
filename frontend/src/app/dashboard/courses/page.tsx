@@ -47,24 +47,52 @@ export default function CoursesPage() {
   const fetchCourses = async () => {
     try {
       let data: any[] | null = null;
+
+      // 1. Primary: backend API
       try {
         const fetched = await apiFetch('/courses');
         if (Array.isArray(fetched) && fetched.length > 0) {
           data = fetched;
         }
       } catch (apiErr) {
-        console.warn('apiFetch /courses failed, attempting direct Supabase query:', apiErr);
+        console.warn('apiFetch /courses failed, checking Next.js route / direct Supabase:', apiErr);
       }
 
-      // If apiFetch returned empty array or failed, query Supabase directly
+      // 2. Next.js local server route (uses server-side cookies)
+      if (!data || data.length === 0) {
+        try {
+          const res = await fetch('/api/courses');
+          if (res.ok) {
+            const nextData = await res.json();
+            if (Array.isArray(nextData) && nextData.length > 0) {
+              data = nextData;
+            }
+          }
+        } catch {
+          // ignore and proceed to direct supabase client
+        }
+      }
+
+      // 3. Direct Supabase Client Query
       if (!data || data.length === 0) {
         const { data: dbData, error } = await supabase
           .from('courses')
           .select('*, lectures(id, title), past_papers(id, title, year, exam_type, status)')
           .order('created_at', { ascending: false });
 
-        if (!error && Array.isArray(dbData)) {
+        if (!error && Array.isArray(dbData) && dbData.length > 0) {
           data = dbData;
+        } else if (error) {
+          // 4. Fallback if relational join failed
+          console.warn('Direct courses join query failed, falling back to base select:', error.message);
+          const { data: baseData } = await supabase
+            .from('courses')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (Array.isArray(baseData) && baseData.length > 0) {
+            data = baseData;
+          }
         }
       }
 
