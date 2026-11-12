@@ -135,7 +135,7 @@ export default function CameraScannerScreen() {
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <>
-                <Ionicons name="sparkles" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Ionicons name="document-text-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
                 <Text style={styles.scanActionBtnText}>Transcribe & Summarize</Text>
               </>
             )}

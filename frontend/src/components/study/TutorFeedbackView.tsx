@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Sparkles, Copy, Check, Volume2, VolumeX, StickyNote, ArrowRight } from 'lucide-react'
+import { GraduationCap, BookOpen, Copy, Check, Volume2, VolumeX, StickyNote, ArrowRight } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
@@ -102,7 +102,7 @@ export function TutorFeedbackView({
               <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-b border-border/60">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center ring-1 ring-emerald-500/30 shadow-xs">
-                    <Sparkles size={14} className="animate-pulse" />
+                    <GraduationCap size={14} />
                   </div>
                   <div>
                     <span className="font-semibold text-xs tracking-tight text-foreground flex items-center gap-1.5">
@@ -246,7 +246,7 @@ export function TutorFeedbackView({
       {messages.length > 0 && !isLoading && onSendSuggestion && (
         <div className="pt-2 pb-1 border-t border-border/40">
           <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
-            <Sparkles size={11} className="text-emerald-500" /> Explore Further
+            <BookOpen size={11} className="text-emerald-500" /> Explore Further
           </p>
           <div className="flex flex-wrap gap-1.5">
             {quickSuggestions.map((s, idx) => (

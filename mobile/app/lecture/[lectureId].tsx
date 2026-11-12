@@ -180,7 +180,7 @@ export default function LectureViewerScreen() {
           <View style={[styles.tabsRow, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}>
             {[
               { id: 'slide', label: 'Slide View', icon: 'easel-outline' },
-              { id: 'tutor', label: 'AI Tutor', icon: 'sparkles' },
+              { id: 'tutor', label: 'AI Tutor', icon: 'school-outline' },
               { id: 'notes', label: 'My Notes', icon: 'create-outline' },
             ].map(tab => {
               const active = activeTab === tab.id;
@@ -229,7 +229,7 @@ export default function LectureViewerScreen() {
                   style={[styles.quickExplainBtn, { backgroundColor: colors.primaryViolet }]}
                   onPress={handleExplainSlide}
                 >
-                  <Ionicons name="sparkles" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Ionicons name="bulb-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
                   <Text style={styles.quickExplainText}>Explain This Slide With AI</Text>
                 </TouchableOpacity>
               </View>
@@ -284,7 +284,7 @@ export default function LectureViewerScreen() {
                       style={[styles.triggerExplainBtn, { backgroundColor: colors.primaryViolet }]}
                       onPress={handleExplainSlide}
                     >
-                      <Ionicons name="sparkles" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Ionicons name="bulb-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
                       <Text style={styles.triggerExplainBtnText}>Generate Explanation</Text>
                     </TouchableOpacity>
                   </View>

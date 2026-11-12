@@ -199,7 +199,7 @@ export default function FlashcardsScreen() {
               You reviewed {sessionReviewedCount} cards today. Your memory retention is stronger!
             </Text>
             <View style={[styles.rewardCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
-              <Ionicons name="sparkles" size={24} color={colors.primaryViolet} />
+              <Ionicons name="star" size={24} color={colors.primaryViolet} />
               <Text style={[styles.rewardText, { color: colors.textPrimary }]}>
                 +{(sessionReviewedCount * 5)} Knowledge Points (XP)
               </Text>
@@ -433,7 +433,7 @@ export default function FlashcardsScreen() {
           <ActivityIndicator size="small" color={colors.primaryViolet} style={{ marginVertical: 30 }} />
         ) : filteredCards.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
-            <Ionicons name="sparkles-outline" size={36} color={colors.primaryViolet} style={{ marginBottom: 10 }} />
+            <Ionicons name="albums-outline" size={36} color={colors.primaryViolet} style={{ marginBottom: 10 }} />
             <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No cards in review queue</Text>
             <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
               Flashcards are automatically generated from your lecture slides. Upload your syllabus or slide decks to create your deck!

@@ -149,7 +149,7 @@ export default function DashboardScreen() {
         {/* Daily Motivational Quote */}
         <View style={[styles.quoteCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
           <View style={styles.quoteHeader}>
-            <Ionicons name="sparkles" size={16} color={colors.primaryViolet} style={{ marginRight: 6 }} />
+            <Ionicons name="sunny-outline" size={16} color={colors.primaryViolet} style={{ marginRight: 6 }} />
             <Text style={[styles.quoteBadgeText, { color: colors.primaryViolet }]}>Daily Inspiration</Text>
           </View>
           <Text style={[styles.quoteText, { color: colors.textPrimary }]}>"{dailyQuote.quote}"</Text>

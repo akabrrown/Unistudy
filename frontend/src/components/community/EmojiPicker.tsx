@@ -5,7 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Button } from '@/components/ui/button';
 import { Smile } from 'lucide-react';
 
-const COMMON_EMOJIS = ['👍', '❤️', '😂', '🔥', '🎉', '💡', '💯', '🙌', '👀', '✨'];
+const COMMON_EMOJIS = ['👍', '❤️', '😂', '🔥', '🎉', '💡', '💯', '🙌', '👀', '📚'];
 
 export function EmojiPicker({ 
   onSelect, 

@@ -253,7 +253,7 @@ export default function EssayGraderScreen() {
               <View style={styles.modelEssayHeader}>
                 <View style={{ flex: 1 }}>
                   <View style={styles.modelEssayTitleRow}>
-                    <Ionicons name="sparkles" size={16} color={colors.success} style={{ marginRight: 6 }} />
+                    <Ionicons name="ribbon" size={16} color={colors.success} style={{ marginRight: 6 }} />
                     <Text style={[styles.modelEssayTitle, { color: colors.textPrimary }]}>100/100 Model Essay</Text>
                   </View>
                   <Text style={[styles.modelEssaySub, { color: colors.textSecondary }]}>
