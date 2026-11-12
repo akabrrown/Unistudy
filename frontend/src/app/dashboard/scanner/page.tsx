@@ -43,8 +43,8 @@ export default function NotesScannerPage() {
 
       setTranscription(data.transcription);
       toast('Notes successfully transcribed!');
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to scan notes');
     } finally {
       setLoading(false);
     }
@@ -66,7 +66,7 @@ export default function NotesScannerPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Upload Column */}
-        <div className="bg-card border border-border rounded-xl p-6">
+        <div id="upload" className="bg-card border border-border rounded-xl p-6 scroll-mt-6">
           <h2 className="text-lg font-semibold mb-4">1. Upload Image</h2>
           
           <div className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center bg-subtle/30 text-center relative hover:bg-subtle transition-colors cursor-pointer min-h-[300px]">
@@ -99,7 +99,7 @@ export default function NotesScannerPage() {
         </div>
 
         {/* Result Column */}
-        <div className="bg-card border border-border rounded-xl p-6 flex flex-col">
+        <div id="output" className="bg-card border border-border rounded-xl p-6 flex flex-col scroll-mt-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">2. Digital Output</h2>
             {transcription && (

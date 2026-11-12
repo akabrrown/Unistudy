@@ -75,10 +75,10 @@ const NAV_SECTIONS: NavSection[] = [
         href: '/dashboard',
         icon: LayoutDashboard,
         subItems: [
-          { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-          { label: 'Smart Search', href: '/dashboard/search', icon: Search },
+          { label: 'Study Desk', href: '/dashboard', icon: LayoutDashboard },
+          { label: 'Math Solver', href: '/dashboard/calculator?tab=solver', icon: Calculator },
+          { label: 'Graph Plotter', href: '/dashboard/calculator?tab=graph', icon: Compass },
           { label: 'Shared Materials', href: '/dashboard/shared', icon: Share2 },
-          { label: 'Math & Graph Toolkit', href: '/dashboard/calculator', icon: Calculator },
         ],
       },
       {
@@ -89,6 +89,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: 'Active Courses', href: '/dashboard/courses', icon: BookOpen },
           { label: 'New Course', href: '/dashboard/courses?action=new', icon: Plus },
           { label: 'Archived Courses', href: '/dashboard/courses#archived', icon: Archive },
+          { label: 'Share Material', href: '/dashboard/materials/share', icon: Share2 },
         ],
       },
       {
@@ -96,8 +97,8 @@ const NAV_SECTIONS: NavSection[] = [
         href: '/dashboard/past-papers',
         icon: Award,
         subItems: [
+          { label: 'Course Banks', href: '/dashboard/past-papers#by-course', icon: Layers },
           { label: 'All Papers', href: '/dashboard/past-papers#all-papers', icon: FileText },
-          { label: 'By Course', href: '/dashboard/past-papers#by-course', icon: Layers },
           { label: 'Upload Paper', href: '/dashboard/past-papers?action=upload', icon: Upload },
         ],
       },
@@ -106,9 +107,9 @@ const NAV_SECTIONS: NavSection[] = [
         href: '/dashboard/calendar',
         icon: CalendarDays,
         subItems: [
-          { label: 'Month View', href: '/dashboard/calendar?view=calendar', icon: CalendarDays },
+          { label: 'Live Calendar', href: '/dashboard/calendar?view=calendar', icon: CalendarDays },
           { label: 'Weekly Timetable', href: '/dashboard/calendar?view=timetable', icon: Clock },
-          { label: 'Schedule Session', href: '/dashboard/calendar?action=add', icon: Plus },
+          { label: 'Add Event', href: '/dashboard/calendar?action=add', icon: Plus },
         ],
       },
       {
@@ -116,9 +117,8 @@ const NAV_SECTIONS: NavSection[] = [
         href: '/dashboard/scanner',
         icon: Camera,
         subItems: [
-          { label: 'Handwriting OCR', href: '/dashboard/scanner', icon: Camera },
-          { label: 'Graph Question OCR', href: '/dashboard/calculator?tab=graph', icon: Compass },
-          { label: 'Math Image Solver', href: '/dashboard/calculator?tab=solver', icon: Calculator },
+          { label: 'Upload Image', href: '/dashboard/scanner#upload', icon: Upload },
+          { label: 'Digital Output', href: '/dashboard/scanner#output', icon: FileText },
         ],
       },
       {
@@ -126,9 +126,8 @@ const NAV_SECTIONS: NavSection[] = [
         href: '/dashboard/essay-grader',
         icon: FileText,
         subItems: [
-          { label: 'Grade Draft', href: '/dashboard/essay-grader#editor', icon: FileText },
-          { label: 'Rubric Breakdown', href: '/dashboard/essay-grader#rubric', icon: CheckCircle2 },
-          { label: '100/100 Model Essay', href: '/dashboard/essay-grader#model-essay', icon: Award },
+          { label: 'Essay & Prompt', href: '/dashboard/essay-grader#editor', icon: FileText },
+          { label: 'Grading Report', href: '/dashboard/essay-grader#rubric', icon: CheckCircle2 },
         ],
       },
       {
@@ -138,7 +137,7 @@ const NAV_SECTIONS: NavSection[] = [
         subItems: [
           { label: 'Study Heatmap', href: '/dashboard/analytics#heatmap', icon: Flame },
           { label: 'Learning Velocity', href: '/dashboard/analytics#velocity', icon: TrendingUp },
-          { label: 'Peak Study Hours', href: '/dashboard/analytics#peak-hours', icon: Clock },
+          { label: 'Peak Hours', href: '/dashboard/analytics#peak-hours', icon: Clock },
           { label: 'Blind Spots', href: '/dashboard/analytics#blind-spots', icon: AlertTriangle },
           { label: 'Provider Allowances', href: '/dashboard/analytics#allowances', icon: Cpu },
         ],
@@ -154,7 +153,7 @@ const NAV_SECTIONS: NavSection[] = [
         icon: PlaySquare,
         color: 'text-red-500',
         subItems: [
-          { label: 'Search Lectures', href: '/dashboard/youtube#discover', icon: Search },
+          { label: 'Discover Lectures', href: '/dashboard/youtube#discover', icon: Search },
           { label: 'Pinned Library', href: '/dashboard/youtube#pinned', icon: Pin },
         ],
       },
