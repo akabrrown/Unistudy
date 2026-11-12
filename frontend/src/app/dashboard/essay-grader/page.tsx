@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Loader2,
@@ -8,7 +8,7 @@ import {
   AlertCircle,
   GraduationCap,
   FileText,
-  Sparkles,
+  Award,
   Copy,
   Check,
   Volume2,
@@ -16,8 +16,10 @@ import {
   Download,
   WifiOff,
   ArrowDown,
+  Activity,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { analyzeEssayDraftMetrics } from '../../../../../shared/lib/essayGrader';
 
 interface GradingReport {
   score: number;
@@ -37,6 +39,9 @@ export default function EssayGraderPage() {
   const [prompt, setPrompt] = useState('');
   const [essay, setEssay] = useState('');
   const [loading, setLoading] = useState(false);
+  const [streamStage, setStreamStage] = useState<string | null>(null);
+  const [streamEssayText, setStreamEssayText] = useState('');
+  const [modelUsed, setModelUsed] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [report, setReport] = useState<GradingReport | null>(null);
@@ -44,6 +49,10 @@ export default function EssayGraderPage() {
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   const modelEssayRef = useRef<HTMLDivElement>(null);
+
+  const draftMetrics = useMemo(() => analyzeEssayDraftMetrics(essay), [essay]);
+  const promptReady = prompt.trim().length >= 10;
+  const essayReady = essay.trim().length >= 50;
 
   useEffect(() => {
     const updateOnlineStatus = () => setIsOffline(!navigator.onLine);
@@ -65,18 +74,22 @@ export default function EssayGraderPage() {
       toast.error('Offline: internet connection required to grade essays.');
       return;
     }
-    if (prompt.trim().length < 10) {
+    if (!promptReady) {
       toast.error('Please enter a prompt/topic of at least 10 characters');
       return;
     }
-    if (essay.trim().length < 50) {
+    if (!essayReady) {
       toast.error('Essay is too short to grade (minimum 50 characters)');
       return;
     }
 
     setLoading(true);
+    setStreamStage('Connecting to real-time AI grader...');
+    setStreamEssayText('');
+    setModelUsed(null);
     setErrorMsg(null);
     setReport(null);
+
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
@@ -85,28 +98,96 @@ export default function EssayGraderPage() {
     try {
       const res = await fetch('/api/ai/grade-essay', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, essay }),
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+        },
+        body: JSON.stringify({ prompt, essay, stream: true }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to grade essay');
+      const contentType = res.headers.get('content-type') || '';
 
-      setReport(data.report);
-      toast.success('Essay graded & 100/100 model essay generated!');
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Grading failed (${res.status})`);
+      }
+
+      if (contentType.includes('text/event-stream') && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let receivedRubric = false;
+        let completedNormally = false;
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const blocks = buffer.split(/\r?\n\r?\n/);
+          buffer = blocks.pop() || '';
+
+          for (const block of blocks) {
+            const eventMatch = block.match(/^event:\s*(.+)$/m);
+            const dataMatch = block.match(/^data:\s*(.+)$/m);
+            if (!dataMatch) continue;
+
+            const eventName = eventMatch ? eventMatch[1].trim() : 'message';
+            let payload: Record<string, unknown>;
+            try {
+              payload = JSON.parse(dataMatch[1]) as Record<string, unknown>;
+            } catch {
+              continue;
+            }
+
+            if (eventName === 'status' && typeof payload.message === 'string') {
+              setStreamStage(payload.message);
+            } else if (eventName === 'rubric' && payload.report) {
+              receivedRubric = true;
+              setReport(payload.report as GradingReport);
+              if (typeof payload.modelUsed === 'string') setModelUsed(payload.modelUsed);
+            } else if (eventName === 'essay_chunk' && typeof payload.delta === 'string') {
+              setStreamEssayText((prev) => prev + payload.delta);
+            } else if (eventName === 'done' && payload.report) {
+              receivedRubric = true;
+              completedNormally = true;
+              const doneReport = payload.report as GradingReport;
+              setReport(doneReport);
+              setStreamEssayText(doneReport.perfect_essay || '');
+              if (typeof payload.modelUsed === 'string') setModelUsed(payload.modelUsed);
+              toast.success('Real-time grading & 100/100 essay ready!');
+            } else if (eventName === 'error') {
+              throw new Error(typeof payload.error === 'string' ? payload.error : 'Real-time grading failed');
+            }
+          }
+        }
+
+        if (!completedNormally && !receivedRubric) {
+          throw new Error('Real-time grading stream ended unexpectedly');
+        }
+      } else {
+        const data = await res.json();
+        setReport(data.report);
+        setStreamEssayText(data.report?.perfect_essay || '');
+        if (data.modelUsed) setModelUsed(data.modelUsed);
+        toast.success('Essay graded & 100/100 model essay generated!');
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to grade essay';
       setErrorMsg(message);
       toast.error(message);
     } finally {
       setLoading(false);
+      setStreamStage(null);
     }
   };
 
+  const displayedPerfectEssay = streamEssayText || report?.perfect_essay || '';
+
   const handleCopyPerfectEssay = async () => {
-    if (!report?.perfect_essay) return;
+    if (!displayedPerfectEssay) return;
     try {
-      await navigator.clipboard.writeText(report.perfect_essay);
+      await navigator.clipboard.writeText(displayedPerfectEssay);
       setCopiedPerfect(true);
       toast.success('Copied 100/100 model essay to clipboard');
       setTimeout(() => setCopiedPerfect(false), 2000);
@@ -116,8 +197,8 @@ export default function EssayGraderPage() {
   };
 
   const handleDownloadPerfectEssay = () => {
-    if (!report?.perfect_essay) return;
-    const content = `Prompt: ${prompt.trim()}\n\n--- 100/100 Model Essay ---\n\n${report.perfect_essay}\n`;
+    if (!displayedPerfectEssay) return;
+    const content = `Prompt: ${prompt.trim()}\n\n--- 100/100 Model Essay ---\n\n${displayedPerfectEssay}\n`;
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -130,7 +211,7 @@ export default function EssayGraderPage() {
   };
 
   const handleToggleSpeech = () => {
-    if (!report?.perfect_essay) return;
+    if (!displayedPerfectEssay) return;
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       toast.error('Text-to-speech is not supported in this browser.');
       return;
@@ -143,7 +224,7 @@ export default function EssayGraderPage() {
     }
 
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(report.perfect_essay);
+    const utterance = new SpeechSynthesisUtterance(displayedPerfectEssay);
     utterance.rate = 0.98;
     utterance.onend = () => setIsSpeaking(false);
     utterance.onerror = () => setIsSpeaking(false);
@@ -155,15 +236,15 @@ export default function EssayGraderPage() {
     modelEssayRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const perfectParagraphs = report?.perfect_essay
-    ? report.perfect_essay
+  const perfectParagraphs = displayedPerfectEssay
+    ? displayedPerfectEssay
         .split(/\n{2,}/)
         .map((p) => p.trim())
         .filter(Boolean)
     : [];
 
-  const perfectWordCount = report?.perfect_essay
-    ? report.perfect_essay.split(/\s+/).filter(Boolean).length
+  const perfectWordCount = displayedPerfectEssay
+    ? displayedPerfectEssay.split(/\s+/).filter(Boolean).length
     : 0;
 
   return (
@@ -208,9 +289,25 @@ export default function EssayGraderPage() {
                 placeholder="Paste your essay here..."
                 className="w-full bg-background border border-border rounded-lg p-3 h-96 focus:ring-2 focus:ring-primary focus:outline-none resize-none"
               />
-              <div className="flex justify-end mt-1">
-                <span className="text-xs text-muted-foreground">
-                  {essay.split(/\s+/).filter((w) => w.length > 0).length} words
+              {/* Real-time Draft Telemetry */}
+              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-background/60 px-3 py-2 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span><strong className="text-foreground">{draftMetrics.words}</strong> words</span>
+                  <span><strong className="text-foreground">{draftMetrics.sentences}</strong> sentences</span>
+                  <span><strong className="text-foreground">{draftMetrics.paragraphs}</strong> paragraphs</span>
+                  {draftMetrics.words > 0 && (
+                    <span>~{draftMetrics.avgWordsPerSentence} words/sentence</span>
+                  )}
+                </div>
+                <span className={`inline-flex items-center gap-1 font-medium ${promptReady && essayReady ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                  <Activity className="w-3.5 h-3.5" />
+                  {!promptReady
+                    ? 'Enter prompt (10+ chars)'
+                    : !essayReady
+                    ? `Add ${Math.max(0, 50 - essay.trim().length)} more chars`
+                    : draftMetrics.hasMultiParagraphStructure
+                    ? 'Ready for grading'
+                    : 'Ready (tip: add paragraph breaks)'}
                 </span>
               </div>
             </div>
@@ -218,19 +315,32 @@ export default function EssayGraderPage() {
             <Button
               className="w-full"
               onClick={handleGrade}
-              disabled={loading || !prompt || !essay}
+              disabled={loading || !promptReady || !essayReady}
             >
               {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              {loading ? 'Grading & Crafting 100/100 Essay...' : 'Grade My Essay'}
+              {loading ? (streamStage || 'Analyzing Essay in Real Time...') : 'Grade My Essay'}
             </Button>
           </div>
         </div>
 
         {/* Output Column */}
         <div className="bg-card border border-border rounded-xl p-6 flex flex-col h-full min-h-[600px]">
-          <div className="flex items-center justify-between mb-4 border-b border-border pb-2">
-            <h2 className="text-lg font-semibold">Grading Report</h2>
-            {report?.perfect_essay && (
+          <div className="flex items-center justify-between gap-2 mb-4 border-b border-border pb-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold">Grading Report</h2>
+              {loading && streamStage && (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  Live
+                </span>
+              )}
+              {!loading && modelUsed && (
+                <span className="text-[11px] text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">
+                  {modelUsed}
+                </span>
+              )}
+            </div>
+            {displayedPerfectEssay && (
               <Button
                 type="button"
                 variant="outline"
@@ -238,18 +348,18 @@ export default function EssayGraderPage() {
                 onClick={scrollToModelEssay}
                 className="text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
               >
-                <Sparkles className="w-3 h-3 mr-1" />
+                <Award className="w-3 h-3 mr-1" />
                 View 100/100 Essay
                 <ArrowDown className="w-3 h-3 ml-1" />
               </Button>
             )}
           </div>
 
-          {loading ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
+          {loading && !report ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground text-center px-4">
               <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
-              <p className="font-medium text-foreground">Analyzing arguments...</p>
-              <p className="text-xs mt-1">Evaluating rubric criteria and drafting 100/100 exemplar</p>
+              <p className="font-medium text-foreground">{streamStage || 'Running real-time analysis...'}</p>
+              <p className="text-xs mt-1">Streaming rubric scores & drafting 100/100 exemplar</p>
             </div>
           ) : errorMsg ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
@@ -350,7 +460,7 @@ export default function EssayGraderPage() {
       </div>
 
       {/* 100/100 Model Essay Card */}
-      {report?.perfect_essay && (
+      {(displayedPerfectEssay || (loading && report)) && (
         <div
           ref={modelEssayRef}
           className="bg-card border border-emerald-500/30 rounded-xl overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300"
@@ -358,7 +468,7 @@ export default function EssayGraderPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 bg-emerald-500/10 border-b border-emerald-500/20">
             <div className="flex items-start sm:items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
-                <Sparkles className="w-5 h-5" />
+                <Award className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -366,6 +476,12 @@ export default function EssayGraderPage() {
                   <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
                     100 / 100 Benchmark
                   </span>
+                  {loading && (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Streaming live...
+                    </span>
+                  )}
                   <span className="text-xs text-muted-foreground">{perfectWordCount} words</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">

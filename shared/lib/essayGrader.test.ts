@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildEssayGraderPrompt,
+  buildRubricGraderPrompt,
+  analyzeEssayDraftMetrics,
   parseEssayReportJson,
   normalizeEssayReport,
   buildDeterministicEssayReport,
@@ -63,4 +65,28 @@ test('buildDeterministicEssayReport returns complete rubric and multi-paragraph 
   assert.ok(report.weaknesses.length >= 2);
   assert.ok(report.perfect_essay.length >= 250);
   assert.match(report.perfect_essay, /\n\n/);
+});
+
+test('buildRubricGraderPrompt delimits input and requests fast rubric JSON without embedded essay rewrite', () => {
+  const rubricPrompt = buildRubricGraderPrompt(
+    'Analyze zero-trust architecture in cloud networks.',
+    'Zero trust verifies every request regardless of network perimeter and requires least privilege controls across microservices.'
+  );
+
+  assert.match(rubricPrompt, /<essay_prompt>/);
+  assert.match(rubricPrompt, /<student_essay>/);
+  assert.match(rubricPrompt, /thesis_score/);
+  assert.match(rubricPrompt, /weaknesses/);
+});
+
+test('analyzeEssayDraftMetrics computes live word, sentence, paragraph, and readability telemetry', () => {
+  const metrics = analyzeEssayDraftMetrics(
+    'First paragraph sentence one. Sentence two is clear.\n\nSecond paragraph develops evidence and analysis with concrete facts.\n\nThird paragraph synthesizes conclusions effectively.'
+  );
+
+  assert.equal(metrics.paragraphs, 3);
+  assert.equal(metrics.sentences, 4);
+  assert.ok(metrics.words >= 20);
+  assert.ok(metrics.avgWordsPerSentence >= 4);
+  assert.equal(metrics.hasMultiParagraphStructure, true);
 });
