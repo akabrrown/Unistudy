@@ -81,7 +81,7 @@ const NAV_SECTIONS: NavSection[] = [
         subItems: [
           { label: 'Active Courses', href: '/dashboard/courses', icon: BookOpen },
           { label: 'New Course', href: '/dashboard/courses?action=new', icon: Plus },
-          { label: 'Archived Courses', href: '/dashboard/courses#archived', icon: Archive },
+          { label: 'Archived Courses', href: '/dashboard/courses?tab=archived', icon: Archive },
           { label: 'Math Solver', href: '/dashboard/calculator?tab=solver', icon: Calculator },
           { label: 'Graph Plotter', href: '/dashboard/calculator?tab=graph', icon: Compass },
         ],
