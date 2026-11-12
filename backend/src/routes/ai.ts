@@ -622,8 +622,9 @@ router.post('/grade-essay', async (req: Request, res: Response) => {
       if (existingPerfect.length < 120) {
         try {
           const weaknesses = Array.isArray(parsed.weaknesses) ? parsed.weaknesses.map((w) => String(w)) : [];
+          const grammarFeedback = typeof parsed.grammar === 'string' ? parsed.grammar : undefined;
           const rewritten = await chatCompletionWithFallback({
-            messages: [{ role: 'user', content: buildPerfectEssayRewritePrompt(prompt, essay, weaknesses) }],
+            messages: [{ role: 'user', content: buildPerfectEssayRewritePrompt(prompt, essay, weaknesses, grammarFeedback) }],
             max_tokens: 4096,
           });
           if (rewritten && rewritten.trim().length >= 120) {

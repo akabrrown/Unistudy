@@ -43,10 +43,10 @@ export default function EssayGraderScreen() {
   const buildFallbackModelEssay = () => {
     const topic = essayPrompt.trim() || 'the central academic question';
     return [
-      `Contemporary scholarship surrounding ${topic} demonstrates that persuasive arguments integrate foundational theory with verifiable empirical evidence. By articulating a precise thesis early, an exemplary 100/100 submission frames both structural drivers and institutional trade-offs cleanly.`,
-      `In the primary analytical body sections, rigorous analysis pairs topic-focused claims with primary source citations and causal reasoning. Distinguishing correlation from mechanism allows the argument to withstand critical scrutiny across varying contexts.`,
-      `Addressing credible counterarguments directly further strengthens intellectual coherence. By acknowledging practical limitations while demonstrating why the core thesis holds under realistic boundary conditions, the essay achieves balanced, university-level rigor.`,
-      `Ultimately, synthesizing theoretical clarity, evidence-backed analysis, and disciplined scholarly syntax elevates this work to a model 100/100 standard responsive to every requirement of the prompt.`,
+      `Research on ${topic} shows that persuasive arguments connect core theory to concrete examples. Opening with a specific central claim helps organize both structural causes and practical trade-offs from the start.`,
+      `In the main body paragraphs, pairing clear topic sentences with specific evidence keeps the analysis grounded. Separating correlation from direct cause makes the reasoning hold up under close review.`,
+      `A strong paper also deals directly with counterarguments rather than setting them aside. Weighing realistic limits and transition costs against the main thesis makes the final position much more credible.`,
+      `Taken together, combining focused claims, solid evidence, and plain, varied phrasing produces an academic paper that meets top university standards cleanly.`,
     ].join('\n\n');
   };
 

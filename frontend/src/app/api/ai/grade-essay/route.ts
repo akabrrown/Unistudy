@@ -13,6 +13,8 @@ import {
   buildEssayGraderPrompt,
   buildRubricGraderPrompt,
   buildPerfectEssayRewritePrompt,
+  humanizeEssayText,
+  humanizeStreamChunk,
   parseEssayReportJson,
   normalizeEssayReport,
   buildDeterministicEssayReport,
@@ -25,6 +27,9 @@ const RequestSchema = z.object({
   prompt: z.string().trim().min(10, 'Prompt is too short (minimum 10 characters)').max(4000, 'Prompt is too long'),
   essay: z.string().trim().min(50, 'Essay is too short to grade (minimum 50 characters)').max(30000, 'Essay exceeds maximum length'),
   stream: z.boolean().optional(),
+  mode: z.enum(['full', 'regenerate_essay']).optional(),
+  weaknesses: z.array(z.string()).max(10).optional(),
+  grammar: z.string().max(1500).optional(),
 });
 
 async function evaluateJsonWithProviders(
@@ -251,7 +256,14 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const { prompt, essay, stream: wantStream } = parsedInput.data;
+    const {
+      prompt,
+      essay,
+      stream: wantStream,
+      mode = 'full',
+      weaknesses: requestedWeaknesses = [],
+      grammar: requestedGrammar,
+    } = parsedInput.data;
 
     // Real-time streaming mode for live rubric evaluation + live 100/100 essay generation
     if (wantStream || req.headers.get('accept')?.includes('text/event-stream')) {
@@ -263,6 +275,36 @@ export async function POST(req: NextRequest) {
           };
 
           try {
+            if (mode === 'regenerate_essay') {
+              sendEvent('status', {
+                stage: 'writing_essay',
+                message: 'Regenerating 100/100 essay from Areas for Improvement...',
+              });
+
+              const rewritePrompt = buildPerfectEssayRewritePrompt(
+                prompt,
+                essay,
+                requestedWeaknesses,
+                requestedGrammar
+              );
+              const streamedEssay = await streamTextWithProviders(rewritePrompt, (delta) => {
+                sendEvent('essay_chunk', { delta: humanizeStreamChunk(delta) });
+              });
+
+              if (!streamedEssay) {
+                sendEvent('error', { error: 'Could not regenerate essay right now. Please try again.' });
+                controller.close();
+                return;
+              }
+
+              sendEvent('done', {
+                perfect_essay: humanizeEssayText(streamedEssay),
+                isLiveAI: true,
+              });
+              controller.close();
+              return;
+            }
+
             sendEvent('status', {
               stage: 'evaluating',
               message: 'Evaluating thesis, evidence, structure, and academic tone...',
@@ -287,17 +329,22 @@ export async function POST(req: NextRequest) {
 
             sendEvent('status', {
               stage: 'writing_essay',
-              message: 'Crafting 100/100 model essay in real time...',
+              message: 'Applying Areas for Improvement to rewrite your 100/100 essay...',
             });
 
-            const rewritePrompt = buildPerfectEssayRewritePrompt(prompt, essay, baseReport.weaknesses);
+            const rewritePrompt = buildPerfectEssayRewritePrompt(
+              prompt,
+              essay,
+              baseReport.weaknesses,
+              baseReport.grammar
+            );
             const streamedEssay = await streamTextWithProviders(rewritePrompt, (delta) => {
-              sendEvent('essay_chunk', { delta });
+              sendEvent('essay_chunk', { delta: humanizeStreamChunk(delta) });
             });
 
             const finalReport = {
               ...baseReport,
-              perfect_essay: streamedEssay || baseReport.perfect_essay,
+              perfect_essay: streamedEssay ? humanizeEssayText(streamedEssay) : baseReport.perfect_essay,
             };
 
             sendEvent('done', {
@@ -324,6 +371,20 @@ export async function POST(req: NextRequest) {
     }
 
     // Standard JSON mode
+    if (mode === 'regenerate_essay') {
+      const rewritePrompt = buildPerfectEssayRewritePrompt(
+        prompt,
+        essay,
+        requestedWeaknesses,
+        requestedGrammar
+      );
+      const rewritten = await streamTextWithProviders(rewritePrompt, () => {});
+      if (!rewritten) {
+        return NextResponse.json({ error: 'Unable to regenerate 100/100 essay right now.' }, { status: 502 });
+      }
+      return NextResponse.json({ perfect_essay: humanizeEssayText(rewritten), isLiveAI: true });
+    }
+
     const systemPrompt = buildEssayGraderPrompt(prompt, essay);
     const { parsed: parsedReport, modelUsed } = await evaluateJsonWithProviders(systemPrompt, 4096);
 
@@ -334,8 +395,9 @@ export async function POST(req: NextRequest) {
         const rawWeaknesses = Array.isArray(parsedReport.weaknesses)
           ? parsedReport.weaknesses.map((w) => String(w))
           : [];
+        const rawGrammar = typeof parsedReport.grammar === 'string' ? parsedReport.grammar : undefined;
         const rewritten = await streamTextWithProviders(
-          buildPerfectEssayRewritePrompt(prompt, essay, rawWeaknesses),
+          buildPerfectEssayRewritePrompt(prompt, essay, rawWeaknesses, rawGrammar),
           () => {}
         );
         if (rewritten) {

@@ -17,6 +17,7 @@ import {
   WifiOff,
   ArrowDown,
   Activity,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { analyzeEssayDraftMetrics } from '../../../../../shared/lib/essayGrader';
@@ -39,6 +40,7 @@ export default function EssayGraderPage() {
   const [prompt, setPrompt] = useState('');
   const [essay, setEssay] = useState('');
   const [loading, setLoading] = useState(false);
+  const [regeneratingEssay, setRegeneratingEssay] = useState(false);
   const [streamStage, setStreamStage] = useState<string | null>(null);
   const [streamEssayText, setStreamEssayText] = useState('');
   const [modelUsed, setModelUsed] = useState<string | null>(null);
@@ -113,58 +115,7 @@ export default function EssayGraderPage() {
       }
 
       if (contentType.includes('text/event-stream') && res.body) {
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let receivedRubric = false;
-        let completedNormally = false;
-
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-
-          const blocks = buffer.split(/\r?\n\r?\n/);
-          buffer = blocks.pop() || '';
-
-          for (const block of blocks) {
-            const eventMatch = block.match(/^event:\s*(.+)$/m);
-            const dataMatch = block.match(/^data:\s*(.+)$/m);
-            if (!dataMatch) continue;
-
-            const eventName = eventMatch ? eventMatch[1].trim() : 'message';
-            let payload: Record<string, unknown>;
-            try {
-              payload = JSON.parse(dataMatch[1]) as Record<string, unknown>;
-            } catch {
-              continue;
-            }
-
-            if (eventName === 'status' && typeof payload.message === 'string') {
-              setStreamStage(payload.message);
-            } else if (eventName === 'rubric' && payload.report) {
-              receivedRubric = true;
-              setReport(payload.report as GradingReport);
-              if (typeof payload.modelUsed === 'string') setModelUsed(payload.modelUsed);
-            } else if (eventName === 'essay_chunk' && typeof payload.delta === 'string') {
-              setStreamEssayText((prev) => prev + payload.delta);
-            } else if (eventName === 'done' && payload.report) {
-              receivedRubric = true;
-              completedNormally = true;
-              const doneReport = payload.report as GradingReport;
-              setReport(doneReport);
-              setStreamEssayText(doneReport.perfect_essay || '');
-              if (typeof payload.modelUsed === 'string') setModelUsed(payload.modelUsed);
-              toast.success('Real-time grading & 100/100 essay ready!');
-            } else if (eventName === 'error') {
-              throw new Error(typeof payload.error === 'string' ? payload.error : 'Real-time grading failed');
-            }
-          }
-        }
-
-        if (!completedNormally && !receivedRubric) {
-          throw new Error('Real-time grading stream ended unexpectedly');
-        }
+        await consumeEssayStream(res.body);
       } else {
         const data = await res.json();
         setReport(data.report);
@@ -178,6 +129,125 @@ export default function EssayGraderPage() {
       toast.error(message);
     } finally {
       setLoading(false);
+      setStreamStage(null);
+    }
+  };
+
+  const consumeEssayStream = async (body: ReadableStream<Uint8Array>) => {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let receivedProgress = false;
+    let completedNormally = false;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const blocks = buffer.split(/\r?\n\r?\n/);
+      buffer = blocks.pop() || '';
+
+      for (const block of blocks) {
+        const eventMatch = block.match(/^event:\s*(.+)$/m);
+        const dataMatch = block.match(/^data:\s*(.+)$/m);
+        if (!dataMatch) continue;
+
+        const eventName = eventMatch ? eventMatch[1].trim() : 'message';
+        let payload: Record<string, unknown>;
+        try {
+          payload = JSON.parse(dataMatch[1]) as Record<string, unknown>;
+        } catch {
+          continue;
+        }
+
+        if (eventName === 'status' && typeof payload.message === 'string') {
+          setStreamStage(payload.message);
+        } else if (eventName === 'rubric' && payload.report) {
+          receivedProgress = true;
+          setReport(payload.report as GradingReport);
+          if (typeof payload.modelUsed === 'string') setModelUsed(payload.modelUsed);
+        } else if (eventName === 'essay_chunk' && typeof payload.delta === 'string') {
+          receivedProgress = true;
+          setStreamEssayText((prev) => prev + payload.delta);
+        } else if (eventName === 'done') {
+          receivedProgress = true;
+          completedNormally = true;
+          if (payload.report) {
+            const doneReport = payload.report as GradingReport;
+            setReport(doneReport);
+            setStreamEssayText(doneReport.perfect_essay || '');
+            toast.success('Real-time grading & 100/100 essay ready!');
+          } else if (typeof payload.perfect_essay === 'string') {
+            const cleanedEssay = payload.perfect_essay;
+            setStreamEssayText(cleanedEssay);
+            setReport((prev) => (prev ? { ...prev, perfect_essay: cleanedEssay } : prev));
+            toast.success('100/100 essay regenerated from Areas for Improvement!');
+          }
+          if (typeof payload.modelUsed === 'string') setModelUsed(payload.modelUsed);
+        } else if (eventName === 'error') {
+          throw new Error(typeof payload.error === 'string' ? payload.error : 'Real-time grading failed');
+        }
+      }
+    }
+
+    if (!completedNormally && !receivedProgress) {
+      throw new Error('Real-time grading stream ended unexpectedly');
+    }
+  };
+
+  const handleRegenerateFromImprovements = async () => {
+    if (!report || !promptReady || !essayReady || loading || regeneratingEssay) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      toast.error('Offline: internet connection required to regenerate essay.');
+      return;
+    }
+
+    setRegeneratingEssay(true);
+    setStreamStage('Regenerating 100/100 essay from Areas for Improvement...');
+    setStreamEssayText('');
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+
+    try {
+      const res = await fetch('/api/ai/grade-essay', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+        },
+        body: JSON.stringify({
+          prompt,
+          essay,
+          stream: true,
+          mode: 'regenerate_essay',
+          weaknesses: report.weaknesses,
+          grammar: report.grammar,
+        }),
+      });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Regeneration failed (${res.status})`);
+      }
+
+      if (contentType.includes('text/event-stream') && res.body) {
+        await consumeEssayStream(res.body);
+      } else {
+        const data = await res.json();
+        if (data.perfect_essay) {
+          setStreamEssayText(data.perfect_essay);
+          setReport((prev) => (prev ? { ...prev, perfect_essay: data.perfect_essay } : prev));
+          toast.success('100/100 essay regenerated from Areas for Improvement!');
+        }
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to regenerate 100/100 essay');
+    } finally {
+      setRegeneratingEssay(false);
       setStreamStage(null);
     }
   };
@@ -460,7 +530,7 @@ export default function EssayGraderPage() {
       </div>
 
       {/* 100/100 Model Essay Card */}
-      {(displayedPerfectEssay || (loading && report)) && (
+      {(displayedPerfectEssay || ((loading || regeneratingEssay) && report)) && (
         <div
           ref={modelEssayRef}
           className="bg-card border border-emerald-500/30 rounded-xl overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300"
@@ -476,7 +546,7 @@ export default function EssayGraderPage() {
                   <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
                     100 / 100 Benchmark
                   </span>
-                  {loading && (
+                  {(loading || regeneratingEssay) && (
                     <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Streaming live...
@@ -485,12 +555,25 @@ export default function EssayGraderPage() {
                   <span className="text-xs text-muted-foreground">{perfectWordCount} words</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Exemplary A+ version demonstrating sharpened thesis framing, analytical evidence, counterargument synthesis, and academic polish.
+                  Rewritten directly from your draft to resolve {report?.weaknesses?.length || 0} identified areas for improvement in natural academic prose.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {report && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRegenerateFromImprovements}
+                  disabled={loading || regeneratingEssay}
+                  className="gap-1.5"
+                >
+                  <RefreshCw className={`w-4 h-4 ${regeneratingEssay ? 'animate-spin' : ''}`} />
+                  {regeneratingEssay ? 'Regenerating...' : 'Regenerate'}
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"

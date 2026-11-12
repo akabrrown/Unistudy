@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   buildEssayGraderPrompt,
   buildRubricGraderPrompt,
+  buildPerfectEssayRewritePrompt,
   analyzeEssayDraftMetrics,
+  humanizeEssayText,
   parseEssayReportJson,
   normalizeEssayReport,
   buildDeterministicEssayReport,
@@ -89,4 +91,31 @@ test('analyzeEssayDraftMetrics computes live word, sentence, paragraph, and read
   assert.ok(metrics.words >= 20);
   assert.ok(metrics.avgWordsPerSentence >= 4);
   assert.equal(metrics.hasMultiParagraphStructure, true);
+});
+
+test('humanizeEssayText removes em-dashes, en-dashes, non-breaking hyphens, AI buzzwords, and markdown while keeping real hyphens', () => {
+  const aiText =
+    '## Model Essay\n\nIn today’s fast-paced world, we must **delve into** the multifaceted tapestry of urban policy — especially transit — because well‑known bottlenecks play a pivotal role in long-term growth.\n\nFurthermore, this is a testament to robust planning -- cities that leverage data succeed.';
+
+  const cleaned = humanizeEssayText(aiText);
+
+  assert.equal(/[\u2011\u2012\u2013\u2014\u2015]/.test(cleaned), false);
+  assert.equal(/ -- /.test(cleaned), false);
+  assert.equal(/delve into|tapestry|pivotal|multifaceted|testament to|fast-paced world|\*\*|##/i.test(cleaned), false);
+  assert.match(cleaned, /well-known/);
+  assert.match(cleaned, /long-term/);
+});
+
+test('buildPerfectEssayRewritePrompt embeds specific weaknesses and anti-AI-footprint rules', () => {
+  const rewritePrompt = buildPerfectEssayRewritePrompt(
+    'Analyze supply chain resilience after global disruptions.',
+    'Supply chains broke down when single suppliers failed.',
+    ['Add concrete historical examples', 'Address cost vs redundancy trade-offs'],
+    'Avoid repetitive passive voice.'
+  );
+
+  assert.match(rewritePrompt, /Add concrete historical examples/);
+  assert.match(rewritePrompt, /Address cost vs redundancy trade-offs/);
+  assert.match(rewritePrompt, /Avoid repetitive passive voice/);
+  assert.match(rewritePrompt, /em-?dash/i);
 });
