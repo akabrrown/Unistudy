@@ -393,9 +393,26 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
     setError(null)
     setCanvasTab('plot')
 
+    // Instant client-side CAS & coordinate geometry path when text is deterministic
+    if (!imagePreview && queryText) {
+      const localSpec = parseDeterministicGraphProblem(queryText)
+      if (
+        localSpec &&
+        (localSpec.functions.length > 0 ||
+          localSpec.shapes.length > 0 ||
+          localSpec.points.length > 0)
+      ) {
+        setGraphSpec(localSpec)
+        syncBoundsFromSpec(localSpec)
+        setIsSolving(false)
+        return
+      }
+    }
+
     try {
       const res = await fetch('/api/ai/solve-graph', {
         method: 'POST',
+        signal: AbortSignal.timeout(25000),
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           problem: queryText || undefined,

@@ -20,6 +20,9 @@ import {
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
+const PER_PROVIDER_TIMEOUT_MS = 6500;
+const TOTAL_SOLVE_BUDGET_MS = 22000;
+
 const SolveGraphRequestSchema = z
   .object({
     problem: z.string().trim().max(10000).optional(),
@@ -42,23 +45,28 @@ function stripDataUrlPrefix(base64OrDataUrl: string): { data: string; mimeType: 
   return { mimeType: 'image/png', data: base64OrDataUrl };
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export async function POST(req: NextRequest) {
+  const requestStart = Date.now();
+  const remainingBudget = () => Math.max(0, TOTAL_SOLVE_BUDGET_MS - (Date.now() - requestStart));
+
   try {
     const auth = await requireAuth();
     if (auth.error || !auth.userId) {
       return auth.error || NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    try {
-      const { success } = await highCostRatelimit.limit(auth.userId);
-      if (!success) {
-        return NextResponse.json(
-          { error: 'Rate limit exceeded. Please wait a moment before solving another graph.' },
-          { status: 429 }
-        );
-      }
-    } catch (rlErr) {
-      console.warn('[SolveGraph] Rate limiter warning (continuing):', rlErr);
     }
 
     let rawBody: unknown;
@@ -77,6 +85,39 @@ export async function POST(req: NextRequest) {
     }
 
     const { problem = '', imageBase64, mimeType } = parsedInput.data;
+
+    // Fast-path deterministic CAS & coordinate geometry solver BEFORE calling any external LLM
+    if (!imageBase64 && problem.trim()) {
+      const deterministicSpec = parseDeterministicGraphProblem(problem);
+      if (
+        deterministicSpec &&
+        (deterministicSpec.functions.length > 0 ||
+          deterministicSpec.shapes.length > 0 ||
+          deterministicSpec.points.length > 0)
+      ) {
+        return NextResponse.json({
+          spec: deterministicSpec,
+          modelUsed: 'deterministic-cas',
+        });
+      }
+    }
+
+    try {
+      const rlRes = (await withTimeout(
+        highCostRatelimit.limit(auth.userId),
+        1500,
+        'RateLimiter'
+      )) as { success?: boolean } | null;
+      if (rlRes && rlRes.success === false) {
+        return NextResponse.json(
+          { error: 'Rate limit exceeded. Please wait a moment before solving another graph.' },
+          { status: 429 }
+        );
+      }
+    } catch (rlErr) {
+      console.warn('[SolveGraph] Rate limiter warning (continuing):', rlErr);
+    }
+
     const promptText = buildGraphSolverPrompt(problem);
 
     let rawCandidate: Record<string, unknown> | null = null;
@@ -86,10 +127,13 @@ export async function POST(req: NextRequest) {
       const img = stripDataUrlPrefix(imageBase64);
       const effectiveMime = mimeType || img.mimeType;
 
-      // 1. Gemini Vision (supports multimodal + structured JSON at low temperature)
+      // 1. Gemini Vision (first 2 fast models with strict timeout)
       if (process.env.GEMINI_API_KEY) {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        for (const modelName of GEMINI_CANDIDATE_MODELS) {
+        const geminiModels = [GEMINI_CANDIDATE_MODELS[0], GEMINI_CANDIDATE_MODELS[GEMINI_CANDIDATE_MODELS.length - 1]];
+        for (const modelName of geminiModels) {
+          const budget = Math.min(PER_PROVIDER_TIMEOUT_MS, remainingBudget());
+          if (budget < 1500) break;
           try {
             const model = genAI.getGenerativeModel({
               model: modelName,
@@ -99,10 +143,14 @@ export async function POST(req: NextRequest) {
                 maxOutputTokens: 2500,
               },
             });
-            const res = await model.generateContent([
-              promptText,
-              { inlineData: { data: img.data, mimeType: effectiveMime } },
-            ]);
+            const res = await withTimeout(
+              model.generateContent([
+                promptText,
+                { inlineData: { data: img.data, mimeType: effectiveMime } },
+              ]),
+              budget,
+              `Gemini vision (${modelName})`
+            );
             const candidate = parseGraphSpecJson(res.response.text());
             if (candidate) {
               rawCandidate = candidate;
@@ -115,13 +163,17 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 2. OpenRouter Vision fallback
-      if (!rawCandidate && process.env.OPENROUTER_API_KEY) {
+      // 2. OpenRouter Vision fallback (vision-capable Gemini models only)
+      if (!rawCandidate && process.env.OPENROUTER_API_KEY && remainingBudget() >= 2000) {
         const dataUrl = `data:${effectiveMime};base64,${img.data}`;
-        for (const model of OPENROUTER_CANDIDATE_MODELS) {
+        const openRouterVisionModels = OPENROUTER_CANDIDATE_MODELS.filter((m) => m.includes('gemini'));
+        for (const model of openRouterVisionModels) {
+          const budget = Math.min(PER_PROVIDER_TIMEOUT_MS, remainingBudget());
+          if (budget < 1500) break;
           try {
             const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
               method: 'POST',
+              signal: AbortSignal.timeout(budget),
               headers: {
                 Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
                 'Content-Type': 'application/json',
@@ -156,18 +208,24 @@ export async function POST(req: NextRequest) {
         }
       }
     } else {
-      // Text-only problem cascade: Groq -> Gemini -> OpenRouter
+      // Text-only exotic word problem cascade with strict timeout per call: Groq -> Gemini -> OpenRouter
       if (process.env.GROQ_API_KEY) {
         const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-        for (const model of GROQ_SMART_MODELS) {
+        for (const model of GROQ_SMART_MODELS.slice(0, 2)) {
+          const budget = Math.min(PER_PROVIDER_TIMEOUT_MS, remainingBudget());
+          if (budget < 1500) break;
           try {
-            const completion = await groq.chat.completions.create({
-              model,
-              messages: [{ role: 'user', content: promptText }],
-              response_format: { type: 'json_object' },
-              temperature: 0.1,
-              max_tokens: 2500,
-            });
+            const completion = await withTimeout(
+              groq.chat.completions.create({
+                model,
+                messages: [{ role: 'user', content: promptText }],
+                response_format: { type: 'json_object' },
+                temperature: 0.1,
+                max_tokens: 2500,
+              }),
+              budget,
+              `Groq (${model})`
+            );
             const candidate = parseGraphSpecJson(completion.choices[0]?.message?.content || '');
             if (candidate) {
               rawCandidate = candidate;
@@ -180,9 +238,12 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      if (!rawCandidate && process.env.GEMINI_API_KEY) {
+      if (!rawCandidate && process.env.GEMINI_API_KEY && remainingBudget() >= 2000) {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        for (const modelName of GEMINI_CANDIDATE_MODELS) {
+        const geminiModels = [GEMINI_CANDIDATE_MODELS[0], GEMINI_CANDIDATE_MODELS[GEMINI_CANDIDATE_MODELS.length - 1]];
+        for (const modelName of geminiModels) {
+          const budget = Math.min(PER_PROVIDER_TIMEOUT_MS, remainingBudget());
+          if (budget < 1500) break;
           try {
             const model = genAI.getGenerativeModel({
               model: modelName,
@@ -192,7 +253,11 @@ export async function POST(req: NextRequest) {
                 maxOutputTokens: 2500,
               },
             });
-            const res = await model.generateContent(promptText);
+            const res = await withTimeout(
+              model.generateContent(promptText),
+              budget,
+              `Gemini (${modelName})`
+            );
             const candidate = parseGraphSpecJson(res.response.text());
             if (candidate) {
               rawCandidate = candidate;
@@ -205,11 +270,14 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      if (!rawCandidate && process.env.OPENROUTER_API_KEY) {
-        for (const model of OPENROUTER_CANDIDATE_MODELS) {
+      if (!rawCandidate && process.env.OPENROUTER_API_KEY && remainingBudget() >= 2000) {
+        for (const model of OPENROUTER_CANDIDATE_MODELS.slice(0, 2)) {
+          const budget = Math.min(PER_PROVIDER_TIMEOUT_MS, remainingBudget());
+          if (budget < 1500) break;
           try {
             const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
               method: 'POST',
+              signal: AbortSignal.timeout(budget),
               headers: {
                 Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
                 'Content-Type': 'application/json',
@@ -242,7 +310,7 @@ export async function POST(req: NextRequest) {
       try {
         resolvedSpec = resolveGraphSpec(rawCandidate);
       } catch (zodErr) {
-        console.warn('[SolveGraph] LLM output failed GraphSpec validation, trying deterministic fallback:', zodErr);
+        console.warn('[SolveGraph] LLM output failed GraphSpec validation:', zodErr);
       }
     }
 
@@ -255,8 +323,13 @@ export async function POST(req: NextRequest) {
 
     if (!resolvedSpec) {
       return NextResponse.json(
-        { error: 'Unable to parse or solve this graph problem right now. Please try clarifying the equations or coordinates.' },
-        { status: 422 }
+        {
+          error:
+            remainingBudget() < 1500
+              ? 'AI provider timed out while processing the graph. Try typing the equation or coordinates directly.'
+              : 'Unable to parse or solve this graph problem right now. Please try clarifying the equations or coordinates.',
+        },
+        { status: remainingBudget() < 1500 ? 504 : 422 }
       );
     }
 
@@ -272,4 +345,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
