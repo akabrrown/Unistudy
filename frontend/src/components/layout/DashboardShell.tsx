@@ -43,7 +43,6 @@ import {
   Cpu,
   Compass,
   CheckCircle2,
-  Layers,
 } from 'lucide-react';
 
 interface SubNavItem {
@@ -91,8 +90,7 @@ const NAV_SECTIONS: NavSection[] = [
         href: '/dashboard/past-papers',
         icon: Award,
         subItems: [
-          { label: 'Course Banks', href: '/dashboard/past-papers#by-course', icon: Layers },
-          { label: 'All Papers', href: '/dashboard/past-papers#all-papers', icon: FileText },
+          { label: 'Question Bank', href: '/dashboard/past-papers', icon: FileText },
           { label: 'Upload Paper', href: '/dashboard/past-papers?action=upload', icon: Upload },
         ],
       },
