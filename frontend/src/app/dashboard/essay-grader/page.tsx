@@ -339,7 +339,7 @@ export default function EssayGraderPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Input Column */}
-        <div className="space-y-4">
+        <div id="editor" className="space-y-4 scroll-mt-6">
           <div className="bg-card border border-border rounded-xl p-6 space-y-4">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Essay Prompt / Topic</label>
@@ -394,7 +394,7 @@ export default function EssayGraderPage() {
         </div>
 
         {/* Output Column */}
-        <div className="bg-card border border-border rounded-xl p-6 flex flex-col h-full min-h-[600px]">
+        <div id="rubric" className="bg-card border border-border rounded-xl p-6 flex flex-col h-full min-h-[600px] scroll-mt-6">
           <div className="flex items-center justify-between gap-2 mb-4 border-b border-border pb-2">
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold">Grading Report</h2>
@@ -532,8 +532,9 @@ export default function EssayGraderPage() {
       {/* 100/100 Model Essay Card */}
       {(displayedPerfectEssay || ((loading || regeneratingEssay) && report)) && (
         <div
+          id="model-essay"
           ref={modelEssayRef}
-          className="bg-card border border-emerald-500/30 rounded-xl overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300"
+          className="bg-card border border-emerald-500/30 rounded-xl overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300 scroll-mt-6"
         >
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 bg-emerald-500/10 border-b border-emerald-500/20">
             <div className="flex items-start sm:items-center gap-3">

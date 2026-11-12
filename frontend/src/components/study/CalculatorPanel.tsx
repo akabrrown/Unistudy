@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
-import { Calculator, Send, Loader2, BrainCircuit, X } from 'lucide-react'
+import { Calculator, Send, Loader2, BrainCircuit, X, ImagePlus } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
-import { apiFetchRaw } from '@/lib/api/client'
+import { solveMathProblemStream } from '@/lib/mathStreamClient'
 
 import { GraphPlotter } from './GraphPlotter'
 import { FormulaLibrary } from './FormulaLibrary'
@@ -17,46 +18,67 @@ import { LineChart, Sigma, Atom } from 'lucide-react'
 export function CalculatorPanel({ onClose }: { onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<'calculator' | 'graph' | 'formulas' | 'constants'>('calculator')
   const [problem, setProblem] = useState('')
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imageMime, setImageMime] = useState('image/png')
   const [isComputing, setIsComputing] = useState(false)
   const [result, setResult] = useState('')
   const [error, setError] = useState<string | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [result])
 
+  const handleImageFile = (file: File | null | undefined) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid PNG, JPEG, or WebP image.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image exceeds 5 MB. Please upload a smaller screenshot.')
+      return
+    }
+    setError(null)
+    setImageMime(file.type)
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setImagePreview(reader.result)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        handleImageFile(item.getAsFile())
+        break
+      }
+    }
+  }
+
   async function handleSolve() {
-    if (!problem.trim()) return
+    if (!problem.trim() && !imagePreview) return
     setIsComputing(true)
     setResult('')
     setError(null)
     try {
-      const res = await apiFetchRaw('/ai/calculator', {
-        method: 'POST',
-        body: JSON.stringify({ problem, subject: 'Mathematics', level: 'Undergraduate' }),
+      await solveMathProblemStream({
+        problem,
+        subject: 'Mathematics',
+        level: 'Undergraduate',
+        imageBase64: imagePreview,
+        mimeType: imageMime,
+        onChunk: (fullText) => setResult(fullText),
       })
-      const reader = res.body?.getReader()
-      const decoder = new TextDecoder()
-      if (!reader) throw new Error('No readable stream')
-      while (true) {
-        const { value, done } = await reader.read()
-        if (done) break
-        const chunk = decoder.decode(value, { stream: true })
-        for (const line of chunk.split('\n\n')) {
-          if (!line.startsWith('data: ')) continue
-          const dataStr = line.slice(6)
-          if (dataStr === '[DONE]') break
-          try {
-            const data = JSON.parse(dataStr)
-            setResult(prev => prev + data.text)
-          } catch {
-            // ignore malformed chunks
-          }
-        }
-      }
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to compute problem')
     } finally {
       setIsComputing(false)
     }
@@ -154,31 +176,77 @@ export function CalculatorPanel({ onClose }: { onClose: () => void }) {
             </div>
 
             {/* Input */}
-            <div className="flex-shrink-0 bg-card border border-border rounded-xl p-3 flex gap-3 items-end relative overflow-hidden">
+            <div className="flex-shrink-0 bg-card border border-border rounded-xl p-3 flex flex-col gap-2 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-transparent pointer-events-none" />
-              <textarea
-                value={problem}
-                onChange={e => setProblem(e.target.value)}
-                placeholder="e.g. Find the derivative of f(x) = x² · sin(x)"
-                className="min-h-[80px] resize-none border-0 focus-visible:ring-0 shadow-none bg-transparent flex-1 text-sm relative z-10 w-full outline-none"
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    handleSolve()
-                  }
-                }}
-              />
-              <div className="flex-shrink-0 relative z-10">
-                <Button
-                  size="icon"
-                  className="rounded-full bg-purple-500 hover:bg-purple-600 text-white shadow-lg shadow-purple-500/20 transition-transform hover:scale-105 active:scale-95"
-                  onClick={handleSolve}
-                  disabled={isComputing || !problem.trim()}
-                >
-                  {isComputing
-                    ? <Loader2 size={16} className="animate-spin" />
-                    : <Send size={15} className="ml-0.5" />}
-                </Button>
+              {imagePreview && (
+                <div className="relative z-10 flex items-center justify-between gap-2 bg-muted/40 border border-border rounded-lg px-2 py-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Image
+                      src={imagePreview}
+                      alt="Math problem"
+                      width={28}
+                      height={28}
+                      unoptimized
+                      className="h-7 w-7 rounded object-cover border border-border"
+                    />
+                    <span className="text-[11px] text-muted-foreground truncate">Screenshot attached</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setImagePreview(null)}
+                    aria-label="Remove screenshot"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              )}
+              <div className="flex gap-2 items-end relative z-10">
+                <textarea
+                  value={problem}
+                  onChange={e => setProblem(e.target.value)}
+                  onPaste={handlePaste}
+                  placeholder="Enter any math question or paste/upload a screenshot..."
+                  className="min-h-[72px] resize-none border-0 focus-visible:ring-0 shadow-none bg-transparent flex-1 text-sm w-full outline-none"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSolve()
+                    }
+                  }}
+                />
+                <div className="flex-shrink-0 flex flex-col gap-1.5">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={e => {
+                      handleImageFile(e.target.files?.[0])
+                      e.target.value = ''
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Upload math question image"
+                  >
+                    <ImagePlus size={14} />
+                  </Button>
+                  <Button
+                    size="icon"
+                    className="rounded-full bg-purple-500 hover:bg-purple-600 text-white shadow-lg shadow-purple-500/20 transition-transform hover:scale-105 active:scale-95"
+                    onClick={handleSolve}
+                    disabled={isComputing || (!problem.trim() && !imagePreview)}
+                  >
+                    {isComputing
+                      ? <Loader2 size={16} className="animate-spin" />
+                      : <Send size={15} className="ml-0.5" />}
+                  </Button>
+                </div>
               </div>
             </div>
           </>

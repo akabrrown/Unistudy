@@ -121,7 +121,7 @@ export function YouTubeStudyClient({
     <div className="flex h-[calc(100vh-8rem)] gap-6">
       
       {/* LEFT PANEL: Search */}
-      <div className="w-1/3 flex flex-col border-r border-border pr-6">
+      <div id="discover" className="w-1/3 flex flex-col border-r border-border pr-6 scroll-mt-6">
         <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
           <PlaySquare className="text-red-500" /> Discover
         </h2>
@@ -183,7 +183,7 @@ export function YouTubeStudyClient({
       </div>
 
       {/* RIGHT PANEL: Pinned Library */}
-      <div className="flex-1 flex flex-col pl-2">
+      <div id="pinned" className="flex-1 flex flex-col pl-2 scroll-mt-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <Pin className="text-primary" /> Pinned Library

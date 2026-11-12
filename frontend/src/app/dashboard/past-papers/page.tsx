@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input'
 import { createClient } from '@/lib/supabase/client'
 import { apiFetch } from '@/lib/api/client'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { resolveCourseColor } from '@/lib/constants/courses'
 import { UploadModal } from '@/components/past-papers/UploadModal'
 import { cn } from '@/lib/utils'
@@ -48,6 +49,11 @@ export default function PastPapersDashboard() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string | null>(null)
   const supabase = createClient()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const uploadParam = searchParams.get('action')
+  const [dismissedUploadAction, setDismissedUploadAction] = useState(false)
+  const effectiveUploadOpen = isUploadModalOpen || (uploadParam === 'upload' && !dismissedUploadAction)
 
   const loadData = async () => {
     setLoading(true)
@@ -256,7 +262,7 @@ export default function PastPapersDashboard() {
       </div>
 
       {/* SECTION 1: Course Question Banks */}
-      <div className="space-y-4">
+      <div id="by-course" className="space-y-4 scroll-mt-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
@@ -377,7 +383,7 @@ export default function PastPapersDashboard() {
       </div>
 
       {/* SECTION 2: Available Exam Papers */}
-      <div className="space-y-4 pt-4 border-t border-border">
+      <div id="all-papers" className="space-y-4 pt-4 border-t border-border scroll-mt-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
@@ -501,14 +507,22 @@ export default function PastPapersDashboard() {
 
       {/* Upload Modal */}
       <UploadModal
-        isOpen={isUploadModalOpen}
+        isOpen={effectiveUploadOpen}
         onClose={() => {
           setIsUploadModalOpen(false)
           setPreselectedCourseId(null)
+          if (uploadParam === 'upload') {
+            setDismissedUploadAction(true)
+            router.replace('/dashboard/past-papers')
+          }
         }}
         onSuccess={() => {
           setIsUploadModalOpen(false)
           setPreselectedCourseId(null)
+          if (uploadParam === 'upload') {
+            setDismissedUploadAction(true)
+            router.replace('/dashboard/past-papers')
+          }
           loadData()
         }}
         preselectedCourseId={preselectedCourseId}

@@ -30,6 +30,10 @@ import {
   type GroundingSource,
 } from '../../../shared/lib/groundingVerifier';
 import { normalizeLatexMarkdown } from '../../../shared/lib/latexNormalizer';
+import {
+  sanitizeMathResponse,
+  tryDeterministicMathSolve,
+} from '../../../shared/lib/mathSolver';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -299,32 +303,66 @@ router.post('/ask', async (req: Request, res: Response) => {
 
 // For specific routes that use the middleware strictly:
 router.post('/calculator', withAIQuota('calculator'), async (req: Request, res: Response) => {
-  const { problem, subject, level } = req.body;
-  
+  const { problem = '', subject = 'Mathematics', level = 'Undergraduate' } = req.body || {};
+  if (!String(problem).trim()) {
+    return res.status(400).json({ error: 'Problem text is required' });
+  }
+
   const aiReq: AIRequest = {
     task: 'streaming',
     feature: 'calculator',
-    payload: { prompt: problem, subject, level, stream: true },
+    payload: { prompt: String(problem), subject, level, stream: true },
     userId: req.user!.id,
     priority: 'high'
   };
 
   try {
-    const response = await routeRequest(aiReq);
-    
-    consumeUserQuota(aiReq.userId, aiReq.feature, req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
-
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    
-    for await (const chunk of response.result) {
-      res.write(`data: ${JSON.stringify(chunk.choices[0]?.delta?.content || "")}\n\n`);
+
+    let fullText = '';
+    try {
+      const response = await routeRequest(aiReq);
+      consumeUserQuota(aiReq.userId, aiReq.feature, req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
+
+      if (typeof response.result === 'string') {
+        fullText = response.result;
+        res.write(`data: ${JSON.stringify({ text: fullText })}\n\n`);
+      } else if (response.result && Symbol.asyncIterator in response.result) {
+        for await (const chunk of response.result) {
+          const delta = chunk?.choices?.[0]?.delta?.content || '';
+          if (delta) {
+            fullText += delta;
+            res.write(`data: ${JSON.stringify({ text: delta })}\n\n`);
+          }
+        }
+      }
+    } catch (providerErr) {
+      console.warn('[Backend /calculator] Provider failed, trying CAS fallback:', providerErr);
+      const cas = tryDeterministicMathSolve(String(problem));
+      if (cas) {
+        fullText = cas.markdown;
+        res.write(`data: ${JSON.stringify({ text: fullText })}\n\n`);
+      } else {
+        throw providerErr;
+      }
+    }
+
+    if (fullText.trim()) {
+      res.write(`data: ${JSON.stringify({ finalText: sanitizeMathResponse(fullText) })}\n\n`);
+    } else {
+      res.write(`data: ${JSON.stringify({ error: 'Empty response from solver' })}\n\n`);
     }
     res.write('data: [DONE]\n\n');
     res.end();
   } catch (err: any) {
-    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+    if (!res.headersSent) {
+      return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+    }
+    res.write(`data: ${JSON.stringify({ error: 'Failed to solve mathematical problem' })}\n\n`);
+    res.write('data: [DONE]\n\n');
+    res.end();
   }
 });
 

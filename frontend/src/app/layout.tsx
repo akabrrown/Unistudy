@@ -17,10 +17,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "UniStudy AI",
   description: "Upload your lecture slides and let UniStudy AI explain, quiz, and revise with you.",
-  icons: {
-    icon: '/app-icon.jpeg',
-    apple: '/app-icon.jpeg',
-  }
 };
 
 import { Toaster } from 'sonner';

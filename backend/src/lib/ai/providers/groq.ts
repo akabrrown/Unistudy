@@ -3,6 +3,10 @@ import Groq from 'groq-sdk'
 import { AIRequest } from '../router'
 import { GROQ_FAST_MODELS, GROQ_SMART_MODELS } from '../../../../../shared/constants/aiModels'
 import { buildGroundedFlashcardPrompt } from '../../../../../shared/lib/flashcardExtractor'
+import {
+  buildUniversalMathSolverPrompt,
+  tryDeterministicMathSolve,
+} from '../../../../../shared/lib/mathSolver'
 
 export function getGroqClient() {
   if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is not set")
@@ -35,16 +39,20 @@ export async function handleGroqRequest(req: AIRequest) {
   const models = isFast ? GROQ_FAST_MODELS : GROQ_SMART_MODELS
 
   if (req.feature === 'calculator') {
-    const systemPrompt = `You are a strict, methodical AI calculator.
-      Subject: ${req.payload.subject}, Level: ${req.payload.level}
-      Show EVERY step of the calculation. Use standard LaTeX $...$ notation for math.`
+    const problemText = req.payload.prompt || ''
+    const casCheck = tryDeterministicMathSolve(problemText)
+    const prompt = buildUniversalMathSolverPrompt({
+      problem: problemText,
+      subject: req.payload.subject || 'Mathematics',
+      level: req.payload.level || 'Undergraduate',
+      verifiedComputation: casCheck,
+    })
 
-    return createCompletionWithModels(groq, models, (model) => ({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: req.payload.prompt || '' }
-      ],
+    return createCompletionWithModels(groq, GROQ_SMART_MODELS, (model) => ({
+      messages: [{ role: 'user', content: prompt }],
       model,
+      temperature: 0.15,
+      max_tokens: 3000,
       stream: true
     }))
   }

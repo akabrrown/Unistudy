@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, Trash2, Loader2, BookOpen, Clock, FileWarning, RefreshCcw } from 'lucide-react';
 import { toast } from 'sonner';
@@ -22,15 +23,28 @@ const TYPE_CONFIG = {
 };
 
 export default function CalendarPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlView = searchParams.get('view');
+  const urlAction = searchParams.get('action');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'calendar' | 'timetable'>('calendar');
+  const [manualView, setManualView] = useState<{ forUrl: string | null; val: 'calendar' | 'timetable' } | null>(null);
+  const view: 'calendar' | 'timetable' =
+    manualView && manualView.forUrl === urlView
+      ? manualView.val
+      : urlView === 'timetable'
+        ? 'timetable'
+        : 'calendar';
+  const setView = (next: 'calendar' | 'timetable') => setManualView({ forUrl: urlView, val: next });
   const [template, setTemplate] = useState<any>(null);
   
   // Add Event State
   const [isAdding, setIsAdding] = useState(false);
-  const [selectedDate, setSelectedDate] = useState('');
+  const [dismissedAddAction, setDismissedAddAction] = useState(false);
+  const effectiveIsAdding = isAdding || (urlAction === 'add' && !dismissedAddAction);
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newEvent, setNewEvent] = useState({ title: '', type: 'exam' as any });
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -199,7 +213,7 @@ export default function CalendarPage() {
         </Button>
       </div>
 
-      {isAdding && (
+      {effectiveIsAdding && (
         <div className="bg-card border border-border rounded-xl p-6 flex flex-wrap gap-4 items-end">
           <div className="flex-1 min-w-[200px]">
             <label className="block text-sm font-medium mb-1">Date</label>
@@ -218,7 +232,18 @@ export default function CalendarPage() {
             </select>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setIsAdding(false)}>Cancel</Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAdding(false);
+                if (urlAction === 'add') {
+                  setDismissedAddAction(true);
+                  router.replace('/dashboard/calendar');
+                }
+              }}
+            >
+              Cancel
+            </Button>
             <Button onClick={handleAddEvent}>Save</Button>
           </div>
         </div>

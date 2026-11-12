@@ -5,6 +5,15 @@ import Groq from 'groq-sdk';
 import pdfParse from 'pdf-parse';
 import { chatCompletionWithFallback } from '../lib/ai/safeGroq';
 import { GEMINI_CANDIDATE_MODELS } from '../../../shared/constants/aiModels';
+import {
+    buildPastPaperBatchPrompt,
+    buildSingleRepairPrompt,
+    isModelAnswerIncomplete,
+    normalizeBatchGradingResults,
+    parsePastPaperJsonResults,
+    type PastPaperAnswerInput,
+    type PastPaperGradeItem,
+} from '../../../shared/lib/pastPaperGrader';
 
 const router = Router();
 
@@ -355,61 +364,58 @@ router.post('/grade-batch', withAIQuota('past_paper_grading'), async (req, res) 
             }
         }
 
-        const personality = is_ultra 
-            ? "You are a STRICT and UNFORGIVING university examiner. Do not offer encouragement or praise. Use pure mark-scheme language."
-            : "You are an expert university examiner and teaching assistant grading an exam. Be rigorous, constructive, and highly educational.";
-
-        // Chunk answers into batches of at most 3 to ensure the AI has ample token headroom
-        // to re-answer all questions and all sub-parts completely without lazy truncation.
-        const CHUNK_SIZE = 3;
-        const allResults: any[] = [];
+        // Chunk answers into batches of at most 2 to preserve token headroom,
+        // then run targeted single-question repair for any skipped or partial sub-part answers.
+        const CHUNK_SIZE = 2;
+        const allResults: PastPaperGradeItem[] = [];
 
         for (let i = 0; i < answers.length; i += CHUNK_SIZE) {
-            const chunk = answers.slice(i, i + CHUNK_SIZE);
-            const prompt = `
-${personality}
-Grade the following answers to exam questions.
+            const chunk: PastPaperAnswerInput[] = answers.slice(i, i + CHUNK_SIZE);
+            let rawJsonList: Record<string, unknown>[] = [];
+            try {
+                const prompt = buildPastPaperBatchPrompt(chunk, Boolean(is_ultra));
+                const text = await chatCompletionWithFallback({
+                    messages: [{ role: 'user', content: prompt }],
+                    response_format: { type: 'json_object' },
+                    temperature: 0.2,
+                    max_tokens: 4000
+                });
+                rawJsonList = parsePastPaperJsonResults(text);
+            } catch (chunkErr) {
+                console.warn('[Past Papers] Chunk grading failed, switching to per-item repair:', chunkErr);
+            }
 
-CRITICAL INSTRUCTIONS (MANDATORY FOR EVERY SINGLE QUESTION):
-1. RE-ANSWER EVERY QUESTION COMPLETELY:
-   - For EACH and EVERY question below, you MUST provide a complete, authoritative, step-by-step Model Answer ("model_answer") that fully re-answers the entire question from scratch to 100% completion.
-   - If a question has sub-parts (e.g. part a, part b, part c, i, ii, iii), your "model_answer" MUST re-answer EVERY SINGLE sub-part with full solutions, formulas, steps, explanations, and final answers. 
-   - NEVER answer only some parts and leave others unanswered!
-   - NEVER write "Refer to notes", "N/A", or "Student did not attempt". Even if the student's answer was blank or scored 0 marks, you MUST provide the complete, working model solution for all parts so the student learns the complete answer.
-2. EXAMINER FEEDBACK:
-   - "feedback": State clearly what the student earned marks for, what was missing or incorrect, and the specific marking-scheme allocation.
-3. SCORING:
-   - "marks_awarded": Integer between 0 and marks_available.
+            const { results, incompleteIds } = normalizeBatchGradingResults(chunk, rawJsonList);
 
-CRITICAL INSTRUCTION FOR SLIDES: If "Lecturer's Slide Context" is provided for a question, you MUST strongly base your grading and model answer on that context before considering general factual correctness.
-
-${chunk.map((ans: any, idx: number) => `
---- Item ${i + idx} (ID: ${ans.id}) ---
-Question: ${ans.question_content}
-Total Marks Available: ${ans.marks_available}
-Student's Answer: ${ans.student_answer}
-${ans.slide_context ? `\nLecturer's Slide Context (PRIORITIZE THIS):\n${ans.slide_context}` : ''}
-`).join('\n')}
-
-Return EXACTLY ONE valid JSON object with a single root key called "results", which is an array containing an object for each item in this batch, IN THE EXACT SAME ORDER:
-- "id": (string, the exact ID provided in the item)
-- "marks_awarded": (integer)
-- "feedback": (string)
-- "model_answer": (string, complete markdown solution re-answering all question parts completely)
-`;
-
-            const text = await chatCompletionWithFallback({
-                messages: [{ role: 'user', content: prompt }],
-                response_format: { type: 'json_object' }
-            });
-            const start = text.indexOf('{');
-            const end = text.lastIndexOf('}');
-            if (start !== -1 && end !== -1) {
-                const parsed = JSON.parse(text.slice(start, end + 1));
-                if (Array.isArray(parsed.results)) {
-                    allResults.push(...parsed.results);
+            for (const badId of incompleteIds) {
+                const sourceItem = chunk.find((c) => c.id === badId);
+                if (!sourceItem) continue;
+                try {
+                    const repairText = await chatCompletionWithFallback({
+                        messages: [{ role: 'user', content: buildSingleRepairPrompt(sourceItem, Boolean(is_ultra)) }],
+                        response_format: { type: 'json_object' },
+                        temperature: 0.2,
+                        max_tokens: 3500
+                    });
+                    const repaired = normalizeBatchGradingResults(
+                        [sourceItem],
+                        parsePastPaperJsonResults(repairText)
+                    ).results[0];
+                    const idxToUpdate = results.findIndex((r) => r.id === badId);
+                    if (
+                        repaired &&
+                        idxToUpdate >= 0 &&
+                        (!isModelAnswerIncomplete(sourceItem.question_content, repaired.model_answer) ||
+                            repaired.model_answer.length > results[idxToUpdate].model_answer.length)
+                    ) {
+                        results[idxToUpdate] = repaired;
+                    }
+                } catch (repairErr) {
+                    console.warn(`[Past Papers] Repair failed for ${badId}:`, repairErr);
                 }
             }
+
+            allResults.push(...results);
         }
         
         await consumeUserQuota(req.user!.id, 'past_paper_grading');
@@ -424,9 +430,13 @@ router.post('/grade', withAIQuota('past_paper_grading'), async (req, res) => {
     try {
         const { question_content, marks_available, student_answer, is_ultra, course_id } = req.body;
         
-        if (!question_content || !student_answer) {
-            return res.status(400).json({ error: 'Missing required fields' });
+        if (!question_content) {
+            return res.status(400).json({ error: 'Missing required question_content' });
         }
+        const safeStudentAnswer =
+            typeof student_answer === 'string' && student_answer.trim()
+                ? student_answer
+                : '[No answer provided]';
 
         let slide_context = "";
         if (course_id) {
@@ -467,51 +477,28 @@ router.post('/grade', withAIQuota('past_paper_grading'), async (req, res) => {
             }
         }
 
-        const personality = is_ultra 
-            ? "You are a STRICT and UNFORGIVING university examiner. Do not offer encouragement or praise. Use pure mark-scheme language (e.g. 'Candidate correctly identified X [1 mark] but failed to...')."
-            : "You are a helpful university examiner and teaching assistant grading an exam. Be encouraging, thorough, and accurate.";
+        const singleItem: PastPaperAnswerInput = {
+            id: 'single',
+            question_content,
+            marks_available: Number(marks_available) || 0,
+            student_answer: safeStudentAnswer,
+            slide_context: slide_context || null,
+        };
+        const prompt = buildSingleRepairPrompt(singleItem, Boolean(is_ultra));
 
-        const prompt = `
-        ${personality}
-        Grade the following answer to this exam question.
-        
-        CRITICAL INSTRUCTIONS (MANDATORY):
-        1. RE-ANSWER THE QUESTION COMPLETELY:
-           - You MUST provide a complete, authoritative, step-by-step Model Answer ("model_answer") that fully re-answers the entire question from scratch to 100% completion.
-           - If the question contains multiple sub-parts (e.g. (a), (b), (c), (i), (ii)), your "model_answer" MUST re-answer EVERY SINGLE sub-part with full solutions, formulas, steps, explanations, and final answers.
-           - NEVER answer only some parts and leave others unanswered!
-           - Even if the student's answer was blank or scored 0 marks, you MUST still provide the complete, working model solution for all sub-parts so the student learns the full answer.
-        2. EXAMINER FEEDBACK:
-           - "feedback": Detail what marks were awarded or deducted and why according to the mark scheme.
-        3. SCORING:
-           - "marks_awarded": Integer between 0 and ${marks_available || 0}.
-
-        CRITICAL INSTRUCTION FOR SLIDES: If "Lecturer's Slide Context" is provided, you MUST strongly base your grading and model answer on that context before considering general factual correctness.
-        
-        Question: ${question_content}
-        Total Marks Available: ${marks_available}
-        ${slide_context ? `\nLecturer's Slide Context (PRIORITIZE THIS):\n${slide_context}\n` : ''}
-        
-        Student's Answer:
-        ${student_answer}
-        
-        Return exactly ONE valid JSON object with these keys:
-        - "marks_awarded": (integer)
-        - "feedback": (string)
-        - "model_answer": (string, complete markdown solution re-answering all question parts completely)
-        `;
-
-        let parsedResult: any = null;
+        let rawResponseText = '';
         try {
             const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
             for (const modelName of GEMINI_CANDIDATE_MODELS) {
                 try {
-                    const model = genAI.getGenerativeModel({ model: modelName });
+                    const model = genAI.getGenerativeModel({
+                        model: modelName,
+                        generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
+                    });
                     const result = await model.generateContent(prompt);
                     const text = result.response.text();
-                    const jsonMatch = text.match(/\{[\s\S]*\}/);
-                    if (jsonMatch) {
-                        parsedResult = JSON.parse(jsonMatch[0]);
+                    if (parsePastPaperJsonResults(text).length > 0) {
+                        rawResponseText = text;
                         break;
                     }
                 } catch (mErr: any) {
@@ -522,15 +509,18 @@ router.post('/grade', withAIQuota('past_paper_grading'), async (req, res) => {
             console.warn('Gemini grading failed, falling back to Groq/OpenRouter:', geminiErr.message);
         }
 
-        if (!parsedResult) {
-            const fallbackText = await chatCompletionWithFallback({
+        if (!rawResponseText) {
+            rawResponseText = await chatCompletionWithFallback({
                 messages: [{ role: 'user', content: prompt }],
-                response_format: { type: 'json_object' }
+                response_format: { type: 'json_object' },
+                temperature: 0.2,
+                max_tokens: 3500
             });
-            const jsonMatch = fallbackText.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error("AI did not return valid JSON");
-            parsedResult = JSON.parse(jsonMatch[0]);
         }
+
+        const parsedList = parsePastPaperJsonResults(rawResponseText);
+        if (parsedList.length === 0) throw new Error('AI did not return valid JSON');
+        const parsedResult = normalizeBatchGradingResults([singleItem], parsedList).results[0];
         
         await consumeUserQuota(req.user!.id, 'past_paper_grading');
         res.json({ success: true, data: parsedResult });

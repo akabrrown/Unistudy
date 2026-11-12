@@ -51,7 +51,7 @@ export default function AnalyticsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Study Heatmap */}
-        <Card className="md:col-span-2 border border-border shadow-xs">
+        <Card id="heatmap" className="md:col-span-2 border border-border shadow-xs scroll-mt-6">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg font-bold flex items-center gap-2">
               <Flame className="text-orange-500 w-5 h-5" />
@@ -64,7 +64,7 @@ export default function AnalyticsPage() {
         </Card>
 
         {/* Learning Velocity */}
-        <Card className="border border-border shadow-xs">
+        <Card id="velocity" className="border border-border shadow-xs scroll-mt-6">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg font-bold flex items-center gap-2">
               <TrendingUp className="text-blue-500 w-5 h-5" />
@@ -113,7 +113,7 @@ export default function AnalyticsPage() {
         </Card>
 
         {/* Peak Performance Time */}
-        <Card className="border border-border shadow-xs">
+        <Card id="peak-hours" className="border border-border shadow-xs scroll-mt-6">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg font-bold flex items-center gap-2">
               <Clock className="text-emerald-500 w-5 h-5" />
@@ -157,7 +157,7 @@ export default function AnalyticsPage() {
         </Card>
 
         {/* Blind Spots */}
-        <Card className="md:col-span-2 border border-border shadow-xs">
+        <Card id="blind-spots" className="md:col-span-2 border border-border shadow-xs scroll-mt-6">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg font-bold flex items-center gap-2">
               <ShieldCheck className="text-amber-500 w-5 h-5" />
@@ -207,7 +207,7 @@ export default function AnalyticsPage() {
         </Card>
 
         {/* AI Daily Resource Allotment */}
-        <Card className="md:col-span-2 border border-border shadow-xs">
+        <Card id="allowances" className="md:col-span-2 border border-border shadow-xs scroll-mt-6">
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <CardTitle className="text-lg font-bold flex items-center gap-2">
               <Cpu className="text-primary w-5 h-5" />

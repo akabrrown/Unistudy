@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api/client'
 import { UploadLectureDialog } from '@/components/courses/UploadLectureDialog'
@@ -39,6 +39,19 @@ export default function CoursesPage() {
 
   const supabase = createClient()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const actionParam = searchParams.get('action')
+  const [dismissedNewAction, setDismissedNewAction] = useState(false)
+  const effectiveCourseDialogOpen = isCourseDialogOpen || (actionParam === 'new' && !dismissedNewAction)
+  const handleCourseDialogChange = (open: boolean) => {
+    setIsCourseDialogOpen(open)
+    if (!open && actionParam === 'new') {
+      setDismissedNewAction(true)
+      router.replace('/dashboard/courses')
+    } else if (open) {
+      setDismissedNewAction(false)
+    }
+  }
 
   useEffect(() => {
     fetchCourses()
@@ -294,7 +307,7 @@ export default function CoursesPage() {
           <p className="text-muted-foreground">{activeCourses.length} active modules</p>
         </div>
         <div className="flex gap-2">
-          <Dialog open={isCourseDialogOpen} onOpenChange={setIsCourseDialogOpen}>
+          <Dialog open={effectiveCourseDialogOpen} onOpenChange={handleCourseDialogChange}>
             <DialogTrigger className="inline-flex items-center justify-center rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground h-9 px-4 py-2 gap-2 text-sm font-medium transition-colors">
               <Plus size={16} /> Add Course
             </DialogTrigger>
@@ -502,7 +515,7 @@ export default function CoursesPage() {
       </div>
 
       {archivedCourses.length > 0 && (
-        <div className="mt-12">
+        <div id="archived" className="mt-12 scroll-mt-6">
           <h2 className="text-2xl font-bold tracking-tight mb-6 flex items-center gap-2">
             <Archive className="w-6 h-6" /> Archived Courses
           </h2>

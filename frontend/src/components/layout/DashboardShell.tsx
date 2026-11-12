@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { signout } from '@/app/(auth)/actions';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
@@ -29,13 +29,36 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
+  ChevronDown,
+  ChevronRight,
+  Calculator,
+  Share2,
+  Plus,
+  Archive,
+  Upload,
+  Clock,
+  Pin,
+  Flame,
+  TrendingUp,
+  AlertTriangle,
+  Cpu,
+  Compass,
+  CheckCircle2,
+  Layers,
 } from 'lucide-react';
+
+interface SubNavItem {
+  label: string;
+  href: string;
+  icon: React.ElementType;
+}
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
   color?: string;
+  subItems?: SubNavItem[];
 }
 
 interface NavSection {
@@ -47,19 +70,94 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Overview',
     items: [
-      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-      { label: 'Courses', href: '/dashboard/courses', icon: BookOpen },
-      { label: 'Past Papers', href: '/dashboard/past-papers', icon: Award },
-      { label: 'Study Calendar', href: '/dashboard/calendar', icon: CalendarDays },
-      { label: 'Notes Scanner', href: '/dashboard/scanner', icon: Camera },
-      { label: 'Essay Grader', href: '/dashboard/essay-grader', icon: FileText },
-      { label: 'Analytics & Insights', href: '/dashboard/analytics', icon: LineChart },
+      {
+        label: 'Dashboard',
+        href: '/dashboard',
+        icon: LayoutDashboard,
+        subItems: [
+          { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
+          { label: 'Smart Search', href: '/dashboard/search', icon: Search },
+          { label: 'Shared Materials', href: '/dashboard/shared', icon: Share2 },
+          { label: 'Math & Graph Toolkit', href: '/dashboard/calculator', icon: Calculator },
+        ],
+      },
+      {
+        label: 'Courses',
+        href: '/dashboard/courses',
+        icon: BookOpen,
+        subItems: [
+          { label: 'Active Courses', href: '/dashboard/courses', icon: BookOpen },
+          { label: 'New Course', href: '/dashboard/courses?action=new', icon: Plus },
+          { label: 'Archived Courses', href: '/dashboard/courses#archived', icon: Archive },
+        ],
+      },
+      {
+        label: 'Past Papers',
+        href: '/dashboard/past-papers',
+        icon: Award,
+        subItems: [
+          { label: 'All Papers', href: '/dashboard/past-papers#all-papers', icon: FileText },
+          { label: 'By Course', href: '/dashboard/past-papers#by-course', icon: Layers },
+          { label: 'Upload Paper', href: '/dashboard/past-papers?action=upload', icon: Upload },
+        ],
+      },
+      {
+        label: 'Study Calendar',
+        href: '/dashboard/calendar',
+        icon: CalendarDays,
+        subItems: [
+          { label: 'Month View', href: '/dashboard/calendar?view=calendar', icon: CalendarDays },
+          { label: 'Weekly Timetable', href: '/dashboard/calendar?view=timetable', icon: Clock },
+          { label: 'Schedule Session', href: '/dashboard/calendar?action=add', icon: Plus },
+        ],
+      },
+      {
+        label: 'Notes Scanner',
+        href: '/dashboard/scanner',
+        icon: Camera,
+        subItems: [
+          { label: 'Handwriting OCR', href: '/dashboard/scanner', icon: Camera },
+          { label: 'Graph Question OCR', href: '/dashboard/calculator?tab=graph', icon: Compass },
+          { label: 'Math Image Solver', href: '/dashboard/calculator?tab=solver', icon: Calculator },
+        ],
+      },
+      {
+        label: 'Essay Grader',
+        href: '/dashboard/essay-grader',
+        icon: FileText,
+        subItems: [
+          { label: 'Grade Draft', href: '/dashboard/essay-grader#editor', icon: FileText },
+          { label: 'Rubric Breakdown', href: '/dashboard/essay-grader#rubric', icon: CheckCircle2 },
+          { label: '100/100 Model Essay', href: '/dashboard/essay-grader#model-essay', icon: Award },
+        ],
+      },
+      {
+        label: 'Analytics & Insights',
+        href: '/dashboard/analytics',
+        icon: LineChart,
+        subItems: [
+          { label: 'Study Heatmap', href: '/dashboard/analytics#heatmap', icon: Flame },
+          { label: 'Learning Velocity', href: '/dashboard/analytics#velocity', icon: TrendingUp },
+          { label: 'Peak Study Hours', href: '/dashboard/analytics#peak-hours', icon: Clock },
+          { label: 'Blind Spots', href: '/dashboard/analytics#blind-spots', icon: AlertTriangle },
+          { label: 'Provider Allowances', href: '/dashboard/analytics#allowances', icon: Cpu },
+        ],
+      },
     ],
   },
   {
     title: 'Resources',
     items: [
-      { label: 'YouTube Study', href: '/dashboard/youtube', icon: PlaySquare, color: 'text-red-500' },
+      {
+        label: 'YouTube Study',
+        href: '/dashboard/youtube',
+        icon: PlaySquare,
+        color: 'text-red-500',
+        subItems: [
+          { label: 'Search Lectures', href: '/dashboard/youtube#discover', icon: Search },
+          { label: 'Pinned Library', href: '/dashboard/youtube#pinned', icon: Pin },
+        ],
+      },
     ],
   },
   {
@@ -72,46 +170,73 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
+interface DashboardProfile {
+  role?: string | null;
+  avatar_url?: string | null;
+  full_name?: string | null;
+  username?: string | null;
+  institutions?: {
+    name?: string | null;
+    abbreviation?: string | null;
+  } | null;
+}
+
 interface DashboardShellProps {
-  profile: any;
+  profile: DashboardProfile | null;
   latestAnnouncement: { id: string; title: string; body: string } | null;
   children: React.ReactNode;
 }
 
+const subscribeStorage = (cb: () => void) => {
+  window.addEventListener('storage', cb);
+  window.addEventListener('unistudy-sidebar-change', cb);
+  return () => {
+    window.removeEventListener('storage', cb);
+    window.removeEventListener('unistudy-sidebar-change', cb);
+  };
+};
+
+const getSidebarCollapsedSnapshot = () => {
+  try {
+    return localStorage.getItem('unistudy_sidebar_collapsed') === 'true';
+  } catch {
+    return false;
+  }
+};
+
+const subscribeHash = (cb: () => void) => {
+  window.addEventListener('hashchange', cb);
+  return () => window.removeEventListener('hashchange', cb);
+};
+
+const getHashSnapshot = () => (typeof window !== 'undefined' ? window.location.hash || '' : '');
+
 export function DashboardShell({ profile, latestAnnouncement, children }: DashboardShellProps) {
   const pathname = usePathname();
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const searchParams = useSearchParams();
+  const isCollapsed = useSyncExternalStore(
+    subscribeStorage,
+    getSidebarCollapsedSnapshot,
+    () => false
+  );
+  const currentHash = useSyncExternalStore(subscribeHash, getHashSnapshot, () => '');
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [clickedSub, setClickedSub] = useState<{ pathname: string; href: string } | null>(null);
 
-  // Restore sidebar state from localStorage on mount
-  useEffect(() => {
-    setMounted(true);
+  const setCollapsedStorage = useCallback((next: boolean) => {
     try {
-      const saved = localStorage.getItem('unistudy_sidebar_collapsed');
-      if (saved !== null) {
-        setIsCollapsed(saved === 'true');
-      }
-    } catch {
-      // LocalStorage access might fail in restricted environments
-    }
+      localStorage.setItem('unistudy_sidebar_collapsed', String(next));
+      window.dispatchEvent(new Event('unistudy-sidebar-change'));
+    } catch {}
   }, []);
 
   const toggleCollapse = useCallback(() => {
-    setIsCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem('unistudy_sidebar_collapsed', String(next));
-      } catch {}
-      return next;
-    });
-  }, []);
+    setCollapsedStorage(!getSidebarCollapsedSnapshot());
+  }, [setCollapsedStorage]);
 
   const expandSidebar = useCallback(() => {
-    setIsCollapsed(false);
-    try {
-      localStorage.setItem('unistudy_sidebar_collapsed', 'false');
-    } catch {}
-  }, []);
+    setCollapsedStorage(false);
+  }, [setCollapsedStorage]);
 
   // Keyboard shortcut: Ctrl+B or Cmd+B to toggle sidebar
   useEffect(() => {
@@ -133,11 +258,45 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [toggleCollapse]);
 
-  const isRouteActive = (href: string) => {
-    if (href === '/dashboard') {
+  const isRouteActive = useCallback((href: string) => {
+    const baseHref = href.split('#')[0].split('?')[0];
+    if (baseHref === '/dashboard') {
       return pathname === '/dashboard';
     }
-    return pathname === href || pathname.startsWith(href + '/');
+    return pathname === baseHref || pathname.startsWith(baseHref + '/');
+  }, [pathname]);
+
+  const isNavGroupActive = useCallback((item: NavItem) => {
+    if (isRouteActive(item.href)) return true;
+    return (item.subItems || []).some((sub) => isRouteActive(sub.href));
+  }, [isRouteActive]);
+
+  const activeClickedSubHref =
+    clickedSub && clickedSub.pathname === pathname ? clickedSub.href : null;
+
+  const isSubItemActive = (subHref: string) => {
+    if (activeClickedSubHref) {
+      return activeClickedSubHref === subHref;
+    }
+    const [pathAndQuery, hash] = subHref.split('#');
+    const [basePath, queryStr] = pathAndQuery.split('?');
+    if (pathname !== basePath && !pathname.startsWith(basePath + '/')) return false;
+    if (queryStr) {
+      const expected = new URLSearchParams(queryStr);
+      for (const [k, v] of expected.entries()) {
+        if (searchParams.get(k) !== v) return false;
+      }
+      return true;
+    }
+    if (hash) {
+      return currentHash === `#${hash}`;
+    }
+    return !searchParams.toString() && !currentHash;
+  };
+
+  const toggleGroup = (item: NavItem) => {
+    const currentlyOpen = openGroups[item.href] ?? isNavGroupActive(item);
+    setOpenGroups((prev) => ({ ...prev, [item.href]: !currentlyOpen }));
   };
 
   // Render navigation list
@@ -155,8 +314,10 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
 
           <div className="space-y-1">
             {section.items.map((item) => {
-              const active = isRouteActive(item.href);
+              const active = isNavGroupActive(item);
               const Icon = item.icon;
+              const hasSubItems = Boolean(item.subItems && item.subItems.length > 0);
+              const isOpen = openGroups[item.href] ?? active;
 
               if (collapsed) {
                 return (
@@ -179,7 +340,12 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
                         }
                       />
                       <TooltipContent side="right" sideOffset={12}>
-                        {item.label}
+                        <div className="font-medium">{item.label}</div>
+                        {hasSubItems && (
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            {item.subItems!.map((s) => s.label).join(' · ')}
+                          </div>
+                        )}
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -187,24 +353,81 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
               }
 
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center px-3.5 py-2.5 rounded-xl transition-all duration-200 group text-sm font-medium",
-                    active
-                      ? "bg-primary/10 text-primary font-semibold shadow-xs"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <Icon
+                <div key={item.href} className="space-y-0.5">
+                  <div
                     className={cn(
-                      "w-4 h-4 mr-3 transition-colors shrink-0",
-                      item.color ? item.color : active ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                      "flex items-center rounded-xl transition-all duration-200 group",
+                      active
+                        ? "bg-primary/10 text-primary font-semibold shadow-xs"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     )}
-                  />
-                  <span className="truncate">{item.label}</span>
-                </Link>
+                  >
+                    <Link
+                      href={item.href}
+                      onClick={() => {
+                        setClickedSub(null);
+                        if (hasSubItems) {
+                          setOpenGroups((prev) => ({ ...prev, [item.href]: true }));
+                        }
+                      }}
+                      className="flex-1 flex items-center min-w-0 px-3.5 py-2.5 text-sm font-medium"
+                    >
+                      <Icon
+                        className={cn(
+                          "w-4 h-4 mr-3 transition-colors shrink-0",
+                          item.color ? item.color : active ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                        )}
+                      />
+                      <span className="truncate">{item.label}</span>
+                    </Link>
+
+                    {hasSubItems && (
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(item)}
+                        aria-expanded={isOpen}
+                        aria-label={`Toggle ${item.label} submenu`}
+                        className={cn(
+                          "p-2 mr-1 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40",
+                          active
+                            ? "text-primary hover:bg-primary/15"
+                            : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+                        )}
+                      >
+                        {isOpen ? (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {hasSubItems && isOpen && (
+                    <div className="ml-5 pl-3 border-l border-border/70 space-y-0.5 py-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                      {item.subItems!.map((sub) => {
+                        const SubIcon = sub.icon;
+                        const subActive = isSubItemActive(sub.href);
+                        return (
+                          <Link
+                            key={sub.href}
+                            href={sub.href}
+                            onClick={() => setClickedSub({ pathname: sub.href.split('#')[0].split('?')[0], href: sub.href })}
+                            className={cn(
+                              "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                              subActive
+                                ? "bg-primary/10 text-primary font-semibold"
+                                : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                            )}
+                          >
+                            <SubIcon className={cn("w-3.5 h-3.5 shrink-0", subActive ? "text-primary" : "opacity-75")} />
+                            <span className="truncate">{sub.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
