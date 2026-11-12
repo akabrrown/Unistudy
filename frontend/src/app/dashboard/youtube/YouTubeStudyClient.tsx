@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { ShareButton } from '@/components/study/ShareButton'
 import { useRouter } from 'next/navigation'
 
 type Course = {
@@ -240,11 +239,6 @@ export function YouTubeStudyClient({
                         <p className="text-xs text-muted-foreground flex items-center gap-1">
                           {video.channel}
                         </p>
-                        <ShareButton 
-                          contentType="video_list"
-                          contentId={video.id}
-                          title={video.title}
-                        />
                       </div>
                     </CardContent>
                   </Card>

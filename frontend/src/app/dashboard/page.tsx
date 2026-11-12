@@ -116,27 +116,6 @@ function toUtcDateKey(date: Date): string {
   return date.toISOString().split('T')[0];
 }
 
-function computeStreakDays(pointsByDate: Record<string, number>, now: Date): number {
-  let streak = 0;
-  const cursor = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-
-  const todayKey = toUtcDateKey(cursor);
-  if ((pointsByDate[todayKey] || 0) <= 0) {
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
-  }
-
-  for (let i = 0; i < 365; i++) {
-    const key = toUtcDateKey(cursor);
-    if ((pointsByDate[key] || 0) > 0) {
-      streak += 1;
-      cursor.setUTCDate(cursor.getUTCDate() - 1);
-    } else {
-      break;
-    }
-  }
-  return streak;
-}
-
 function computeHeatLevel(points: number): 0 | 1 | 2 | 3 | 4 {
   if (points <= 0) return 0;
   if (points < 20) return 1;
@@ -457,8 +436,6 @@ export default async function DashboardPage() {
     });
   }
 
-  const streakDays = computeStreakDays(pointsByDate, now);
-
   // Combine quizzes + past paper attempts for Recent Assessments & Exam Readiness average
   const paperAssessments: DashboardAssessmentItem[] = rawPaperAttempts.map((att) => {
     const paper = Array.isArray(att.past_papers) ? att.past_papers[0] : att.past_papers;
@@ -554,7 +531,6 @@ export default async function DashboardPage() {
           year: 'numeric',
         })}
         creditBalance={creditBalance}
-        streakDays={streakDays}
         weeklyMinutes={weeklyMinutes}
         weeklySessions={weeklySessions}
         dueFlashcards={dueFlashcards}

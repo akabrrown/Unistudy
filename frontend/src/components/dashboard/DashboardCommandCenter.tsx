@@ -14,12 +14,10 @@ import {
   Compass,
   FileCheck2,
   FileText,
-  Flame,
   FolderPlus,
   Layers,
   PlayCircle,
   Search,
-  Share2,
   TrendingUp,
   PlaySquare,
   Coins,
@@ -105,7 +103,6 @@ export interface DashboardCommandCenterProps {
   academicSubtitle: string | null;
   todayLabel: string;
   creditBalance: number;
-  streakDays: number;
   weeklyMinutes: number;
   weeklySessions: number;
   dueFlashcards: number;
@@ -161,12 +158,6 @@ const TOOL_DOCK = [
     href: '/dashboard/search',
     icon: Search,
   },
-  {
-    label: 'Shared Vault',
-    hint: 'Peer Decks',
-    href: '/dashboard/shared',
-    icon: Share2,
-  },
 ] as const;
 
 function formatShortDate(iso: string | null): string {
@@ -190,7 +181,6 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
     academicSubtitle,
     todayLabel,
     creditBalance,
-    streakDays,
     weeklyMinutes,
     weeklySessions,
     dueFlashcards,
@@ -279,15 +269,6 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <div
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-xs font-medium text-foreground tabular-nums"
-              title="Consecutive active study days"
-            >
-              <Flame className={cn('h-3.5 w-3.5', streakDays > 0 ? 'text-amber-500' : 'text-muted-foreground')} strokeWidth={1.75} />
-              <span className="font-mono font-semibold">{streakDays}d</span>
-              <span className="text-muted-foreground">streak</span>
-            </div>
-
             <Link
               href="/dashboard/settings/billing"
               className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-xs font-medium text-foreground hover:border-primary/40 hover:bg-muted/70 transition-colors cursor-pointer tabular-nums"
@@ -321,7 +302,7 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
             <DailyMotivationalQuote compact />
           </div>
 
-          <nav aria-label="Study tools quick launch" className="xl:col-span-8 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+          <nav aria-label="Study tools quick launch" className="xl:col-span-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
             {TOOL_DOCK.map((tool) => {
               const Icon = tool.icon;
               return (

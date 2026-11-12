@@ -32,7 +32,6 @@ import {
   ChevronDown,
   ChevronRight,
   Calculator,
-  Share2,
   Plus,
   Archive,
   Upload,
@@ -74,12 +73,6 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'Dashboard',
         href: '/dashboard',
         icon: LayoutDashboard,
-        subItems: [
-          { label: 'Study Desk', href: '/dashboard', icon: LayoutDashboard },
-          { label: 'Math Solver', href: '/dashboard/calculator?tab=solver', icon: Calculator },
-          { label: 'Graph Plotter', href: '/dashboard/calculator?tab=graph', icon: Compass },
-          { label: 'Shared Materials', href: '/dashboard/shared', icon: Share2 },
-        ],
       },
       {
         label: 'Courses',
@@ -89,7 +82,8 @@ const NAV_SECTIONS: NavSection[] = [
           { label: 'Active Courses', href: '/dashboard/courses', icon: BookOpen },
           { label: 'New Course', href: '/dashboard/courses?action=new', icon: Plus },
           { label: 'Archived Courses', href: '/dashboard/courses#archived', icon: Archive },
-          { label: 'Share Material', href: '/dashboard/materials/share', icon: Share2 },
+          { label: 'Math Solver', href: '/dashboard/calculator?tab=solver', icon: Calculator },
+          { label: 'Graph Plotter', href: '/dashboard/calculator?tab=graph', icon: Compass },
         ],
       },
       {

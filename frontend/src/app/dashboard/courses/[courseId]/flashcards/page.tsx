@@ -9,7 +9,6 @@ import { ChevronLeft, Loader2, BrainCircuit, Check, X, RotateCcw, Volume2, Refre
 import { apiFetch } from '@/lib/api/client'
 import { createClient } from '@/lib/supabase/client'
 import { Rating } from '@/lib/utils/sm2'
-import { ShareButton } from '@/components/study/ShareButton'
 import { useSettings } from '@/contexts/SettingsContext'
 import { toast } from 'sonner'
 
@@ -387,13 +386,6 @@ export default function FlashcardsPage() {
                     <Button variant="ghost" size="icon-sm" title="Regenerate Flashcards" onClick={() => handleGenerate(lec.id)} disabled={generatingFor === lec.id} className="text-blue-500 hover:text-blue-600 hover:bg-blue-50">
                       <RefreshCw size={16} className={generatingFor === lec.id ? "animate-spin" : ""} />
                     </Button>
-                  )}
-                  {lecCards.length > 0 && (
-                    <ShareButton 
-                      contentType="flashcard_deck"
-                      contentId={lec.id}
-                      title={`${lec.title} Flashcards`}
-                    />
                   )}
                 </div>
               </div>

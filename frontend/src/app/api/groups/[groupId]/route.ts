@@ -47,17 +47,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ grou
       return NextResponse.json({ error: 'Private group' }, { status: 403 });
     }
 
-    // Fetch materials shared with this group for the current user
-    const { data: materialsData } = await supabase
-      .from('material_access')
-      .select('shared_materials(*, profiles(full_name))')
-      .eq('group_id', groupId)
-      .eq('recipient_id', userId!);
-
-    const materials = materialsData 
-      ? materialsData.map((m: any) => m.shared_materials).filter(Boolean)
-      : [];
-
     return NextResponse.json({ 
       group: groupData, 
       members: members?.map((m: any) => ({
@@ -67,7 +56,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ grou
         role: m.role,
         joined_at: m.joined_at
       })) || [],
-      materials,
+      materials: [],
       isMember,
       userRole: memberData?.role
     });
