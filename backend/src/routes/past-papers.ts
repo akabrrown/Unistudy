@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
 import pdfParse from 'pdf-parse';
 import { chatCompletionWithFallback } from '../lib/ai/safeGroq';
+import { GEMINI_CANDIDATE_MODELS } from '../../../shared/constants/aiModels';
 
 const router = Router();
 
@@ -73,7 +74,7 @@ ${extractedText}
         // 2. Scanned or image-based PDF: Use Gemini Multimodal PDF parsing
         console.log(`[Past Papers] Running Multimodal/Vision PDF extraction (text length was ${extractedText.length})...`);
         const base64Pdf = fileBuffer.toString('base64');
-        const geminiModels = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+        const geminiModels = [...GEMINI_CANDIDATE_MODELS];
         const geminiKey = process.env.GEMINI_API_KEY;
 
         if (geminiKey) {
@@ -503,7 +504,7 @@ router.post('/grade', withAIQuota('past_paper_grading'), async (req, res) => {
         let parsedResult: any = null;
         try {
             const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-            for (const modelName of ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro']) {
+            for (const modelName of GEMINI_CANDIDATE_MODELS) {
                 try {
                     const model = genAI.getGenerativeModel({ model: modelName });
                     const result = await model.generateContent(prompt);
@@ -558,7 +559,7 @@ router.post('/chat', withAIQuota('past_paper_question'), async (req, res) => {
         let replyText = "";
         try {
             const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-            for (const modelName of ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro']) {
+            for (const modelName of GEMINI_CANDIDATE_MODELS) {
                 try {
                     const model = genAI.getGenerativeModel({ model: modelName });
                     const result = await model.generateContent(prompt);

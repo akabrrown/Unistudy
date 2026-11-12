@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     const response = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       messages: [{ 
         role: 'user', 
         content: `Generate a realistic weekly study planner for a ${profile.degree_programme} Year ${profile.year_of_study} student.

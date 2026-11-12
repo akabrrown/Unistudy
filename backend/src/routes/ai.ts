@@ -13,15 +13,15 @@ router.use(rateLimit);
 
 import multer from 'multer';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import {
+  GEMINI_CANDIDATE_MODELS,
+  GROQ_SMART_MODELS,
+  OPENROUTER_CANDIDATE_MODELS,
+} from '../../../shared/constants/aiModels';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-const GEMINI_VISION_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-1.5-flash',
-  'gemini-2.0-flash',
-  'gemini-1.5-pro'
-];
+const GEMINI_VISION_MODELS = [...GEMINI_CANDIDATE_MODELS];
 
 async function callWithFallback(
   genAI: GoogleGenerativeAI,
@@ -120,7 +120,7 @@ router.post('/scan-notes', upload.single('file'), withAIQuota('handwriting_scan'
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'openai/gpt-4o-mini',
+          model: OPENROUTER_CANDIDATE_MODELS[0],
           messages: [
             {
               role: 'user',
@@ -378,7 +378,7 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              model: 'google/gemini-2.5-flash',
+              model: OPENROUTER_CANDIDATE_MODELS[0],
               max_tokens: 1200,
               messages: [
                 {
@@ -411,7 +411,7 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
 
       // 2. Fall back to Groq text LLM if OpenRouter didn't produce text
       if (!openRouterSuccess) {
-        console.log('Falling back to Groq (llama-3.3-70b-versatile)...');
+        console.log(`Falling back to Groq (${GROQ_SMART_MODELS[0]})...`);
         const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -419,7 +419,7 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
+            model: GROQ_SMART_MODELS[0],
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -503,7 +503,7 @@ The quote must reference their actual situation naturally (e.g. "You have an Eng
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_SMART_MODELS[0],
         messages: [
           { role: 'system', content: 'You are an inspiring academic coach.' },
           { role: 'user', content: prompt }
@@ -531,7 +531,7 @@ router.post('/study-break', withAIQuota('break_suggestion'), async (req: Request
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_SMART_MODELS[0],
         messages: [
           { role: 'system', content: 'You suggest highly practical, specific 5-minute study breaks to prevent burnout.' },
           { role: 'user', content: 'I just finished a 25-minute pomodoro study session. Suggest one specific, actionable 5-minute break activity (e.g. physical movement, visual rest). Keep it under 2 sentences.' }
@@ -560,7 +560,7 @@ router.post('/anxiety-response', withAIQuota('chat_message'), async (req: Reques
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_SMART_MODELS[0],
         messages: [
           { role: 'system', content: 'You are a supportive academic coach helping students with pre-exam anxiety.' },
           { role: 'user', content: `I have an exam tomorrow and I am feeling: ${feeling}. Suggest one specific, quick technique (like box breathing or positive visualization) to help me right now. Keep it under 3 sentences and very supportive.` }

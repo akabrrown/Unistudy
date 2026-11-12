@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Microscope, Volume2, PenTool, StickyNote, Monitor, Eye, EyeOff, Loader2, PlaySquare, Play, X, Pin, Frown, Meh, Smile, Zap, Flame, Square, Eraser, RefreshCw, MessageCircle, Send, Hourglass, Pause, Calculator, Music, FileText, DownloadCloud, BookOpen, Languages, ChevronDown, SlidersHorizontal, Maximize, Layers, Check, ArrowRight, Sparkles } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Microscope, Volume2, PenTool, StickyNote, Monitor, Eye, EyeOff, Loader2, PlaySquare, Play, X, Pin, Frown, Meh, Smile, Zap, Flame, Square, Eraser, RefreshCw, MessageCircle, Send, Hourglass, Pause, Calculator, Music, FileText, DownloadCloud, BookOpen, Languages, ChevronDown, SlidersHorizontal, Maximize, Layers, Check, ArrowRight, GraduationCap } from 'lucide-react'
 import { FocusTimer, FocusTimerRef } from '@/components/study/FocusTimer'
 import { CalculatorPanel } from '@/components/study/CalculatorPanel'
 import { TutorFeedbackView } from '@/components/study/TutorFeedbackView'
@@ -441,17 +441,29 @@ PEDAGOGICAL & PRESENTATION DIRECTIVES (MANDATORY):
         ...newMessages
       ];
 
-      let res: any = null;
+      const extractContent = (data: any): string => {
+        if (!data?.result) return '';
+        if (typeof data.result === 'string') return data.result.trim();
+        const choiceContent = data.result?.choices?.[0]?.message?.content;
+        if (typeof choiceContent === 'string') return choiceContent.trim();
+        return '';
+      };
+
+      let replyContent = '';
       try {
-        res = await apiFetch('/ai/ask', {
+        const res = await apiFetch('/ai/ask', {
           method: 'POST',
           body: JSON.stringify({
-            feature: 'chat_message', // Groq 70b
+            feature: 'chat_message',
             payload: { stream: false, systemPrompt, messages: payloadMessages }
           })
         });
+        replyContent = extractContent(res);
       } catch (apiErr) {
         console.warn('[AI Tutor] apiFetch /ai/ask failed, falling back to local route handler:', apiErr);
+      }
+
+      if (!replyContent) {
         const localRes = await fetch('/api/ai/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -461,16 +473,19 @@ PEDAGOGICAL & PRESENTATION DIRECTIVES (MANDATORY):
           })
         });
         if (localRes.ok) {
-          res = await localRes.json();
+          const localData = await localRes.json();
+          replyContent = extractContent(localData);
         } else {
-          throw apiErr;
+          const errData = await localRes.json().catch(() => ({}));
+          if (errData?.error) {
+            throw new Error(errData.error);
+          }
         }
       }
 
-      if (res?.result) {
-        const content = res.result.choices?.[0]?.message?.content || res.result;
+      if (replyContent) {
         setChatMessages(prev => {
-          const updated: { role: 'user' | 'assistant' | 'system'; content: string }[] = [...prev, { role: 'assistant', content: typeof content === 'string' ? content : JSON.stringify(content) }];
+          const updated: { role: 'user' | 'assistant' | 'system'; content: string }[] = [...prev, { role: 'assistant', content: replyContent }];
           localStorage.setItem(`slideChat_${slideId}`, JSON.stringify(updated));
           return updated;
         });
@@ -1532,7 +1547,7 @@ PEDAGOGICAL & PRESENTATION DIRECTIVES (MANDATORY):
           <div className="flex items-center justify-between p-3.5 border-b border-border bg-emerald-500/10 backdrop-blur-xs">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs ring-1 ring-emerald-500/30">
-                <Sparkles size={16} />
+                <GraduationCap size={16} />
               </div>
               <div>
                 <h3 className="font-bold text-sm flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
@@ -1635,8 +1650,8 @@ PEDAGOGICAL & PRESENTATION DIRECTIVES (MANDATORY):
             {isChatLoading && (
               <div className="flex justify-start pr-4 animate-in fade-in">
                 <div className="rounded-2xl rounded-tl-xs bg-card border border-emerald-500/30 px-4 py-3 flex items-center gap-3 shadow-xs">
-                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center animate-spin">
-                    <Sparkles size={12} />
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center">
+                    <Loader2 size={12} className="animate-spin" />
                   </div>
                   <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                     <span>Structuring explanation</span>

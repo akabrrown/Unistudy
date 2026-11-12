@@ -1,16 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 import { z } from 'zod';
+import {
+  GEMINI_CANDIDATE_MODELS,
+  GROQ_SMART_MODELS,
+  OPENROUTER_CANDIDATE_MODELS,
+} from '../../../../../../shared/constants/aiModels';
 
 export const dynamic = 'force-dynamic';
-
-const GEMINI_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-1.5-flash',
-  'gemini-2.0-flash',
-  'gemini-1.5-pro'
-];
 
 const AskRequestSchema = z.object({
   feature: z.string().min(1).max(100),
@@ -54,26 +53,54 @@ export async function POST(request: Request) {
     const systemPrompt = payload.systemPrompt || 'You are an expert AI university tutor. Provide clear, highly readable, well-structured pedagogical explanations using markdown headers, bullet points, and LaTeX for math.';
 
     let reply = '';
-    const geminiKey = process.env.GEMINI_API_KEY;
 
-    // 1. Try Google Generative AI
-    if (geminiKey) {
-      const genAI = new GoogleGenerativeAI(geminiKey);
-      for (const modelName of GEMINI_MODELS) {
+    // 1. Try Groq first for low-latency chat responses
+    if (process.env.GROQ_API_KEY) {
+      const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+      const groqMessages = [
+        { role: 'system' as const, content: systemPrompt },
+        ...rawMessages.map((m) => ({
+          role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+          content: String(m.content || '')
+        }))
+      ];
+
+      for (const model of GROQ_SMART_MODELS) {
+        try {
+          const completion = await groq.chat.completions.create({
+            model,
+            messages: groqMessages,
+            temperature: 0.6,
+          });
+          const text = completion.choices[0]?.message?.content?.trim();
+          if (text) {
+            reply = text;
+            break;
+          }
+        } catch (groqErr: unknown) {
+          const msg = groqErr instanceof Error ? groqErr.message : String(groqErr);
+          console.warn(`[API /ai/ask] Groq model ${model} failed:`, msg);
+        }
+      }
+    }
+
+    // 2. Fallback to Google Generative AI
+    if (!reply && process.env.GEMINI_API_KEY) {
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      for (const modelName of GEMINI_CANDIDATE_MODELS) {
         try {
           const model = genAI.getGenerativeModel({
             model: modelName,
             systemInstruction: systemPrompt
           });
 
-          // Format contents
           const contents = rawMessages.map((m) => ({
             role: m.role === 'assistant' ? 'model' : 'user',
             parts: [{ text: String(m.content || '') }]
           }));
 
           const res = await model.generateContent({ contents });
-          const text = res.response.text();
+          const text = res.response.text()?.trim();
           if (text) {
             reply = text;
             break;
@@ -85,39 +112,47 @@ export async function POST(request: Request) {
       }
     }
 
-    // 2. Try Groq fallback
-    if (!reply && process.env.GROQ_API_KEY) {
-      try {
-        const groqMessages = [
-          { role: 'system', content: systemPrompt },
-          ...rawMessages.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '') }))
-        ];
+    // 3. Fallback to OpenRouter
+    if (!reply && process.env.OPENROUTER_API_KEY) {
+      const orMessages = [
+        { role: 'system', content: systemPrompt },
+        ...rawMessages.map((m) => ({
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: String(m.content || '')
+        }))
+      ];
 
-        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: groqMessages,
-            temperature: 0.6
-          })
-        });
+      for (const model of OPENROUTER_CANDIDATE_MODELS) {
+        try {
+          const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ model, messages: orMessages, temperature: 0.6 })
+          });
 
-        if (groqRes.ok) {
-          const data = await groqRes.json();
-          reply = data.choices?.[0]?.message?.content || '';
+          if (orRes.ok) {
+            const data = await orRes.json();
+            const text = data.choices?.[0]?.message?.content?.trim();
+            if (text) {
+              reply = text;
+              break;
+            }
+          }
+        } catch (orErr: unknown) {
+          const msg = orErr instanceof Error ? orErr.message : String(orErr);
+          console.warn(`[API /ai/ask] OpenRouter model ${model} failed:`, msg);
         }
-      } catch (groqErr: unknown) {
-        const msg = groqErr instanceof Error ? groqErr.message : String(groqErr);
-        console.warn('[API /ai/ask] Groq fallback failed:', msg);
       }
     }
 
     if (!reply) {
-      reply = "I'm having trouble connecting to the AI models right now. Please check your network or try again in a moment.";
+      return NextResponse.json(
+        { error: 'Unable to reach AI providers right now. Please retry shortly.' },
+        { status: 502 }
+      );
     }
 
     return NextResponse.json({

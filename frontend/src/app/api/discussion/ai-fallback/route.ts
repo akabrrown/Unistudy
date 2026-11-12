@@ -54,7 +54,7 @@ Question: ${thread.body}
 Your response:`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-pro',
+        model: 'gemini-3.5-flash',
         contents: prompt
       });
 

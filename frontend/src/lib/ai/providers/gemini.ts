@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { setCache } from '../cache'
+import { GEMINI_CANDIDATE_MODELS } from '../../../../../shared/constants/aiModels'
 
 export async function getGeminiModel() {
   // Use optimal key from rotation if available, or fallback
@@ -16,15 +17,14 @@ export async function getGeminiModel() {
   if (!key) throw new Error('GEMINI_API_KEY is not set')
   
   const genAI = new GoogleGenerativeAI(key)
-  const candidateModels = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro']
-  for (const m of candidateModels) {
+  for (const m of GEMINI_CANDIDATE_MODELS) {
     try {
       return genAI.getGenerativeModel({ model: m })
     } catch {
       continue
     }
   }
-  return genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+  return genAI.getGenerativeModel({ model: GEMINI_CANDIDATE_MODELS[0] })
 }
 
 export async function explainSlide(slideId: string, imageBase64: string, studentContext: any) {

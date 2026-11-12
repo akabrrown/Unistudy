@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import Groq from 'groq-sdk'
 import { withAIQuota } from '@/lib/ai/middleware'
+import { GROQ_SMART_MODELS } from '../../../../../shared/constants/aiModels'
 
 async function handler(req: NextRequest) {
   try {
@@ -13,7 +14,7 @@ async function handler(req: NextRequest) {
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
     const stream = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: GROQ_SMART_MODELS[0],
       stream: true,
       messages: [
         {

@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       "Return JSON ONLY in exactly this format, with no markdown formatting around it:\n{\n  \"schedule\": [\n    {\n      \"day\": \"monday\",\n      \"sessions\": [\n        { \"start\": \"10:00\", \"end\": \"12:00\", \"label\": \"Data Structures Study\" }\n      ]\n    }\n  ]\n}";
 
     const response = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       messages: [{ 
         role: 'user', 
         content: prompt

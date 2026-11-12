@@ -1,13 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
 import { AIRequest } from '../router'
+import { GEMINI_CANDIDATE_MODELS } from '../../../../../shared/constants/aiModels'
 
-const GEMINI_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-1.5-flash',
-  'gemini-2.0-flash',
-  'gemini-1.5-pro'
-]
+const GEMINI_MODELS = [...GEMINI_CANDIDATE_MODELS]
 
 export async function getGeminiModel() {
   const key = process.env.GEMINI_API_KEY

@@ -1,5 +1,6 @@
 import Groq from 'groq-sdk'
 import { setCache } from '../cache'
+import { GROQ_FAST_MODELS, GROQ_SMART_MODELS } from '../../../../../shared/constants/aiModels'
 
 export function getGroqClient() {
   if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is not set")
@@ -18,7 +19,7 @@ export async function streamCalculator(problem: string, subject: string, level: 
       { role: 'system', content: systemPrompt },
       { role: 'user', content: problem }
     ],
-    model: 'llama-3.3-70b-versatile',
+    model: GROQ_SMART_MODELS[0],
     stream: true
   })
 }
@@ -30,7 +31,7 @@ export async function streamChat(messages: any[], systemPrompt: string) {
       { role: 'system', content: systemPrompt },
       ...messages
     ],
-    model: 'llama-3.3-70b-versatile',
+    model: GROQ_SMART_MODELS[0],
     stream: true
   })
 }
@@ -48,7 +49,7 @@ export async function generateDailyBrief(userId: string, weakTopics: string[], d
     
   const result = await groq.chat.completions.create({
     messages: [{ role: 'user', content: prompt }],
-    model: 'llama3-8b-8192'
+    model: GROQ_FAST_MODELS[0]
   })
   
   const brief = result.choices[0]?.message?.content || ""
@@ -65,7 +66,7 @@ export async function generateQuote(degree: string, recentPerformance: string) {
   
   const result = await groq.chat.completions.create({
     messages: [{ role: 'user', content: `Give me a single motivational quote tailored for a ${degree} student who has been performing ${recentPerformance}. No intro.` }],
-    model: 'llama3-8b-8192'
+    model: GROQ_FAST_MODELS[0]
   })
   
   return result.choices[0]?.message?.content || "Keep going!"
