@@ -3,7 +3,7 @@
 ## 1. Authentication & Credentials
 - All user passwords must be hashed using bcrypt (cost >= 10) via Supabase GoTrue.
 - Server-side Zod validation is mandatory on all auth server actions (`login`, `signup`, `resetPassword`).
-c- Login attempts are rate-limited to 5 attempts per 15 minutes per IP/email.
+- Login attempts are rate-limited to 5 attempts per 15 minutes per IP/email.
 - Signup attempts are rate-limited to 5 accounts per 15 minutes per IP.
 - Passwords must be checked against HaveIBeenPwned API before signup/reset to reject breached credentials.
 - Passwords must be between 8 and 128 characters (protects against bcrypt 72-byte truncation issues and ReDoS).
@@ -37,3 +37,12 @@ c- Login attempts are rate-limited to 5 attempts per 15 minutes per IP/email.
 
 ## 7. Package & Supply Chain Hygiene
 - Run `pnpm audit` regularly. Zero high or critical vulnerabilities allowed in production builds.
+
+## 8. AI Quality, Grounding & Verification Gates
+- All website AI prompts, Zod schemas, grounding retrieval (`aiTutor.ts`), span hallucination checks (`groundingVerifier.ts`), MixTeX LaTeX normalization (`latexNormalizer.ts`), and AI footprint stripping (`textHumanizer.ts`) live in `shared/lib/` and follow `.agents/rules/`.
+- Structured extraction/grading/OCR endpoints run at `temperature: 0.1–0.2`; tutoring and honors essay rewriting run at `0.55`.
+- Before shipping any AI change, run:
+  - `cd backend; npx tsx --test ../shared/lib/*.test.ts ../shared/evals/evalRunner.test.ts`
+  - `cd backend; npx tsc --noEmit`
+  - `cd mobile; npx tsc --noEmit`
+  - `cd frontend; npm run build`

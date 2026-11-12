@@ -1,3 +1,13 @@
+import { z } from 'zod';
+import {
+  WRITING_HUMANIZATION_RULES,
+  humanizeStreamChunk,
+  stripAiWritingFootprints,
+} from './textHumanizer';
+
+export { humanizeStreamChunk };
+export const humanizeEssayText = stripAiWritingFootprints;
+
 export interface EssayGradingReport {
   score: number;
   overall_score: number;
@@ -108,109 +118,21 @@ export function buildRubricGraderPrompt(prompt: string, essay: string): string {
   return buildDelimitedEssayContext(prompt, essay);
 }
 
-const HUMANIZED_REPLACEMENTS: Array<[RegExp, string]> = [
-  [/\b(?:in|within)\s+today['’]?s\s+fast[- ]paced\s+(?:world|society|era|digital age),?\s*/gi, ''],
-  [/\b(?:in|within)\s+an?\s+ever[- ]evolving\s+(?:landscape|world|field|environment),?\s*/gi, ''],
-  [/\bdelving\s+into\b/gi, 'examining'],
-  [/\bdelves\s+into\b/gi, 'examines'],
-  [/\bdelved\s+into\b/gi, 'examined'],
-  [/\bdelve\s+into\b/gi, 'examine'],
-  [/\ba\s+testament\s+to\b/gi, 'evidence of'],
-  [/\btestament\s+to\b/gi, 'evidence of'],
-  [/\btapestry\s+of\b/gi, 'mix of'],
-  [/\btapestry\b/gi, 'network'],
-  [/\bmultifaceted\b/gi, 'complex'],
-  [/\bpivotal\b/gi, 'central'],
-  [/\bparamount\b/gi, 'essential'],
-  [/\bunderscoring\b/gi, 'showing'],
-  [/\bunderscores\b/gi, 'highlights'],
-  [/\bunderscore\b/gi, 'highlight'],
-  [/\bunderscored\b/gi, 'highlighted'],
-  [/\ba\s+myriad\s+of\b/gi, 'many'],
-  [/\bmyriad\s+of\b/gi, 'many'],
-  [/\bmyriad\b/gi, 'numerous'],
-  [/\ba\s+plethora\s+of\b/gi, 'a wide range of'],
-  [/\bplethora\s+of\b/gi, 'wide range of'],
-  [/\bseamless(?:ly)?\b/gi, 'smooth'],
-  [/\bleveraging\b/gi, 'using'],
-  [/\bleveraged\b/gi, 'used'],
-  [/\bleverages\b/gi, 'uses'],
-  [/\bleverage\b/gi, 'use'],
-  [/\bharnessing\b/gi, 'using'],
-  [/\bharnessed\b/gi, 'used'],
-  [/\bharnesses\b/gi, 'uses'],
-  [/\bharness\b/gi, 'use'],
-  [/\bfostering\b/gi, 'supporting'],
-  [/\bfostered\b/gi, 'supported'],
-  [/\bfosters\b/gi, 'supports'],
-  [/\bfoster\b/gi, 'support'],
-  [/\bembark(?:ing|ed|s)?\s+on\b/gi, 'begin'],
-  [/\brealm\s+of\b/gi, 'area of'],
-  [/\blandscape\s+of\b/gi, 'field of'],
-  [/\bintrinsically\b/gi, 'closely'],
-  [/\bit is worth noting that\b,?\s*/gi, ''],
-  [/\bit is important to note that\b,?\s*/gi, ''],
-  [/^\s*(?:Furthermore|Moreover|Additionally|Consequently|In conclusion|To conclude|To summarize|Ultimately),\s+/gim, ''],
-];
-
-function preserveSentenceCase(text: string): string {
-  return text.replace(/(^|\n\n|[.!?]\s+)([a-z])/g, (_, prefix: string, ch: string) => {
-    return `${prefix}${ch.toUpperCase()}`;
-  });
-}
-
-export function humanizeStreamChunk(chunk: string): string {
-  return chunk
-    .replace(/\u2011/g, '-')
-    .replace(/(\d)\s*[\u2012\u2013\u2014\u2015]\s*(\d)/g, '$1-$2')
-    .replace(/\s*[\u2012\u2013\u2014\u2015]\s*/g, ', ')
-    .replace(/\s+--\s+/g, ', ')
-    .replace(/\*\*([^*\n]+)\*\*/g, '$1');
-}
-
-export function humanizeEssayText(rawText: string): string {
-  if (!rawText || typeof rawText !== 'string') return '';
-
-  let cleaned = rawText
-    .replace(/\r\n/g, '\n')
-    .replace(/^\s*(?:#{1,6}\s+[^\n]*\n+|(?:here is|below is)[^:\n]*:\s*\n*)/i, '')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
-    .replace(/(^|\s)\*([^*\n]+)\*(?=\s|[.,;!?]|$)/g, '$1$2')
-    .replace(/\u2011/g, '-')
-    .replace(/\u2019/g, "'")
-    .replace(/[\u201C\u201D]/g, '"');
-
-  // Keep numeric ranges (e.g. 1990-2000) as plain hyphens; convert long dashes to natural punctuation
-  cleaned = cleaned
-    .replace(/(\d)\s*[\u2012\u2013\u2014\u2015]\s*(\d)/g, '$1-$2')
-    .replace(/\s*[\u2012\u2013\u2014\u2015]\s*([^\n\u2012\u2013\u2014\u2015]{2,90}?)\s*[\u2012\u2013\u2014\u2015]\s*/g, ', $1, ')
-    .replace(/\s*[\u2012\u2013\u2014\u2015]\s*/g, ', ')
-    .replace(/\s+--\s+/g, ', ');
-
-  for (const [pattern, replacement] of HUMANIZED_REPLACEMENTS) {
-    cleaned = cleaned.replace(pattern, replacement);
-  }
-
-  cleaned = cleaned
-    .replace(/,\s*,+/g, ',')
-    .replace(/,\s*([.!?])/g, '$1')
-    .replace(/[ \t]{2,}/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .split('\n')
-    .map((line) => line.trim())
-    .join('\n')
-    .trim();
-
-  return preserveSentenceCase(cleaned);
-}
-
-const WRITING_HUMANIZATION_RULES = `WRITING STYLE & HUMANIZATION RULES (STRICT):
-- Sound like a thoughtful top university honours student writing authentic prose in their own voice, not an AI template.
-- NEVER use long em-dashes ("—"), en-dashes ("–"), or double hyphens ("--"). Use regular commas, periods, semicolons, or parentheses instead.
-- AVOID robotic AI buzzwords and stock openers: never use "delve", "tapestry", "pivotal", "paramount", "underscore", "testament", "multifaceted", "myriad", "plethora", "realm", "landscape", "seamless", "leverage", "harness", "foster", "embark", "in today's fast-paced world", "it is worth noting", or starting every paragraph with "Furthermore/Moreover/Additionally/In conclusion".
-- Vary sentence length and openings naturally: mix concise direct points with developed analytical claims.
-- Write clean, plain essay paragraphs only (no headings, no bold text, no bullet lists, no preamble).`;
+export const EssayRubricSchema = z.object({
+  score: z.coerce.number().optional(),
+  overall_score: z.coerce.number().optional(),
+  grade: z.string().optional(),
+  thesis_score: z.coerce.number().optional(),
+  evidence_score: z.coerce.number().optional(),
+  structure_score: z.coerce.number().optional(),
+  grammar_score: z.coerce.number().optional(),
+  feedback: z.string().optional(),
+  strengths: z.array(z.string()).optional(),
+  weaknesses: z.array(z.string()).optional(),
+  improvements: z.array(z.string()).optional(),
+  grammar: z.string().optional(),
+  perfect_essay: z.string().optional(),
+});
 
 export function buildEssayGraderPrompt(prompt: string, essay: string): string {
   return `${buildDelimitedEssayContext(prompt, essay)}
@@ -317,7 +239,10 @@ export function normalizeEssayReport(
   prompt: string,
   essay: string
 ): EssayGradingReport {
-  const report = rawReport || {};
+  const safeParsed = EssayRubricSchema.safeParse(rawReport || {});
+  const report: Record<string, unknown> = safeParsed.success
+    ? safeParsed.data
+    : rawReport || {};
   const score = clampScore(report.score ?? report.overall_score, 80);
 
   const normalizeStringList = (val: unknown, fallback: string[]): string[] => {
@@ -345,6 +270,15 @@ export function normalizeEssayReport(
       ? rawPerfect
       : buildFallbackPerfectEssay(prompt, essay, weaknesses);
 
+  const rawFeedback =
+    typeof report.feedback === 'string' && report.feedback.trim()
+      ? humanizeEssayText(report.feedback)
+      : '';
+  const rawGrammar =
+    typeof report.grammar === 'string' && report.grammar.trim()
+      ? humanizeEssayText(report.grammar)
+      : '';
+
   return {
     score,
     overall_score: score,
@@ -357,16 +291,14 @@ export function normalizeEssayReport(
     structure_score: clampScore(report.structure_score, score),
     grammar_score: clampScore(report.grammar_score, Math.min(100, score + 4)),
     feedback:
-      typeof report.feedback === 'string' && report.feedback.trim()
-        ? report.feedback.trim()
-        : 'Solid academic structure and clear argumentation with opportunities to sharpen evidentiary depth.',
+      rawFeedback ||
+      'Solid academic structure and clear argumentation with opportunities to sharpen evidentiary depth.',
     strengths,
     weaknesses,
     improvements: weaknesses,
     grammar:
-      typeof report.grammar === 'string' && report.grammar.trim()
-        ? report.grammar.trim()
-        : 'Appropriate university-level syntax with minor opportunities for tighter phrasing.',
+      rawGrammar ||
+      'Appropriate university-level syntax with minor opportunities for tighter phrasing.',
     perfect_essay: perfectEssay,
   };
 }
@@ -376,7 +308,8 @@ export function buildDeterministicEssayReport(
   essay: string
 ): EssayGradingReport {
   const wordCount = essay.split(/\s+/).filter(Boolean).length;
-  const baseScore = clampScore(Math.min(85, Math.max(65, Math.round(wordCount / 5))), 75);
+  const rawScore = wordCount < 40 ? Math.max(35, Math.min(60, wordCount * 2)) : Math.min(85, Math.max(65, Math.round(wordCount / 5)));
+  const baseScore = clampScore(rawScore, 60);
 
   const weaknesses = [
     'Deepen theoretical and empirical analysis with specific examples in body paragraphs',

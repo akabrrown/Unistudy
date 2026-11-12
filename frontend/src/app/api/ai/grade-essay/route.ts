@@ -45,7 +45,7 @@ async function evaluateJsonWithProviders(
           model,
           response_format: { type: 'json_object' },
           max_tokens: maxTokens,
-          temperature: 0.3,
+          temperature: 0.2,
         });
         const candidate = parseEssayReportJson(completion.choices[0]?.message?.content || '');
         if (candidate) return { parsed: candidate, modelUsed: model };
@@ -68,7 +68,7 @@ async function evaluateJsonWithProviders(
             model,
             messages: [{ role: 'user', content: promptText }],
             max_tokens: maxTokens,
-            temperature: 0.3,
+            temperature: 0.2,
           }),
         });
         if (orRes.ok) {
@@ -91,6 +91,7 @@ async function evaluateJsonWithProviders(
           generationConfig: {
             responseMimeType: 'application/json',
             maxOutputTokens: maxTokens,
+            temperature: 0.2,
           },
         });
         const result = await model.generateContent(promptText);

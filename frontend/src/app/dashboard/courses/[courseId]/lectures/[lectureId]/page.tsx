@@ -21,6 +21,11 @@ import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import { apiFetch, apiFetchRaw } from '@/lib/api/client'
 import { getOptimizedSlideUrl, getSlideThumbnailUrl } from '@/lib/images'
+import {
+  buildGroundedTutorPrompt,
+  detectTutorCommandMode,
+  retrieveRelevantSlideChunks,
+} from '../../../../../../../../shared/lib/aiTutor'
 export default function LectureViewer() {
   const router = useRouter()
   const params = useParams()
@@ -408,34 +413,49 @@ export default function LectureViewer() {
     setIsChatLoading(true);
 
     try {
-      // Build context for the AI
-      const slideText = currentSlide?.raw_text ? `Slide text: ${currentSlide.raw_text}` : '';
-      const slideExplanation = explanation ? `AI explanation of slide: ${explanation.replace(/<[^>]*>?/gm, '')}` : '';
+      // Build grounded context across the active slide and matching lecture slides
+      const slideText = currentSlide?.raw_text || '';
+      const slideExplanation = explanation || '';
       const activeTutor = settings?.ai_tutor_name || 'Uni';
-      
-      const systemPrompt = `You are ${activeTutor}, an elite university AI tutor helping a student master this material.
-Current Context:
-- Course: ${courseContext}
-- Slide: Slide ${slideIndex + 1}
-- ${slideText}
-- ${slideExplanation}
+      const compactSlides = slides.map((s) => ({
+        slide_number: s.slide_number,
+        raw_text: s.raw_text,
+        explanation: s.explanation,
+      }));
+      const retrievedChunks = retrieveRelevantSlideChunks(
+        messageToSend,
+        compactSlides,
+        slideIndex + 1,
+        4
+      );
+      const commandMode = detectTutorCommandMode(messageToSend);
+      const studentConfig = {
+        readingLevel: settings?.ai_reading_level || undefined,
+        tone: settings?.ai_tone || undefined,
+        learningStyle: settings?.learning_style || undefined,
+        language: settings?.language || undefined,
+      };
+      const systemPrompt = buildGroundedTutorPrompt({
+        tutorName: activeTutor,
+        courseContext,
+        currentSlideNumber: slideIndex + 1,
+        currentSlideText: slideText,
+        currentSlideExplanation: slideExplanation,
+        retrievedChunks,
+        studentConfig,
+        commandMode,
+      });
 
-PEDAGOGICAL & PRESENTATION DIRECTIVES (MANDATORY):
-1. READABLE FORMATTING:
-   - Structure your response using markdown headers (##, ###) for major sections.
-   - Use clean, spaced bullet points instead of dense text blocks.
-   - Highlight core terms, variables, and formulas in **bold**.
-2. INTUITION FIRST:
-   - Provide an intuitive real-world analogy or visual model before technical formulas.
-   - Break multi-step derivations or processes into clear numbered steps (1., 2., 3.).
-3. MATH & CODE:
-   - Format all mathematical notation in standard LaTeX using $...$ for inline or $$...$$ for display equations.
-   - Format code in syntax-highlighted blocks with the language tag.
-4. HIGH-YIELD TAKEAWAYS:
-   - Include a callout block at the end:
-     > 💡 **Key Takeaway:** [Concise 1-2 sentence core concept that is likely tested]
-5. TONE:
-   - Encouraging, ultra-clear, academically rigorous, and pleasant to read.`;
+      const groundingPayload = {
+        lectureId,
+        courseContext,
+        currentSlideNumber: slideIndex + 1,
+        currentSlideText: slideText.slice(0, 12000),
+        currentSlideExplanation: slideExplanation.slice(0, 12000),
+        studentConfig,
+        commandMode,
+        slides: compactSlides.slice(0, 200),
+      };
 
       const payloadMessages = [
         ...newMessages
@@ -455,7 +475,13 @@ PEDAGOGICAL & PRESENTATION DIRECTIVES (MANDATORY):
           method: 'POST',
           body: JSON.stringify({
             feature: 'chat_message',
-            payload: { stream: false, systemPrompt, messages: payloadMessages }
+            payload: {
+              stream: false,
+              temperature: 0.55,
+              systemPrompt,
+              grounding: groundingPayload,
+              messages: payloadMessages,
+            }
           })
         });
         replyContent = extractContent(res);
@@ -469,7 +495,13 @@ PEDAGOGICAL & PRESENTATION DIRECTIVES (MANDATORY):
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             feature: 'chat_message',
-            payload: { stream: false, systemPrompt, messages: payloadMessages }
+            payload: {
+              stream: false,
+              temperature: 0.55,
+              systemPrompt,
+              grounding: groundingPayload,
+              messages: payloadMessages,
+            }
           })
         });
         if (localRes.ok) {

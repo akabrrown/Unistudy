@@ -2,6 +2,7 @@ import Groq from 'groq-sdk'
 
 import { AIRequest } from '../router'
 import { GROQ_FAST_MODELS, GROQ_SMART_MODELS } from '../../../../../shared/constants/aiModels'
+import { buildGroundedFlashcardPrompt } from '../../../../../shared/lib/flashcardExtractor'
 
 export function getGroqClient() {
   if (!process.env.GROQ_API_KEY) throw new Error("GROQ_API_KEY is not set")
@@ -59,6 +60,7 @@ export async function handleGroqRequest(req: AIRequest) {
         ...cleanMessages
       ],
       model,
+      temperature: req.payload.temperature ?? 0.55,
       stream: req.payload.stream || false
     }))
   }
@@ -105,17 +107,15 @@ export async function handleGroqRequest(req: AIRequest) {
   }
 
   if (req.feature === 'flashcard_generation') {
-    const prompt = `
-      Generate a set of high-quality, comprehensive flashcards from the provided lecture text.
-      Return ONLY a JSON object containing a "flashcards" array. Structure:
-      { "flashcards": [ { "front": "question or concept", "back": "answer or explanation" } ] }
-
-      Lecture material:
-      ${req.payload.prompt}
-    `;
+    const prompt = buildGroundedFlashcardPrompt(
+      req.payload.slides && req.payload.slides.length > 0
+        ? req.payload.slides
+        : req.payload.prompt || ''
+    );
     const result = await createCompletionWithModels(groq, GROQ_SMART_MODELS, (model) => ({
       messages: [{ role: 'user', content: prompt }],
       model,
+      temperature: 0.2,
       response_format: { type: 'json_object' }
     })) as any
     return result.choices?.[0]?.message?.content || '{"flashcards": []}'

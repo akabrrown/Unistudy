@@ -18,6 +18,18 @@ import {
   GROQ_SMART_MODELS,
   OPENROUTER_CANDIDATE_MODELS,
 } from '../../../shared/constants/aiModels';
+import {
+  TutorGroundingSchema,
+  buildGroundedTutorPrompt,
+  detectTutorCommandMode,
+  retrieveRelevantSlideChunks,
+  sanitizeTutorResponse,
+} from '../../../shared/lib/aiTutor';
+import {
+  stripPhantomSlideCitations,
+  type GroundingSource,
+} from '../../../shared/lib/groundingVerifier';
+import { normalizeLatexMarkdown } from '../../../shared/lib/latexNormalizer';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -139,10 +151,7 @@ router.post('/scan-notes', upload.single('file'), withAIQuota('handwriting_scan'
       if (!transcription) throw new Error('OpenRouter returned empty response');
     }
 
-    let cleanTranscription = transcription.trim();
-    if (cleanTranscription.startsWith('```markdown')) cleanTranscription = cleanTranscription.substring(11).trim();
-    else if (cleanTranscription.startsWith('```')) cleanTranscription = cleanTranscription.substring(3).trim();
-    if (cleanTranscription.endsWith('```')) cleanTranscription = cleanTranscription.substring(0, cleanTranscription.length - 3).trim();
+    const cleanTranscription = normalizeLatexMarkdown(transcription);
 
     consumeUserQuota(req.user!.id, 'handwriting_scan', req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
     res.json({ transcription: cleanTranscription });
@@ -185,10 +194,59 @@ router.post('/ask', async (req: Request, res: Response) => {
     console.error('Failed to fetch user settings for AI:', err);
   }
 
+  const parsedGrounding = payload.grounding
+    ? TutorGroundingSchema.safeParse(payload.grounding)
+    : null;
+
+  let enrichedPayload = {
+    ...payload,
+    temperature: payload.temperature ?? (feature === 'chat_message' ? 0.55 : undefined),
+  };
+
+  let groundingSources: GroundingSource[] = [];
+  if (parsedGrounding?.success) {
+    const g = parsedGrounding.data;
+    const rawMsgs = Array.isArray(payload.messages) ? payload.messages : [];
+    const latestQ =
+      [...rawMsgs].reverse().find((m: any) => m?.role === 'user')?.content ||
+      payload.prompt ||
+      '';
+    const chunks = retrieveRelevantSlideChunks(
+      String(latestQ),
+      g.slides || [],
+      g.currentSlideNumber,
+      4
+    );
+    groundingSources = (g.slides || [])
+      .map((s, idx) => ({
+        slideNumber: s.slide_number ?? idx + 1,
+        text: `${s.raw_text || ''} ${s.explanation || ''}`.trim(),
+      }))
+      .filter((s) => s.text.length > 0);
+    enrichedPayload = {
+      ...enrichedPayload,
+      systemPrompt: buildGroundedTutorPrompt({
+        tutorName: userSettings?.ai_tutor_name || undefined,
+        courseContext: g.courseContext,
+        currentSlideNumber: g.currentSlideNumber,
+        currentSlideText: g.currentSlideText,
+        currentSlideExplanation: g.currentSlideExplanation,
+        retrievedChunks: chunks,
+        studentConfig: g.studentConfig ?? {
+          readingLevel: userSettings?.ai_reading_level || undefined,
+          tone: userSettings?.ai_tone || undefined,
+          learningStyle: userSettings?.learning_style || undefined,
+          language: userSettings?.language || undefined,
+        },
+        commandMode: g.commandMode ?? detectTutorCommandMode(String(latestQ)),
+      }),
+    };
+  }
+
   const aiReq: AIRequest = {
     task: payload.stream ? 'streaming' : 'batch_text',
     feature,
-    payload,
+    payload: enrichedPayload,
     userSettings,
     userId: req.user!.id,
     priority: priority || 'medium',
@@ -212,6 +270,25 @@ router.post('/ask', async (req: Request, res: Response) => {
       }
       res.write('data: [DONE]\n\n');
       return res.end();
+    }
+
+    if (feature === 'chat_message' && response.result) {
+      const validSlides = groundingSources
+        .map((s) => s.slideNumber)
+        .filter((n): n is number => typeof n === 'number');
+      const cleanTutorText = (raw: string) => {
+        const cleaned = sanitizeTutorResponse(raw);
+        return validSlides.length > 0
+          ? stripPhantomSlideCitations(cleaned, validSlides)
+          : cleaned;
+      };
+      if (typeof response.result === 'string') {
+        response.result = cleanTutorText(response.result);
+      } else if (response.result?.choices?.[0]?.message?.content) {
+        response.result.choices[0].message.content = cleanTutorText(
+          String(response.result.choices[0].message.content)
+        );
+      }
     }
 
     res.json(response);

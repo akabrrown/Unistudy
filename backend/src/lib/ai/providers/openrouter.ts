@@ -19,13 +19,18 @@ export async function handleOpenRouterRequest(req: AIRequest) {
   let lastError = 'All OpenRouter candidate models failed';
   for (const model of OPENROUTER_CANDIDATE_MODELS) {
     try {
+      const temperature =
+        req.feature === 'flashcard_generation'
+          ? 0.2
+          : (req.payload.temperature ?? 0.55);
+
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ model, messages })
+        body: JSON.stringify({ model, messages, temperature })
       });
 
       const result = await response.json();

@@ -55,7 +55,7 @@ router.post('/generate', withAIQuota('flashcard_generation'), async (req: Reques
       const aiReq: AIRequest = {
         task: 'batch_text',
         feature: 'flashcard_generation',
-        payload: { prompt: combinedText },
+        payload: { prompt: combinedText, slides },
         userId: req.user!.id,
         priority: 'medium',
         identifiers: [lectureId] // Cache per lecture

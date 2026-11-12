@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 
 import { AIRequest } from '../router'
 import { GEMINI_CANDIDATE_MODELS } from '../../../../../shared/constants/aiModels'
+import { buildGroundedFlashcardPrompt } from '../../../../../shared/lib/flashcardExtractor'
 
 const GEMINI_MODELS = [...GEMINI_CANDIDATE_MODELS]
 
@@ -114,18 +115,14 @@ export async function handleGeminiRequest(req: AIRequest) {
     }
 
     if (req.feature === 'flashcard_generation') {
-      const prompt = `
-        Generate a set of high-quality, comprehensive flashcards from the provided lecture text and explanations.
-        The flashcards should cover key concepts, definitions, and important facts.
-        Return ONLY a JSON array of objects with the structure:
-        { "front": "question or concept", "back": "answer or explanation" }
-
-        Content to process:
-        ${req.payload.prompt}
-      `
+      const prompt = buildGroundedFlashcardPrompt(
+        req.payload.slides && req.payload.slides.length > 0
+          ? req.payload.slides
+          : req.payload.prompt || ''
+      )
       const result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" }
+        generationConfig: { responseMimeType: "application/json", temperature: 0.2 }
       })
       return JSON.parse(result.response.text())
     }

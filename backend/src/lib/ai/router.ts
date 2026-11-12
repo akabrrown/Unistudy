@@ -15,6 +15,9 @@ export type AIRequest = {
     query?: string
     systemPrompt?: string
     stream?: boolean
+    temperature?: number
+    slides?: Array<{ slide_number?: number | null; raw_text?: string | null; explanation?: string | null }>
+    grounding?: any
     studentContext?: any
     questionCount?: number
     difficulty?: string

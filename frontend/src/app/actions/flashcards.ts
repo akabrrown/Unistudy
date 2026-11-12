@@ -11,9 +11,11 @@ import {
   OPENROUTER_CANDIDATE_MODELS,
 } from '../../../../shared/constants/aiModels'
 import {
+  buildGroundedFlashcardPrompt,
   extractFlashcardsFromSlides,
   parseFlashcardsJson,
   type FlashcardItem,
+  type SlideFlashcardInput,
 } from '../../../../shared/lib/flashcardExtractor'
 
 function getAdminClient() {
@@ -25,13 +27,8 @@ function getAdminClient() {
   })
 }
 
-async function generateFlashcardsWithAI(combinedText: string): Promise<FlashcardItem[]> {
-  const prompt = `Generate 8 to 15 high-quality, exam-focused study flashcards from the lecture material below.
-Ignore administrative metadata (lecturer names, phone numbers, course codes, page footers). Focus strictly on key definitions, mechanisms, formulas, and conceptual distinctions.
-Return ONLY valid JSON: { "flashcards": [ { "front": "clear question or concept", "back": "concise, accurate answer" } ] }
-
-Lecture material:
-${combinedText.slice(0, 14000)}`
+async function generateFlashcardsWithAI(slidesInput: SlideFlashcardInput[] | string): Promise<FlashcardItem[]> {
+  const prompt = buildGroundedFlashcardPrompt(slidesInput)
 
   // 1. Try Groq
   if (process.env.GROQ_API_KEY) {
@@ -42,7 +39,7 @@ ${combinedText.slice(0, 14000)}`
           model,
           messages: [{ role: 'user', content: prompt }],
           response_format: { type: 'json_object' },
-          temperature: 0.4,
+          temperature: 0.2,
         })
         const cards = parseFlashcardsJson(res.choices[0]?.message?.content || '')
         if (cards.length > 0) return cards.slice(0, 15)
@@ -59,7 +56,7 @@ ${combinedText.slice(0, 14000)}`
       try {
         const model = genAI.getGenerativeModel({
           model: modelName,
-          generationConfig: { responseMimeType: 'application/json' },
+          generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
         })
         const result = await model.generateContent(prompt)
         const cards = parseFlashcardsJson(result.response.text())
@@ -83,6 +80,7 @@ ${combinedText.slice(0, 14000)}`
           body: JSON.stringify({
             model,
             messages: [{ role: 'user', content: prompt }],
+            temperature: 0.2,
           }),
         })
         if (res.ok) {
@@ -195,11 +193,7 @@ export async function generateFlashcards(lectureId: string) {
       return { error: 'No slides found for this lecture. Ensure the file was processed completely.' }
     }
 
-    const combinedText = slides
-      .map((s) => `--- Slide ${s.slide_number} ---\nText: ${s.raw_text || ''}\nExplanation: ${s.explanation || ''}`)
-      .join('\n\n')
-
-    let generatedCards = await generateFlashcardsWithAI(combinedText)
+    let generatedCards = await generateFlashcardsWithAI(slides)
     if (generatedCards.length === 0) {
       generatedCards = extractFlashcardsFromSlides(slides)
     }

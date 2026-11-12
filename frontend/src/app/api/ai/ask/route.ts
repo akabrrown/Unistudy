@@ -8,6 +8,19 @@ import {
   GROQ_SMART_MODELS,
   OPENROUTER_CANDIDATE_MODELS,
 } from '../../../../../../shared/constants/aiModels';
+import {
+  TutorGroundingSchema,
+  type TutorGroundingInput,
+  buildGroundedTutorPrompt,
+  detectTutorCommandMode,
+  retrieveRelevantSlideChunks,
+  sanitizeTutorResponse,
+} from '../../../../../../shared/lib/aiTutor';
+import {
+  stripPhantomSlideCitations,
+  verifyResponseGrounding,
+  type GroundingSource,
+} from '../../../../../../shared/lib/groundingVerifier';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +30,8 @@ const AskRequestSchema = z.object({
     prompt: z.string().optional(),
     systemPrompt: z.string().optional(),
     stream: z.boolean().optional(),
+    temperature: z.number().min(0).max(1).optional(),
+    grounding: z.unknown().optional(),
     messages: z.array(z.object({
       role: z.enum(['user', 'assistant', 'system']),
       content: z.string()
@@ -50,8 +65,86 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Prompt or messages required' }, { status: 400 });
     }
 
-    const systemPrompt = payload.systemPrompt || 'You are an expert AI university tutor. Provide clear, highly readable, well-structured pedagogical explanations using markdown headers, bullet points, and LaTeX for math.';
+    const latestUserQuestion =
+      [...rawMessages].reverse().find((m) => m.role === 'user')?.content || '';
 
+    let systemPrompt =
+      payload.systemPrompt ||
+      'You are an expert AI university tutor. Provide clear, highly readable, well-structured pedagogical explanations using markdown headers, bullet points, and LaTeX for math.';
+
+    const groundingResult = payload.grounding
+      ? TutorGroundingSchema.safeParse(payload.grounding)
+      : null;
+
+    let groundingSources: GroundingSource[] = [];
+
+    if (groundingResult?.success) {
+      const grounding: TutorGroundingInput = groundingResult.data as TutorGroundingInput;
+      let candidateSlides = grounding.slides || [];
+      if (candidateSlides.length === 0 && grounding.lectureId) {
+        const { data: dbSlides } = await supabase
+          .from('slides')
+          .select('slide_number, raw_text, explanation')
+          .eq('lecture_id', grounding.lectureId)
+          .order('slide_number', { ascending: true })
+          .limit(200);
+        if (dbSlides && dbSlides.length > 0) {
+          candidateSlides = dbSlides;
+        }
+      }
+
+      let studentConfig = grounding.studentConfig;
+      let tutorName: string | undefined;
+      if (!studentConfig) {
+        const { data: settingsRow } = await supabase
+          .from('user_settings')
+          .select('ai_tutor_name, ai_tone, ai_reading_level, learning_style, language')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (settingsRow) {
+          tutorName = settingsRow.ai_tutor_name || undefined;
+          studentConfig = {
+            readingLevel: settingsRow.ai_reading_level || undefined,
+            tone: settingsRow.ai_tone || undefined,
+            learningStyle: settingsRow.learning_style || undefined,
+            language: settingsRow.language || undefined,
+          };
+        }
+      }
+
+      const retrievedChunks = retrieveRelevantSlideChunks(
+        latestUserQuestion,
+        candidateSlides,
+        grounding.currentSlideNumber,
+        4
+      );
+
+      groundingSources = candidateSlides
+        .map((s, idx) => ({
+          slideNumber: s.slide_number ?? idx + 1,
+          text: `${s.raw_text || ''} ${s.explanation || ''}`.trim(),
+        }))
+        .filter((s) => s.text.length > 0);
+      if (grounding.currentSlideNumber && (grounding.currentSlideText || grounding.currentSlideExplanation)) {
+        groundingSources.push({
+          slideNumber: grounding.currentSlideNumber,
+          text: `${grounding.currentSlideText || ''} ${grounding.currentSlideExplanation || ''}`.trim(),
+        });
+      }
+
+      systemPrompt = buildGroundedTutorPrompt({
+        tutorName,
+        courseContext: grounding.courseContext,
+        currentSlideNumber: grounding.currentSlideNumber,
+        currentSlideText: grounding.currentSlideText,
+        currentSlideExplanation: grounding.currentSlideExplanation,
+        retrievedChunks,
+        studentConfig,
+        commandMode: grounding.commandMode ?? detectTutorCommandMode(latestUserQuestion),
+      });
+    }
+
+    const temperature = payload.temperature ?? 0.55;
     let reply = '';
 
     // 1. Try Groq first for low-latency chat responses
@@ -70,7 +163,7 @@ export async function POST(request: Request) {
           const completion = await groq.chat.completions.create({
             model,
             messages: groqMessages,
-            temperature: 0.6,
+            temperature,
           });
           const text = completion.choices[0]?.message?.content?.trim();
           if (text) {
@@ -91,7 +184,8 @@ export async function POST(request: Request) {
         try {
           const model = genAI.getGenerativeModel({
             model: modelName,
-            systemInstruction: systemPrompt
+            systemInstruction: systemPrompt,
+            generationConfig: { temperature },
           });
 
           const contents = rawMessages.map((m) => ({
@@ -130,7 +224,7 @@ export async function POST(request: Request) {
               'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ model, messages: orMessages, temperature: 0.6 })
+            body: JSON.stringify({ model, messages: orMessages, temperature })
           });
 
           if (orRes.ok) {
@@ -155,16 +249,30 @@ export async function POST(request: Request) {
       );
     }
 
+    let sanitizedReply = sanitizeTutorResponse(reply);
+    const validSlideNumbers = groundingSources
+      .map((s) => s.slideNumber)
+      .filter((n): n is number => typeof n === 'number');
+    if (validSlideNumbers.length > 0) {
+      sanitizedReply = stripPhantomSlideCitations(sanitizedReply, validSlideNumbers);
+    }
+    const groundingReport =
+      groundingSources.length > 0
+        ? verifyResponseGrounding(sanitizedReply, groundingSources)
+        : null;
+
     return NextResponse.json({
       result: {
         choices: [
           {
             message: {
-              content: reply
+              role: 'assistant',
+              content: sanitizedReply
             }
           }
         ]
       },
+      grounding: groundingReport,
       provider: 'assistant'
     });
   } catch (err: unknown) {
