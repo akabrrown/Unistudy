@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { sanitizeMathResponse } from './mathSolver';
+import { sanitizeMathResponse } from './mathSanitizer';
 
 export interface PastPaperAnswerInput {
   id: string;

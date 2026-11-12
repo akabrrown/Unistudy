@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import Groq from 'groq-sdk'
+import { compile, derivative, evaluate, format, lusolve, simplify } from 'mathjs'
 import { z } from 'zod'
 import { withAIQuota } from '@/lib/ai/middleware'
 import {
@@ -58,7 +59,17 @@ async function handler(req: Request) {
   }
 
   const { problem = '', subject, level, imageBase64, mimeType } = parsed.data
-  const casCheck = !imageBase64 && problem ? tryDeterministicMathSolve(problem) : null
+  const casCheck =
+    !imageBase64 && problem
+      ? tryDeterministicMathSolve(problem, {
+          compile,
+          derivative,
+          evaluate,
+          format,
+          lusolve,
+          simplify,
+        })
+      : null
   const promptText = buildUniversalMathSolverPrompt({
     problem,
     subject,

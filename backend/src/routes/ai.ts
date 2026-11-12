@@ -13,6 +13,7 @@ router.use(rateLimit);
 
 import multer from 'multer';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { compile, derivative, evaluate, format, lusolve, simplify } from 'mathjs';
 import {
   GEMINI_CANDIDATE_MODELS,
   GROQ_SMART_MODELS,
@@ -340,7 +341,14 @@ router.post('/calculator', withAIQuota('calculator'), async (req: Request, res: 
       }
     } catch (providerErr) {
       console.warn('[Backend /calculator] Provider failed, trying CAS fallback:', providerErr);
-      const cas = tryDeterministicMathSolve(String(problem));
+      const cas = tryDeterministicMathSolve(String(problem), {
+        compile,
+        derivative,
+        evaluate,
+        format,
+        lusolve,
+        simplify,
+      });
       if (cas) {
         fullText = cas.markdown;
         res.write(`data: ${JSON.stringify({ text: fullText })}\n\n`);

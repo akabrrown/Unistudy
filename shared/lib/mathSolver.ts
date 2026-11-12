@@ -1,6 +1,15 @@
-import { compile, derivative, evaluate, format, lusolve, simplify } from 'mathjs';
-import { normalizeLatexMarkdown } from './latexNormalizer';
-import { stripAiFootprintsPreservingFormatting } from './textHumanizer';
+import { sanitizeMathResponse } from './mathSanitizer';
+
+export { sanitizeMathResponse };
+
+export interface MathJsEngine {
+  compile: (expr: string) => { evaluate: (scope?: Record<string, unknown>) => unknown };
+  derivative: (expr: string, variable: string) => { toString: () => string };
+  evaluate: (expr: string, scope?: Record<string, unknown>) => unknown;
+  format: (value: unknown, options?: { precision?: number }) => string;
+  lusolve: (A: number[][], b: number[]) => unknown;
+  simplify: (expr: string) => { toString: () => string };
+}
 
 export type MathSolveCategory =
   | 'calculus_derivative'
@@ -43,7 +52,7 @@ function simpsonIntegrate(fn: (x: number) => number, a: number, b: number, n = 1
   return (h / 3) * sum;
 }
 
-function tryDerivative(text: string): DeterministicMathResult | null {
+function tryDerivative(text: string, mathEngine: MathJsEngine): DeterministicMathResult | null {
   const match =
     text.match(/(?:find\s+(?:the\s+)?)?(?:derivative\s+of|differentiate)\s+(?:[fy]\([a-z]\)\s*=\s*)?(.+?)(?:\s+with\s+respect\s+to\s+([a-z]))?$/i) ||
     text.match(/d\/d([a-z])\s*[\(\[]\s*(.+?)\s*[\)\]]/i);
@@ -57,8 +66,8 @@ function tryDerivative(text: string): DeterministicMathResult | null {
 
   try {
     const cleanExpr = normalizeEquationInput(rawExpr);
-    const derived = derivative(cleanExpr, variable);
-    const simplified = simplify(derived).toString();
+    const derived = mathEngine.derivative(cleanExpr, variable);
+    const simplified = mathEngine.simplify(derived.toString()).toString();
     const answer = simplified;
     return {
       category: 'calculus_derivative',
@@ -78,7 +87,7 @@ function tryDerivative(text: string): DeterministicMathResult | null {
   }
 }
 
-function tryDefiniteIntegral(text: string): DeterministicMathResult | null {
+function tryDefiniteIntegral(text: string, mathEngine: MathJsEngine): DeterministicMathResult | null {
   const match = text.match(
     /(?:find\s+(?:the\s+)?)?(?:integral\s+of|integrate)\s+(.+?)\s+(?:d([a-z])\s+)?from\s+(-?\d+(?:\.\d+)?)\s+to\s+(-?\d+(?:\.\d+)?)(?:\s+d([a-z]))?$/i
   );
@@ -91,7 +100,7 @@ function tryDefiniteIntegral(text: string): DeterministicMathResult | null {
   if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
 
   try {
-    const compiled = compile(normalizeEquationInput(rawExpr));
+    const compiled = mathEngine.compile(normalizeEquationInput(rawExpr));
     const fn = (val: number) => Number(compiled.evaluate({ [variable]: val }));
     const integralVal = roundClean(simpsonIntegrate(fn, a, b, 1000));
     if (!Number.isFinite(integralVal)) return null;
@@ -114,14 +123,18 @@ function tryDefiniteIntegral(text: string): DeterministicMathResult | null {
   }
 }
 
-function parseLinearEquationRow(eqStr: string, vars: string[]): { coeffs: number[]; rhs: number } | null {
+function parseLinearEquationRow(
+  eqStr: string,
+  vars: string[],
+  mathEngine: MathJsEngine
+): { coeffs: number[]; rhs: number } | null {
   const parts = eqStr.split('=');
   if (parts.length !== 2) return null;
   const lhs = normalizeEquationInput(parts[0]);
   const rhs = normalizeEquationInput(parts[1]);
 
   try {
-    const fn = compile(`(${lhs}) - (${rhs})`);
+    const fn = mathEngine.compile(`(${lhs}) - (${rhs})`);
     const zeroScope = Object.fromEntries(vars.map((v) => [v, 0]));
     const constantTerm = Number(fn.evaluate(zeroScope));
     if (!Number.isFinite(constantTerm)) return null;
@@ -143,7 +156,7 @@ function parseLinearEquationRow(eqStr: string, vars: string[]): { coeffs: number
   }
 }
 
-function tryLinearSystem(text: string): DeterministicMathResult | null {
+function tryLinearSystem(text: string, mathEngine: MathJsEngine): DeterministicMathResult | null {
   const cleaned = text
     .replace(/^(?:solve(?:\s+the\s+(?:simultaneous\s+)?(?:system|equations?))?:?\s*)/i, '')
     .trim();
@@ -165,14 +178,14 @@ function tryLinearSystem(text: string): DeterministicMathResult | null {
   const rows: number[][] = [];
   const rhsVec: number[] = [];
   for (const eq of eqParts) {
-    const parsed = parseLinearEquationRow(eq, vars);
+    const parsed = parseLinearEquationRow(eq, vars, mathEngine);
     if (!parsed) return null;
     rows.push(parsed.coeffs);
     rhsVec.push(parsed.rhs);
   }
 
   try {
-    const sol = lusolve(rows, rhsVec) as unknown as number[][];
+    const sol = mathEngine.lusolve(rows, rhsVec) as unknown as number[][];
     const assignments = vars.map((v, idx) => `${v} = ${roundClean(Number(sol[idx][0]))}`);
     const answer = assignments.join(', ');
     return {
@@ -192,7 +205,7 @@ function tryLinearSystem(text: string): DeterministicMathResult | null {
   }
 }
 
-function trySingleVarEquation(text: string): DeterministicMathResult | null {
+function trySingleVarEquation(text: string, mathEngine: MathJsEngine): DeterministicMathResult | null {
   const cleaned = text
     .replace(/^(?:solve(?:\s+for\s+[a-z])?:?\s*)/i, '')
     .replace(/[.?!]+$/, '')
@@ -205,7 +218,7 @@ function trySingleVarEquation(text: string): DeterministicMathResult | null {
   const v = vars[0];
 
   try {
-    const fn = compile(`(${normalizeEquationInput(parts[0])}) - (${normalizeEquationInput(parts[1])})`);
+    const fn = mathEngine.compile(`(${normalizeEquationInput(parts[0])}) - (${normalizeEquationInput(parts[1])})`);
     const c = roundClean(Number(fn.evaluate({ [v]: 0 })));
     const f1 = Number(fn.evaluate({ [v]: 1 }));
     const fm1 = Number(fn.evaluate({ [v]: -1 }));
@@ -319,15 +332,15 @@ function tryStatistics(text: string): DeterministicMathResult | null {
   };
 }
 
-function tryDirectMathJs(text: string): DeterministicMathResult | null {
+function tryDirectMathJs(text: string, mathEngine: MathJsEngine): DeterministicMathResult | null {
   const cleaned = text.replace(/^(?:calculate|evaluate|compute|simplify):?\s*/i, '').trim();
   if (!cleaned || cleaned.includes('=') || /[a-z]{5,}\s+[a-z]{4,}/i.test(cleaned)) {
     return null;
   }
   try {
-    const val = evaluate(normalizeEquationInput(cleaned));
+    const val = mathEngine.evaluate(normalizeEquationInput(cleaned));
     if (val === undefined || typeof val === 'function') return null;
-    const formatted = format(val, { precision: 10 });
+    const formatted = mathEngine.format(val, { precision: 10 });
     return {
       category: 'direct_expression',
       answer: formatted,
@@ -347,17 +360,24 @@ function tryDirectMathJs(text: string): DeterministicMathResult | null {
  * across derivatives, definite integrals, linear/quadratic equations, simultaneous systems,
  * statistics, matrices, and expressions. Returns null for open-ended word problems.
  */
-export function tryDeterministicMathSolve(problem: string): DeterministicMathResult | null {
+export function tryDeterministicMathSolve(
+  problem: string,
+  mathEngine?: MathJsEngine | null
+): DeterministicMathResult | null {
   const text = (problem || '').trim();
   if (!text) return null;
 
+  if (!mathEngine) {
+    return tryStatistics(text);
+  }
+
   return (
-    tryDerivative(text) ||
-    tryDefiniteIntegral(text) ||
-    tryLinearSystem(text) ||
-    trySingleVarEquation(text) ||
+    tryDerivative(text, mathEngine) ||
+    tryDefiniteIntegral(text, mathEngine) ||
+    tryLinearSystem(text, mathEngine) ||
+    trySingleVarEquation(text, mathEngine) ||
     tryStatistics(text) ||
-    tryDirectMathJs(text)
+    tryDirectMathJs(text, mathEngine)
   );
 }
 
@@ -394,15 +414,4 @@ FORMAT & ACCURACY RULES (MANDATORY):
 2. Use standard Markdown (**bold**, bullet lists) — NEVER output raw HTML tags like <strong> or <br>.
 3. Wrap inline math strictly in $...$ and display equations strictly in $$...$$. Never use \\(...\\) or \\[...\\].
 4. Never use em-dashes ("—") or AI filler words ("delve", "pivotal", "paramount", "underscore", "testament", "seamless", "Moreover,").`;
-}
-
-export function sanitizeMathResponse(rawText: string): string {
-  if (!rawText || typeof rawText !== 'string') return '';
-  const htmlConverted = rawText
-    .replace(/<strong>([\s\S]*?)<\/strong>/gi, '**$1**')
-    .replace(/<b>([\s\S]*?)<\/b>/gi, '**$1**')
-    .replace(/<em>([\s\S]*?)<\/em>/gi, '*$1*')
-    .replace(/<br\s*\/?>/gi, '\n');
-
-  return stripAiFootprintsPreservingFormatting(normalizeLatexMarkdown(htmlConverted));
 }

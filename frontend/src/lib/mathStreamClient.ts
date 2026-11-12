@@ -1,5 +1,5 @@
 import { apiFetchRaw } from '@/lib/api/client';
-import { sanitizeMathResponse } from '../../../shared/lib/mathSolver';
+import { sanitizeMathResponse } from '../../../shared/lib/mathSanitizer';
 
 export interface SolveMathStreamParams {
   problem: string;
