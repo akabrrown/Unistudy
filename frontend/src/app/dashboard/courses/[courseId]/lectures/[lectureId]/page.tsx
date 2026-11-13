@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Microscope, Volume2, PenTool, StickyNote, Monitor, Eye, EyeOff, Loader2, PlaySquare, Play, X, Pin, Frown, Meh, Smile, Zap, Flame, Square, Eraser, RefreshCw, MessageCircle, Send, Hourglass, Pause, Calculator, Music, FileText, DownloadCloud, BookOpen, Languages, ChevronDown, SlidersHorizontal, Maximize, Layers, Check, ArrowRight, GraduationCap } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Microscope, Volume2, PenTool, StickyNote, Monitor, Eye, EyeOff, Loader2, PlaySquare, Play, X, Pin, Frown, Meh, Smile, Zap, Flame, Square, Eraser, RefreshCw, MessageCircle, Send, Hourglass, Pause, Calculator, Music, FileText, DownloadCloud, BookOpen, Languages, ChevronDown, SlidersHorizontal, Maximize, Layers, Check, ArrowRight, GraduationCap, Bot, Sparkles } from 'lucide-react'
 import { FocusTimer, FocusTimerRef } from '@/components/study/FocusTimer'
 import { CalculatorPanel } from '@/components/study/CalculatorPanel'
 import { TutorFeedbackView } from '@/components/study/TutorFeedbackView'
@@ -172,6 +172,7 @@ export default function LectureViewer() {
   // Translation state
   const [isTranslatingExplanation, setIsTranslatingExplanation] = useState(false)
   const [translatedExplanation, setTranslatedExplanation] = useState<Record<number, string>>({})
+  const [inlineExplainQuestion, setInlineExplainQuestion] = useState('')
 
   // Load chat history and offline explanations from local storage when slide changes
   useEffect(() => {
@@ -1417,14 +1418,104 @@ export default function LectureViewer() {
                   <p className="text-sm font-medium animate-pulse">Generating tailored explanation for Slide {slideIndex + 1}...</p>
                 </div>
               ) : explanation ? (
-                <div className="text-sm leading-relaxed text-foreground space-y-4 [&>p]:mb-4 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:mb-4 [&>ul>li]:mb-2 [&>strong]:text-primary [&>strong]:font-bold prose prose-slate dark:prose-invert max-w-none prose-headings:text-primary prose-headings:font-bold prose-strong:text-foreground prose-li:my-1 prose-p:leading-relaxed">
-                  {translatedExplanation[slideIndex] ? (
-                    <p className="whitespace-pre-wrap">{translatedExplanation[slideIndex]}</p>
-                  ) : (
-                    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-                      {explanation}
-                    </ReactMarkdown>
-                  )}
+                <div className="space-y-6">
+                  <div className="text-sm leading-relaxed text-foreground space-y-4 [&>p]:mb-4 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:mb-4 [&>ul>li]:mb-2 [&>strong]:text-primary [&>strong]:font-bold prose prose-slate dark:prose-invert max-w-none prose-headings:text-primary prose-headings:font-bold prose-strong:text-foreground prose-li:my-1 prose-p:leading-relaxed">
+                    {translatedExplanation[slideIndex] ? (
+                      <p className="whitespace-pre-wrap">{translatedExplanation[slideIndex]}</p>
+                    ) : (
+                      <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                        {explanation}
+                      </ReactMarkdown>
+                    )}
+                  </div>
+
+                  {/* AI Tutor Interactive Bridge Card */}
+                  <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 via-card to-card p-4 space-y-3.5 shadow-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+                          <Bot className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5 flex-wrap">
+                            <span>Continue with {settings?.ai_tutor_name || 'AI Tutor'}</span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-600 font-semibold border border-emerald-500/20">
+                              Slide {slideIndex + 1} Grounded
+                            </span>
+                          </h4>
+                          <p className="text-[11px] text-muted-foreground">
+                            Ask follow-up questions strictly anchored to this slide &amp; explanation
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setIsChatOpen(true)}
+                        className="h-7 text-xs gap-1 border border-emerald-500/30 hover:border-emerald-500 text-emerald-700 dark:text-emerald-300 shrink-0"
+                      >
+                        <MessageCircle size={13} />
+                        Open Tutor
+                      </Button>
+                    </div>
+
+                    {/* Quick follow-up prompt chips */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
+                      {[
+                        { label: 'Clarify step-by-step', query: 'Can you break down the steps in this explanation in more detail?' },
+                        { label: 'Give an intuitive analogy', query: 'Can you give me a memorable, intuitive analogy for what was explained on this slide?' },
+                        { label: 'Test me on this slide', query: 'Quiz me with an exam-style question strictly based on this slide and its explanation.' },
+                        { label: 'Explain underlying logic', query: 'Why does the concept explained on this slide work? What is the core underlying logic?' },
+                      ].map((chip, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setIsChatOpen(true)
+                            handleSendChatMessage(undefined, chip.query)
+                          }}
+                          className="px-2.5 py-2 rounded-lg border border-border/80 hover:border-emerald-500/60 bg-background/80 hover:bg-emerald-500/5 text-left transition-all text-[11px] text-muted-foreground hover:text-foreground flex items-center justify-between group cursor-pointer"
+                        >
+                          <span className="truncate">{chip.label}</span>
+                          <ArrowRight size={11} className="opacity-0 group-hover:opacity-100 text-emerald-600 shrink-0 ml-1 transition-opacity" />
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Inline quick question ask */}
+                    <div className="flex gap-1.5 items-center pt-1 border-t border-border/60">
+                      <input
+                        type="text"
+                        placeholder={`Ask ${settings?.ai_tutor_name || 'AI Tutor'} about this explanation...`}
+                        value={inlineExplainQuestion}
+                        onChange={(e) => setInlineExplainQuestion(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && inlineExplainQuestion.trim()) {
+                            e.preventDefault()
+                            const q = inlineExplainQuestion.trim()
+                            setInlineExplainQuestion('')
+                            setIsChatOpen(true)
+                            handleSendChatMessage(undefined, q)
+                          }
+                        }}
+                        className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs"
+                      />
+                      <Button
+                        size="sm"
+                        disabled={!inlineExplainQuestion.trim()}
+                        onClick={() => {
+                          const q = inlineExplainQuestion.trim()
+                          setInlineExplainQuestion('')
+                          setIsChatOpen(true)
+                          handleSendChatMessage(undefined, q)
+                        }}
+                        className="h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1 shrink-0"
+                      >
+                        <Send size={12} />
+                        Ask
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               ) : (!currentSlide?.raw_text && !currentSlide?.image_url && !currentSlide?.explanation) ? (
                 <div className="text-sm text-muted-foreground italic bg-muted/20 p-4 rounded-lg border border-border text-center">
@@ -1629,6 +1720,19 @@ export default function LectureViewer() {
                 <X size={16} />
               </Button>
             </div>
+          </div>
+
+          {/* Active Slide & Explanation Grounding Bar */}
+          <div className="px-4 py-2 bg-emerald-500/10 border-b border-emerald-500/20 flex items-center justify-between text-xs shrink-0">
+            <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-medium truncate">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span className="truncate">
+                Strictly Grounded: Slide {slideIndex + 1} {explanation ? '& Active AI Explanation' : ''}
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-500/15 border border-emerald-500/20 px-1.5 py-0.5 rounded font-semibold shrink-0">
+              Live Grounding
+            </span>
           </div>
           
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/5">

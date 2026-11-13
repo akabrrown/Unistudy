@@ -1,166 +1,316 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Search, Copy, CheckCircle2, Bot } from 'lucide-react'
+import { Search, Copy, CheckCircle2, Bot, Calculator, Sparkles, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
-type Constant = {
+export type Constant = {
   id: string
   name: string
   symbol: string
   value: string
   unit: string
   subject: string
+  expr?: string
 }
-
-const CONSTANTS: Constant[] = [
-  { id: '1', name: 'Speed of Light', symbol: 'c', value: '299792458', unit: 'm/s', subject: 'Physics' },
-  { id: '2', name: 'Planck Constant', symbol: 'h', value: '6.62607015e-34', unit: 'J·s', subject: 'Physics' },
-  { id: '3', name: 'Gravitational Constant', symbol: 'G', value: '6.67430e-11', unit: 'm³/(kg·s²)', subject: 'Physics' },
-  { id: '4', name: 'Elementary Charge', symbol: 'e', value: '1.602176634e-19', unit: 'C', subject: 'Physics' },
-  { id: '5', name: 'Avogadro Constant', symbol: 'N_A', value: '6.02214076e23', unit: 'mol⁻¹', subject: 'Chemistry' },
-  { id: '6', name: 'Boltzmann Constant', symbol: 'k', value: '1.380649e-23', unit: 'J/K', subject: 'Physics' },
-  { id: '7', name: 'Ideal Gas Constant', symbol: 'R', value: '8.314462618', unit: 'J/(mol·K)', subject: 'Chemistry' },
-  { id: '8', name: 'Pi', symbol: 'π', value: '3.14159265359', unit: '', subject: 'Mathematics' },
-  { id: '9', name: 'Euler\'s Number', symbol: 'e', value: '2.71828182846', unit: '', subject: 'Mathematics' },
-  { id: '10', name: 'Vacuum Permittivity', symbol: 'ε₀', value: '8.8541878128e-12', unit: 'F/m', subject: 'Physics' },
-  { id: '11', name: 'Magnetic Constant (Permeability)', symbol: 'μ₀', value: '1.25663706212e-6', unit: 'N/A²', subject: 'Physics' },
-  { id: '12', name: 'Stefan-Boltzmann Constant', symbol: 'σ', value: '5.670374419e-8', unit: 'W/(m²·K⁴)', subject: 'Physics' },
-  { id: '13', name: 'Rydberg Constant', symbol: 'R_∞', value: '10973731.568160', unit: 'm⁻¹', subject: 'Physics' },
-  { id: '14', name: 'Atomic Mass Constant', symbol: 'm_u', value: '1.66053906660e-27', unit: 'kg', subject: 'Chemistry' },
-  { id: '15', name: 'Faraday Constant', symbol: 'F', value: '96485.33212', unit: 'C/mol', subject: 'Chemistry' },
-  { id: '16', name: 'Golden Ratio', symbol: 'φ', value: '1.61803398875', unit: '', subject: 'Mathematics' },
-  { id: '17', name: 'Electron Mass', symbol: 'm_e', value: '9.1093837015e-31', unit: 'kg', subject: 'Physics' },
-  { id: '18', name: 'Proton Mass', symbol: 'm_p', value: '1.67262192369e-27', unit: 'kg', subject: 'Physics' },
-  { id: '19', name: 'Neutron Mass', symbol: 'm_n', value: '1.67492749804e-27', unit: 'kg', subject: 'Physics' },
-  { id: '20', name: 'Standard Acceleration of Gravity', symbol: 'g', value: '9.80665', unit: 'm/s²', subject: 'Physics' },
-  { id: '21', name: 'Wien Displacement Constant', symbol: 'b', value: '2.897771955e-3', unit: 'm·K', subject: 'Physics' },
-  { id: '22', name: 'Earth Radius (Mean)', symbol: 'R_⊕', value: '6371000', unit: 'm', subject: 'Physics' }
-]
 
 export function ConstantsPanel({ onCopy }: { onCopy?: (value: string) => void }) {
   const [search, setSearch] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [, startTransition] = useTransition()
+
+  const [constants, setConstants] = useState<Constant[]>([])
+  const [loadingConstants, setLoadingConstants] = useState(true)
+  const [evaluatedExpr, setEvaluatedExpr] = useState<{ expr: string; result: string; source: string } | null>(null)
+  const [isEvaluatingMathJS, setIsEvaluatingMathJS] = useState(false)
 
   const [aiConstants, setAiConstants] = useState<Constant[]>([])
   const [isSearchingAI, setIsSearchingAI] = useState(false)
 
-  const localFiltered = CONSTANTS.filter(c => 
-    c.name.toLowerCase().includes(search.toLowerCase()) || 
-    c.symbol.toLowerCase().includes(search.toLowerCase()) ||
-    c.subject.toLowerCase().includes(search.toLowerCase())
+  // 1. Fetch dynamic constants from MathJS API endpoint on mount
+  useEffect(() => {
+    let isCancelled = false
+
+    async function loadMathJSConstants() {
+      setLoadingConstants(true)
+      try {
+        const res = await fetch('/api/mathjs?type=constants_list')
+        const data = await res.json()
+        if (data.success && Array.isArray(data.data) && !isCancelled) {
+          // Resolve exact values for all constants dynamically through MathJS expression evaluator
+          const resolved = await Promise.all(
+            data.data.map(async (item: any) => {
+              try {
+                const evalRes = await fetch(`/api/mathjs?expr=${encodeURIComponent(item.expr)}`)
+                const evalData = await evalRes.json()
+                const rawResult = evalData.result || item.expr
+                // Separate value and unit if present
+                const parts = rawResult.split(' ')
+                const val = parts[0] || rawResult
+                const unit = parts.slice(1).join(' ')
+                return {
+                  id: item.id,
+                  name: item.name,
+                  symbol: item.symbol,
+                  value: val,
+                  unit: unit,
+                  subject: item.subject,
+                  expr: item.expr,
+                }
+              } catch {
+                return {
+                  id: item.id,
+                  name: item.name,
+                  symbol: item.symbol,
+                  value: item.expr,
+                  unit: '',
+                  subject: item.subject,
+                  expr: item.expr,
+                }
+              }
+            })
+          )
+          if (!isCancelled) {
+            setConstants(resolved)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load MathJS constants:', err)
+      } finally {
+        if (!isCancelled) setLoadingConstants(false)
+      }
+    }
+
+    loadMathJSConstants()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [])
+
+  // 2. Dynamic MathJS Expression Evaluator for any custom search query
+  useEffect(() => {
+    const q = search.trim()
+    if (!q || q.length < 2) {
+      setEvaluatedExpr(null)
+      setIsEvaluatingMathJS(false)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setIsEvaluatingMathJS(true)
+      try {
+        const res = await fetch(`/api/mathjs?expr=${encodeURIComponent(q)}`)
+        const data = await res.json()
+        if (data.success && data.result) {
+          setEvaluatedExpr({
+            expr: q,
+            result: data.result,
+            source: data.source || 'MathJS API',
+          })
+        } else {
+          setEvaluatedExpr(null)
+        }
+      } catch {
+        setEvaluatedExpr(null)
+      } finally {
+        setIsEvaluatingMathJS(false)
+      }
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // 3. Fallback AI search for natural language queries not found in MathJS
+  const localFiltered = constants.filter(
+    (c) =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.symbol.toLowerCase().includes(search.toLowerCase()) ||
+      c.subject.toLowerCase().includes(search.toLowerCase())
   )
 
-  const allFiltered = [...localFiltered, ...aiConstants.filter(c => 
-    c.name.toLowerCase().includes(search.toLowerCase()) || 
-    c.symbol.toLowerCase().includes(search.toLowerCase()) ||
-    c.subject.toLowerCase().includes(search.toLowerCase())
-  )]
+  const allFiltered = [
+    ...localFiltered,
+    ...aiConstants.filter(
+      (c) =>
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.symbol.toLowerCase().includes(search.toLowerCase()) ||
+        c.subject.toLowerCase().includes(search.toLowerCase())
+    ),
+  ]
 
   useEffect(() => {
-    if (search.length < 3 || localFiltered.length > 0) return;
-    
+    if (search.length < 3 || localFiltered.length > 0 || evaluatedExpr !== null) return
+
     const delayDebounceFn = setTimeout(async () => {
-      setIsSearchingAI(true);
+      setIsSearchingAI(true)
       try {
-        const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/ai/search-math`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            ...(session && { Authorization: `Bearer ${session.access_token}` })
-          },
-          body: JSON.stringify({ type: 'constant', query: search })
-        });
-        
-        const result = await res.json();
+        const supabase = createClient()
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/ai/search-math`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(session && { Authorization: `Bearer ${session.access_token}` }),
+            },
+            body: JSON.stringify({ type: 'constant', query: search }),
+          }
+        )
+
+        const result = await res.json()
         if (result.success && result.data) {
-          const aiConstant = {
+          const aiConstant: Constant = {
             id: `ai-${Date.now()}`,
             name: result.data.name,
             symbol: result.data.symbol,
             value: result.data.value,
             unit: result.data.unit,
-            subject: result.data.subject
-          };
-          setAiConstants(prev => [...prev, aiConstant]);
+            subject: result.data.subject,
+          }
+          setAiConstants((prev) => [...prev, aiConstant])
         }
       } catch (err) {
-        console.error('AI search failed', err);
+        console.error('AI search failed', err)
       } finally {
-        setIsSearchingAI(false);
+        setIsSearchingAI(false)
       }
-    }, 1000);
+    }, 1000)
 
-    return () => clearTimeout(delayDebounceFn);
-  }, [search, localFiltered.length]);
+    return () => clearTimeout(delayDebounceFn)
+  }, [search, localFiltered.length, evaluatedExpr])
 
-  const handleCopy = (c: Constant) => {
-    navigator.clipboard.writeText(c.value)
-    setCopiedId(c.id)
-    if (onCopy) onCopy(c.value)
+  const handleCopy = (val: string, id: string) => {
+    navigator.clipboard.writeText(val)
+    setCopiedId(id)
+    if (onCopy) onCopy(val)
     setTimeout(() => setCopiedId(null), 2000)
   }
 
   return (
-    <div className="flex flex-col h-full bg-card gap-4">
+    <div className="flex flex-col h-full bg-card gap-3">
+      {/* Search Bar */}
       <div className="relative flex-shrink-0">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
-          placeholder="Search constants or subjects..."
+          placeholder="Search constants (e.g. speedOfLight, G, h, pi)..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 bg-muted/50 border-border text-sm"
+          onChange={(e) => {
+            const val = e.target.value
+            startTransition(() => {
+              setSearch(val)
+            })
+          }}
+          className="pl-9 bg-muted/50 border-border text-xs sm:text-sm"
         />
+        {isEvaluatingMathJS && (
+          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-primary animate-spin" />
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-2 space-y-3 pb-4">
-        {isSearchingAI && (
-          <div className="text-center p-4 border border-purple-500/30 bg-purple-500/10 rounded-lg flex flex-col items-center justify-center gap-2 mt-4 animate-pulse">
-            <Bot className="w-5 h-5 text-purple-500" />
-            <span className="text-sm text-purple-600 font-medium">Searching AI for '{search}'...</span>
-          </div>
-        )}
-        {!isSearchingAI && allFiltered.length === 0 && search.length > 0 && (
-          <div className="text-center text-muted-foreground text-sm mt-8">
-            No constants found locally or via AI.
-          </div>
-        )}
-        {!isSearchingAI && allFiltered.length === 0 && search.length === 0 && (
-          <div className="text-center text-muted-foreground text-sm mt-8">
-            No constants found.
-          </div>
-        )}
-        {allFiltered.map(c => (
-          <div key={c.id} className="group flex flex-col p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/40 transition-colors">
-            <div className="flex justify-between items-start mb-2">
-              <div>
-                <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  {c.name}
-                  {c.id.startsWith('ai-') && <Bot className="w-3 h-3 text-purple-500" />}
-                </h4>
-                <span className="font-serif text-muted-foreground italic text-sm mb-1 block">({c.symbol})</span>
-                <span className="text-[10px] font-medium uppercase tracking-wider text-purple-500/80">{c.subject}</span>
+      <div className="flex-1 overflow-y-auto pr-1 space-y-2.5 pb-4">
+        {/* Live MathJS Expression Evaluator result card */}
+        {evaluatedExpr && (
+          <div className="p-3 rounded-xl border border-primary/30 bg-primary/5 space-y-2 animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-primary">
+                <Calculator className="w-3.5 h-3.5" />
+                <span>MathJS Expression Evaluator</span>
+              </div>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary uppercase font-bold">
+                {evaluatedExpr.source}
+              </span>
+            </div>
+            <div className="flex items-center justify-between bg-card p-2 rounded-lg border border-border text-xs font-mono">
+              <div className="overflow-x-auto pr-2">
+                <span className="text-muted-foreground">{evaluatedExpr.expr} = </span>
+                <span className="font-bold text-foreground">{evaluatedExpr.result}</span>
               </div>
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => handleCopy(c)}
+                className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
+                onClick={() => handleCopy(evaluatedExpr.result, 'eval-result')}
               >
-                {copiedId === c.id ? <CheckCircle2 size={14} className="text-green-500" /> : <Copy size={14} />}
+                {copiedId === 'eval-result' ? (
+                  <CheckCircle2 size={13} className="text-emerald-500" />
+                ) : (
+                  <Copy size={13} />
+                )}
               </Button>
             </div>
-            <div className="bg-background/50 p-2 rounded border border-border/50 flex justify-between items-center text-sm font-mono text-foreground">
-              <span>{c.value}</span>
-              {c.unit && <span className="text-muted-foreground text-xs">{c.unit}</span>}
-            </div>
           </div>
-        ))}
+        )}
+
+        {/* Loading State */}
+        {loadingConstants && (
+          <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground space-y-2">
+            <Loader2 className="w-5 h-5 text-primary animate-spin" />
+            <p className="text-xs">Evaluating constants via MathJS API...</p>
+          </div>
+        )}
+
+        {/* AI Searching Indicator */}
+        {isSearchingAI && (
+          <div className="text-center p-3 border border-purple-500/30 bg-purple-500/10 rounded-lg flex items-center justify-center gap-2 animate-pulse">
+            <Bot className="w-4 h-4 text-purple-500" />
+            <span className="text-xs text-purple-600 font-medium">Searching AI for '{search}'...</span>
+          </div>
+        )}
+
+        {/* Empty States */}
+        {!loadingConstants && !isSearchingAI && allFiltered.length === 0 && !evaluatedExpr && search.length > 0 && (
+          <div className="text-center text-muted-foreground text-xs py-8">
+            No constants found. Try typing a MathJS expression like <code>speedOfLight * 2</code>.
+          </div>
+        )}
+
+        {/* Constants List */}
+        {!loadingConstants &&
+          allFiltered.map((c) => (
+            <div
+              key={c.id}
+              className="group flex flex-col p-2.5 rounded-xl border border-border bg-muted/20 hover:bg-muted/40 transition-colors"
+            >
+              <div className="flex justify-between items-start mb-1.5">
+                <div>
+                  <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    {c.name}
+                    {c.id.startsWith('ai-') ? (
+                      <Bot className="w-3 h-3 text-purple-500" />
+                    ) : (
+                      <Sparkles className="w-2.5 h-2.5 text-primary opacity-60" />
+                    )}
+                  </h4>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="font-serif text-muted-foreground italic text-xs">({c.symbol})</span>
+                    <span className="text-[9px] font-mono uppercase tracking-wider text-primary/80 bg-primary/10 px-1.5 py-0.2 rounded">
+                      {c.subject}
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground opacity-70 group-hover:opacity-100 transition-opacity"
+                  onClick={() => handleCopy(c.value, c.id)}
+                  title="Copy value"
+                >
+                  {copiedId === c.id ? <CheckCircle2 size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                </Button>
+              </div>
+              <div className="bg-background/60 p-2 rounded-lg border border-border/60 flex justify-between items-center text-xs font-mono text-foreground">
+                <span className="truncate pr-2 font-semibold">{c.value}</span>
+                {c.unit && <span className="text-muted-foreground text-[11px] shrink-0">{c.unit}</span>}
+              </div>
+            </div>
+          ))}
       </div>
     </div>
   )
