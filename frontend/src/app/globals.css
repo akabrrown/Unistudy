@@ -280,3 +280,14 @@
   scroll-behavior: auto !important;
 }
 
+
+@layer base {
+  /* Hide scrollbars globally but keep scroll behavior */
+  * {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+  }
+  *::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/Opera */
+  }
+}
