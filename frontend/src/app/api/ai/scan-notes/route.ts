@@ -7,7 +7,23 @@ import {
 } from '../../../../../../shared/constants/aiModels';
 import { normalizeLatexMarkdown } from '../../../../../../shared/lib/latexNormalizer';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 const GEMINI_MODELS = [...GEMINI_CANDIDATE_MODELS];
+
+function buildScanModeInstruction(mode: string): string {
+  switch (mode) {
+    case 'equations':
+      return 'Prioritize mathematical equations, symbolic derivations, matrices, and step-by-step proofs. Format every multi-line step cleanly in $$...$$ blocks and preserve all subscripts, superscripts, and domain constraints.';
+    case 'tables':
+      return 'Prioritize tabular structures, comparison charts, and structured data lists. Convert all grid/columnar handwriting into valid GitHub Flavored Markdown (GFM) tables.';
+    case 'summary':
+      return 'Transcribe the handwritten notes faithfully first, then append a concise "## Key Exam Takeaways" section summarizing the core definitions and formulas visible on the page.';
+    default:
+      return 'Preserve the complete document hierarchy using Markdown headings (##, ###), bullet lists, GFM tables, and **bold** key terms.';
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +31,8 @@ export async function POST(req: NextRequest) {
     if (error) return error;
 
     const formData = await req.formData();
-    const file = formData.get('file') as File;
+    const file = formData.get('file') as File | null;
+    const mode = String(formData.get('mode') || 'full').trim();
 
     if (!file) {
       return NextResponse.json({ error: 'No image uploaded' }, { status: 400 });
@@ -25,13 +42,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Please upload a valid image' }, { status: 400 });
     }
 
-    // Convert file to base64
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const base64Image = buffer.toString('base64');
+    const mimeType = file.type === 'image/jpg' ? 'image/jpeg' : file.type || 'image/jpeg';
 
+    const modeDirective = buildScanModeInstruction(mode);
     const prompt = `You are an expert STEM & academic handwritten notes OCR assistant.
 Transcribe the attached study notes accurately into clean Markdown.
+MODE DIRECTIVE: ${modeDirective}
 RULES:
 1. Preserve structure using Markdown headings (##, ###), bullet lists, GFM tables, and **bold** terms.
 2. Wrap inline math strictly in single dollar signs ($...$) and multi-line/block formulas strictly in double dollar signs ($$...$$). Never use \\(...\\) or \\[...\\].
@@ -50,7 +69,7 @@ RULES:
           });
           const result = await model.generateContent([
             prompt,
-            { inlineData: { data: base64Image, mimeType: file.type } },
+            { inlineData: { data: base64Image, mimeType } },
           ]);
           transcription = result.response.text();
           if (transcription) break;
@@ -64,7 +83,11 @@ RULES:
     }
 
     if (!transcription && process.env.OPENROUTER_API_KEY) {
-      for (const model of OPENROUTER_CANDIDATE_MODELS) {
+      const visionModels = [
+        ...OPENROUTER_CANDIDATE_MODELS.filter((m) => m.startsWith('google/')),
+        ...OPENROUTER_CANDIDATE_MODELS.filter((m) => !m.startsWith('google/')),
+      ];
+      for (const model of visionModels) {
         try {
           const fallbackRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
@@ -82,12 +105,13 @@ RULES:
                     { type: 'text', text: prompt },
                     {
                       type: 'image_url',
-                      image_url: { url: `data:${file.type};base64,${base64Image}` },
+                      image_url: { url: `data:${mimeType};base64,${base64Image}` },
                     },
                   ],
                 },
               ],
             }),
+            signal: AbortSignal.timeout(15000),
           });
           if (fallbackRes.ok) {
             const data = await fallbackRes.json();

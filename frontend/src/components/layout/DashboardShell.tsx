@@ -37,12 +37,7 @@ import {
   Upload,
   Clock,
   Pin,
-  Flame,
-  TrendingUp,
-  AlertTriangle,
-  Cpu,
   Compass,
-  CheckCircle2,
 } from 'lucide-react';
 
 interface SubNavItem {
@@ -108,31 +103,16 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'Notes Scanner',
         href: '/dashboard/scanner',
         icon: Camera,
-        subItems: [
-          { label: 'Upload Image', href: '/dashboard/scanner#upload', icon: Upload },
-          { label: 'Digital Output', href: '/dashboard/scanner#output', icon: FileText },
-        ],
       },
       {
         label: 'Essay Grader',
         href: '/dashboard/essay-grader',
         icon: FileText,
-        subItems: [
-          { label: 'Essay & Prompt', href: '/dashboard/essay-grader#editor', icon: FileText },
-          { label: 'Grading Report', href: '/dashboard/essay-grader#rubric', icon: CheckCircle2 },
-        ],
       },
       {
         label: 'Analytics & Insights',
         href: '/dashboard/analytics',
         icon: LineChart,
-        subItems: [
-          { label: 'Study Heatmap', href: '/dashboard/analytics#heatmap', icon: Flame },
-          { label: 'Learning Velocity', href: '/dashboard/analytics#velocity', icon: TrendingUp },
-          { label: 'Peak Hours', href: '/dashboard/analytics#peak-hours', icon: Clock },
-          { label: 'Blind Spots', href: '/dashboard/analytics#blind-spots', icon: AlertTriangle },
-          { label: 'Provider Allowances', href: '/dashboard/analytics#allowances', icon: Cpu },
-        ],
       },
     ],
   },
@@ -145,8 +125,8 @@ const NAV_SECTIONS: NavSection[] = [
         icon: PlaySquare,
         color: 'text-red-500',
         subItems: [
-          { label: 'Discover Lectures', href: '/dashboard/youtube#discover', icon: Search },
-          { label: 'Pinned Library', href: '/dashboard/youtube#pinned', icon: Pin },
+          { label: 'Discover Lectures', href: '/dashboard/youtube', icon: Search },
+          { label: 'Pinned Library', href: '/dashboard/youtube/pinned', icon: Pin },
         ],
       },
     ],
@@ -271,7 +251,7 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
     }
     const [pathAndQuery, hash] = subHref.split('#');
     const [basePath, queryStr] = pathAndQuery.split('?');
-    if (pathname !== basePath && !pathname.startsWith(basePath + '/')) return false;
+    if (pathname !== basePath) return false;
     if (queryStr) {
       const expected = new URLSearchParams(queryStr);
       for (const [k, v] of expected.entries()) {

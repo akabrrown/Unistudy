@@ -192,17 +192,60 @@ export default function CalculatorPage() {
       setError('Please upload a valid PNG, JPEG, or WebP image.')
       return
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Image exceeds 5 MB. Please upload a smaller screenshot.')
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Image exceeds 10 MB. Please upload a smaller screenshot.')
       return
     }
     setError(null)
-    setImageMime(file.type)
     const reader = new FileReader()
     reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setImagePreview(reader.result)
+      const rawDataUrl = typeof reader.result === 'string' ? reader.result : null
+      if (!rawDataUrl) return
+
+      // Compress large images (>1 MB) or non-standard image MIME types via canvas
+      const isStandardMime = /^image\/(png|jpeg|jpg|webp|gif)$/i.test(file.type)
+      if (file.size <= 1_000_000 && isStandardMime) {
+        setImageMime(file.type === 'image/jpg' ? 'image/jpeg' : file.type)
+        setImagePreview(rawDataUrl)
+        return
       }
+
+      const img = new window.Image()
+      img.onload = () => {
+        try {
+          const maxDim = 1600
+          let width = img.naturalWidth || img.width
+          let height = img.naturalHeight || img.height
+          if (width > maxDim || height > maxDim) {
+            const ratio = Math.min(maxDim / width, maxDim / height)
+            width = Math.max(1, Math.round(width * ratio))
+            height = Math.max(1, Math.round(height * ratio))
+          }
+          const canvas = document.createElement('canvas')
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            setImageMime('image/jpeg')
+            setImagePreview(rawDataUrl)
+            return
+          }
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, width, height)
+          ctx.drawImage(img, 0, 0, width, height)
+          const compressed = canvas.toDataURL('image/jpeg', 0.85)
+          setImageMime('image/jpeg')
+          setImagePreview(compressed)
+        } catch {
+          setImageMime('image/jpeg')
+          setImagePreview(rawDataUrl)
+        }
+      }
+      img.onerror = () => {
+        setImageMime('image/jpeg')
+        setImagePreview(rawDataUrl)
+      }
+      img.src = rawDataUrl
     }
     reader.readAsDataURL(file)
   }

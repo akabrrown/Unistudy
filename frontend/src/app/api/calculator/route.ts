@@ -23,23 +23,39 @@ const CalculatorRequestSchema = z
     problem: z.string().trim().max(12000).optional(),
     subject: z.string().trim().max(100).optional().default('Mathematics'),
     level: z.string().trim().max(100).optional().default('Undergraduate'),
-    imageBase64: z.string().max(8_000_000).optional(),
-    mimeType: z
-      .string()
-      .regex(/^image\/(png|jpeg|jpg|webp|gif)$/i)
-      .optional(),
+    imageBase64: z.string().max(12_000_000).optional(),
+    mimeType: z.string().max(100).optional(),
   })
   .refine(
     (val) => Boolean(val.problem?.trim()) || Boolean(val.imageBase64),
     'Please enter a math question or upload an image.'
   )
 
+function normalizeVisionMimeType(rawMime?: string): string {
+  const lower = (rawMime || '').trim().toLowerCase()
+  if (lower === 'image/jpg' || lower === 'image/jpeg') return 'image/jpeg'
+  if (lower === 'image/png') return 'image/png'
+  if (lower === 'image/webp') return 'image/webp'
+  if (lower === 'image/gif') return 'image/gif'
+  return 'image/jpeg'
+}
+
 function stripDataUrlPrefix(input: string): { mimeType: string; data: string } {
-  const match = input.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/)
-  if (match) {
-    return { mimeType: match[1], data: match[2] }
+  const trimmed = input.trim()
+  const marker = ';base64,'
+  const markerIdx = trimmed.indexOf(marker)
+  if (trimmed.startsWith('data:') && markerIdx !== -1) {
+    const rawMime = trimmed.slice(5, markerIdx)
+    const rawData = trimmed.slice(markerIdx + marker.length).replace(/\s+/g, '')
+    return {
+      mimeType: normalizeVisionMimeType(rawMime),
+      data: rawData,
+    }
   }
-  return { mimeType: 'image/png', data: input }
+  return {
+    mimeType: 'image/jpeg',
+    data: trimmed.replace(/\s+/g, ''),
+  }
 }
 
 async function handler(req: Request) {
@@ -94,9 +110,9 @@ async function handler(req: Request) {
       try {
         if (imageBase64) {
           const img = stripDataUrlPrefix(imageBase64)
-          const effectiveMime = mimeType || img.mimeType
+          const effectiveMime = normalizeVisionMimeType(mimeType || img.mimeType)
 
-          // 1. Gemini Vision Streaming
+          // 1. Gemini Vision (stream first, non-stream fallback if stream fails)
           if (!fullText && process.env.GEMINI_API_KEY) {
             const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
             for (const modelName of GEMINI_CANDIDATE_MODELS) {
@@ -105,24 +121,37 @@ async function handler(req: Request) {
                   model: modelName,
                   generationConfig: { temperature: 0.15, maxOutputTokens: 3000 },
                 })
-                const streamRes = await model.generateContentStream([
+                const parts = [
                   promptText,
                   { inlineData: { data: img.data, mimeType: effectiveMime } },
-                ])
-                for await (const chunk of streamRes.stream) {
-                  emitDelta(chunk.text())
+                ]
+                try {
+                  const streamRes = await model.generateContentStream(parts)
+                  for await (const chunk of streamRes.stream) {
+                    emitDelta(chunk.text())
+                  }
+                } catch {
+                  const nonStreamRes = await model.generateContent(parts)
+                  emitDelta(nonStreamRes.response.text())
                 }
                 if (fullText.trim()) break
               } catch (err) {
-                console.warn(`[Calculator] Gemini vision ${modelName} failed:`, err instanceof Error ? err.message : err)
+                console.warn(
+                  `[Calculator] Gemini vision ${modelName} failed:`,
+                  err instanceof Error ? err.message : err
+                )
               }
             }
           }
 
-          // 2. OpenRouter Vision fallback
+          // 2. OpenRouter Vision fallback (vision-capable Gemini models first)
           if (!fullText && process.env.OPENROUTER_API_KEY) {
             const dataUrl = `data:${effectiveMime};base64,${img.data}`
-            for (const model of OPENROUTER_CANDIDATE_MODELS) {
+            const visionModels = [
+              ...OPENROUTER_CANDIDATE_MODELS.filter((m) => m.startsWith('google/')),
+              ...OPENROUTER_CANDIDATE_MODELS.filter((m) => !m.startsWith('google/')),
+            ]
+            for (const model of visionModels) {
               try {
                 const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                   method: 'POST',
@@ -144,6 +173,7 @@ async function handler(req: Request) {
                       },
                     ],
                   }),
+                  signal: AbortSignal.timeout(15000),
                 })
                 if (res.ok) {
                   const data = await res.json()
@@ -154,11 +184,17 @@ async function handler(req: Request) {
                   }
                 }
               } catch (err) {
-                console.warn(`[Calculator] OpenRouter vision ${model} failed:`, err instanceof Error ? err.message : err)
+                console.warn(
+                  `[Calculator] OpenRouter vision ${model} failed:`,
+                  err instanceof Error ? err.message : err
+                )
               }
             }
           }
-        } else {
+        }
+
+        // Text-based solver (or fallback when problem text was also provided alongside an image)
+        if (!fullText.trim() && (!imageBase64 || problem.trim())) {
           // 1. Groq Streaming (low temperature for algebraic fidelity)
           if (process.env.GROQ_API_KEY) {
             const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
@@ -176,7 +212,10 @@ async function handler(req: Request) {
                 }
                 if (fullText.trim()) break
               } catch (err) {
-                console.warn(`[Calculator] Groq ${model} failed:`, err instanceof Error ? err.message : err)
+                console.warn(
+                  `[Calculator] Groq ${model} failed:`,
+                  err instanceof Error ? err.message : err
+                )
               }
             }
           }
@@ -196,7 +235,10 @@ async function handler(req: Request) {
                 }
                 if (fullText.trim()) break
               } catch (err) {
-                console.warn(`[Calculator] Gemini ${modelName} failed:`, err instanceof Error ? err.message : err)
+                console.warn(
+                  `[Calculator] Gemini ${modelName} failed:`,
+                  err instanceof Error ? err.message : err
+                )
               }
             }
           }
@@ -217,6 +259,7 @@ async function handler(req: Request) {
                     max_tokens: 3000,
                     messages: [{ role: 'user', content: promptText }],
                   }),
+                  signal: AbortSignal.timeout(12000),
                 })
                 if (res.ok) {
                   const data = await res.json()
@@ -227,7 +270,10 @@ async function handler(req: Request) {
                   }
                 }
               } catch (err) {
-                console.warn(`[Calculator] OpenRouter ${model} failed:`, err instanceof Error ? err.message : err)
+                console.warn(
+                  `[Calculator] OpenRouter ${model} failed:`,
+                  err instanceof Error ? err.message : err
+                )
               }
             }
           }
@@ -239,7 +285,9 @@ async function handler(req: Request) {
         }
 
         if (!fullText.trim()) {
-          sendObj({ error: 'Unable to solve this problem right now. Please retry or check your input.' })
+          sendObj({
+            error: 'Unable to solve this problem right now. Please retry or check your input.',
+          })
         } else {
           sendObj({ finalText: sanitizeMathResponse(fullText) })
         }
