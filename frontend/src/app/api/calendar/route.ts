@@ -7,6 +7,7 @@ const EventSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD'),
   type: z.enum(['exam', 'assignment', 'session']),
+  time: z.string().max(20).optional(),
 });
 
 const UpdateEventSchema = z.object({
@@ -14,6 +15,7 @@ const UpdateEventSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD').optional(),
   type: z.enum(['exam', 'assignment', 'session']).optional(),
+  time: z.string().max(20).optional(),
 });
 
 export async function GET(req: NextRequest) {

@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 interface CalendarEvent {
   id: string;
   title: string;
-  type: 'exam' | 'assignment' | 'study';
+  type: 'exam' | 'assignment' | 'session' | 'study';
   date: string;
   course_code?: string;
   description?: string;
@@ -32,17 +32,19 @@ export default function StudyCalendarScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filterType, setFilterType] = useState<string>('all');
 
-  // Modal State
+  // Modal State (Add & Edit)
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventTitle, setEventTitle] = useState('');
-  const [eventType, setEventType] = useState<'exam' | 'assignment' | 'study'>('exam');
+  const [eventType, setEventType] = useState<'exam' | 'assignment' | 'session'>('exam');
   const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0]);
   const [eventCourse, setEventCourse] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const fetchEvents = useCallback(async () => {
     try {
-      const data = await apiFetch('/calendar/events');
+      const res = await apiFetch('/calendar');
+      const data = res?.events || res;
       if (Array.isArray(data)) {
         setEvents(data);
       } else {
@@ -52,21 +54,21 @@ export default function StudyCalendarScreen() {
             id: 'ev-1',
             title: 'Computer Architecture Mid-Semester Exam',
             type: 'exam',
-            date: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
+            date: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             course_code: 'CPEN 201',
           },
           {
             id: 'ev-2',
             title: 'Algorithm Analysis Problem Set 3 Due',
             type: 'assignment',
-            date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             course_code: 'CSCD 205',
           },
           {
             id: 'ev-3',
             title: 'Database Systems Group Revision',
-            type: 'study',
-            date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+            type: 'session',
+            date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             course_code: 'CSCD 301',
           },
         ]);
@@ -77,14 +79,14 @@ export default function StudyCalendarScreen() {
           id: 'ev-1',
           title: 'Computer Architecture Mid-Semester Exam',
           type: 'exam',
-          date: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
+          date: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           course_code: 'CPEN 201',
         },
         {
           id: 'ev-2',
           title: 'Algorithm Analysis Problem Set 3 Due',
           type: 'assignment',
-          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           course_code: 'CSCD 205',
         },
       ]);
@@ -103,7 +105,26 @@ export default function StudyCalendarScreen() {
     fetchEvents();
   };
 
-  const handleCreateEvent = async () => {
+  const openAddModal = () => {
+    setEditingEventId(null);
+    setEventTitle('');
+    setEventType('exam');
+    setEventDate(new Date().toISOString().split('T')[0]);
+    setEventCourse('');
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (ev: CalendarEvent) => {
+    setEditingEventId(ev.id);
+    setEventTitle(ev.title);
+    setEventType(ev.type === 'study' ? 'session' : (ev.type as any));
+    const cleanDate = ev.date ? ev.date.split('T')[0] : new Date().toISOString().split('T')[0];
+    setEventDate(cleanDate);
+    setEventCourse(ev.course_code || '');
+    setIsModalOpen(true);
+  };
+
+  const handleSaveEvent = async () => {
     if (!eventTitle.trim()) {
       Alert.alert('Required', 'Please enter an event title.');
       return;
@@ -111,20 +132,59 @@ export default function StudyCalendarScreen() {
 
     setIsSaving(true);
     try {
-      const payload = {
-        title: eventTitle.trim(),
-        type: eventType,
-        date: eventDate,
-        course_code: eventCourse.trim().toUpperCase() || undefined,
-      };
+      if (editingEventId) {
+        // Update existing event via PUT /calendar
+        const payload = {
+          id: editingEventId,
+          title: eventTitle.trim(),
+          type: eventType,
+          date: eventDate,
+        };
 
-      const newEv = await apiFetch('/calendar/events', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+        const res = await apiFetch('/calendar', {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
 
-      setEvents(prev => [newEv, ...prev]);
+        const updated = res?.event || {
+          id: editingEventId,
+          title: eventTitle.trim(),
+          type: eventType,
+          date: eventDate,
+          course_code: eventCourse.trim().toUpperCase() || undefined,
+        };
+
+        setEvents(prev =>
+          prev.map(item => (item.id === editingEventId ? { ...item, ...updated } : item))
+        );
+        Alert.alert('Updated', 'Calendar event has been updated.');
+      } else {
+        // Create new event via POST /calendar
+        const payload = {
+          title: eventTitle.trim(),
+          type: eventType,
+          date: eventDate,
+        };
+
+        const res = await apiFetch('/calendar', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+
+        const newEv = res?.event || {
+          id: 'ev-' + Date.now(),
+          title: eventTitle.trim(),
+          type: eventType,
+          date: eventDate,
+          course_code: eventCourse.trim().toUpperCase() || undefined,
+        };
+
+        setEvents(prev => [newEv, ...prev]);
+        Alert.alert('Created', 'Event added to calendar.');
+      }
+
       setIsModalOpen(false);
+      setEditingEventId(null);
       setEventTitle('');
       setEventCourse('');
     } catch (e: any) {
@@ -132,6 +192,30 @@ export default function StudyCalendarScreen() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleDeleteEvent = (id: string, title: string) => {
+    Alert.alert(
+      'Delete Event',
+      `Are you sure you want to remove "${title}" from your study calendar?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const previous = [...events];
+            setEvents(prev => prev.filter(e => e.id !== id));
+            try {
+              await apiFetch(`/calendar?id=${id}`, { method: 'DELETE' });
+            } catch (err: any) {
+              setEvents(previous);
+              Alert.alert('Error', err.message || 'Could not delete event.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getDaysRemaining = (dateStr: string) => {
@@ -166,7 +250,7 @@ export default function StudyCalendarScreen() {
 
           <TouchableOpacity
             style={[styles.addBtn, { backgroundColor: colors.primaryViolet }]}
-            onPress={() => setIsModalOpen(true)}
+            onPress={openAddModal}
           >
             <Ionicons name="add" size={18} color="#FFFFFF" style={{ marginRight: 4 }} />
             <Text style={styles.addBtnText}>Schedule</Text>
@@ -249,14 +333,35 @@ export default function StudyCalendarScreen() {
                     </View>
 
                     <Text style={[styles.eventTitle, { color: colors.textPrimary }]}>{ev.title}</Text>
-                    <Text style={[styles.eventDateText, { color: colors.textMuted }]}>
-                      {new Date(ev.date).toLocaleDateString(undefined, {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </Text>
+                    
+                    <View style={styles.eventBottomRow}>
+                      <Text style={[styles.eventDateText, { color: colors.textMuted }]}>
+                        {new Date(ev.date).toLocaleDateString(undefined, {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </Text>
+
+                      <View style={styles.cardActionsRow}>
+                        <TouchableOpacity
+                          style={[styles.actionIconBtn, { backgroundColor: colors.bgSubtle }]}
+                          onPress={() => openEditModal(ev)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="pencil-outline" size={15} color={colors.primaryViolet} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.actionIconBtn, { backgroundColor: '#EF444415' }]}
+                          onPress={() => handleDeleteEvent(ev.id, ev.title)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="trash-outline" size={15} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </View>
                 </View>
               );
@@ -265,12 +370,14 @@ export default function StudyCalendarScreen() {
         )}
       </ScrollView>
 
-      {/* Add Event Modal */}
+      {/* Add / Edit Event Modal */}
       <Modal visible={isModalOpen} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.bgCard }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Schedule Exam or Task</Text>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
+                {editingEventId ? 'Edit Scheduled Event' : 'Schedule Exam or Task'}
+              </Text>
               <TouchableOpacity onPress={() => setIsModalOpen(false)}>
                 <Ionicons name="close-circle" size={26} color={colors.textMuted} />
               </TouchableOpacity>
@@ -289,24 +396,12 @@ export default function StudyCalendarScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.textPrimary }]}>Associated Course Code</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.bgInput, borderColor: colors.border, color: colors.textPrimary }]}
-                  placeholder="e.g. CPEN 201"
-                  placeholderTextColor={colors.textMuted}
-                  value={eventCourse}
-                  onChangeText={setEventCourse}
-                  autoCapitalize="characters"
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.textPrimary }]}>Event Type</Text>
+                <Text style={[styles.label, { color: colors.textPrimary }]}>Event Category</Text>
                 <View style={styles.typeSelectorRow}>
                   {[
                     { id: 'exam', label: 'Exam' },
                     { id: 'assignment', label: 'Assignment' },
-                    { id: 'study', label: 'Revision' },
+                    { id: 'session', label: 'Study Session' },
                   ].map(t => {
                     const active = eventType === t.id;
                     return (
@@ -321,7 +416,7 @@ export default function StudyCalendarScreen() {
                         ]}
                         onPress={() => setEventType(t.id as any)}
                       >
-                        <Text style={{ color: active ? '#FFFFFF' : colors.textPrimary, fontWeight: '700' }}>
+                        <Text style={{ color: active ? '#FFFFFF' : colors.textPrimary, fontWeight: '700', fontSize: 12 }}>
                           {t.label}
                         </Text>
                       </TouchableOpacity>
@@ -343,13 +438,15 @@ export default function StudyCalendarScreen() {
 
               <TouchableOpacity
                 style={[styles.saveEventBtn, { backgroundColor: colors.primaryViolet }]}
-                onPress={handleCreateEvent}
+                onPress={handleSaveEvent}
                 disabled={isSaving}
               >
                 {isSaving ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.saveEventBtnText}>Add to Calendar</Text>
+                  <Text style={styles.saveEventBtnText}>
+                    {editingEventId ? 'Save Changes' : 'Save to Calendar'}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -536,6 +633,24 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 15,
+  },
+  eventBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  cardActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

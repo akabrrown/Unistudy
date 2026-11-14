@@ -1,12 +1,15 @@
 'use client';
-import { useState } from 'react';
-import { Calendar as CalendarIcon, Clock } from 'lucide-react';
+
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Calendar as CalendarIcon, Clock, Loader2 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { toast } from 'react-hot-toast';
+import { toast } from 'sonner';
 
 export function ExamScheduler({ onSchedule }: { onSchedule?: () => void }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
@@ -15,33 +18,38 @@ export function ExamScheduler({ onSchedule }: { onSchedule?: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !date || !time) return;
+    if (!title.trim() || !date) {
+      toast.error('Please enter exam title and date');
+      return;
+    }
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/courses/calendar-events`, {
+      const res = await fetch('/api/calendar', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title,
+          title: title.trim(),
           date,
-          time,
-          type: 'exam'
-        })
+          time: time || undefined,
+          type: 'exam',
+        }),
       });
-      
-      toast.success('Exam scheduled! We will check in with you the day before.');
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to schedule exam');
+      }
+
+      toast.success('Exam scheduled! Countdown added to your study dashboard.');
       setOpen(false);
       setTitle('');
       setDate('');
       setTime('');
       if (onSchedule) onSchedule();
-    } catch (err) {
-      toast.error('Failed to schedule exam');
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to schedule exam');
     } finally {
       setLoading(false);
     }
@@ -58,42 +66,45 @@ export function ExamScheduler({ onSchedule }: { onSchedule?: () => void }) {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Exam Name</label>
+            <label className="text-sm font-medium">Exam / Course Title</label>
             <Input 
-              placeholder="e.g. Calculus Midterm" 
+              placeholder="e.g. MATH 201 Midterm Examination" 
               value={title} 
-              onChange={e => setTitle(e.target.value)}
-              required 
+              onChange={(e) => setTitle(e.target.value)}
+              required
             />
           </div>
+          
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <CalendarIcon className="w-4 h-4" /> Date
-              </label>
+              <label className="text-sm font-medium">Exam Date</label>
               <Input 
                 type="date" 
                 value={date} 
-                onChange={e => setDate(e.target.value)}
+                onChange={(e) => setDate(e.target.value)}
                 min={new Date().toISOString().split('T')[0]}
-                required 
+                required
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <Clock className="w-4 h-4" /> Time
-              </label>
+              <label className="text-sm font-medium">Time (Optional)</label>
               <Input 
                 type="time" 
                 value={time} 
-                onChange={e => setTime(e.target.value)}
-                required 
+                onChange={(e) => setTime(e.target.value)}
               />
             </div>
           </div>
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Saving...' : 'Save Exam'}
-          </Button>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading} className="bg-primary">
+              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Schedule Exam
+            </Button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

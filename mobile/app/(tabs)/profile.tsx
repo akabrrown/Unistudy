@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,17 +7,67 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
+  Modal,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../lib/AuthContext';
 import { useSettings, ModelTier } from '../../lib/SettingsContext';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../lib/supabase';
+
+const ACADEMIC_LEVELS = [
+  { value: 1, label: 'Year 1 (100)' },
+  { value: 2, label: 'Year 2 (200)' },
+  { value: 3, label: 'Year 3 (300)' },
+  { value: 4, label: 'Year 4 (400)' },
+  { value: 5, label: 'Year 5' },
+  { value: 6, label: 'Year 6+' },
+] as const;
 
 export default function ProfileScreen() {
-  const { profile, logout } = useAuth();
+  const { profile, logout, refreshProfile } = useAuth();
   const { settings, colors, updateSettings } = useSettings();
   const router = useRouter();
+
+  // Academic Settings Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedYear, setSelectedYear] = useState<number>(profile?.year_of_study || 1);
+  const [degreeProgramme, setDegreeProgramme] = useState(profile?.degree_programme || '');
+  const [isSavingAcademic, setIsSavingAcademic] = useState(false);
+
+  const openAcademicModal = () => {
+    setSelectedYear(profile?.year_of_study || 1);
+    setDegreeProgramme(profile?.degree_programme || '');
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveAcademic = async () => {
+    if (!profile?.id) return;
+    setIsSavingAcademic(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          year_of_study: selectedYear,
+          degree_programme: degreeProgramme.trim() || null,
+        })
+        .eq('id', profile.id);
+
+      if (error) throw error;
+      await refreshProfile();
+      setIsEditModalOpen(false);
+      Alert.alert('Saved', 'Academic level updated successfully.');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to update academic profile.');
+    } finally {
+      setIsSavingAcademic(false);
+    }
+  };
+
+  const currentLevelLabel = ACADEMIC_LEVELS.find(l => l.value === (profile?.year_of_study || 1))?.label || `Year ${profile?.year_of_study || 1}`;
 
   const handleLogout = () => {
     Alert.alert(
@@ -69,11 +119,27 @@ export default function ProfileScreen() {
             </View>
           )}
 
-          {profile?.degree_programme && (
-            <Text style={[styles.programmeText, { color: colors.textMuted }]}>
-              {profile.degree_programme} • Year {profile.year_of_study || 1}
-            </Text>
-          )}
+          {/* Academic Level Info Strip */}
+          <View style={[styles.academicBox, { backgroundColor: colors.bgSubtle, borderColor: colors.border }]}>
+            <View style={styles.academicRow}>
+              <View>
+                <Text style={[styles.academicSub, { color: colors.textSecondary }]}>Academic Level</Text>
+                <Text style={[styles.academicVal, { color: colors.textPrimary }]}>{currentLevelLabel}</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.editAcademicBtn, { backgroundColor: colors.primaryViolet + '20', borderColor: colors.primaryViolet + '40' }]}
+                onPress={openAcademicModal}
+              >
+                <Ionicons name="pencil" size={13} color={colors.primaryViolet} style={{ marginRight: 4 }} />
+                <Text style={[styles.editAcademicText, { color: colors.primaryViolet }]}>Change</Text>
+              </TouchableOpacity>
+            </View>
+            {profile?.degree_programme ? (
+              <Text style={[styles.programmeText, { color: colors.textMuted }]}>
+                {profile.degree_programme}
+              </Text>
+            ) : null}
+          </View>
         </View>
 
         {/* AI Model Intelligence Tier */}
@@ -192,6 +258,87 @@ export default function ProfileScreen() {
           <Text style={[styles.logoutText, { color: colors.error }]}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Edit Academic Details Modal */}
+      <Modal visible={isEditModalOpen} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.bgCard }]}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Academic Settings</Text>
+                <Text style={[styles.modalSub, { color: colors.textSecondary }]}>Select your current university level</Text>
+              </View>
+              <TouchableOpacity onPress={() => setIsEditModalOpen(false)}>
+                <Ionicons name="close-circle" size={26} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>Academic Level</Text>
+              <View style={styles.levelOptionsWrap}>
+                {ACADEMIC_LEVELS.map(lvl => {
+                  const isSelected = selectedYear === lvl.value;
+                  return (
+                    <TouchableOpacity
+                      key={lvl.value}
+                      style={[
+                        styles.levelChoice,
+                        {
+                          backgroundColor: isSelected ? colors.primaryViolet + '20' : colors.bgSubtle,
+                          borderColor: isSelected ? colors.primaryViolet : colors.border,
+                        },
+                      ]}
+                      onPress={() => setSelectedYear(lvl.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.levelChoiceText,
+                          { color: isSelected ? colors.primaryViolet : colors.textPrimary, fontWeight: isSelected ? '700' : '500' },
+                        ]}
+                      >
+                        {lvl.label}
+                      </Text>
+                      {isSelected ? (
+                        <Ionicons name="checkmark-circle" size={18} color={colors.primaryViolet} />
+                      ) : null}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={[styles.fieldLabel, { color: colors.textPrimary, marginTop: 14 }]}>Degree Programme</Text>
+              <TextInput
+                style={[styles.programmeInput, { backgroundColor: colors.bgInput, borderColor: colors.border, color: colors.textPrimary }]}
+                value={degreeProgramme}
+                onChangeText={setDegreeProgramme}
+                placeholder="e.g. BSc Computer Science"
+                placeholderTextColor={colors.textMuted}
+              />
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.cancelBtn, { borderColor: colors.border }]}
+                onPress={() => setIsEditModalOpen(false)}
+              >
+                <Text style={[styles.cancelBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.saveBtn, { backgroundColor: colors.primaryViolet }]}
+                onPress={handleSaveAcademic}
+                disabled={isSavingAcademic}
+              >
+                {isSavingAcademic ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Save Changes</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -314,6 +461,133 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     fontSize: 16,
+    fontWeight: '700',
+  },
+  academicBox: {
+    width: '100%',
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    marginTop: 10,
+  },
+  academicRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  academicSub: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  academicVal: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  editAcademicBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  editAcademicText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    borderRadius: 24,
+    padding: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#88888830',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  modalSub: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  modalBody: {
+    marginVertical: 4,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  levelOptionsWrap: {
+    gap: 8,
+  },
+  levelChoice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  levelChoiceText: {
+    fontSize: 14,
+  },
+  programmeInput: {
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    marginBottom: 10,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 14,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#88888830',
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  saveBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: '700',
   },
 });

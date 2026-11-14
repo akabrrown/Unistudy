@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../lib/AuthContext';
 import { useSettings } from '../../lib/SettingsContext';
 import { apiFetch } from '../../lib/api';
+import { supabase } from '../../lib/supabase';
 import { getCuratedDailyQuote } from '../../lib/constants/quotes';
 import { resolveCourseColor } from '../../lib/constants/courses';
 import { OfflineManager } from '../../lib/offline';
@@ -35,20 +36,41 @@ export default function DashboardScreen() {
     try {
       const [coursesRes, examsRes] = await Promise.allSettled([
         apiFetch('/courses'),
-        apiFetch('/calendar/events?type=exam&limit=4'),
+        apiFetch('/calendar?type=exam&limit=4'),
       ]);
 
       if (coursesRes.status === 'fulfilled' && Array.isArray(coursesRes.value)) {
         setCourses(coursesRes.value);
         OfflineManager.cacheCourses(coursesRes.value);
       } else {
-        // Fallback to offline cache
         const cached = await OfflineManager.getCachedCourses();
-        if (cached.length > 0) setCourses(cached);
+        if (cached.length > 0) {
+          setCourses(cached);
+        } else {
+          const { data: directCourses } = await supabase
+            .from('courses')
+            .select('*, lectures(id, title)')
+            .order('created_at', { ascending: false });
+          if (Array.isArray(directCourses)) {
+            setCourses(directCourses);
+            OfflineManager.cacheCourses(directCourses);
+          }
+        }
       }
 
       if (examsRes.status === 'fulfilled' && Array.isArray(examsRes.value)) {
         setUpcomingExams(examsRes.value);
+      } else {
+        const { data: directExams } = await supabase
+          .from('calendar_events')
+          .select('*')
+          .eq('type', 'exam')
+          .gte('date', new Date().toISOString().split('T')[0])
+          .order('date', { ascending: true })
+          .limit(4);
+        if (Array.isArray(directExams)) {
+          setUpcomingExams(directExams);
+        }
       }
     } catch (err) {
       console.warn('Dashboard fetch error:', err);
@@ -182,6 +204,26 @@ export default function DashboardScreen() {
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Knowledge Points</Text>
           </View>
         </View>
+
+        {/* Recent Lectures & Decks Quick Link */}
+        <TouchableOpacity
+          style={[styles.lecturesHeroCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
+          onPress={() => router.push('/lectures')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.lecturesHeroContent}>
+            <View style={[styles.lecturesIconBadge, { backgroundColor: colors.primaryViolet + '20' }]}>
+              <Ionicons name="easel-outline" size={24} color={colors.primaryViolet} />
+            </View>
+            <View style={styles.lecturesTextWrap}>
+              <Text style={[styles.lecturesHeroTitle, { color: colors.textPrimary }]}>Recent Lectures & Decks</Text>
+              <Text style={[styles.lecturesHeroSubtitle, { color: colors.textSecondary }]}>
+                Browse slides, study presentations, and review course notes
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </View>
+        </TouchableOpacity>
 
         {/* Quick Action Tools */}
         <View style={styles.sectionHeader}>
@@ -465,6 +507,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
     marginTop: 4,
+  },
+  lecturesHeroCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 16,
+  },
+  lecturesHeroContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  lecturesIconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  lecturesTextWrap: {
+    flex: 1,
+  },
+  lecturesHeroTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  lecturesHeroSubtitle: {
+    fontSize: 12,
+    lineHeight: 16,
   },
   sectionTitle: {
     fontSize: 18,

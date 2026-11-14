@@ -50,6 +50,14 @@ export default function ToolsScreen() {
       route: '/essay-grader',
     },
     {
+      id: 'lectures',
+      title: 'Recent Lectures & Decks',
+      description: 'Explore lecture slides, presentations, and structured study decks across your university courses.',
+      icon: 'easel-outline',
+      color: '#8C52FF',
+      route: '/lectures',
+    },
+    {
       id: 'calendar',
       title: 'Study Calendar & Exams',
       description: 'Plan exam countdowns, assignment due dates, and study sessions with push reminders.',

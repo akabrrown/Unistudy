@@ -79,6 +79,7 @@ export interface DashboardCalendarItem {
   title: string;
   date: string;
   type: 'exam' | 'assignment' | 'session';
+  time?: string;
   course_id?: string | null;
 }
 

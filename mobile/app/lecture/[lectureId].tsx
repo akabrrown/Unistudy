@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -34,6 +34,16 @@ export default function LectureViewerScreen() {
   const [slides, setSlides] = useState<Slide[]>([]);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const filmstripRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (filmstripRef.current && slides.length > 0) {
+      filmstripRef.current.scrollTo({
+        x: Math.max(0, currentSlideIndex * 68 - 120),
+        animated: true,
+      });
+    }
+  }, [currentSlideIndex, slides.length]);
 
   // AI Tutor & Explanation State
   const [explanation, setExplanation] = useState<string | null>(null);
@@ -217,6 +227,69 @@ export default function LectureViewerScreen() {
             >
               <Ionicons name="chevron-forward" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
+          </View>
+
+          {/* Horizontal Slide Filmstrip / Carousel */}
+          <View style={[styles.filmstripContainer, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}>
+            <ScrollView
+              ref={filmstripRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filmstripScroll}
+            >
+              {slides.map((s, idx) => {
+                const isActive = idx === currentSlideIndex;
+                return (
+                  <TouchableOpacity
+                    key={s.id || idx}
+                    style={[
+                      styles.filmstripItem,
+                      {
+                        backgroundColor: isActive ? colors.primaryViolet + '18' : colors.bgSubtle,
+                        borderColor: isActive ? colors.primaryViolet : colors.border,
+                        borderWidth: isActive ? 2 : 1,
+                      },
+                    ]}
+                    onPress={() => setCurrentSlideIndex(idx)}
+                    activeOpacity={0.7}
+                  >
+                    {s.image_url ? (
+                      <Image
+                        source={{ uri: s.image_url }}
+                        style={styles.filmstripThumb}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.filmstripPlaceholder}>
+                        <Ionicons
+                          name="document-text-outline"
+                          size={16}
+                          color={isActive ? colors.primaryViolet : colors.textMuted}
+                        />
+                      </View>
+                    )}
+                    <View
+                      style={[
+                        styles.filmstripBadge,
+                        {
+                          backgroundColor: isActive ? colors.primaryViolet : colors.bgCard,
+                          borderColor: isActive ? colors.primaryViolet : colors.border,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.filmstripBadgeText,
+                          { color: isActive ? '#FFFFFF' : colors.textSecondary },
+                        ]}
+                      >
+                        {idx + 1}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
 
           {/* Mode Switcher Tabs */}
@@ -635,6 +708,46 @@ const styles = StyleSheet.create({
     minHeight: 180,
     fontSize: 15,
     lineHeight: 22,
+  },
+  filmstripContainer: {
+    borderBottomWidth: 1,
+    paddingVertical: 8,
+  },
+  filmstripScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  filmstripItem: {
+    width: 64,
+    height: 48,
+    borderRadius: 10,
+    overflow: 'hidden',
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filmstripThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  filmstripPlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filmstripBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 0.5,
+  },
+  filmstripBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
   },
 });
 

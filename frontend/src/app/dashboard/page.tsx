@@ -59,14 +59,17 @@ interface CalendarRow {
   title: string;
   date: string;
   type: 'exam' | 'assignment' | 'session';
-  course_id: string | null;
+  time?: string | null;
+  course_id?: string | null;
 }
 
 interface StudySessionRow {
   id: string;
-  duration_minutes: number | null;
-  created_at: string | null;
-  start_time: string | null;
+  duration_secs?: number | null;
+  duration_minutes?: number | null;
+  session_date?: string | null;
+  created_at?: string | null;
+  start_time?: string | null;
 }
 
 interface QuizAttemptRow {
@@ -188,16 +191,16 @@ export default async function DashboardPage() {
         .eq('user_id', user.id),
       supabase
         .from('calendar_events')
-        .select('id, title, date, type, course_id')
+        .select('id, title, date, type, time')
         .eq('user_id', user.id)
         .gte('date', todayStr)
         .order('date', { ascending: true })
         .limit(8),
       supabase
         .from('study_sessions')
-        .select('id, duration_minutes, created_at, start_time')
+        .select('id, duration_secs, session_date')
         .eq('user_id', user.id)
-        .gte('created_at', startOf28Iso),
+        .gte('session_date', startOf28Days.toISOString().split('T')[0]),
       supabase
         .from('quiz_attempts')
         .select('id, lecture_id, score, total, completed_at')
@@ -405,8 +408,10 @@ export default async function DashboardPage() {
   let weeklySessions = 0;
 
   for (const s of rawSessions) {
-    const ts = s.created_at || s.start_time;
-    const dur = Math.max(0, Number(s.duration_minutes || 25));
+    const ts = s.session_date || s.created_at || s.start_time || null;
+    const dur = s.duration_secs
+      ? Math.round(s.duration_secs / 60)
+      : Math.max(0, Number(s.duration_minutes || 25));
     addPoints(ts, Math.max(15, Math.floor(dur)));
     if (ts && new Date(ts).getTime() >= sevenDaysAgoMs) {
       weeklyMinutes += dur;
@@ -506,7 +511,8 @@ export default async function DashboardPage() {
     title: e.title,
     date: e.date,
     type: e.type,
-    course_id: e.course_id,
+    time: e.time || undefined,
+    course_id: e.course_id || null,
   }));
 
   const pinnedVideos: DashboardPinnedVideoItem[] = rawPinnedVideos.map((v) => ({
