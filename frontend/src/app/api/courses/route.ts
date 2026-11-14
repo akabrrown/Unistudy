@@ -25,7 +25,7 @@ export async function GET() {
 
     let { data, error } = await supabase
       .from('courses')
-      .select('*, lectures(id, title), past_papers(id, title, year, exam_type, status)')
+      .select('*, lectures(id, title, week, slide_count, created_at), past_papers(id, title, year, exam_type, status)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 

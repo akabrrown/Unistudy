@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Search, Copy, CheckCircle2, Bot, Calculator, Sparkles, Loader2 } from 'lucide-react'
+import { Search, Copy, CheckCircle2, Bot, Calculator, Atom, Loader2, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 export type Constant = {
@@ -13,8 +13,30 @@ export type Constant = {
   value: string
   unit: string
   subject: string
-  expr?: string
+  expr: string
 }
+
+// Fundamental scientific symbols that MathJS natively evaluates
+const DYNAMIC_MATHJS_SYMBOLS = [
+  { id: 'c', name: 'Speed of Light in Vacuum', symbol: 'c', expr: 'speedOfLight', subject: 'Physics' },
+  { id: 'h', name: 'Planck Constant', symbol: 'h', expr: 'planckConstant', subject: 'Physics' },
+  { id: 'hbar', name: 'Reduced Planck Constant (Dirac)', symbol: 'ħ', expr: 'reducedPlanckConstant', subject: 'Physics' },
+  { id: 'G', name: 'Gravitational Constant', symbol: 'G', expr: 'gravitationConstant', subject: 'Physics' },
+  { id: 'N_A', name: 'Avogadro Constant', symbol: 'N_A', expr: 'avogadro', subject: 'Chemistry' },
+  { id: 'R', name: 'Molar Gas Constant', symbol: 'R', expr: 'gasConstant', subject: 'Chemistry' },
+  { id: 'eps_0', name: 'Vacuum Electric Permittivity', symbol: 'ε₀', expr: 'electricConstant', subject: 'Physics' },
+  { id: 'mu_0', name: 'Vacuum Magnetic Permeability', symbol: 'μ₀', expr: 'magneticConstant', subject: 'Physics' },
+  { id: 'k_e', name: 'Coulomb Constant', symbol: 'k_e', expr: 'coulombConstant', subject: 'Physics' },
+  { id: 'l_p', name: 'Planck Length', symbol: 'ℓ_P', expr: 'planckLength', subject: 'Physics' },
+  { id: 'm_p', name: 'Planck Mass', symbol: 'm_P', expr: 'planckMass', subject: 'Physics' },
+  { id: 't_p', name: 'Planck Time', symbol: 't_P', expr: 'planckTime', subject: 'Physics' },
+  { id: 'q_p', name: 'Planck Charge', symbol: 'q_P', expr: 'planckCharge', subject: 'Physics' },
+  { id: 'T_p', name: 'Planck Temperature', symbol: 'T_P', expr: 'planckTemperature', subject: 'Physics' },
+  { id: 'pi', name: 'Pi (Archimedes Constant)', symbol: 'π', expr: 'pi', subject: 'Mathematics' },
+  { id: 'e', name: 'Euler Number', symbol: 'e', expr: 'e', subject: 'Mathematics' },
+  { id: 'tau', name: 'Tau (2π)', symbol: 'τ', expr: 'tau', subject: 'Mathematics' },
+  { id: 'phi', name: 'Golden Ratio', symbol: 'φ', expr: 'phi', subject: 'Mathematics' },
+]
 
 export function ConstantsPanel({ onCopy }: { onCopy?: (value: string) => void }) {
   const [search, setSearch] = useState('')
@@ -23,74 +45,68 @@ export function ConstantsPanel({ onCopy }: { onCopy?: (value: string) => void })
 
   const [constants, setConstants] = useState<Constant[]>([])
   const [loadingConstants, setLoadingConstants] = useState(true)
+
+  // Live MathJS Expression Evaluator
   const [evaluatedExpr, setEvaluatedExpr] = useState<{ expr: string; result: string; source: string } | null>(null)
   const [isEvaluatingMathJS, setIsEvaluatingMathJS] = useState(false)
 
   const [aiConstants, setAiConstants] = useState<Constant[]>([])
   const [isSearchingAI, setIsSearchingAI] = useState(false)
 
-  // 1. Fetch dynamic constants from MathJS API endpoint on mount
+  // 1. Dynamically evaluate all fundamental constants through MathJS API / engine on mount
   useEffect(() => {
     let isCancelled = false
 
-    async function loadMathJSConstants() {
+    async function evaluateDynamicConstants() {
       setLoadingConstants(true)
       try {
-        const res = await fetch('/api/mathjs?type=constants_list')
-        const data = await res.json()
-        if (data.success && Array.isArray(data.data) && !isCancelled) {
-          // Resolve exact values for all constants dynamically through MathJS expression evaluator
-          const resolved = await Promise.all(
-            data.data.map(async (item: any) => {
-              try {
-                const evalRes = await fetch(`/api/mathjs?expr=${encodeURIComponent(item.expr)}`)
-                const evalData = await evalRes.json()
-                const rawResult = evalData.result || item.expr
-                // Separate value and unit if present
-                const parts = rawResult.split(' ')
-                const val = parts[0] || rawResult
-                const unit = parts.slice(1).join(' ')
-                return {
-                  id: item.id,
-                  name: item.name,
-                  symbol: item.symbol,
-                  value: val,
-                  unit: unit,
-                  subject: item.subject,
-                  expr: item.expr,
-                }
-              } catch {
-                return {
-                  id: item.id,
-                  name: item.name,
-                  symbol: item.symbol,
-                  value: item.expr,
-                  unit: '',
-                  subject: item.subject,
-                  expr: item.expr,
-                }
+        const resolved = await Promise.all(
+          DYNAMIC_MATHJS_SYMBOLS.map(async (item) => {
+            try {
+              const res = await fetch(`/api/mathjs?expr=${encodeURIComponent(item.expr)}`)
+              const data = await res.json()
+              const raw = data.result || item.expr
+              const parts = raw.split(' ')
+              return {
+                id: item.id,
+                name: item.name,
+                symbol: item.symbol,
+                value: parts[0] || raw,
+                unit: parts.slice(1).join(' '),
+                subject: item.subject,
+                expr: item.expr,
               }
-            })
-          )
-          if (!isCancelled) {
-            setConstants(resolved)
-          }
+            } catch {
+              return {
+                id: item.id,
+                name: item.name,
+                symbol: item.symbol,
+                value: item.expr,
+                unit: '',
+                subject: item.subject,
+                expr: item.expr,
+              }
+            }
+          })
+        )
+        if (!isCancelled) {
+          setConstants(resolved)
         }
       } catch (err) {
-        console.error('Failed to load MathJS constants:', err)
+        console.error('Failed to load dynamic MathJS constants:', err)
       } finally {
         if (!isCancelled) setLoadingConstants(false)
       }
     }
 
-    loadMathJSConstants()
+    evaluateDynamicConstants()
 
     return () => {
       isCancelled = true
     }
   }, [])
 
-  // 2. Dynamic MathJS Expression Evaluator for any custom search query
+  // 2. Dynamic MathJS Expression Evaluator for ANY constant query
   useEffect(() => {
     const q = search.trim()
     if (!q || q.length < 2) {
@@ -108,7 +124,7 @@ export function ConstantsPanel({ onCopy }: { onCopy?: (value: string) => void })
           setEvaluatedExpr({
             expr: q,
             result: data.result,
-            source: data.source || 'MathJS API',
+            source: data.source || 'MathJS Expression Evaluator',
           })
         } else {
           setEvaluatedExpr(null)
@@ -128,7 +144,8 @@ export function ConstantsPanel({ onCopy }: { onCopy?: (value: string) => void })
     (c) =>
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.symbol.toLowerCase().includes(search.toLowerCase()) ||
-      c.subject.toLowerCase().includes(search.toLowerCase())
+      c.subject.toLowerCase().includes(search.toLowerCase()) ||
+      c.expr.toLowerCase().includes(search.toLowerCase())
   )
 
   const allFiltered = [
@@ -173,6 +190,7 @@ export function ConstantsPanel({ onCopy }: { onCopy?: (value: string) => void })
             value: result.data.value,
             unit: result.data.unit,
             subject: result.data.subject,
+            expr: result.data.symbol || result.data.name,
           }
           setAiConstants((prev) => [...prev, aiConstant])
         }
@@ -195,11 +213,11 @@ export function ConstantsPanel({ onCopy }: { onCopy?: (value: string) => void })
 
   return (
     <div className="flex flex-col h-full bg-card gap-3">
-      {/* Search Bar */}
+      {/* Search Input */}
       <div className="relative flex-shrink-0">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
-          placeholder="Search constants (e.g. speedOfLight, G, h, pi)..."
+          placeholder="Evaluate any constant (e.g. speedOfLight, G, h, pi)..."
           value={search}
           onChange={(e) => {
             const val = e.target.value
@@ -215,7 +233,7 @@ export function ConstantsPanel({ onCopy }: { onCopy?: (value: string) => void })
       </div>
 
       <div className="flex-1 overflow-y-auto pr-1 space-y-2.5 pb-4">
-        {/* Live MathJS Expression Evaluator result card */}
+        {/* Live MathJS Expression Evaluator Result */}
         {evaluatedExpr && (
           <div className="p-3 rounded-xl border border-primary/30 bg-primary/5 space-y-2 animate-in fade-in">
             <div className="flex items-center justify-between">
@@ -285,7 +303,7 @@ export function ConstantsPanel({ onCopy }: { onCopy?: (value: string) => void })
                     {c.id.startsWith('ai-') ? (
                       <Bot className="w-3 h-3 text-purple-500" />
                     ) : (
-                      <Sparkles className="w-2.5 h-2.5 text-primary opacity-60" />
+                      <Atom className="w-2.5 h-2.5 text-primary opacity-60" />
                     )}
                   </h4>
                   <div className="flex items-center gap-2 mt-0.5">
@@ -295,15 +313,28 @@ export function ConstantsPanel({ onCopy }: { onCopy?: (value: string) => void })
                     </span>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="h-6 w-6 text-muted-foreground hover:text-foreground opacity-70 group-hover:opacity-100 transition-opacity"
-                  onClick={() => handleCopy(c.value, c.id)}
-                  title="Copy value"
-                >
-                  {copiedId === c.id ? <CheckCircle2 size={13} className="text-emerald-500" /> : <Copy size={13} />}
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="h-6 w-6 text-muted-foreground hover:text-foreground opacity-70 group-hover:opacity-100 transition-opacity"
+                    onClick={() => handleCopy(c.value, c.id)}
+                    title="Copy value"
+                  >
+                    {copiedId === c.id ? <CheckCircle2 size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="h-6 w-6 text-primary hover:text-primary/80 opacity-70 group-hover:opacity-100 transition-opacity"
+                    onClick={() => {
+                      setSearch(c.expr)
+                    }}
+                    title="Evaluate in MathJS"
+                  >
+                    <ArrowRight size={13} />
+                  </Button>
+                </div>
               </div>
               <div className="bg-background/60 p-2 rounded-lg border border-border/60 flex justify-between items-center text-xs font-mono text-foreground">
                 <span className="truncate pr-2 font-semibold">{c.value}</span>

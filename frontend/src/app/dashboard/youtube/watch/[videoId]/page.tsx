@@ -13,7 +13,6 @@ import {
   Copy,
   Check,
   Clock,
-  Sparkles,
   BookOpen,
   PlaySquare,
   Maximize2,
@@ -481,7 +480,7 @@ export default function YouTubeWatchPage({
           {/* Note Templates Strip */}
           <div className="px-4 py-2.5 border-b border-border/60 bg-muted/10 flex items-center gap-1.5 overflow-x-auto">
             <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1 shrink-0 mr-1">
-              <Sparkles className="w-3 h-3 text-amber-500" />
+              <BookOpen className="w-3 h-3 text-primary" />
               Templates:
             </span>
             {Object.entries(NOTE_TEMPLATES).map(([key, tpl]) => (

@@ -594,12 +594,21 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
                     </button>
                   </div>
 
-                  <Link
-                    href="/dashboard/courses"
-                    className="text-xs font-semibold text-primary hover:underline px-1.5 cursor-pointer"
-                  >
-                    View all
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href="/dashboard/lectures"
+                      className="text-xs font-semibold text-primary hover:underline px-1.5 cursor-pointer"
+                    >
+                      Recent Lectures
+                    </Link>
+                    <span className="text-muted-foreground/50" aria-hidden="true">·</span>
+                    <Link
+                      href="/dashboard/courses"
+                      className="text-xs font-semibold text-muted-foreground hover:text-foreground px-1.5 cursor-pointer"
+                    >
+                      All Courses
+                    </Link>
+                  </div>
                 </div>
               </div>
 

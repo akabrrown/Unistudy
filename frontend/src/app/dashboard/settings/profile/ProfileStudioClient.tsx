@@ -8,7 +8,6 @@ import {
   Award,
   Brain,
   ShieldCheck,
-  Sparkles,
   CheckCircle2,
   BookOpen,
   FileText,
@@ -945,7 +944,7 @@ export function ProfileStudioClient({
                   disabled={savingPedagogy}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <CheckCircle2 className="w-3.5 h-3.5" />
                   {savingPedagogy ? 'Saving...' : 'Save AI Pedagogy'}
                 </button>
               </div>

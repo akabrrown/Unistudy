@@ -21,6 +21,8 @@ import {
   ArrowRight,
   CheckCircle2,
   Search,
+  Pencil,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { GenerateScheduleWizard } from '@/components/planner/GenerateScheduleWizard';
@@ -140,6 +142,76 @@ export default function CalendarPage() {
   const [newEventType, setNewEventType] = useState<EventType>('exam');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Editing state for calendar events
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editType, setEditType] = useState<EventType>('exam');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const startEditEvent = (ev: CalendarEvent) => {
+    setEditingEvent(ev);
+    setEditTitle(ev.title);
+    setEditDate(ev.date);
+    setEditType(ev.type);
+  };
+
+  const cancelEditEvent = () => {
+    setEditingEvent(null);
+    setEditTitle('');
+    setEditDate('');
+  };
+
+  const handleUpdateEvent = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!editingEvent) return;
+    if (!editTitle.trim() || !editDate) {
+      toast.error('Please enter an event title and select a date.');
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const res = await fetch('/api/calendar', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingEvent.id,
+          title: editTitle.trim(),
+          date: editDate,
+          type: editType,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.error || 'Failed to update event');
+      }
+
+      const data = await res.json();
+      const updatedEv = (data?.event || {
+        ...editingEvent,
+        title: editTitle.trim(),
+        date: editDate,
+        type: editType,
+      }) as CalendarEvent;
+
+      setEvents((prev) =>
+        prev
+          .map((item) => (item.id === updatedEv.id ? updatedEv : item))
+          .sort((a, b) => a.date.localeCompare(b.date))
+      );
+
+      setSelectedDate(editDate);
+      cancelEditEvent();
+      toast.success('Event updated successfully');
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not update event');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   const [typeFilter, setTypeFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -706,17 +778,32 @@ export default function CalendarPage() {
                               <Icon className="w-2.5 h-2.5 shrink-0" />
                               <span className="truncate font-medium">{ev.title}</span>
                             </div>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void handleDelete(ev.id);
-                              }}
-                              aria-label={`Delete ${ev.title}`}
-                              className="opacity-0 group-hover/ev:opacity-100 hover:text-destructive shrink-0 cursor-pointer"
-                            >
-                              <Trash2 className="w-2.5 h-2.5" />
-                            </button>
+                            <div className="opacity-0 group-hover/ev:opacity-100 flex items-center gap-0.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startEditEvent(ev);
+                                }}
+                                aria-label={`Edit ${ev.title}`}
+                                className="hover:text-primary cursor-pointer p-0.5 transition-colors"
+                                title="Edit event"
+                              >
+                                <Pencil className="w-2.5 h-2.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleDelete(ev.id);
+                                }}
+                                aria-label={`Delete ${ev.title}`}
+                                className="hover:text-destructive shrink-0 cursor-pointer p-0.5 transition-colors"
+                                title="Delete event"
+                              >
+                                <Trash2 className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
@@ -870,14 +957,26 @@ export default function CalendarPage() {
                             </div>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => void handleDelete(ev.id)}
-                          aria-label={`Remove ${ev.title}`}
-                          className="p-1 text-muted-foreground hover:text-destructive rounded cursor-pointer shrink-0"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => startEditEvent(ev)}
+                            aria-label={`Edit ${ev.title}`}
+                            className="p-1 text-muted-foreground hover:text-primary rounded hover:bg-muted/60 transition-colors cursor-pointer"
+                            title="Edit event"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDelete(ev.id)}
+                            aria-label={`Remove ${ev.title}`}
+                            className="p-1 text-muted-foreground hover:text-destructive rounded hover:bg-muted/60 transition-colors cursor-pointer"
+                            title="Delete event"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </li>
                     );
                   })}
@@ -1004,6 +1103,101 @@ export default function CalendarPage() {
               )}
             </section>
           </aside>
+        </div>
+      )}
+
+      {/* Edit Event Modal */}
+      {editingEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-border/60 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">Edit Calendar Event</h3>
+                  <p className="text-xs text-muted-foreground">Modify title, scheduled date, or event type</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={cancelEditEvent}
+                className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={(e) => void handleUpdateEvent(e)} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">
+                  Event Title
+                </label>
+                <Input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="e.g. Organic Chemistry Midterm"
+                  className="bg-background text-sm"
+                  autoFocus
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">
+                  Scheduled Date
+                </label>
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">
+                  Category
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['exam', 'assignment', 'session'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setEditType(t)}
+                      className={cn(
+                        'py-2 px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5',
+                        editType === t
+                          ? 'border-primary bg-primary/15 text-primary ring-1 ring-primary/40'
+                          : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      {t === 'exam' ? 'Exam' : t === 'assignment' ? 'Assignment' : 'Session'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={cancelEditEvent}
+                  className="cursor-pointer text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isUpdating || !editTitle.trim() || !editDate}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer text-xs gap-1.5"
+                >
+                  {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  Save Changes
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

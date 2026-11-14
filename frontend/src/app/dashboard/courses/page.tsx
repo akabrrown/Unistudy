@@ -1242,8 +1242,19 @@ export default function CoursesPage() {
 
                   {/* Recent Lectures Quick Preview */}
                   <div className="rounded-xl border border-border/60 bg-muted/25 p-2.5 space-y-1.5 min-h-[72px]">
-                    <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground font-semibold">
-                      Recent Lectures
+                    <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground font-semibold flex items-center justify-between">
+                      <span>Recent Lectures</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          router.push(`/dashboard/lectures?courseId=${course.id}`);
+                        }}
+                        className="text-[10px] text-primary hover:underline font-semibold cursor-pointer"
+                      >
+                        All Decks &rarr;
+                      </button>
                     </div>
                     {lectures.length === 0 ? (
                       <div className="text-xs text-muted-foreground flex items-center justify-between pt-0.5">

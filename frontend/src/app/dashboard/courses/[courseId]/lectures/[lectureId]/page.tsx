@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Microscope, Volume2, PenTool, StickyNote, Monitor, Eye, EyeOff, Loader2, PlaySquare, Play, X, Pin, Frown, Meh, Smile, Zap, Flame, Square, Eraser, RefreshCw, MessageCircle, Send, Hourglass, Pause, Calculator, Music, FileText, DownloadCloud, BookOpen, Languages, ChevronDown, SlidersHorizontal, Maximize, Layers, Check, ArrowRight, GraduationCap, Bot, Sparkles } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Microscope, Volume2, PenTool, StickyNote, Monitor, Eye, EyeOff, Loader2, PlaySquare, Play, X, Pin, Frown, Meh, Smile, Zap, Flame, Square, Eraser, RefreshCw, MessageCircle, Send, Hourglass, Pause, Calculator, Music, FileText, DownloadCloud, BookOpen, Languages, ChevronDown, SlidersHorizontal, Maximize, Layers, Check, ArrowRight, GraduationCap, Bot } from 'lucide-react'
 import { FocusTimer, FocusTimerRef } from '@/components/study/FocusTimer'
 import { CalculatorPanel } from '@/components/study/CalculatorPanel'
 import { TutorFeedbackView } from '@/components/study/TutorFeedbackView'
@@ -132,22 +132,72 @@ export default function LectureViewer() {
   const [showExplanation, setShowExplanation] = useState(true)
   const [isFocusMode, setIsFocusMode] = useState(false)
 
-  // Listen for Escape key and arrows in focus mode
+  // Listen for Escape key and global arrows for slide switching
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isFocusMode) return;
+      // Don't intercept if user is typing in an input, textarea, or contentEditable element
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable ||
+          target.getAttribute('role') === 'textbox')
+      ) {
+        return;
+      }
+
       if (e.key === 'Escape') {
-        setIsFocusMode(false);
-        toast.info('Exited Focus Mode');
-      } else if (e.key === 'ArrowRight') {
+        if (isFocusMode) {
+          setIsFocusMode(false);
+          toast.info('Exited Focus Mode');
+        }
+      } else if (e.key === 'ArrowRight' || e.key === 'PageDown') {
         setSlideIndex(prev => Math.min(totalSlides - 1, prev + 1));
-      } else if (e.key === 'ArrowLeft') {
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
         setSlideIndex(prev => Math.max(0, prev - 1));
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFocusMode, totalSlides]);
+
+  // Mouse wheel slide switching and thumbnail scrolling
+  const lastWheelTimeRef = useRef<number>(0);
+  const thumbnailStripRef = useRef<HTMLDivElement>(null);
+
+  const handleSlideWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (isDrawMode) return;
+    const now = Date.now();
+    if (now - lastWheelTimeRef.current < 280) return;
+
+    if (e.deltaY > 15 || e.deltaX > 15) {
+      if (slideIndex < totalSlides - 1) {
+        lastWheelTimeRef.current = now;
+        setSlideIndex(prev => Math.min(totalSlides - 1, prev + 1));
+      }
+    } else if (e.deltaY < -15 || e.deltaX < -15) {
+      if (slideIndex > 0) {
+        lastWheelTimeRef.current = now;
+        setSlideIndex(prev => Math.max(0, prev - 1));
+      }
+    }
+  };
+
+  const handleThumbnailWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.deltaY !== 0) {
+      e.currentTarget.scrollLeft += e.deltaY;
+    }
+  };
+
+  // Auto-scroll the active thumbnail into view
+  useEffect(() => {
+    if (!thumbnailStripRef.current) return;
+    const activeThumb = thumbnailStripRef.current.children[slideIndex] as HTMLElement | undefined;
+    if (activeThumb && typeof activeThumb.scrollIntoView === 'function') {
+      activeThumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [slideIndex]);
   
   // Focus timer panel
   const [isTimerOpen, setIsTimerOpen] = useState(false)
@@ -1062,7 +1112,10 @@ export default function LectureViewer() {
         {/* Left: Slide panel */}
         <div className="flex-1 flex flex-col overflow-hidden border-r border-border">
           {/* Slide display */}
-          <div className="flex-1 flex items-center justify-center p-6 overflow-hidden bg-muted/10">
+          <div 
+            className="flex-1 flex items-center justify-center p-6 overflow-hidden bg-muted/10 cursor-default"
+            onWheel={handleSlideWheel}
+          >
             <div ref={slideContainerRef} className="w-full max-w-3xl aspect-video rounded-2xl border border-border shadow-md flex items-center justify-center relative overflow-hidden bg-card">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 opacity-50" />
               {currentSlide?.image_url && currentSlide.image_url !== 'https://example.com/placeholder.png' ? (
@@ -1284,7 +1337,11 @@ export default function LectureViewer() {
           </div>
 
           {/* Thumbnail strip */}
-          <div className="flex-shrink-0 flex gap-2 overflow-x-auto px-4 py-2.5 border-t border-border bg-muted/20">
+          <div 
+            ref={thumbnailStripRef}
+            onWheel={handleThumbnailWheel}
+            className="flex-shrink-0 flex gap-2 overflow-x-auto px-4 py-2.5 border-t border-border bg-muted/20"
+          >
             {slides.map((slide, i) => {
               const isActive = i === slideIndex;
               const hasImage = slide?.image_url && slide.image_url !== 'https://example.com/placeholder.png';

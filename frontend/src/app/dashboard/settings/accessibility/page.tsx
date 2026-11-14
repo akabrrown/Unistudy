@@ -9,7 +9,6 @@ import {
   Brain,
   MousePointer,
   Wifi,
-  Sparkles,
   CheckCircle2,
   User as UserIcon,
   CreditCard,
@@ -354,7 +353,7 @@ export default function AccessibilitySettingsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
             <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-500" />
+              <Sliders className="w-4 h-4 text-primary" />
               1-Click Inclusive Design Presets
             </h2>
             <p className="text-xs text-muted-foreground">

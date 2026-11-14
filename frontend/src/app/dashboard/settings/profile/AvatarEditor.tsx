@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { Loader2, Upload, Sparkles, Check } from 'lucide-react';
+import { Loader2, Upload, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -172,7 +172,6 @@ export function AvatarEditor({
       {/* Monogram Presets */}
       <div className="space-y-1.5 sm:border-l sm:border-border/70 sm:pl-4">
         <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-          <Sparkles className="w-3 h-3 text-amber-500" />
           Academic Monograms
         </span>
         <div className="flex items-center gap-1.5">

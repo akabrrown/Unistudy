@@ -44,6 +44,49 @@ export default function LectureViewerScreen() {
   const [noteText, setNoteText] = useState('');
   const [activeTab, setActiveTab] = useState<'slide' | 'tutor' | 'notes'>('slide');
 
+  // Follow-up questioning state
+  const [followUpQuestion, setFollowUpQuestion] = useState('');
+  const [isAskingFollowUp, setIsAskingFollowUp] = useState(false);
+  const [tutorThread, setTutorThread] = useState<{ q: string; a: string }[]>([]);
+
+  const handleAskFollowUp = async (customQ?: string) => {
+    const q = (customQ || followUpQuestion).trim();
+    if (!q || isAskingFollowUp) return;
+
+    setFollowUpQuestion('');
+    setIsAskingFollowUp(true);
+
+    try {
+      const res = await apiFetch('/ai/ask', {
+        method: 'POST',
+        body: JSON.stringify({
+          feature: 'chat_message',
+          payload: {
+            grounding: {
+              currentSlideNumber: currentSlideIndex + 1,
+              currentSlideText: currentSlide?.content || currentSlide?.title || '',
+              currentSlideExplanation: explanation || '',
+            },
+            messages: [{ role: 'user', content: q }],
+          },
+        }),
+      });
+
+      const reply =
+        res?.result?.choices?.[0]?.message?.content ||
+        (typeof res?.result === 'string' ? res.result : '') ||
+        'Answer generated based on this slide.';
+      setTutorThread((prev) => [...prev, { q, a: reply }]);
+    } catch (err: any) {
+      setTutorThread((prev) => [
+        ...prev,
+        { q, a: 'Follow-up error: ' + (err?.message || 'Could not reach AI Tutor.') },
+      ]);
+    } finally {
+      setIsAskingFollowUp(false);
+    }
+  };
+
   const fetchLectureSlides = useCallback(async () => {
     if (!lectureId) return;
     try {
@@ -272,6 +315,99 @@ export default function LectureViewerScreen() {
                 ) : explanation ? (
                   <View style={styles.explanationContent}>
                     <Text style={[styles.explanationBody, { color: colors.textPrimary }]}>{explanation}</Text>
+
+                    {/* Follow-up question thread */}
+                    {tutorThread.length > 0 && (
+                      <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primaryViolet, marginBottom: 8 }}>
+                          Follow-up Questions &amp; Answers
+                        </Text>
+                        {tutorThread.map((item, idx) => (
+                          <View key={idx} style={{ marginBottom: 12 }}>
+                            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.textPrimary, marginBottom: 2 }}>
+                              Q: {item.q}
+                            </Text>
+                            <Text style={{ fontSize: 13, color: colors.textSecondary, lineHeight: 18 }}>
+                              {item.a}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {isAskingFollowUp && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8 }}>
+                        <ActivityIndicator size="small" color={colors.primaryViolet} />
+                        <Text style={{ fontSize: 12, color: colors.textSecondary }}>Answering follow-up question...</Text>
+                      </View>
+                    )}
+
+                    {/* Quick follow-up prompt chips */}
+                    <View style={{ marginTop: 16, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textMuted, marginBottom: 8, textTransform: 'uppercase' }}>
+                        Ask Follow-up on Slide {currentSlideIndex + 1}:
+                      </Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                        {[
+                          { label: 'Clarify steps', q: 'Can you clarify the steps in this explanation in more detail?' },
+                          { label: 'Give an analogy', q: 'Can you give me an intuitive analogy for this slide?' },
+                          { label: 'Test me', q: 'Quiz me with an exam question strictly based on this slide.' },
+                        ].map((chip, idx) => (
+                          <TouchableOpacity
+                            key={idx}
+                            onPress={() => handleAskFollowUp(chip.q)}
+                            disabled={isAskingFollowUp}
+                            style={{
+                              backgroundColor: colors.bgSubtle,
+                              borderColor: colors.border,
+                              borderWidth: 1,
+                              borderRadius: 16,
+                              paddingHorizontal: 10,
+                              paddingVertical: 5,
+                            }}
+                          >
+                            <Text style={{ fontSize: 11, color: colors.textPrimary, fontWeight: '500' }}>
+                              {chip.label}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+
+                      {/* Question input */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <TextInput
+                          style={{
+                            flex: 1,
+                            backgroundColor: colors.bgInput,
+                            borderColor: colors.border,
+                            borderWidth: 1,
+                            borderRadius: 10,
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            fontSize: 13,
+                            color: colors.textPrimary,
+                          }}
+                          placeholder={`Ask about this slide...`}
+                          placeholderTextColor={colors.textMuted}
+                          value={followUpQuestion}
+                          onChangeText={setFollowUpQuestion}
+                          onSubmitEditing={() => handleAskFollowUp()}
+                          editable={!isAskingFollowUp}
+                        />
+                        <TouchableOpacity
+                          onPress={() => handleAskFollowUp()}
+                          disabled={!followUpQuestion.trim() || isAskingFollowUp}
+                          style={{
+                            backgroundColor: colors.primaryViolet,
+                            borderRadius: 10,
+                            padding: 10,
+                            opacity: (!followUpQuestion.trim() || isAskingFollowUp) ? 0.5 : 1,
+                          }}
+                        >
+                          <Ionicons name="send" size={16} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </View>
                 ) : (
                   <View style={styles.noExplanationBox}>

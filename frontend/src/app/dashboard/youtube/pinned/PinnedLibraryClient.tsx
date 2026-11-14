@@ -15,7 +15,6 @@ import {
   List,
   BookOpen,
   Clock,
-  Sparkles,
   ExternalLink,
   Filter,
   ArrowUpRight,
@@ -509,7 +508,7 @@ export function PinnedLibraryClient({
                 href="/dashboard/youtube"
                 className="inline-flex items-center gap-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 text-xs font-semibold transition-colors"
               >
-                <Sparkles className="w-3.5 h-3.5" />
+                <Search className="w-3.5 h-3.5" />
                 Go to Discover Lectures
               </Link>
             ) : (

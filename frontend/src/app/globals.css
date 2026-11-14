@@ -281,13 +281,20 @@
 }
 
 
-@layer base {
-  /* Hide scrollbars globally but keep scroll behavior */
-  * {
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE/Edge */
-  }
-  *::-webkit-scrollbar {
-    display: none; /* Chrome/Safari/Opera */
-  }
+/* Site-Wide Invisible Scrollbars with Preserved Scroll Functionality */
+html,
+body,
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+::-webkit-scrollbar,
+*::-webkit-scrollbar,
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
 }

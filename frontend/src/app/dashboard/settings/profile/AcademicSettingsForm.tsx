@@ -7,7 +7,6 @@ import {
   GraduationCap,
   CheckCircle2,
   AlertCircle,
-  Sparkles,
   User as UserIcon,
   AtSign,
   Target,
@@ -334,12 +333,12 @@ export function AcademicSettingsForm({
             onChange={(e) => setYearOfStudy(Number(e.target.value))}
             className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
           >
-            <option value={1}>Year 1 (Level 100 / Freshman)</option>
-            <option value={2}>Year 2 (Level 200 / Sophomore)</option>
-            <option value={3}>Year 3 (Level 300 / Junior)</option>
-            <option value={4}>Year 4 (Level 400 / Senior Honours)</option>
-            <option value={5}>Year 5 (Professional / Engineering)</option>
-            <option value={6}>Year 6+ (Postgraduate / Masters / PhD)</option>
+            <option value={1}>Year 1 (100)</option>
+            <option value={2}>Year 2 (200)</option>
+            <option value={3}>Year 3 (300)</option>
+            <option value={4}>Year 4 (400)</option>
+            <option value={5}>Year 5</option>
+            <option value={6}>Year 6+</option>
           </select>
         </div>
       </div>
@@ -363,7 +362,7 @@ export function AcademicSettingsForm({
         />
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1 mr-1">
-            <Sparkles className="w-3 h-3 text-amber-500" />
+            <Target className="w-3 h-3 text-primary" />
             Quick targets:
           </span>
           {STUDY_GOAL_PRESETS.map((preset) => (

@@ -20,15 +20,23 @@ import {
   AlertCircle,
   BookOpen,
   FunctionSquare,
+  Sigma,
+  Atom,
+  Cpu,
+  ArrowRight,
+  Play,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
+import { toast } from 'sonner'
 
 import { solveMathProblemStream } from '@/lib/mathStreamClient'
 import { GraphPlotter } from '@/components/study/GraphPlotter'
+import { FormulaLibrary } from '@/components/study/FormulaLibrary'
+import { ConstantsPanel } from '@/components/study/ConstantsPanel'
 import { cn } from '@/lib/utils'
 
 const MATH_SUBJECTS = [
@@ -137,17 +145,104 @@ interface SolvedHistoryEntry {
   timestamp: string
 }
 
+type CalculatorTab = 'solver' | 'graph' | 'evaluator' | 'formulas' | 'constants'
+
 export default function CalculatorPage() {
   const searchParams = useSearchParams()
   const urlTab = searchParams.get('tab')
-  const [manualTab, setManualTab] = useState<{ forUrl: string | null; tab: 'solver' | 'graph' } | null>(null)
-  const activeTab: 'solver' | 'graph' =
+  const [manualTab, setManualTab] = useState<{ forUrl: string | null; tab: CalculatorTab } | null>(null)
+  const activeTab: CalculatorTab =
     manualTab && manualTab.forUrl === urlTab
       ? manualTab.tab
-      : urlTab === 'graph'
-        ? 'graph'
+      : (urlTab === 'graph' || urlTab === 'evaluator' || urlTab === 'formulas' || urlTab === 'constants')
+        ? urlTab
         : 'solver'
-  const setActiveTab = (tab: 'solver' | 'graph') => setManualTab({ forUrl: urlTab, tab })
+  const setActiveTab = (tab: CalculatorTab) => setManualTab({ forUrl: urlTab, tab })
+
+  // MathJS Evaluator State
+  const [evalExpr, setEvalExpr] = useState('derivative("x^3 + 2*x^2 - 5*x", "x")')
+  const [evalAction, setEvalAction] = useState<'evaluate' | 'simplify' | 'derivative'>('evaluate')
+  const [evalResult, setEvalResult] = useState<{
+    expr: string
+    result: string
+    latex?: string
+    source: string
+  } | null>(null)
+  const [isEvaluating, setIsEvaluating] = useState(false)
+  const [evalError, setEvalError] = useState<string | null>(null)
+  const [evalHistory, setEvalHistory] = useState<{ expr: string; result: string; action: string }[]>([
+    { expr: 'derivative("x^3 + 2*x^2 - 5*x", "x")', result: '3 * x^2 + 4 * x - 5', action: 'derivative' },
+    { expr: 'simplify("2*x + 3*x + 4*y - y")', result: '5 * x + 3 * y', action: 'simplify' },
+    { expr: 'det([[1, 2], [3, 4]])', result: '-2', action: 'evaluate' },
+  ])
+
+  // Hydrate evalHistory from localStorage on client mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const stored = localStorage.getItem('unistudy_eval_history')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setEvalHistory(parsed)
+        }
+      }
+    } catch {
+      // Storage unavailable
+    }
+  }, [])
+
+  // Persist evalHistory updates to localStorage
+  const saveEvalHistory = (next: { expr: string; result: string; action: string }[]) => {
+    setEvalHistory(next)
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('unistudy_eval_history', JSON.stringify(next))
+      } catch {
+        // Storage unavailable
+      }
+    }
+  }
+
+  const handleRunMathJSEval = async (overrideExpr?: string, overrideAction?: 'evaluate' | 'simplify' | 'derivative') => {
+    const exprToRun = (overrideExpr || evalExpr).trim()
+    const actionToRun = overrideAction || evalAction
+    if (!exprToRun) return
+
+    setIsEvaluating(true)
+    setEvalError(null)
+    try {
+      const res = await fetch('/api/mathjs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expr: exprToRun,
+          action: actionToRun,
+          variable: 'x',
+        }),
+      })
+      const data = await res.json()
+      if (data.success && data.result) {
+        setEvalResult({
+          expr: exprToRun,
+          result: data.result,
+          latex: data.latex,
+          source: data.source || 'MathJS API',
+        })
+        const nextHist = [
+          { expr: exprToRun, result: data.result, action: actionToRun },
+          ...evalHistory.filter((p) => p.expr !== exprToRun).slice(0, 9),
+        ]
+        saveEvalHistory(nextHist)
+      } else {
+        setEvalError(data.error || 'Failed to evaluate expression')
+      }
+    } catch (err: any) {
+      setEvalError(err?.message || 'Network error evaluating expression')
+    } finally {
+      setIsEvaluating(false)
+    }
+  }
 
   const [problem, setProblem] = useState('')
   const [subject, setSubject] = useState<string>('Mathematics')
@@ -350,39 +445,304 @@ export default function CalculatorPage() {
             </span>
           ) : null}
 
-          <div className="inline-flex rounded-xl border border-border bg-muted/40 p-1">
-            <button
-              type="button"
-              onClick={() => setActiveTab('solver')}
-              className={cn(
-                'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors cursor-pointer',
-                activeTab === 'solver'
-                  ? 'bg-background text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <Calculator className="w-4 h-4 text-primary" />
-              Math Solver
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('graph')}
-              className={cn(
-                'flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors cursor-pointer',
-                activeTab === 'graph'
-                  ? 'bg-background text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <LineChart className="w-4 h-4 text-primary" />
-              Graph Plotter
-            </button>
+          <div className="inline-flex flex-wrap rounded-xl border border-border bg-muted/40 p-1 gap-0.5">
+            {[
+              { id: 'solver' as const, label: 'Math Solver', icon: Calculator },
+              { id: 'graph' as const, label: 'Graph Plotter', icon: LineChart },
+              { id: 'evaluator' as const, label: 'MathJS Evaluator', icon: Cpu },
+              { id: 'formulas' as const, label: 'Formulas', icon: Sigma },
+              { id: 'constants' as const, label: 'Constants', icon: Atom },
+            ].map((tab) => {
+              const Icon = tab.icon
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer',
+                    activeTab === tab.id
+                      ? 'bg-background text-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Icon className="w-3.5 h-3.5 text-primary" />
+                  {tab.label}
+                </button>
+              )
+            })}
           </div>
         </div>
       </header>
 
       {activeTab === 'graph' ? (
         <GraphPlotter fullHeight />
+      ) : activeTab === 'evaluator' ? (
+        /* MathJS Expression Evaluator Studio */
+        <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-border/70">
+            <div>
+              <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                <Cpu className="w-5 h-5 text-primary" />
+                MathJS Expression Evaluator Console
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Execute calculations, symbolic simplifications, matrix algebra, and derivatives via MathJS API with exact precision.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setActiveTab('solver')}
+                className="text-xs cursor-pointer"
+              >
+                Open Math Solver
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Console (7 cols) */}
+            <div className="lg:col-span-7 space-y-4">
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-foreground font-mono">EXPRESSION INPUT</span>
+                  <div className="flex items-center gap-1">
+                    {(['evaluate', 'simplify', 'derivative'] as const).map((act) => (
+                      <button
+                        key={act}
+                        type="button"
+                        onClick={() => {
+                          setEvalAction(act)
+                          handleRunMathJSEval(evalExpr, act)
+                        }}
+                        className={cn(
+                          'text-[10px] font-mono px-2 py-0.5 rounded capitalize transition-colors cursor-pointer',
+                          evalAction === act
+                            ? 'bg-primary text-primary-foreground font-bold shadow-xs'
+                            : 'bg-muted/70 text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {act}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={evalExpr}
+                    onChange={(e) => setEvalExpr(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleRunMathJSEval()
+                      }
+                    }}
+                    placeholder="e.g. derivative('x^3 + 2*x', 'x') or 2 * speedOfLight"
+                    className="flex-1 font-mono text-sm bg-muted/30 border border-border rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  />
+                  <Button
+                    onClick={() => handleRunMathJSEval()}
+                    disabled={isEvaluating || !evalExpr.trim()}
+                    className="h-10 px-4 text-xs font-semibold gap-1.5 cursor-pointer"
+                  >
+                    {isEvaluating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                    Evaluate
+                  </Button>
+                </div>
+
+                {evalError && (
+                  <div className="p-3 rounded-lg border border-rose-500/30 bg-rose-500/10 text-xs text-rose-600 font-mono flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{evalError}</span>
+                  </div>
+                )}
+
+                {/* Quick Expression Presets */}
+                <div className="pt-2 border-t border-border/60 space-y-2">
+                  <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-wider block">
+                    Quick Evaluator Presets:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: 'Derivative d/dx', expr: 'derivative("x^4 - 3*x^2 + 5*x", "x")', act: 'derivative' as const },
+                      { label: 'Simplify Poly', expr: 'simplify("2*x + 5*x + 3*y - y + 10")', act: 'simplify' as const },
+                      { label: 'Matrix Det', expr: 'det([[1, 2, 3], [0, 4, 5], [1, 0, 6]])', act: 'evaluate' as const },
+                      { label: 'Matrix Inverse', expr: 'inv([[4, 7], [2, 6]])', act: 'evaluate' as const },
+                      { label: 'Light Speed in 1h', expr: 'speedOfLight * 1 hour to km', act: 'evaluate' as const },
+                      { label: 'Photon Energy', expr: 'planckConstant * 5e14 Hz to eV', act: 'evaluate' as const },
+                    ].map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setEvalExpr(preset.expr)
+                          setEvalAction(preset.act)
+                          handleRunMathJSEval(preset.expr, preset.act)
+                        }}
+                        className="text-[11px] font-mono px-2.5 py-1 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/60 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Live Output Card */}
+              {evalResult && (
+                <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-bold text-primary">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Evaluated Result</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-primary/10 text-primary uppercase font-bold border border-primary/20">
+                        {evalResult.source}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          insertSnippet(evalResult.result)
+                          setActiveTab('solver')
+                          toast.success('Inserted into Math Solver')
+                        }}
+                        className="h-7 text-xs gap-1 text-primary cursor-pointer"
+                      >
+                        <ArrowRight size={13} />
+                        Insert to Solver
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="bg-card p-3 rounded-xl border border-border text-sm font-mono space-y-1">
+                    <p className="text-xs text-muted-foreground">{evalResult.expr} =</p>
+                    <p className="text-base font-bold text-foreground break-all">{evalResult.result}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right History & Tools (5 cols) */}
+            <div className="lg:col-span-5 space-y-4">
+              <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-foreground font-mono flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-primary" />
+                    RECENT EVALUATIONS
+                  </h3>
+                  {evalHistory.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEvalHistory([])}
+                      className="h-6 text-[10px] text-muted-foreground cursor-pointer"
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+
+                <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                  {evalHistory.map((h, i) => (
+                    <div
+                      key={i}
+                      className="p-2.5 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors text-xs font-mono space-y-1 group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-muted-foreground uppercase">{h.action}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                          onClick={() => {
+                            setEvalExpr(h.expr)
+                            setEvalAction(h.action as any)
+                            handleRunMathJSEval(h.expr, h.action as any)
+                          }}
+                          title="Re-run"
+                        >
+                          <RotateCcw size={11} />
+                        </Button>
+                      </div>
+                      <p className="text-muted-foreground truncate">{h.expr}</p>
+                      <p className="text-foreground font-bold truncate">{h.result}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : activeTab === 'formulas' ? (
+        /* Formula Library Studio */
+        <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-border/70">
+            <div>
+              <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                <Sigma className="w-5 h-5 text-primary" />
+                Dynamic Formulas Library (MathJS Verified)
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Explore mathematical formulas, compute derivatives, simplify expressions, and insert directly into your problem solver.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setActiveTab('solver')}
+              className="text-xs cursor-pointer"
+            >
+              Back to Solver
+            </Button>
+          </div>
+          <div className="max-w-2xl h-[560px]">
+            <FormulaLibrary
+              onCopy={(f) => {
+                insertSnippet(f)
+                setActiveTab('solver')
+                toast.success('Formula inserted into problem solver')
+              }}
+            />
+          </div>
+        </div>
+      ) : activeTab === 'constants' ? (
+        /* Constants Panel Studio */
+        <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-border/70">
+            <div>
+              <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                <Atom className="w-5 h-5 text-primary" />
+                Scientific &amp; Mathematical Constants (MathJS Evaluated)
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                All physical CODATA and mathematical constants evaluated dynamically with standard SI dimensional units.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setActiveTab('solver')}
+              className="text-xs cursor-pointer"
+            >
+              Back to Solver
+            </Button>
+          </div>
+          <div className="max-w-2xl h-[560px]">
+            <ConstantsPanel
+              onCopy={(c) => {
+                insertSnippet(c)
+                setActiveTab('solver')
+                toast.success('Constant value inserted into problem solver')
+              }}
+            />
+          </div>
+        </div>
       ) : (
         /* Dual-Pane Symbolab x WolframAlpha Solver Studio */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
@@ -424,6 +784,32 @@ export default function CalculatorPage() {
                   <RotateCcw className="w-3.5 h-3.5 mr-1" />
                   Clear
                 </Button>
+              </div>
+
+              {/* Quick Math Tool Jumps */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-xs">
+                <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-wider">Quick Tools:</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('evaluator')}
+                  className="px-2 py-0.5 rounded-md border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <Cpu className="w-3 h-3 text-primary" /> MathJS Evaluator
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('formulas')}
+                  className="px-2 py-0.5 rounded-md border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <Sigma className="w-3 h-3 text-primary" /> Formulas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('constants')}
+                  className="px-2 py-0.5 rounded-md border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <Atom className="w-3 h-3 text-primary" /> Constants
+                </button>
               </div>
 
               {/* Image Preview Strip */}

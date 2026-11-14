@@ -9,7 +9,6 @@ import {
   Zap,
   CheckCircle2,
   ShieldCheck,
-  Sparkles,
   User as UserIcon,
   Accessibility,
   RefreshCw,
@@ -577,7 +576,7 @@ export default function BillingSettings() {
               {bundle.popular && (
                 <div className="absolute top-0 right-0">
                   <span className="bg-primary text-primary-foreground text-[10px] font-mono font-bold uppercase tracking-wider px-3 py-1 rounded-bl-xl shadow-xs inline-flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 fill-current" />
+                    <Zap className="w-3 h-3 fill-current" />
                     {bundle.badge}
                   </span>
                 </div>

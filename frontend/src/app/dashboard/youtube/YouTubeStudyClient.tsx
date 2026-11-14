@@ -11,7 +11,6 @@ import {
   Clock,
   CheckCircle2,
   BookOpen,
-  Sparkles,
   SlidersHorizontal,
   ExternalLink,
   Link2,
@@ -635,7 +634,7 @@ export function YouTubeStudyClient({
                   key={course.id}
                   type="button"
                   onClick={() => {
-                    const q = `${course.course_code} ${course.title}`;
+                    const q = course.title;
                     setSearchQuery(q);
                     void executeSearch(q);
                   }}
@@ -656,7 +655,7 @@ export function YouTubeStudyClient({
                   }}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 hover:bg-muted px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                 >
-                  <Sparkles className="w-3 h-3 text-amber-500" />
+                  <BookOpen className="w-3 h-3 text-primary" />
                   {topic.label}
                 </button>
               ))}
@@ -987,7 +986,7 @@ export function YouTubeStudyClient({
               {(courses.length > 0
                 ? courses.slice(0, 4).map((c) => ({
                     label: `${c.course_code}: ${c.title}`,
-                    query: `${c.course_code} ${c.title}`,
+                    query: c.title,
                   }))
                 : CURATED_ACADEMIC_TOPICS.slice(0, 4)
               ).map((chip) => (
