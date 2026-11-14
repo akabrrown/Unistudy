@@ -583,10 +583,14 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
                   render={
                     <Link
                       href="/dashboard"
-                      className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold text-lg hover:bg-primary/20 transition-colors shadow-xs"
+                      className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center hover:opacity-90 transition-all shadow-xs border border-border/40 bg-card focus:outline-none focus:ring-2 focus:ring-primary/40"
                       aria-label="UniStudy Home"
                     >
-                      U
+                      <img
+                        src="/app-icon.jpeg"
+                        alt="UniStudy AI"
+                        className="w-full h-full object-cover scale-110 rounded-xl"
+                      />
                     </Link>
                   }
                 />
