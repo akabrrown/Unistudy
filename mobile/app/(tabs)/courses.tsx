@@ -340,7 +340,7 @@ export default function CoursesScreen() {
                 />
                 {matchedPapersCount > 0 && (
                   <View style={[styles.paperMatchPill, { backgroundColor: colors.primaryViolet + '15', borderColor: colors.primaryViolet + '30' }]}>
-                    <Ionicons name="sparkles" size={14} color={colors.primaryViolet} />
+                    <Ionicons name="school-outline" size={14} color={colors.primaryViolet} />
                     <Text style={[styles.paperMatchText, { color: colors.primaryViolet }]}>
                       {matchedPapersCount} Past Question{matchedPapersCount > 1 ? 's' : ''} available for {courseCode.trim().toUpperCase()}!
                     </Text>

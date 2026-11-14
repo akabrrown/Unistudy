@@ -23,7 +23,6 @@ import {
   LayoutGrid,
   List,
   FolderOpen,
-  Sparkles,
 } from 'lucide-react';
 import { COURSE_COLORS, resolveCourseColor } from '@/lib/constants/courses';
 import { Button } from '@/components/ui/button';
@@ -556,7 +555,7 @@ export default function CoursesPage() {
                   </div>
                   {matchedPapersCount > 0 && (
                     <div className="rounded-xl border border-primary/25 bg-primary/10 p-3 flex items-start gap-2.5 text-xs text-primary animate-in fade-in slide-in-from-top-1">
-                      <Sparkles className="w-4 h-4 shrink-0 text-primary mt-0.5" />
+                      <FileCheck2 className="w-4 h-4 shrink-0 text-primary mt-0.5" />
                       <div>
                         <span className="font-semibold">
                           {matchedPapersCount} Past Question{matchedPapersCount > 1 ? 's' : ''} available

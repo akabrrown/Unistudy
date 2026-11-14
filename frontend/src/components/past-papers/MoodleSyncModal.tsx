@@ -20,7 +20,6 @@ import {
   FileText,
   Search,
   ExternalLink,
-  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api/client';
@@ -283,7 +282,7 @@ export function MoodleSyncModal({ isOpen, onClose, onSuccess }: MoodleSyncModalP
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4" />
+                  <DownloadCloud className="w-4 h-4" />
                   Import All {previewData.papers.length} Past Questions to University Library
                 </>
               )}
@@ -300,3 +299,4 @@ export function MoodleSyncModal({ isOpen, onClose, onSuccess }: MoodleSyncModalP
     </Dialog>
   );
 }
+
