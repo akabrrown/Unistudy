@@ -13,12 +13,29 @@ export default async function PastPapersPage(props: { params: Promise<{ courseId
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return notFound();
 
-  // Fetch real past papers
-  const { data: pastPapers } = await supabase
-    .from('past_papers')
-    .select('*')
-    .eq('course_id', params.courseId)
-    .order('year', { ascending: false });
+  // Fetch course details to retrieve course_code for auto-linking
+  const { data: course } = await supabase
+    .from('courses')
+    .select('id, course_code, title')
+    .eq('id', params.courseId)
+    .maybeSingle();
+
+  const normalizedCode = course?.course_code
+    ? course.course_code.toUpperCase().replace(/[^A-Z0-9]/g, '')
+    : null;
+
+  // Fetch real past papers (linked to this course directly OR matching its course code across the university)
+  let papersQuery = supabase.from('past_papers').select('*');
+
+  if (normalizedCode) {
+    papersQuery = papersQuery.or(
+      `course_id.eq.${params.courseId},normalized_course_code.eq.${normalizedCode}`
+    );
+  } else {
+    papersQuery = papersQuery.eq('course_id', params.courseId);
+  }
+
+  const { data: pastPapers } = await papersQuery.order('year', { ascending: false });
 
   // Fetch real weakness drills
   const { data: drills } = await supabase
@@ -57,11 +74,20 @@ export default async function PastPapersPage(props: { params: Promise<{ courseId
               {papers.map(paper => (
                 <div key={paper.id} className="flex items-center justify-between p-4 bg-card border border-border rounded-xl shadow-sm hover:border-purple-500/50 transition-colors">
                   <div>
-                    <h3 className="font-semibold text-base">{paper.year} {paper.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm'}</h3>
-                    <p className="text-sm text-muted-foreground">Uploaded {new Date(paper.created_at).toLocaleDateString()}</p>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-base">{paper.title || `${paper.year} ${paper.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm'}`}</h3>
+                      {paper.course_id !== params.courseId && (
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                          University Bank
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">{paper.course_code ? `${paper.course_code} · ` : ''}Uploaded {new Date(paper.created_at).toLocaleDateString()}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <DeletePastPaperButton paperId={paper.id} paperTitle={`${paper.year} ${paper.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm'}`} />
+                    {paper.user_id === session.user.id && (
+                      <DeletePastPaperButton paperId={paper.id} paperTitle={paper.title || `${paper.year} Exam`} />
+                    )}
                     <Link href={`/dashboard/past-papers/${paper.id}`}>
                       <Button variant="outline" size="sm" className="gap-2">
                         Attempt

@@ -23,12 +23,66 @@ import { consumeUserQuota } from '../lib/ai/quota';
 import { AIRequest, routeRequest } from '../lib/ai/router';
 router.use(authenticateUser);
 
+router.get('/', async (req: any, res) => {
+    try {
+        const userId = req.user!.id;
+        const { data: profile } = await supabaseAdmin
+            .from('profiles')
+            .select('institution_id')
+            .eq('id', userId)
+            .single();
+
+        const institutionId = profile?.institution_id || null;
+
+        let query = supabaseAdmin
+            .from('past_papers')
+            .select('id, title, year, exam_type, status, course_id, course_code, normalized_course_code, institution_id, created_at, courses(id, course_code, title, colour), past_paper_questions(id, question_number, text_content, extracted_topic, marks_available)');
+
+        if (institutionId) {
+            query = query.or(`user_id.eq.${userId},institution_id.eq.${institutionId},shared_to_community.eq.true`);
+        } else {
+            query = query.or(`user_id.eq.${userId},shared_to_community.eq.true`);
+        }
+
+        const { data, error } = await query.order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const formatted = (data || []).map((p: any) => {
+            const courseJoin = Array.isArray(p.courses) ? p.courses[0] : p.courses;
+            const questions = p.past_paper_questions || [];
+            return {
+                id: p.id,
+                course_id: p.course_id,
+                course_code: p.course_code || courseJoin?.course_code || 'EXAM',
+                title: p.title || `${p.year || ''} ${p.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm Exam'}`,
+                year: p.year || new Date().getFullYear(),
+                exam_type: p.exam_type || 'end-semester',
+                status: p.status,
+                question_count: questions.length,
+                questions: questions.map((q: any) => ({
+                    id: q.id,
+                    question: q.text_content,
+                    options: ['Option A', 'Option B', 'Option C', 'Option D'],
+                    correct_answer: 0,
+                    explanation: q.extracted_topic
+                }))
+            };
+        });
+
+        res.json(formatted);
+    } catch (err: any) {
+        console.error('[Past Papers GET /] Error:', err);
+        res.status(500).json({ error: 'Failed to retrieve past papers' });
+    }
+});
+
 import multer from 'multer';
 import { supabaseAdmin } from '../lib/supabase';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-async function extractQuestionsFromPdfBuffer(fileBuffer: Buffer): Promise<any[]> {
+export async function extractQuestionsFromPdfBuffer(fileBuffer: Buffer): Promise<any[]> {
     try {
         const parseFn = typeof pdfParse === 'function' ? pdfParse : (pdfParse as any).default || pdfParse;
         let extractedText = '';

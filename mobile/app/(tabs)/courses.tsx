@@ -50,6 +50,30 @@ export default function CoursesScreen() {
   const [courseYear, setCourseYear] = useState(new Date().getFullYear().toString());
   const [courseColor, setCourseColor] = useState(COURSE_COLORS[0].hex);
   const [saving, setSaving] = useState(false);
+  const [matchedPapersCount, setMatchedPapersCount] = useState<number>(0);
+
+  useEffect(() => {
+    const code = courseCode.trim();
+    if (code.length < 2) {
+      setMatchedPapersCount(0);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res: any = await apiFetch(`/moodle/match-course?code=${encodeURIComponent(code)}`);
+        if (res && typeof res.count === 'number') {
+          setMatchedPapersCount(res.count);
+        } else {
+          setMatchedPapersCount(0);
+        }
+      } catch {
+        setMatchedPapersCount(0);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [courseCode]);
 
   const fetchCourses = useCallback(async () => {
     try {
@@ -314,6 +338,14 @@ export default function CoursesScreen() {
                   onChangeText={setCourseCode}
                   autoCapitalize="characters"
                 />
+                {matchedPapersCount > 0 && (
+                  <View style={[styles.paperMatchPill, { backgroundColor: colors.primaryViolet + '15', borderColor: colors.primaryViolet + '30' }]}>
+                    <Ionicons name="sparkles" size={14} color={colors.primaryViolet} />
+                    <Text style={[styles.paperMatchText, { color: colors.primaryViolet }]}>
+                      {matchedPapersCount} Past Question{matchedPapersCount > 1 ? 's' : ''} available for {courseCode.trim().toUpperCase()}!
+                    </Text>
+                  </View>
+                )}
               </View>
 
               {/* Course Title */}
@@ -692,6 +724,21 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  paperMatchPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 6,
+  },
+  paperMatchText: {
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
   },
 });
 

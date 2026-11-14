@@ -31,6 +31,7 @@ import translateRoutes from './routes/translate';
 import billingRoutes from './routes/billing';
 import drillsRouter from './routes/drills';
 import calendarRoutes from './routes/calendar';
+import moodleRoutes from './routes/moodle';
 
 const HEALTH_PATHS = new Set(['/ping', '/api/health']);
 
@@ -90,6 +91,7 @@ app.use('/api/payments', paymentsRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/cards', cardsRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/moodle', moodleRoutes);
 app.use('/api/users/me', avatarRoutes);
 
 // Admin API Routes

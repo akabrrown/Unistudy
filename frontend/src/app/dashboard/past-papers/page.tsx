@@ -21,6 +21,7 @@ import {
   FileText,
   LayoutGrid,
   List,
+  DownloadCloud,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +30,7 @@ import { createClient } from '@/lib/supabase/client';
 import { apiFetch } from '@/lib/api/client';
 import { resolveCourseColor } from '@/lib/constants/courses';
 import { UploadModal } from '@/components/past-papers/UploadModal';
+import { MoodleSyncModal } from '@/components/past-papers/MoodleSyncModal';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -52,6 +54,9 @@ interface PastPaperCourseJoin {
 interface PastPaperRecord {
   id: string;
   course_id: string | null;
+  course_code?: string | null;
+  normalized_course_code?: string | null;
+  institution_id?: string | null;
   title: string | null;
   year: number | null;
   exam_type: string | null;
@@ -102,6 +107,7 @@ export default function PastPapersDashboard() {
   const [papers, setPapers] = useState<PastPaperRecord[]>([]);
   const [attempts, setAttempts] = useState<PastPaperAttemptRecord[]>([]);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isMoodleModalOpen, setIsMoodleModalOpen] = useState(false);
   const [preselectedCourseId, setPreselectedCourseId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPapers, setSelectedPapers] = useState<string[]>([]);
@@ -137,7 +143,7 @@ export default function PastPapersDashboard() {
       apiFetch('/courses').catch(() => []),
       supabase
         .from('past_papers')
-        .select('id, title, year, exam_type, status, course_id, created_at, courses(id, course_code, title, colour)')
+        .select('id, title, year, exam_type, status, course_id, course_code, normalized_course_code, institution_id, created_at, courses(id, course_code, title, colour)')
         .order('created_at', { ascending: false }),
       supabase
         .from('past_paper_attempts')
@@ -414,6 +420,15 @@ export default function PastPapersDashboard() {
               <FolderOpen className="w-3.5 h-3.5 text-primary" />
               Manage Courses
             </Link>
+
+            <Button
+              onClick={() => setIsMoodleModalOpen(true)}
+              variant="outline"
+              className="h-9 px-3.5 text-xs font-semibold gap-1.5 border-purple-500/30 hover:bg-purple-500/10 text-purple-700 dark:text-purple-300 cursor-pointer"
+            >
+              <DownloadCloud className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              Sync University Portal
+            </Button>
 
             <Button
               onClick={() => handleOpenUpload(selectedCourseFilter || undefined)}
@@ -1028,6 +1043,13 @@ export default function PastPapersDashboard() {
           void loadData();
         }}
         preselectedCourseId={preselectedCourseId}
+      />
+
+      {/* University Moodle / Portal Sync Modal */}
+      <MoodleSyncModal
+        isOpen={isMoodleModalOpen}
+        onClose={() => setIsMoodleModalOpen(false)}
+        onSuccess={() => void loadData()}
       />
     </div>
   );

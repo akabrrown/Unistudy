@@ -23,6 +23,7 @@ import {
   LayoutGrid,
   List,
   FolderOpen,
+  Sparkles,
 } from 'lucide-react';
 import { COURSE_COLORS, resolveCourseColor } from '@/lib/constants/courses';
 import { Button } from '@/components/ui/button';
@@ -99,6 +100,35 @@ export default function CoursesPage() {
   const [newCourseColor, setNewCourseColor] = useState('#5B2D8E');
   const [newCourseSemester, setNewCourseSemester] = useState('1');
   const [newCourseYear, setNewCourseYear] = useState(new Date().getFullYear().toString());
+  const [matchedPapersCount, setMatchedPapersCount] = useState<number>(0);
+  const [isMatchingPapers, setIsMatchingPapers] = useState(false);
+
+  useEffect(() => {
+    const code = newCourseCode.trim();
+    if (code.length < 2) {
+      setMatchedPapersCount(0);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsMatchingPapers(true);
+        const res = await fetch(`/api/past-papers/match?code=${encodeURIComponent(code)}`);
+        const json = await res.json();
+        if (json.success && typeof json.count === 'number') {
+          setMatchedPapersCount(json.count);
+        } else {
+          setMatchedPapersCount(0);
+        }
+      } catch {
+        setMatchedPapersCount(0);
+      } finally {
+        setIsMatchingPapers(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [newCourseCode]);
 
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editCourseId, setEditCourseId] = useState<string | null>(null);
@@ -518,12 +548,23 @@ export default function CoursesPage() {
                     <Label htmlFor="code" className="text-right">Course Code</Label>
                     <Input
                       id="code"
-                      placeholder="e.g. CS101"
+                      placeholder="e.g. DCIT 101 or PBBA 101"
                       className="col-span-3"
                       value={newCourseCode}
                       onChange={(e) => setNewCourseCode(e.target.value)}
                     />
                   </div>
+                  {matchedPapersCount > 0 && (
+                    <div className="rounded-xl border border-primary/25 bg-primary/10 p-3 flex items-start gap-2.5 text-xs text-primary animate-in fade-in slide-in-from-top-1">
+                      <Sparkles className="w-4 h-4 shrink-0 text-primary mt-0.5" />
+                      <div>
+                        <span className="font-semibold">
+                          {matchedPapersCount} Past Question{matchedPapersCount > 1 ? 's' : ''} available
+                        </span>{' '}
+                        for <strong>{newCourseCode.trim().toUpperCase()}</strong> at your university! They will be automatically available in your course deck.
+                      </div>
+                    </div>
+                  )}
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="name" className="text-right">Course Name</Label>
                     <Input
