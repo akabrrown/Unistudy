@@ -697,7 +697,7 @@ export default function SettingsClient({ initialSettings, initialAuditLogs = [] 
                   <p className="text-[11px] text-muted-foreground">Default model serving AI Tutor & explanations</p>
                   <Select
                     value={settings['PRIMARY_AI_PROVIDER'] || 'groq'}
-                    onValueChange={(v) => handleValueChange('PRIMARY_AI_PROVIDER', v)}
+                    onValueChange={(v) => handleValueChange('PRIMARY_AI_PROVIDER', v || 'groq')}
                   >
                     <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder="Select Provider" />
@@ -715,7 +715,7 @@ export default function SettingsClient({ initialSettings, initialAuditLogs = [] 
                   <p className="text-[11px] text-muted-foreground">Activated automatically when primary times out</p>
                   <Select
                     value={settings['SECONDARY_AI_PROVIDER'] || 'gemini'}
-                    onValueChange={(v) => handleValueChange('SECONDARY_AI_PROVIDER', v)}
+                    onValueChange={(v) => handleValueChange('SECONDARY_AI_PROVIDER', v || 'gemini')}
                   >
                     <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder="Select Provider" />
@@ -755,7 +755,7 @@ export default function SettingsClient({ initialSettings, initialAuditLogs = [] 
                   <p className="text-[11px] text-muted-foreground">Standardize STEM expressions into $...$ delimiters</p>
                   <Select
                     value={settings['LATEX_AUTOFMT_ENABLED'] !== 'false' ? 'true' : 'false'}
-                    onValueChange={(v) => handleValueChange('LATEX_AUTOFMT_ENABLED', v)}
+                    onValueChange={(v) => handleValueChange('LATEX_AUTOFMT_ENABLED', v || 'true')}
                   >
                     <SelectTrigger className="h-9 text-xs">
                       <SelectValue />
@@ -772,7 +772,7 @@ export default function SettingsClient({ initialSettings, initialAuditLogs = [] 
                   <p className="text-[11px] text-muted-foreground">Reject responses lacking span-grounding citations</p>
                   <Select
                     value={settings['HALLUCINATION_GUARD_STRICT'] !== 'false' ? 'true' : 'false'}
-                    onValueChange={(v) => handleValueChange('HALLUCINATION_GUARD_STRICT', v)}
+                    onValueChange={(v) => handleValueChange('HALLUCINATION_GUARD_STRICT', v || 'true')}
                   >
                     <SelectTrigger className="h-9 text-xs">
                       <SelectValue />
