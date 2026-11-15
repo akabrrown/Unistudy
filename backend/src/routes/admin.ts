@@ -157,7 +157,20 @@ router.get('/users', async (req: Request, res: Response) => {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    res.json({ users });
+
+    const userList = users || [];
+    const stats = {
+      total: userList.length,
+      students: userList.filter((u: any) => u.role === 'student' || !u.role).length,
+      admins: userList.filter((u: any) => u.role === 'admin').length,
+      suspended: userList.filter((u: any) => u.role === 'suspended').length,
+      paid: userList.filter((u: any) => {
+        const sub = Array.isArray(u.subscriptions) ? u.subscriptions.find((s: any) => s.status === 'active') : null;
+        return (sub && sub.plan_id !== 'free') || (u.plan && u.plan !== 'free');
+      }).length,
+    };
+
+    res.json({ users: userList, stats });
   } catch (err: any) {
     res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
@@ -227,6 +240,66 @@ router.patch('/users/:userId/role', async (req: Request, res: Response) => {
     );
 
     res.json({ success: true, profile: data });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+  }
+});
+
+// A02: Batch Update Roles
+router.post('/users/batch-role', async (req: Request, res: Response) => {
+  const { userIds, role } = req.body;
+  if (!Array.isArray(userIds) || userIds.length === 0 || !['student', 'admin', 'suspended'].includes(role)) {
+    return res.status(400).json({ error: 'Invalid userIds array or role' });
+  }
+
+  try {
+    const { error } = await supabaseAdmin
+      .from('profiles')
+      .update({ role, suspend_reason: role === 'suspended' ? 'Bulk suspended by admin' : null })
+      .in('id', userIds);
+
+    if (error) throw error;
+
+    await Promise.all(
+      userIds.slice(0, 50).map((uid: string) =>
+        logAuditAction(req.user!.id, 'USER_ROLE_BATCH_UPDATED', uid, 'user', { role, count: userIds.length })
+      )
+    );
+
+    res.json({ success: true, count: userIds.length, role });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+  }
+});
+
+// A02: Batch Update Plans
+router.post('/users/batch-plan', async (req: Request, res: Response) => {
+  const { userIds, plan } = req.body;
+  if (!Array.isArray(userIds) || userIds.length === 0 || !['free', 'pro', 'ultra'].includes(plan)) {
+    return res.status(400).json({ error: 'Invalid userIds array or plan' });
+  }
+
+  try {
+    const updates = userIds.map((uid: string) => ({
+      user_id: uid,
+      plan_id: plan,
+      status: 'active',
+      updated_at: new Date().toISOString()
+    }));
+
+    const { error } = await supabaseAdmin
+      .from('subscriptions')
+      .upsert(updates, { onConflict: 'user_id' });
+
+    if (error) throw error;
+
+    await Promise.all(
+      userIds.slice(0, 50).map((uid: string) =>
+        logAuditAction(req.user!.id, 'USER_PLAN_BATCH_UPDATED', uid, 'user', { plan, count: userIds.length })
+      )
+    );
+
+    res.json({ success: true, count: userIds.length, plan });
   } catch (err: any) {
     res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
