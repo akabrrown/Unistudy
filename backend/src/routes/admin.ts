@@ -390,37 +390,310 @@ router.delete('/users/:userId', async (req: Request, res: Response) => {
     }
 });
 
-// A03: Content Moderation - Fetch all content (with flags)
+// A03: Content Moderation - Fetch all content (with flags, past papers, lectures, and audit logs)
 router.get('/content', async (req: Request, res: Response) => {
   try {
-    // Lectures belong to courses, not profiles directly.
-    const { data: lectures, error } = await supabaseAdmin
-      .from('lectures')
-      .select('id, title, created_at, courses(course_code, title)')
-      .order('created_at', { ascending: false });
+    const [
+      { data: lectures, error: lecErr },
+      { data: pastPapers, error: ppErr },
+      { data: contentFlags, error: flagErr },
+      { data: auditLogs, error: auditErr }
+    ] = await Promise.all([
+      supabaseAdmin
+        .from('lectures')
+        .select('id, title, created_at, week, slide_count, file_url, courses(id, course_code, title, user_id)')
+        .order('created_at', { ascending: false })
+        .limit(100),
+      supabaseAdmin
+        .from('past_papers')
+        .select('id, title, course_code, year, exam_type, status, total_questions, file_url, created_at, user_id, institution_id, institutions:institution_id(id, name, abbreviation)')
+        .order('created_at', { ascending: false })
+        .limit(100),
+      supabaseAdmin
+        .from('content_flags')
+        .select('id, user_id, content_id, content_type, reason, created_at')
+        .order('created_at', { ascending: false }),
+      supabaseAdmin
+        .from('admin_audit_logs')
+        .select('id, admin_id, action_type, target_id, target_type, details, created_at')
+        .in('action_type', ['CONTENT_DELETED', 'CONTENT_TAKEDOWN', 'CONTENT_FLAG_DISMISSED', 'CONTENT_APPROVED'])
+        .order('created_at', { ascending: false })
+        .limit(15)
+    ]);
 
-    if (error) throw error;
-    res.json({ content: lectures });
+    if (lecErr) console.warn('[AdminContent] Lectures query warning:', lecErr.message);
+    if (ppErr) console.warn('[AdminContent] Past papers query warning:', ppErr.message);
+    if (flagErr) console.warn('[AdminContent] Flags query warning:', flagErr.message);
+
+    // Collect all user IDs to batch fetch profiles
+    const userIds = new Set<string>();
+    (lectures || []).forEach((l: any) => {
+      if (l.courses?.user_id) userIds.add(l.courses.user_id);
+    });
+    (pastPapers || []).forEach((p: any) => {
+      if (p.user_id) userIds.add(p.user_id);
+    });
+    (contentFlags || []).forEach((f: any) => {
+      if (f.user_id) userIds.add(f.user_id);
+    });
+
+    let profileMap: Record<string, { id: string; full_name: string; email: string }> = {};
+    if (userIds.size > 0) {
+      const { data: profiles } = await supabaseAdmin
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', Array.from(userIds));
+
+      if (profiles) {
+        profiles.forEach((p) => {
+          profileMap[p.id] = p;
+        });
+      }
+    }
+
+    // Map flags by content_id
+    const flagsByContentId: Record<string, any[]> = {};
+    (contentFlags || []).forEach((f: any) => {
+      if (!flagsByContentId[f.content_id]) flagsByContentId[f.content_id] = [];
+      const reporter = profileMap[f.user_id] || { id: f.user_id, full_name: 'Anonymous User', email: 'user@unistudy.app' };
+      flagsByContentId[f.content_id].push({
+        id: f.id,
+        reason: f.reason,
+        created_at: f.created_at,
+        reporter_name: reporter.full_name,
+        reporter_email: reporter.email,
+        reporter_id: reporter.id
+      });
+    });
+
+    // Normalize lectures
+    const normalizedLectures = (lectures || []).map((l: any) => {
+      const authorId = l.courses?.user_id;
+      const author = authorId && profileMap[authorId]
+        ? profileMap[authorId]
+        : { id: authorId || '', full_name: 'Course Owner', email: '' };
+      const flags = flagsByContentId[l.id] || [];
+
+      return {
+        id: l.id,
+        type: 'lecture',
+        title: l.title || 'Untitled Lecture',
+        course_code: l.courses?.course_code || 'GEN100',
+        course_title: l.courses?.title || '',
+        institution_name: '',
+        institution_abbr: '',
+        author_name: author.full_name || 'Anonymous Student',
+        author_email: author.email || '',
+        author_id: author.id,
+        created_at: l.created_at,
+        file_url: l.file_url || null,
+        slide_count: l.slide_count || null,
+        week: l.week || null,
+        year: null,
+        exam_type: null,
+        status: flags.length > 0 ? 'flagged' : 'clean',
+        flags
+      };
+    });
+
+    // Normalize past papers
+    const normalizedPastPapers = (pastPapers || []).map((p: any) => {
+      const author = p.user_id && profileMap[p.user_id]
+        ? profileMap[p.user_id]
+        : { id: p.user_id || '', full_name: 'Uploader / Crawler', email: '' };
+      const flags = flagsByContentId[p.id] || [];
+      const instName = p.institutions?.name || '';
+      const instAbbr = p.institutions?.abbreviation || '';
+
+      return {
+        id: p.id,
+        type: 'past_paper',
+        title: p.title || `${p.course_code || 'Course'} Past Paper (${p.year || 'Exam'})`,
+        course_code: p.course_code || 'GEN100',
+        course_title: `${p.exam_type ? p.exam_type.toUpperCase() : 'EXAM'} ${p.year || ''}`,
+        institution_name: instName,
+        institution_abbr: instAbbr,
+        author_name: author.full_name || 'Academic Repository',
+        author_email: author.email || '',
+        author_id: author.id,
+        created_at: p.created_at,
+        file_url: p.file_url || null,
+        slide_count: null,
+        total_questions: p.total_questions || null,
+        year: p.year || null,
+        exam_type: p.exam_type || null,
+        status: flags.length > 0 ? 'flagged' : (p.status || 'clean'),
+        flags
+      };
+    });
+
+    const allContent = [...normalizedLectures, ...normalizedPastPapers];
+    allContent.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    const totalFlagged = allContent.filter((c) => c.flags.length > 0).length;
+
+    const stats = {
+      total: allContent.length,
+      lectures: normalizedLectures.length,
+      pastPapers: normalizedPastPapers.length,
+      flagged: totalFlagged,
+      moderatedActions: (auditLogs || []).length
+    };
+
+    res.json({
+      content: allContent,
+      stats,
+      recentAuditLogs: auditLogs || []
+    });
+  } catch (err: any) {
+    console.error('[AdminContent] Error:', err);
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+  }
+});
+
+// A03: Content Moderation - Delete content (Lectures or Past Papers)
+router.delete('/content/:id', async (req: Request, res: Response) => {
+  const contentId = req.params.id as string;
+  const contentType = (req.query.type as string) || 'lecture'; // 'lecture' | 'past_paper'
+
+  try {
+    if (contentType === 'past_paper') {
+      const { error } = await supabaseAdmin
+        .from('past_papers')
+        .delete()
+        .eq('id', contentId);
+      if (error) throw error;
+    } else {
+      const { error } = await supabaseAdmin
+        .from('lectures')
+        .delete()
+        .eq('id', contentId);
+      if (error) throw error;
+    }
+
+    // Clean up associated flags if any
+    await supabaseAdmin.from('content_flags').delete().eq('content_id', contentId);
+
+    await logAuditAction(req.user!.id, 'CONTENT_TAKEDOWN', contentId, contentType, {
+      contentType,
+      moderatedAt: new Date().toISOString()
+    });
+
+    res.json({ success: true, id: contentId, type: contentType });
   } catch (err: any) {
     res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
-// A03: Content Moderation - Delete content
-router.delete('/content/:id', async (req: Request, res: Response) => {
-  const contentId = req.params.id;
+// A03: Content Moderation - Dismiss a single flag
+router.post('/content/dismiss-flag/:flagId', async (req: Request, res: Response) => {
+  const flagId = req.params.flagId as string;
 
   try {
+    const { data: flag, error: fetchErr } = await supabaseAdmin
+      .from('content_flags')
+      .select('*')
+      .eq('id', flagId)
+      .single();
+
+    if (fetchErr) throw fetchErr;
+
     const { error } = await supabaseAdmin
-      .from('lectures')
+      .from('content_flags')
       .delete()
-      .eq('id', contentId);
+      .eq('id', flagId);
 
     if (error) throw error;
 
-    await logAuditAction(req.user!.id, 'CONTENT_DELETED', contentId as string, 'lecture', {});
+    await logAuditAction(req.user!.id, 'CONTENT_FLAG_DISMISSED', flag?.content_id || flagId, 'flag', {
+      flagId,
+      reason: flag?.reason
+    });
 
-    res.json({ success: true });
+    res.json({ success: true, flagId });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+  }
+});
+
+// A03: Content Moderation - Approve content (Marks past paper approved & dismisses flags)
+router.post('/content/approve', async (req: Request, res: Response) => {
+  const { id, type } = req.body;
+  if (!id) return res.status(400).json({ error: 'Missing content id' });
+
+  try {
+    if (type === 'past_paper') {
+      await supabaseAdmin
+        .from('past_papers')
+        .update({ status: 'approved' })
+        .eq('id', id);
+    }
+
+    // Dismiss any flags on this content
+    await supabaseAdmin.from('content_flags').delete().eq('content_id', id);
+
+    await logAuditAction(req.user!.id, 'CONTENT_APPROVED', id, type || 'content', {
+      approvedAt: new Date().toISOString()
+    });
+
+    res.json({ success: true, id, type });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+  }
+});
+
+// A03: Content Moderation - Batch action (Delete, Approve, Dismiss Flags)
+router.post('/content/batch', async (req: Request, res: Response) => {
+  const { action, items } = req.body;
+  if (!Array.isArray(items) || items.length === 0 || !['delete', 'approve', 'dismiss_flags'].includes(action)) {
+    return res.status(400).json({ error: 'Invalid items array or action' });
+  }
+
+  try {
+    if (action === 'delete') {
+      const lectureIds = items.filter((i) => i.type === 'lecture').map((i) => i.id);
+      const paperIds = items.filter((i) => i.type === 'past_paper').map((i) => i.id);
+      const allIds = items.map((i) => i.id);
+
+      if (lectureIds.length > 0) {
+        await supabaseAdmin.from('lectures').delete().in('id', lectureIds);
+      }
+      if (paperIds.length > 0) {
+        await supabaseAdmin.from('past_papers').delete().in('id', paperIds);
+      }
+      await supabaseAdmin.from('content_flags').delete().in('content_id', allIds);
+
+      await Promise.all(
+        allIds.slice(0, 30).map((cid) =>
+          logAuditAction(req.user!.id, 'CONTENT_TAKEDOWN', cid, 'batch_content', { action, count: allIds.length })
+        )
+      );
+    } else if (action === 'approve') {
+      const paperIds = items.filter((i) => i.type === 'past_paper').map((i) => i.id);
+      const allIds = items.map((i) => i.id);
+
+      if (paperIds.length > 0) {
+        await supabaseAdmin.from('past_papers').update({ status: 'approved' }).in('id', paperIds);
+      }
+      await supabaseAdmin.from('content_flags').delete().in('content_id', allIds);
+
+      await Promise.all(
+        allIds.slice(0, 30).map((cid) =>
+          logAuditAction(req.user!.id, 'CONTENT_APPROVED', cid, 'batch_content', { action, count: allIds.length })
+        )
+      );
+    } else if (action === 'dismiss_flags') {
+      const flagIds = items.map((i) => i.flagId || i.id);
+      await supabaseAdmin.from('content_flags').delete().in('id', flagIds);
+
+      await Promise.all(
+        flagIds.slice(0, 30).map((fid) =>
+          logAuditAction(req.user!.id, 'CONTENT_FLAG_DISMISSED', fid, 'flag', { action, count: flagIds.length })
+        )
+      );
+    }
+
+    res.json({ success: true, count: items.length, action });
   } catch (err: any) {
     res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
