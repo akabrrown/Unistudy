@@ -55,6 +55,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <Mail className="w-5 h-5" />
             Announcements
           </Link>
+          <Link href="/admin/audit" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted transition-colors font-medium text-sm text-muted-foreground hover:text-foreground">
+            <Activity className="w-5 h-5" />
+            Audit Logs
+          </Link>
 
         </nav>
 
