@@ -606,8 +606,8 @@ export function parseDeterministicGraphProblem(inputText: string): GraphSpec | n
     ? { min: Number(yRangeMatch[1]), max: Number(yRangeMatch[2]), step: step || 2, label: 'y' }
     : { min: -10, max: 10, step, label: 'y' };
 
-  // 2. Named vertices extraction e.g. A(2,4), B(2,8), C(8,8), D(8,4)
-  const vertexRegex = /\b([A-Z]\d*)\s*\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)/g;
+  // 2. Named vertices extraction e.g. A(2,4), B(2,8), C(8,8), D(8,4) or A = (2,4)
+  const vertexRegex = /\b([A-Z]\d*)\s*[:=]?\s*\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)/g;
   const namedVertices: GraphPoint[] = [];
   const seenLabels = new Set<string>();
   let m: RegExpExecArray | null;
@@ -616,6 +616,18 @@ export function parseDeterministicGraphProblem(inputText: string): GraphSpec | n
     if (!seenLabels.has(label)) {
       seenLabels.add(label);
       namedVertices.push({ label, x: Number(m[2]), y: Number(m[3]) });
+    }
+  }
+
+  // Fallback: Plain coordinates without letter prefixes e.g. (2,4), (2,8), (8,8)
+  if (namedVertices.length === 0) {
+    const plainCoordRegex = /(?:^|[^\w])\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)/g;
+    const defaultLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    let idx = 0;
+    while ((m = plainCoordRegex.exec(text)) !== null) {
+      const label = defaultLabels[idx] || `P${idx + 1}`;
+      namedVertices.push({ label, x: Number(m[1]), y: Number(m[2]) });
+      idx++;
     }
   }
 
@@ -691,10 +703,41 @@ export function parseDeterministicGraphProblem(inputText: string): GraphSpec | n
     });
   }
 
-  // 3. Direct function expression(s): e.g. "sin(x) * x" or "y = x^2 - 4, y = 2x + 1"
-  const looksLikeNaturalProse = text.split(/\s+/).length > 10 && /draw|find|calculate|solve|what|image|translation|reflection|gradient/i.test(text);
-  if (!looksLikeNaturalProse) {
-    const parts = text
+  // 3. Extract explicit y = ... or f(x) = ... expressions from any problem text
+  const explicitFuncs = Array.from(
+    text.matchAll(/(?:^|[,\n;\s])(?:y|f\(x\))\s*=\s*([^,\n;\t]+)/gi)
+  )
+    .map((match) =>
+      match[1]
+        .trim()
+        .replace(/\s+(?:for|where|with|interval|in|given)\s+.*$/i, '')
+        .trim()
+    )
+    .filter((expr) => expr.length > 0 && !/\b(?:translation|reflection|rotation|vector)\b/i.test(expr));
+
+  if (explicitFuncs.length > 0) {
+    return resolveGraphSpec({
+      title: explicitFuncs.map((e) => `y = ${e}`).join(', '),
+      xAxis,
+      yAxis,
+      equalAspect: false,
+      functions: explicitFuncs.map((expr) => ({ expression: expr, label: `y = ${expr}` })),
+      shapes: [],
+      points: [],
+      solutionSteps: [
+        `Plotted function${explicitFuncs.length > 1 ? 's' : ''}: ${explicitFuncs.map((e) => `$y = ${e}$`).join(', ')}.`,
+      ],
+    });
+  }
+
+  // 4. Direct function expression(s): e.g. "sin(x) * x" or "x^2 - 4, 2x + 1" or "plot 2x + 3"
+  const cleanedText = text
+    .replace(/^(?:please\s+)?(?:plot|graph|draw|sketch|show|solve|evaluate|render|visualize)(?:\s+(?:the\s+)?(?:graph|curve|line|function|equation)\s+(?:of\s+)?)?\s*/i, '')
+    .trim();
+
+  const looksLikeNaturalProse = cleanedText.split(/\s+/).length > 10 && /find|calculate|solve|what|image|translation|reflection|gradient/i.test(cleanedText);
+  if (!looksLikeNaturalProse && cleanedText.length > 0) {
+    const parts = cleanedText
       .split(/[,\n;]+/)
       .map((s) => s.trim().replace(/^[fy](?:\(x\))?\s*=\s*/i, ''))
       .filter(Boolean);
@@ -707,7 +750,7 @@ export function parseDeterministicGraphProblem(inputText: string): GraphSpec | n
         functions: parts.map((expr) => ({ expression: expr, label: `y = ${expr}` })),
         shapes: [],
         points: [],
-        solutionSteps: [],
+        solutionSteps: [`Plotted expression: ${parts.map((p) => `$y = ${p}$`).join(', ')}`],
       });
     }
   }

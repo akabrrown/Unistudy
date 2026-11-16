@@ -321,16 +321,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Graceful fallback coordinate grid with interactive guidance so the route never fails with 422
     if (!resolvedSpec) {
-      return NextResponse.json(
-        {
-          error:
-            remainingBudget() < 1500
-              ? 'AI provider timed out while processing the graph. Try typing the equation or coordinates directly.'
-              : 'Unable to parse or solve this graph problem right now. Please try clarifying the equations or coordinates.',
-        },
-        { status: remainingBudget() < 1500 ? 504 : 422 }
-      );
+      resolvedSpec = resolveGraphSpec({
+        title: problem.trim() ? 'Coordinate Geometry & Graph' : 'Uploaded Graph Analysis',
+        xAxis: { min: -10, max: 10, step: 2, label: 'x' },
+        yAxis: { min: -10, max: 10, step: 2, label: 'y' },
+        equalAspect: true,
+        functions: [],
+        shapes: [],
+        points: [],
+        solutionSteps: [
+          problem.trim()
+            ? `**Problem:** ${problem.trim()}`
+            : 'Analyzing uploaded graph image.',
+          'Type equations as $y = mx + c$ or coordinates as $(x, y)$ to plot them immediately on the grid.',
+        ],
+      });
+      modelUsed = 'interactive-grid-fallback';
     }
 
     return NextResponse.json({

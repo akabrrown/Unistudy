@@ -156,3 +156,24 @@ test('resolveGraphSpec deterministically corrects LLM arithmetic and validates m
   assert.equal(resolved.solutionSteps.some((s) => s.includes('—')), false);
 });
 
+test('parseDeterministicGraphProblem extracts natural-prose quadratic functions and plain coordinates', () => {
+  const naturalQuadratic = 'Draw the graph of y = 2x^2 - 5x + 3 for the interval -2 <= x <= 4';
+  const res1 = parseDeterministicGraphProblem(naturalQuadratic);
+  assert.ok(res1);
+  assert.equal(res1.functions.length, 1);
+  assert.equal(res1.functions[0].expression, '2x^2 - 5x + 3');
+  assert.equal(res1.xAxis.min, -2);
+  assert.equal(res1.xAxis.max, 4);
+
+  const commandPrefix = 'plot y = 3x - 1, y = -2x + 4';
+  const res2 = parseDeterministicGraphProblem(commandPrefix);
+  assert.ok(res2);
+  assert.equal(res2.functions.length, 2);
+
+  const plainCoords = 'Draw a triangle with vertices (1, 2), (4, 6), (7, 1)';
+  const res3 = parseDeterministicGraphProblem(plainCoords);
+  assert.ok(res3);
+  assert.equal(res3.shapes.length, 1);
+  assert.equal(res3.shapes[0].vertices.length, 3);
+});
+
