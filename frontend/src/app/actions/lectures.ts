@@ -23,8 +23,9 @@ export async function deleteLecture(lectureId: string, courseId: string) {
       return { success: false, error: err.error || 'Failed to delete lecture' }
     }
 
-    // Revalidate the course page so the list updates
+    // Revalidate the course and lectures pages so lists update
     revalidatePath(`/dashboard/courses/${courseId}`)
+    revalidatePath('/dashboard/lectures')
     return { success: true }
   } catch (err: any) {
     console.error('Failed to delete lecture:', err)
@@ -57,6 +58,7 @@ export async function bulkDeleteLectures(lectureIds: string[], courseId: string)
     }
 
     revalidatePath(`/dashboard/courses/${courseId}`)
+    revalidatePath('/dashboard/lectures')
     return { success: true }
   } catch (err: any) {
     console.error('Failed to bulk delete lectures:', err)

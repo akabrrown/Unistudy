@@ -928,7 +928,7 @@ export default function AnalyticsPage() {
                   {bs.courseId && (
                     <div className="flex items-center justify-end">
                       <Link
-                        href={`/dashboard/courses/${bs.courseId}`}
+                        href={`/dashboard/lectures?courseId=${bs.courseId}`}
                         className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
                       >
                         Drill Topic Now →

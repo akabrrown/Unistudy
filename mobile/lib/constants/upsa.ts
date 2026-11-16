@@ -98,3 +98,4 @@ export const UPSA_FACULTIES: UPSAFaculty[] = [
     ],
   },
 ];
+

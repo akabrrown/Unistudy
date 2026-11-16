@@ -21,9 +21,10 @@ interface DeleteLectureButtonProps {
   lectureId: string
   courseId: string
   lectureTitle: string
+  onDeleted?: () => void
 }
 
-export function DeleteLectureButton({ lectureId, courseId, lectureTitle }: DeleteLectureButtonProps) {
+export function DeleteLectureButton({ lectureId, courseId, lectureTitle, onDeleted }: DeleteLectureButtonProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
 
@@ -37,6 +38,7 @@ export function DeleteLectureButton({ lectureId, courseId, lectureTitle }: Delet
     if (result.success) {
       toast.success(`Deleted ${lectureTitle}`)
       setIsOpen(false)
+      onDeleted?.()
     } else {
       toast.error(result.error || 'Failed to delete lecture')
       setIsDeleting(false)

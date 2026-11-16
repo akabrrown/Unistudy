@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { resolveCourseColor } from '@/lib/constants/courses';
 import { cn } from '@/lib/utils';
 import { UploadLectureDialog } from '@/components/courses/UploadLectureDialog';
+import { DeleteLectureButton } from '@/components/courses/DeleteLectureButton';
 
 interface LectureItem {
   id: string;
@@ -131,7 +132,7 @@ export default function LecturesHubPage() {
       {/* Studio Command Header */}
       <header className="rounded-2xl border border-border/80 bg-card p-5 md:p-6 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="space-y-1.5">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
             <Link
               href="/dashboard/courses"
               className="font-mono uppercase tracking-wider text-[11px] text-primary font-semibold hover:underline"
@@ -139,14 +140,28 @@ export default function LecturesHubPage() {
               Courses
             </Link>
             <span aria-hidden="true">/</span>
-            <span>Study Decks &amp; Lectures</span>
+            {activeCourse ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCourseId('all')}
+                  className="font-mono font-semibold text-foreground hover:text-primary transition-colors cursor-pointer text-xs"
+                >
+                  {activeCourse.course_code || 'COURSE'}
+                </button>
+                <span aria-hidden="true">/</span>
+              </>
+            ) : null}
+            <span>Lectures &amp; Slide Decks</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
             <BookOpen className="w-6 h-6 text-primary" strokeWidth={1.75} />
-            Lectures &amp; Slide Decks
+            {activeCourse ? `${activeCourse.course_code} – Lectures & Slide Decks` : 'Lectures & Slide Decks'}
           </h1>
           <p className="text-xs md:text-sm text-muted-foreground">
-            Select what course you want to study, resume your latest deck, or review slides with the AI Tutor.
+            {activeCourse
+              ? `All official presentation slides and study materials for ${activeCourse.title}.`
+              : 'Select what course you want to study, resume your latest deck, or review slides with the AI Tutor.'}
           </p>
         </div>
 
@@ -300,11 +315,11 @@ export default function LecturesHubPage() {
                 Quiz
               </Link>
               <Link
-                href={`/dashboard/courses/${activeCourse.id}`}
-                className="inline-flex items-center gap-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 px-3 py-1 text-xs font-semibold transition-colors"
+                href={`/dashboard/courses/${activeCourse.id}/past-papers`}
+                className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors"
               >
-                Course Workspace
-                <ArrowRight className="w-3 h-3" />
+                <FileText className="w-3.5 h-3.5 text-blue-500" />
+                Past Papers
               </Link>
             </div>
           </div>
@@ -463,13 +478,17 @@ export default function LecturesHubPage() {
                       <BrainCircuit className="w-4 h-4 text-primary" />
                     </Link>
 
-                    <Link
-                      href={`/dashboard/courses/${course.id}`}
-                      className="inline-flex items-center justify-center rounded-xl border border-border bg-background hover:bg-muted p-2 text-xs text-foreground transition-colors cursor-pointer"
-                      title="Course Hub"
-                    >
-                      <ArrowRight className="w-4 h-4" />
-                    </Link>
+                    <DeleteLectureButton
+                      lectureId={lecture.id}
+                      courseId={course.id}
+                      lectureTitle={lecture.title || 'Untitled Lecture'}
+                      onDeleted={() => {
+                        setCourses(prev => prev.map(c => c.id === course.id ? {
+                          ...c,
+                          lectures: (c.lectures || []).filter(l => l.id !== lecture.id)
+                        } : c));
+                      }}
+                    />
                   </div>
                 </article>
               );

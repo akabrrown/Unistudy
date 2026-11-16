@@ -67,9 +67,9 @@ export default function LectureViewer() {
     }
     const targetCourseId = courseId || lecture?.course_id;
     if (targetCourseId) {
-      router.push(`/dashboard/courses/${targetCourseId}`);
+      router.push(`/dashboard/lectures?courseId=${targetCourseId}`);
     } else {
-      router.push('/dashboard/courses');
+      router.push('/dashboard/lectures');
     }
   };
 
@@ -884,8 +884,8 @@ export default function LectureViewer() {
           <Button variant="outline" onClick={handleBack} className="gap-1.5">
             <ChevronLeft size={16} /> Back
           </Button>
-          <Button variant="ghost" onClick={() => router.push(`/dashboard/courses/${courseId || lecture?.course_id || ''}`)}>
-            Course Overview
+          <Button variant="ghost" onClick={() => router.push(`/dashboard/lectures?courseId=${courseId || lecture?.course_id || ''}`)}>
+            Slide Decks
           </Button>
         </div>
       </div>
@@ -926,8 +926,8 @@ export default function LectureViewer() {
           <Button variant="outline" onClick={handleBack} className="gap-1.5">
             <ChevronLeft size={16} /> Back
           </Button>
-          <Button variant="ghost" onClick={() => router.push(`/dashboard/courses/${courseId || lecture?.course_id || ''}`)}>
-            Course Overview
+          <Button variant="ghost" onClick={() => router.push(`/dashboard/lectures?courseId=${courseId || lecture?.course_id || ''}`)}>
+            Slide Decks
           </Button>
         </div>
       </div>
@@ -957,7 +957,7 @@ export default function LectureViewer() {
 
           {/* Course Breadcrumb */}
           <Link
-            href={`/dashboard/courses/${courseId || lecture?.course_id || ''}`}
+            href={`/dashboard/lectures?courseId=${courseId || lecture?.course_id || ''}`}
             className="text-xs font-medium text-muted-foreground hover:text-primary transition-colors truncate max-w-[100px] sm:max-w-[160px] hidden md:inline-block shrink-0"
             title={courseContext || 'Course'}
           >

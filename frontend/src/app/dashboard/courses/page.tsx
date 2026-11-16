@@ -996,7 +996,7 @@ export default function CoursesPage() {
                           </span>
                         </div>
                         <Link
-                          href={`/dashboard/courses/${course.id}`}
+                          href={`/dashboard/lectures?courseId=${course.id}`}
                           className="mt-1 block text-lg font-bold text-foreground hover:text-primary transition-colors truncate cursor-pointer"
                         >
                           {course.title || 'Untitled'}
@@ -1138,7 +1138,7 @@ export default function CoursesPage() {
               return (
                 <article
                   key={course.id}
-                  onClick={() => router.push(`/dashboard/courses/${course.id}`)}
+                  onClick={() => router.push(`/dashboard/lectures?courseId=${course.id}`)}
                   className="group relative overflow-hidden rounded-xl border border-border/80 bg-card hover:border-primary/45 p-4 transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4"
                 >
                   <div className="absolute top-0 left-0 bottom-0 w-1" style={{ backgroundColor: accentColor }} />
@@ -1219,7 +1219,7 @@ export default function CoursesPage() {
             return (
               <article
                 key={course.id}
-                onClick={() => router.push(`/dashboard/courses/${course.id}`)}
+                onClick={() => router.push(`/dashboard/lectures?courseId=${course.id}`)}
                 className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-card hover:border-primary/45 p-5 shadow-xs transition-all cursor-pointer"
               >
                 <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: accentColor }} />

@@ -135,3 +135,4 @@ export function isUPSAEmail(email: string): boolean {
   const lower = email.toLowerCase().trim();
   return UPSA_INSTITUTION.domains.some((d) => lower.endsWith(`@${d}`));
 }
+

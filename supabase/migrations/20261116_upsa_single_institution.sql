@@ -192,3 +192,4 @@ ON CONFLICT (code) DO UPDATE SET
 UPDATE public.institutions
 SET verified = FALSE
 WHERE abbreviation != 'UPSA' AND name NOT ILIKE '%Professional Studies%';
+
