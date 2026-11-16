@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -98,6 +98,50 @@ export default function LecturesHubPage() {
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
 
+  const initialUrlCourseApplied = useRef(false);
+  const lastUrlCourseIdRef = useRef(urlCourseId);
+
+  // Sync state if searchParams.get('courseId') changes via router navigation / external link
+  useEffect(() => {
+    if (urlCourseId !== lastUrlCourseIdRef.current) {
+      lastUrlCourseIdRef.current = urlCourseId;
+      setSelectedCourseId(urlCourseId || 'all');
+      setSelectedLectureIds(new Set());
+    }
+  }, [urlCourseId]);
+
+  // Sync state if user clicks browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const cId = params.get('courseId');
+      lastUrlCourseIdRef.current = cId;
+      setSelectedCourseId(cId || 'all');
+      setSelectedLectureIds(new Set());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Handle user explicitly choosing a course from the filter chips or breadcrumbs
+  const handleSelectCourse = useCallback((newCourseId: string | 'all') => {
+    setSelectedCourseId(newCourseId);
+    setSelectedLectureIds(new Set());
+    lastUrlCourseIdRef.current = newCourseId === 'all' ? null : newCourseId;
+
+    try {
+      const url = new URL(window.location.href);
+      if (newCourseId === 'all') {
+        url.searchParams.delete('courseId');
+      } else {
+        url.searchParams.set('courseId', newCourseId);
+      }
+      window.history.replaceState(null, '', url.pathname + url.search);
+    } catch {
+      // safe fallback
+    }
+  }, []);
+
   // Fetch courses and their lectures
   const loadCourses = useCallback(async () => {
     try {
@@ -128,8 +172,19 @@ export default function LecturesHubPage() {
           return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
         });
         setCourses(sortedCourses);
-        if (urlCourseId && sortedCourses.some((c: CourseItem) => c.id === urlCourseId)) {
-          setSelectedCourseId(urlCourseId);
+
+        // On initial page load only, apply urlCourseId if valid
+        if (!initialUrlCourseApplied.current) {
+          initialUrlCourseApplied.current = true;
+          if (urlCourseId && sortedCourses.some((c: CourseItem) => c.id === urlCourseId)) {
+            setSelectedCourseId(urlCourseId);
+          }
+        } else {
+          // On background polling/re-fetches, preserve user selection unless that course was deleted
+          setSelectedCourseId((prev) => {
+            if (prev === 'all') return 'all';
+            return sortedCourses.some((c: CourseItem) => c.id === prev) ? prev : 'all';
+          });
         }
       }
     } catch (err) {
@@ -305,7 +360,7 @@ export default function LecturesHubPage() {
               <>
                 <button
                   type="button"
-                  onClick={() => setSelectedCourseId('all')}
+                  onClick={() => handleSelectCourse('all')}
                   className="font-mono font-semibold text-foreground hover:text-primary transition-colors cursor-pointer text-xs"
                 >
                   {activeCourse.course_code || 'COURSE'}
@@ -389,7 +444,7 @@ export default function LecturesHubPage() {
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <button
             type="button"
-            onClick={() => setSelectedCourseId('all')}
+            onClick={() => handleSelectCourse('all')}
             className={cn(
               'px-3.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5',
               selectedCourseId === 'all'
@@ -419,7 +474,7 @@ export default function LecturesHubPage() {
               <button
                 key={course.id}
                 type="button"
-                onClick={() => setSelectedCourseId(course.id)}
+                onClick={() => handleSelectCourse(course.id)}
                 className={cn(
                   'px-3.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-2',
                   isSelected
