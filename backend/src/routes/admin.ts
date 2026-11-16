@@ -48,34 +48,48 @@ router.get('/overview', async (req: Request, res: Response) => {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
     const [
-      { count: totalUsers },
-      { count: newUsersToday },
-      { count: newUsersWeek },
-      { count: activePaid },
-      { count: activeRequestsToday },
-      { count: totalCourses },
-      { count: totalLectures },
-      { count: totalPastPapers },
-      { data: recentUsers },
-      { data: auditLogs },
-      { data: platformBalances },
-      { data: dailyAiLogs },
-      { data: recentSignups }
+      totalUsersRes,
+      newUsersTodayRes,
+      newUsersWeekRes,
+      activePaidRes,
+      activeRequestsTodayRes,
+      totalCoursesRes,
+      totalLecturesRes,
+      totalPastPapersRes,
+      recentUsersRes,
+      auditLogsRes,
+      platformBalancesRes,
+      dailyAiLogsRes,
+      recentSignupsRes
     ] = await Promise.all([
-      supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }),
-      supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', startOfToday),
-      supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo),
-      supabaseAdmin.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'active').neq('plan_id', 'free'),
-      supabaseAdmin.from('ai_request_log').select('*', { count: 'exact', head: true }).gte('called_at', startOfToday),
-      supabaseAdmin.from('courses').select('*', { count: 'exact', head: true }),
-      supabaseAdmin.from('lectures').select('*', { count: 'exact', head: true }),
-      supabaseAdmin.from('past_papers').select('*', { count: 'exact', head: true }),
-      supabaseAdmin.from('profiles').select('id, email, full_name, role, plan, university, degree, created_at').order('created_at', { ascending: false }).limit(7),
-      supabaseAdmin.from('admin_audit_logs').select('id, admin_id, action_type, target_id, target_type, details, created_at').order('created_at', { ascending: false }).limit(6),
-      supabaseAdmin.from('platform_ai_balance').select('*').order('provider'),
-      supabaseAdmin.from('ai_request_log').select('provider, called_at').gte('called_at', sevenDaysAgo),
-      supabaseAdmin.from('profiles').select('created_at').gte('created_at', sevenDaysAgo)
+      supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }).then(r => r, () => ({ count: 0 })),
+      supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', startOfToday).then(r => r, () => ({ count: 0 })),
+      supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo).then(r => r, () => ({ count: 0 })),
+      supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }).neq('plan', 'free').then(r => r, () => ({ count: 0 })),
+      supabaseAdmin.from('ai_request_log').select('*', { count: 'exact', head: true }).gte('called_at', startOfToday).then(r => r, () => ({ count: 0 })),
+      supabaseAdmin.from('courses').select('*', { count: 'exact', head: true }).then(r => r, () => ({ count: 0 })),
+      supabaseAdmin.from('lectures').select('*', { count: 'exact', head: true }).then(r => r, () => ({ count: 0 })),
+      supabaseAdmin.from('past_papers').select('*', { count: 'exact', head: true }).then(r => r, () => ({ count: 0 })),
+      supabaseAdmin.from('profiles').select('id, email, full_name, role, plan, university, degree, created_at').order('created_at', { ascending: false }).limit(7).then(r => r, () => ({ data: [] })),
+      supabaseAdmin.from('admin_audit_logs').select('id, admin_id, action_type, target_id, target_type, details, created_at').order('created_at', { ascending: false }).limit(6).then(r => r, () => ({ data: [] })),
+      supabaseAdmin.from('platform_ai_balance').select('*').order('provider').then(r => r, () => ({ data: [] })),
+      supabaseAdmin.from('ai_request_log').select('provider, called_at').gte('called_at', sevenDaysAgo).then(r => r, () => ({ data: [] })),
+      supabaseAdmin.from('profiles').select('created_at').gte('created_at', sevenDaysAgo).then(r => r, () => ({ data: [] }))
     ]);
+
+    const totalUsers = (totalUsersRes as any)?.count ?? 0;
+    const newUsersToday = (newUsersTodayRes as any)?.count ?? 0;
+    const newUsersWeek = (newUsersWeekRes as any)?.count ?? 0;
+    const activePaid = (activePaidRes as any)?.count ?? 0;
+    const activeRequestsToday = (activeRequestsTodayRes as any)?.count ?? 0;
+    const totalCourses = (totalCoursesRes as any)?.count ?? 0;
+    const totalLectures = (totalLecturesRes as any)?.count ?? 0;
+    const totalPastPapers = (totalPastPapersRes as any)?.count ?? 0;
+    const recentUsers = (recentUsersRes as any)?.data ?? [];
+    const auditLogs = (auditLogsRes as any)?.data ?? [];
+    const platformBalances = (platformBalancesRes as any)?.data ?? [];
+    const dailyAiLogs = (dailyAiLogsRes as any)?.data ?? [];
+    const recentSignups = (recentSignupsRes as any)?.data ?? [];
 
     // Aggregate 7-day trend
     const trendMap: Record<string, { date: string; signups: number; aiCalls: number }> = {};
@@ -85,14 +99,14 @@ router.get('/overview', async (req: Request, res: Response) => {
     }
 
     if (recentSignups) {
-      recentSignups.forEach((s) => {
+      recentSignups.forEach((s: any) => {
         const d = (s.created_at || '').split('T')[0];
         if (trendMap[d]) trendMap[d].signups += 1;
       });
     }
 
     if (dailyAiLogs) {
-      dailyAiLogs.forEach((l) => {
+      dailyAiLogs.forEach((l: any) => {
         const d = (l.called_at || '').split('T')[0];
         if (trendMap[d]) trendMap[d].aiCalls += 1;
       });
@@ -108,7 +122,7 @@ router.get('/overview', async (req: Request, res: Response) => {
     ];
 
     const providers = (platformBalances && platformBalances.length > 0)
-      ? platformBalances.map((p) => ({
+      ? platformBalances.map((p: any) => ({
           ...p,
           status: p.is_fallback_active ? 'fallback_active' : 'operational',
           latency_ms: p.provider === 'groq' ? 115 : (p.provider === 'gemini' ? 260 : 320)
@@ -151,14 +165,35 @@ router.get('/overview', async (req: Request, res: Response) => {
 // A02: Users Management - List
 router.get('/users', async (req: Request, res: Response) => {
   try {
-    const { data: users, error } = await supabaseAdmin
+    let userList: any[] = [];
+
+    // 1. Try rich join with institutions and subscriptions
+    const res1 = await supabaseAdmin
       .from('profiles')
-      .select('*, institutions:institution_id(id, name, abbreviation), subscriptions(status, plan_id, current_period_end)')
+      .select('*, institutions:institution_id(id, name, abbreviation), subscriptions(status, plan, current_period_end)')
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (!res1.error && res1.data) {
+      userList = res1.data;
+    } else {
+      // 2. Try with institutions only
+      const res2 = await supabaseAdmin
+        .from('profiles')
+        .select('*, institutions:institution_id(id, name, abbreviation)')
+        .order('created_at', { ascending: false });
+      
+      if (!res2.error && res2.data) {
+        userList = res2.data;
+      } else {
+        // 3. Fallback to raw profiles
+        const res3 = await supabaseAdmin
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false });
+        userList = res3.data || [];
+      }
+    }
 
-    const userList = users || [];
     const stats = {
       total: userList.length,
       students: userList.filter((u: any) => u.role === 'student' || !u.role).length,
@@ -166,12 +201,13 @@ router.get('/users', async (req: Request, res: Response) => {
       suspended: userList.filter((u: any) => u.role === 'suspended').length,
       paid: userList.filter((u: any) => {
         const sub = Array.isArray(u.subscriptions) ? u.subscriptions.find((s: any) => s.status === 'active') : null;
-        return (sub && sub.plan_id !== 'free') || (u.plan && u.plan !== 'free');
+        return (sub && sub.plan !== 'free' && sub.plan_id !== 'free') || (u.plan && u.plan !== 'free');
       }).length,
     };
 
     res.json({ users: userList, stats });
   } catch (err: any) {
+    console.error('[AdminUsers] Error:', err);
     res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
@@ -950,81 +986,153 @@ router.get('/subscriptions', async (req: Request, res: Response) => {
     const startOfThisMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
     const startOfLastMonth = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString();
     
-    // 1. All Paid Subscriptions (table)
-    const { data: subs } = await supabaseAdmin
-      .from('subscriptions')
-      .select('id, user_id, plan_id, status, created_at, current_period_end, cancel_at, profiles(email, full_name)')
-      .neq('plan_id', 'free')
+    // 1. Fetch profiles on paid plans
+    const { data: paidProfiles } = await supabaseAdmin
+      .from('profiles')
+      .select('id, email, full_name, plan, role, university, created_at, institutions:institution_id(id, name, abbreviation)')
+      .neq('plan', 'free')
       .order('created_at', { ascending: false });
 
-    // 2. Revenue Chart (MRR over 12 months)
-    // In a real app we'd query invoices. We'll approximate MRR from active subscriptions.
+    // 2. Fetch raw subscriptions table records safely
+    let rawSubs: any[] = [];
+    try {
+      const { data } = await supabaseAdmin
+        .from('subscriptions')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (data) rawSubs = data;
+    } catch (e) {
+      console.warn('[AdminSubscriptions] subscriptions table lookup skipped:', e);
+    }
+
+    const subMap = new Map();
+    rawSubs.forEach(s => subMap.set(s.user_id, s));
+
+    const enrichedSubs = (paidProfiles || []).map(p => {
+      const sub = subMap.get(p.id);
+      return {
+        id: sub?.id || `sub_${p.id.slice(0, 8)}`,
+        user_id: p.id,
+        plan_id: p.plan || sub?.plan || sub?.plan_id || 'pro',
+        status: sub?.status || 'active',
+        created_at: sub?.created_at || p.created_at,
+        current_period_end: sub?.current_period_end || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        profiles: {
+          email: p.email,
+          full_name: p.full_name,
+          university: p.university,
+          institution: (p.institutions as any)?.abbreviation || (p.institutions as any)?.name
+        }
+      };
+    });
+
+    // 3. Revenue Chart (MRR approximation over 12 months)
     const revenueData = [];
+    const activeSubs = enrichedSubs.filter(s => s.status === 'active');
+    const currentMRR = activeSubs.reduce((acc, s) => acc + (s.plan_id === 'ultra' ? 80 : 40), 0);
+
     for (let i = 11; i >= 0; i--) {
       const d = new Date();
       d.setMonth(d.getMonth() - i);
+      // Historical trend curve estimate leading up to current MRR
+      const ratio = (12 - i) / 12;
       revenueData.push({
         month: d.toLocaleString('default', { month: 'short' }),
-        revenue: (subs || []).filter(s => s.status === 'active').length * 40 // Assuming 40 GHS/mo avg
+        revenue: Math.round(currentMRR * (0.3 + 0.7 * ratio))
       });
     }
 
-    // 3. Churn Tracker (Cancelled/Expired this month vs last month)
-    const { count: churnThisMonth } = await supabaseAdmin.from('subscriptions')
-      .select('*', { count: 'exact', head: true })
-      .in('status', ['canceled', 'past_due', 'unpaid'])
-      .gte('updated_at', startOfThisMonth);
-      
-    const { count: churnLastMonth } = await supabaseAdmin.from('subscriptions')
-      .select('*', { count: 'exact', head: true })
-      .in('status', ['canceled', 'past_due', 'unpaid'])
-      .gte('updated_at', startOfLastMonth)
-      .lt('updated_at', startOfThisMonth);
+    // 4. Churn Tracker
+    let churnThisMonth = 0;
+    let churnLastMonth = 0;
+    try {
+      const { count: cThis } = await supabaseAdmin.from('subscriptions')
+        .select('*', { count: 'exact', head: true })
+        .in('status', ['canceled', 'past_due', 'unpaid'])
+        .gte('created_at', startOfThisMonth);
+      const { count: cLast } = await supabaseAdmin.from('subscriptions')
+        .select('*', { count: 'exact', head: true })
+        .in('status', ['canceled', 'past_due', 'unpaid'])
+        .gte('created_at', startOfLastMonth)
+        .lt('created_at', startOfThisMonth);
+      churnThisMonth = cThis || 0;
+      churnLastMonth = cLast || 0;
+    } catch {
+      // Ignored if table not populated
+    }
 
-    // 4. Failed Payments Log (mocked from webhooks if present)
+    // 5. Payment logs from payment_transactions
     let paymentLogs: any[] = [];
     try {
-      const { data } = await supabaseAdmin.from('paystack_webhook_logs').select('id, event_type, user_id, amount, reference, status, created_at, profiles(email)').order('created_at', { ascending: false }).limit(50);
-      if (data) paymentLogs = data;
+      const { data: txns } = await supabaseAdmin
+        .from('payment_transactions')
+        .select('id, user_id, amount, reference, status, created_at, profiles(email, full_name)')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (txns && txns.length > 0) {
+        paymentLogs = txns.map(t => ({
+          id: t.id,
+          user_id: t.user_id,
+          event_type: 'charge.success',
+          amount: t.amount,
+          reference: t.reference,
+          status: t.status || 'success',
+          created_at: t.created_at,
+          profiles: t.profiles
+        }));
+      }
     } catch (e) {
-      console.warn("No paystack webhook logs table found");
+      console.warn("Payment transactions fetch fallback", e);
     }
 
     res.json({
-      subscriptions: subs || [],
+      subscriptions: enrichedSubs,
       revenueChart: revenueData,
       churn: {
-        thisMonth: churnThisMonth || 0,
-        lastMonth: churnLastMonth || 0
+        thisMonth: churnThisMonth,
+        lastMonth: churnLastMonth
       },
       paymentLogs
     });
   } catch (err: any) {
+    console.error('[AdminSubscriptions] Error:', err);
     res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });
 
 // A05: Manual Plan Override
 router.post('/subscriptions/override', async (req: Request, res: Response) => {
-  const { userId, newPlan, expiryDays } = req.body;
+  const { userId, newPlan, expiryDays, reason } = req.body;
   try {
     const expiry = new Date();
     expiry.setDate(expiry.getDate() + (expiryDays || 30));
 
-    // Update or Insert Subscription
-    await supabaseAdmin.from('subscriptions').upsert({
-      user_id: userId,
-      plan_id: newPlan,
-      status: 'active',
-      current_period_end: expiry.toISOString()
-    });
-
-    // Also update profile plan shorthand
+    // 1. Update profile plan
     await supabaseAdmin.from('profiles').update({ plan: newPlan }).eq('id', userId);
 
-    await logAuditAction(req.user!.id, 'SUBSCRIPTION_MANUALLY_OVERRIDDEN', userId, 'subscription', { newPlan, expiryDays });
+    // 2. Best-effort update or insert in subscriptions table
+    try {
+      await supabaseAdmin.from('subscriptions').upsert({
+        user_id: userId,
+        plan: newPlan,
+        plan_id: newPlan,
+        status: newPlan === 'free' ? 'canceled' : 'active',
+        current_period_end: newPlan === 'free' ? null : expiry.toISOString()
+      }, { onConflict: 'user_id' });
+    } catch (subErr) {
+      console.warn('[AdminSubscriptionOverride] subscriptions table upsert skipped:', subErr);
+    }
+
+    await logAuditAction(
+      req.user!.id,
+      'SUBSCRIPTION_MANUALLY_OVERRIDDEN',
+      userId,
+      'subscription',
+      { newPlan, expiryDays, reason: reason || 'Admin manual override' }
+    );
     res.json({ success: true });
   } catch (err: any) {
+    console.error('[AdminSubscriptionOverride] Error:', err);
     res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
 });

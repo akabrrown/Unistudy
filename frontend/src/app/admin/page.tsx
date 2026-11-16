@@ -129,26 +129,36 @@ export default function AdminOverviewPage() {
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
         const [
-          { count: totalUsers },
-          { count: newUsersToday },
-          { count: newUsersWeek },
-          { count: activePaid },
-          { count: totalCourses },
-          { count: totalLectures },
-          { count: totalPastPapers },
-          { data: recentUsersList },
-          { data: auditLogsList },
+          totalUsersRes,
+          newUsersTodayRes,
+          newUsersWeekRes,
+          activePaidRes,
+          totalCoursesRes,
+          totalLecturesRes,
+          totalPastPapersRes,
+          recentUsersRes,
+          auditLogsRes,
         ] = await Promise.all([
-          supabase.from('profiles').select('*', { count: 'exact', head: true }),
-          supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', startOfToday),
-          supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo),
-          supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-          supabase.from('courses').select('*', { count: 'exact', head: true }),
-          supabase.from('lectures').select('*', { count: 'exact', head: true }),
-          supabase.from('past_papers').select('*', { count: 'exact', head: true }),
-          supabase.from('profiles').select('id, email, full_name, role, plan, university, degree, created_at').order('created_at', { ascending: false }).limit(7),
-          supabase.from('admin_audit_logs').select('id, admin_id, action_type, target_id, target_type, details, created_at').order('created_at', { ascending: false }).limit(6),
+          supabase.from('profiles').select('*', { count: 'exact', head: true }).then(r => r, () => ({ count: 0 })),
+          supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', startOfToday).then(r => r, () => ({ count: 0 })),
+          supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo).then(r => r, () => ({ count: 0 })),
+          supabase.from('profiles').select('*', { count: 'exact', head: true }).neq('plan', 'free').then(r => r, () => ({ count: 0 })),
+          supabase.from('courses').select('*', { count: 'exact', head: true }).then(r => r, () => ({ count: 0 })),
+          supabase.from('lectures').select('*', { count: 'exact', head: true }).then(r => r, () => ({ count: 0 })),
+          supabase.from('past_papers').select('*', { count: 'exact', head: true }).then(r => r, () => ({ count: 0 })),
+          supabase.from('profiles').select('id, email, full_name, role, plan, university, degree, created_at').order('created_at', { ascending: false }).limit(7).then(r => r, () => ({ data: [] })),
+          supabase.from('admin_audit_logs').select('id, admin_id, action_type, target_id, target_type, details, created_at').order('created_at', { ascending: false }).limit(6).then(r => r, () => ({ data: [] })),
         ]);
+
+        const totalUsers = totalUsersRes?.count ?? 0;
+        const newUsersToday = newUsersTodayRes?.count ?? 0;
+        const newUsersWeek = newUsersWeekRes?.count ?? 0;
+        const activePaid = activePaidRes?.count ?? 0;
+        const totalCourses = totalCoursesRes?.count ?? 0;
+        const totalLectures = totalLecturesRes?.count ?? 0;
+        const totalPastPapers = totalPastPapersRes?.count ?? 0;
+        const recentUsersList = recentUsersRes?.data ?? [];
+        const auditLogsList = auditLogsRes?.data ?? [];
 
         setData({
           kpis: {

@@ -47,6 +47,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -80,6 +81,17 @@ export default function AdminUsersPage() {
   const [updating, setUpdating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  const computeStats = (userList: any[]) => ({
+    total: userList.length,
+    students: userList.filter((u: any) => u.role === 'student' || !u.role).length,
+    admins: userList.filter((u: any) => u.role === 'admin').length,
+    suspended: userList.filter((u: any) => u.role === 'suspended').length,
+    paid: userList.filter((u: any) => {
+      const sub = Array.isArray(u.subscriptions) ? u.subscriptions.find((s: any) => s.status === 'active') : null;
+      return (sub && sub.plan_id !== 'free' && sub.plan !== 'free') || (u.plan && u.plan !== 'free');
+    }).length,
+  });
+
   const fetchUsers = async (isManualRefresh = false) => {
     if (isManualRefresh) setRefreshing(true);
     try {
@@ -90,20 +102,33 @@ export default function AdminUsersPage() {
       if (res.stats) {
         setStats(res.stats);
       } else {
-        setStats({
-          total: userList.length,
-          students: userList.filter((u: any) => u.role === 'student' || !u.role).length,
-          admins: userList.filter((u: any) => u.role === 'admin').length,
-          suspended: userList.filter((u: any) => u.role === 'suspended').length,
-          paid: userList.filter((u: any) => {
-            const sub = Array.isArray(u.subscriptions) ? u.subscriptions.find((s: any) => s.status === 'active') : null;
-            return (sub && sub.plan_id !== 'free') || (u.plan && u.plan !== 'free');
-          }).length,
-        });
+        setStats(computeStats(userList));
       }
     } catch (err: any) {
-      console.error("Failed to fetch admin users:", err);
-      toast.error(err.message || 'Failed to load users');
+      console.warn("Backend /admin/users fetch failed, falling back to direct Supabase query:", err);
+      try {
+        const supabase = createClient();
+        const { data: profiles, error } = await supabase
+          .from('profiles')
+          .select('*, institutions(id, name, abbreviation)')
+          .order('created_at', { ascending: false });
+
+        if (!error && profiles) {
+          setUsers(profiles);
+          setStats(computeStats(profiles));
+        } else {
+          const { data: rawProfiles, error: rawError } = await supabase
+            .from('profiles')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (rawError) throw rawError;
+          setUsers(rawProfiles || []);
+          setStats(computeStats(rawProfiles || []));
+        }
+      } catch (fallbackErr: any) {
+        console.error("Failed to fetch admin users from both backend and Supabase:", fallbackErr);
+        toast.error("Failed to load users. Please check network connection.");
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
