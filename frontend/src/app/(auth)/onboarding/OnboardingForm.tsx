@@ -15,24 +15,32 @@ import { toast } from 'sonner'
 export function OnboardingForm() {
   const [step, setStep] = useState(1)
   const formRef = useRef<HTMLFormElement>(null)
-  const [academicData, setAcademicData] = useState({ institution_id: '', degree_programme: '' })
+  const [academicData, setAcademicData] = useState({
+    institution_id: '',
+    faculty: '',
+    degree_programme: '',
+    year_of_study: '100'
+  })
 
   const handleNextStep = () => {
     if (formRef.current) {
       const formData = new FormData(formRef.current)
-      const inst = formData.get('institution_id') as string
-      const prog = formData.get('degree_programme') as string
+      const inst = (formData.get('institution_id') as string) || ''
+      const fac = (formData.get('faculty') as string) || 'FITCS'
+      const prog = (formData.get('degree_programme') as string) || ''
+      const lvl = (formData.get('year_of_study') as string) || '100'
       
-      if (!inst) {
-        toast.error('Please select an institution')
-        return
-      }
-      if (!prog) {
-        toast.error('Please enter your programme of study')
+      if (!prog.trim()) {
+        toast.error('Please enter or select your UPSA degree programme')
         return
       }
       
-      setAcademicData({ institution_id: inst, degree_programme: prog })
+      setAcademicData({
+        institution_id: inst,
+        faculty: fac,
+        degree_programme: prog,
+        year_of_study: lvl
+      })
       setStep(2)
     }
   }
@@ -41,7 +49,7 @@ export function OnboardingForm() {
     <Card className="w-full max-w-lg shadow-xl shadow-primary/5 border-primary/20 bg-card/80 backdrop-blur-sm">
       <form ref={formRef} action={async (formData) => { await completeOnboarding(formData) }}>
         
-        <div className="relative h-[550px] overflow-hidden">
+        <div className="relative min-h-[580px] overflow-hidden">
           <AnimatePresence mode="wait">
             {step === 1 && (
               <motion.div
@@ -54,14 +62,14 @@ export function OnboardingForm() {
               >
                 <CardHeader className="text-center pb-2">
                   <div className="mx-auto w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mb-4 text-primary font-bold">1</div>
-                  <CardTitle className="text-2xl font-bold">Academic Details</CardTitle>
-                  <CardDescription>Tell us about your studies.</CardDescription>
+                  <CardTitle className="text-2xl font-bold">UPSA Academic Enrollment</CardTitle>
+                  <CardDescription>Select your UPSA Faculty and Degree Major to tailor lecture slides & past papers.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 flex-1 pt-4">
+                <CardContent className="space-y-4 flex-1 pt-2">
                   <InstitutionSelect />
                   <ProgrammeOfStudyInput />
                 </CardContent>
-                <CardFooter className="flex justify-between gap-4">
+                <CardFooter className="flex justify-between gap-4 pt-3 border-t border-border/50">
                   <Button type="button" onClick={handleNextStep} className="w-full">Next Step</Button>
                 </CardFooter>
               </motion.div>
@@ -78,13 +86,16 @@ export function OnboardingForm() {
               >
                 <CardHeader className="text-center pb-2">
                   <div className="mx-auto w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mb-4 text-primary font-bold">2</div>
-                  <CardTitle className="text-2xl font-bold">Your AI Tutor</CardTitle>
-                  <CardDescription>Customize your personal study companion.</CardDescription>
+                  <CardTitle className="text-2xl font-bold">Your AI Study Companion</CardTitle>
+                  <CardDescription>Calibrate your personal UPSA Socratic tutor persona.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 flex-1">
                   {/* Hidden inputs to retain data from Step 1 when it unmounts */}
                   <input type="hidden" name="institution_id" value={academicData.institution_id} />
+                  <input type="hidden" name="faculty" value={academicData.faculty} />
                   <input type="hidden" name="degree_programme" value={academicData.degree_programme} />
+                  <input type="hidden" name="year_of_study" value={academicData.year_of_study} />
+                  <input type="hidden" name="university" value="University of Professional Studies, Accra" />
                   
                   <input type="hidden" name="learning_style" value="adaptive" />
                   

@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     );
     const { data, error: dbError } = await adminSupabase
       .from('profiles')
-      .select('id, full_name, username, university, year_of_study, degree_programme, institutions(name)')
+      .select('id, full_name, username, university, faculty, year_of_study, degree_programme')
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -24,7 +24,8 @@ export async function GET(req: NextRequest) {
 
     const mappedData = data?.map((user: any) => ({
       ...user,
-      university: user.institutions?.name || user.university
+      university: 'University of Professional Studies, Accra (UPSA)',
+      faculty: user.faculty || 'FITCS'
     })) || [];
 
     return NextResponse.json({ leaderboard: mappedData });

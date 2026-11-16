@@ -8,6 +8,7 @@ export interface UserProfile {
   full_name?: string | null;
   institution_id?: string | null;
   institution_name?: string | null;
+  faculty?: string | null;
   degree_programme?: string | null;
   year_of_study?: number | null;
   streak_days?: number;
@@ -27,6 +28,7 @@ interface AuthContextType {
     password: string;
     fullName: string;
     institutionId?: string;
+    faculty?: string;
     degreeProgramme?: string;
     yearOfStudy?: number;
   }) => Promise<{ error: Error | null; user?: User | null }>;
@@ -58,7 +60,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: data.email,
           full_name: data.full_name,
           institution_id: data.institution_id,
-          institution_name: inst?.name || inst?.short_name || null,
+          institution_name: inst?.name || inst?.short_name || 'University of Professional Studies, Accra',
+          faculty: data.faculty || null,
           degree_programme: data.degree_programme,
           year_of_study: data.year_of_study,
           streak_days: data.streak_days || 0,
@@ -127,7 +130,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email,
     password,
     fullName,
-    institutionId,
+    institutionId = '00000000-0000-0000-0000-000000007054',
+    faculty,
     degreeProgramme,
     yearOfStudy,
   }: {
@@ -135,6 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string;
     fullName: string;
     institutionId?: string;
+    faculty?: string;
     degreeProgramme?: string;
     yearOfStudy?: number;
   }) => {
@@ -145,7 +150,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         options: {
           data: {
             full_name: fullName.trim(),
-            institution_id: institutionId || null,
+            institution_id: institutionId || '00000000-0000-0000-0000-000000007054',
+            university: 'University of Professional Studies, Accra',
+            faculty: faculty || null,
             degree_programme: degreeProgramme || null,
             year_of_study: yearOfStudy || 1,
           },

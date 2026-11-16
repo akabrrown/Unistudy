@@ -16,11 +16,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .eq('id', user.id)
     .single()
 
-  // Fetch the single most recent announcement targeted to all or matching student's tier/campus
+  // Fetch the single most recent announcement targeted to all or matching student's tier/faculty/level
   const userTier = profile?.subscription_tier === 'pro' || profile?.subscription_tier === 'ultra' ? 'tier:pro' : 'tier:free'
-  const userCampus = profile?.institutions?.abbreviation ? `campus:${profile.institutions.abbreviation}` : null
+  const userFaculty = profile?.faculty ? `faculty:${profile.faculty}` : null
+  const userLevel = profile?.year_of_study ? `level:${profile.year_of_study}` : null
   const allowedTargets = ['all', userTier]
-  if (userCampus) allowedTargets.push(userCampus)
+  if (userFaculty) allowedTargets.push(userFaculty)
+  if (userLevel) allowedTargets.push(userLevel)
 
   const { data: latestAnnouncement } = await supabase
     .from('announcements')

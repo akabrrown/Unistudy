@@ -50,6 +50,7 @@ import { apiFetch } from '@/lib/api/client';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { UPSA_FACULTIES, UPSA_INSTITUTION } from '@/lib/constants/upsa';
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -66,7 +67,7 @@ export default function AdminUsersPage() {
   // Cohort & Filtering Controls
   const [cohortTab, setCohortTab] = useState<'all' | 'students' | 'admins' | 'paid' | 'suspended'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [institutionFilter, setInstitutionFilter] = useState('all');
+  const [facultyFilter, setFacultyFilter] = useState('all');
   const [planFilter, setPlanFilter] = useState('all');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name_asc' | 'plan_desc'>('newest');
 
@@ -304,10 +305,13 @@ export default function AdminUsersPage() {
         if (!matchesName && !matchesEmail && !matchesId && !matchesUni && !matchesDegree) return false;
       }
 
-      // Institution Filter
-      if (institutionFilter !== 'all') {
-        const instName = u.institutions?.name || u.university;
-        if (instName !== institutionFilter) return false;
+      // UPSA Faculty Filter
+      if (facultyFilter !== 'all') {
+        const uFac = (u.faculty || '').toUpperCase();
+        const uProg = (u.degree_programme || u.degree || '').toLowerCase();
+        const facObj = UPSA_FACULTIES.find(f => f.code === facultyFilter);
+        const matchesFac = uFac === facultyFilter || (facObj && facObj.programmes.some(p => uProg.includes(p.toLowerCase())));
+        if (!matchesFac) return false;
       }
 
       // Plan Filter
@@ -336,7 +340,7 @@ export default function AdminUsersPage() {
     });
 
     return result;
-  }, [users, cohortTab, searchTerm, institutionFilter, planFilter, sortBy]);
+  }, [users, cohortTab, searchTerm, facultyFilter, planFilter, sortBy]);
 
   // Selection Logic
   const allFilteredSelected = useMemo(() => {
@@ -563,13 +567,13 @@ export default function AdminUsersPage() {
           </Tabs>
 
           {/* Quick Clear when filters active */}
-          {(searchTerm || institutionFilter !== 'all' || planFilter !== 'all' || cohortTab !== 'all') && (
+          {(searchTerm || facultyFilter !== 'all' || planFilter !== 'all' || cohortTab !== 'all') && (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => {
                 setSearchTerm('');
-                setInstitutionFilter('all');
+                setFacultyFilter('all');
                 setPlanFilter('all');
                 setCohortTab('all');
               }}
@@ -601,17 +605,17 @@ export default function AdminUsersPage() {
             )}
           </div>
 
-          {/* Institution Filter */}
+          {/* UPSA Faculty Filter */}
           <div className="lg:col-span-3">
-            <Select value={institutionFilter} onValueChange={(v) => setInstitutionFilter(v || 'all')}>
+            <Select value={facultyFilter} onValueChange={(v) => setFacultyFilter(v || 'all')}>
               <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="All Institutions" />
+                <SelectValue placeholder="All UPSA Faculties" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Institutions</SelectItem>
-                {uniqueInstitutions.map(([name, label]) => (
-                  <SelectItem key={name} value={name} className="text-xs">
-                    {label}
+                <SelectItem value="all">All UPSA Faculties</SelectItem>
+                {UPSA_FACULTIES.map(fac => (
+                  <SelectItem key={fac.code} value={fac.code} className="text-xs">
+                    [{fac.code}] {fac.shortName}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -835,27 +839,18 @@ export default function AdminUsersPage() {
                       )}
                     </td>
 
-                    {/* Institution & Programme */}
+                    {/* UPSA Faculty & Programme */}
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono text-primary border-primary/30 font-bold">
+                          {user.faculty || 'FITCS'}
+                        </Badge>
                         <span className="font-medium text-foreground text-xs">
-                          {institutionName}
+                          {user.degree_programme || user.degree || 'UPSA Degree Programme'}
                         </span>
-                        {abbreviation && (
-                          <Badge variant="secondary" className="text-[9px] px-1 py-0 font-mono">
-                            {abbreviation}
-                          </Badge>
-                        )}
                       </div>
                       <div className="text-muted-foreground text-[11px] truncate max-w-[280px]">
-                        {user.degree_programme ? (
-                          <>
-                            {user.degree_programme}
-                            {user.year_of_study && <span className="opacity-75"> • Yr {user.year_of_study}</span>}
-                          </>
-                        ) : (
-                          <span className="italic opacity-60">Programme unspecified</span>
-                        )}
+                        UPSA • {user.year_of_study ? `Level ${user.year_of_study}` : 'Level 100'}
                       </div>
                     </td>
 
@@ -957,7 +952,7 @@ export default function AdminUsersPage() {
                         size="sm"
                         onClick={() => {
                           setSearchTerm('');
-                          setInstitutionFilter('all');
+                          setFacultyFilter('all');
                           setPlanFilter('all');
                           setCohortTab('all');
                         }}
@@ -1067,15 +1062,13 @@ export default function AdminUsersPage() {
                   <TabsContent value="academic" className="space-y-4 m-0">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                       <div className="p-3.5 border rounded-lg bg-card space-y-1">
-                        <span className="text-muted-foreground text-[10px] uppercase font-mono block">Institution</span>
+                        <span className="text-muted-foreground text-[10px] uppercase font-mono block">UPSA Affiliation</span>
                         <span className="font-semibold text-foreground text-sm block">
-                          {selectedUser.institutions?.name || selectedUser.university || 'Not specified'}
+                          University of Professional Studies, Accra
                         </span>
-                        {selectedUser.institutions?.abbreviation && (
-                          <Badge variant="secondary" className="text-[10px] font-mono mt-1">
-                            {selectedUser.institutions.abbreviation}
-                          </Badge>
-                        )}
+                        <Badge variant="outline" className="text-[10px] font-mono mt-1 text-primary border-primary/30">
+                          Faculty: {selectedUser.faculty || 'FITCS'}
+                        </Badge>
                       </div>
 
                       <div className="p-3.5 border rounded-lg bg-card space-y-1">

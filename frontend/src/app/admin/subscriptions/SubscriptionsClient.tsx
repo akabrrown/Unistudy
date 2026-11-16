@@ -49,6 +49,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { UPSA_FACULTIES } from '@/lib/constants/upsa'
 import {
   overrideSubscriptionPlanAction,
   grantRewardMonthAction,
@@ -681,7 +682,7 @@ export default function SubscriptionsClient({
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Badge className="text-xs font-mono font-semibold uppercase bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                <Building className="w-3 h-3 mr-1" /> Campus Sponsor
+                <Building className="w-3 h-3 mr-1" /> UPSA Faculty Sponsor
               </Badge>
               <span className="text-xs font-bold text-foreground">Custom</span>
             </div>
@@ -690,7 +691,7 @@ export default function SubscriptionsClient({
             </span>
           </div>
           <p className="text-xs text-muted-foreground line-clamp-1 mb-3">
-            Institutional campus licensing (e.g. UPSA, KNUST, UG cohort).
+            Departmental & faculty licensing cohort (e.g. FITCS, Accounting & Finance, Law cohort).
           </p>
           <div className="flex items-center justify-between pt-2 border-t border-border/50 text-xs">
             <span className="text-muted-foreground">{enterpriseCount} cohorts</span>
@@ -892,22 +893,20 @@ export default function SubscriptionsClient({
                 </SelectContent>
               </Select>
 
-              {/* Campus Filter */}
-              {institutions.length > 0 && (
-                <Select value={campusFilter} onValueChange={(val: any) => setCampusFilter(val || 'all')}>
-                  <SelectTrigger className="h-9 w-full sm:w-[140px] text-xs">
-                    <SelectValue placeholder="All Campuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Campuses</SelectItem>
-                    {institutions.map(inst => (
-                      <SelectItem key={inst.id} value={inst.abbreviation || inst.name}>
-                        {inst.abbreviation || inst.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              {/* UPSA Faculty Filter */}
+              <Select value={campusFilter} onValueChange={(val: any) => setCampusFilter(val || 'all')}>
+                <SelectTrigger className="h-9 w-full sm:w-[155px] text-xs">
+                  <SelectValue placeholder="All UPSA Faculties" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All UPSA Faculties</SelectItem>
+                  {UPSA_FACULTIES.map(fac => (
+                    <SelectItem key={fac.code} value={fac.code}>
+                      [{fac.code}] {fac.shortName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">

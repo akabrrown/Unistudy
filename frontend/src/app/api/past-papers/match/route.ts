@@ -27,17 +27,11 @@ export async function GET(request: NextRequest) {
       userInstitutionId = profile?.institution_id || null;
     }
 
-    // 2. Query matching past papers for this normalized course code
-    let query = supabase
+    // 2. Query matching past papers for this normalized course code across UPSA
+    const query = supabase
       .from('past_papers')
       .select('id, title, year, exam_type, status, course_code, institution_id, shared_to_community')
       .eq('normalized_course_code', normalizedCode);
-
-    if (userInstitutionId) {
-      query = query.or(`institution_id.eq.${userInstitutionId},shared_to_community.eq.true`);
-    } else {
-      query = query.eq('shared_to_community', true);
-    }
 
     const { data: papers, error } = await query.order('year', { ascending: false });
 

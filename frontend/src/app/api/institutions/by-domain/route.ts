@@ -1,55 +1,24 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { UPSA_INSTITUTION, isUPSAEmail } from '@/lib/constants/upsa';
 
 /**
- * GET /api/institutions/by-domain?domain=example.edu.gh
- * Returns the institution that matches the given email domain.
+ * GET /api/institutions/by-domain?domain=upsamail.edu.gh
+ * In UniStudy, the single dedicated institution is UPSA.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const domain = searchParams.get('domain')?.toLowerCase();
+  const domain = searchParams.get('domain')?.toLowerCase() || '';
 
-  if (!domain) {
-    return NextResponse.json({ error: 'Domain query parameter is required' }, { status: 400 });
-  }
+  const isUpsa = domain.includes('upsa') || domain.includes('upsamail') || domain.endsWith('.upsa.edu.gh');
 
-  const supabase = await createClient();
-  let { data, error } = await supabase
-    .from('institutions')
-    .select('id, name, domain')
-    .eq('domain', domain)
-    .maybeSingle();
-
-  // If exact match fails, try fuzzy matching based on common student email patterns
-  if (!data && !error) {
-    let prefix = domain.split('.')[0];
-    if (prefix === 'st' || prefix === 'student' || prefix === 'students') {
-      prefix = domain.split('.')[1]; // e.g. st.knust.edu.gh -> knust
-    } else if (prefix === 'upsamail') {
-      prefix = 'upsa';
+  return NextResponse.json({
+    found: true,
+    isUpsaVerified: isUpsa,
+    institution: {
+      id: UPSA_INSTITUTION.id,
+      name: UPSA_INSTITUTION.name,
+      abbreviation: UPSA_INSTITUTION.abbreviation,
+      domain: UPSA_INSTITUTION.domains[0]
     }
-
-    if (prefix) {
-      const { data: fuzzyData, error: fuzzyError } = await supabase
-        .from('institutions')
-        .select('id, name, domain')
-        .ilike('abbreviation', prefix)
-        .limit(1)
-        .maybeSingle();
-      
-      data = fuzzyData;
-      error = fuzzyError;
-    }
-  }
-
-  if (error) {
-    console.error('Error fetching institution by domain', error);
-    return NextResponse.json({ error: 'Failed to fetch institution' }, { status: 500 });
-  }
-
-  if (!data) {
-    return NextResponse.json({ found: false }, { status: 200 });
-  }
-
-  return NextResponse.json({ found: true, institution: data }, { status: 200 });
+  });
 }

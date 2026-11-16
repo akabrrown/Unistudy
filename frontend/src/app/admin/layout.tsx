@@ -1,6 +1,6 @@
 import { requireAdmin } from '@/lib/security/adminGuard'
 import Link from 'next/link'
-import { LogOut, Users, LayoutDashboard, Settings, Activity, ShieldAlert, Cpu, Mail, UserPlus, Key, Database, BarChart2, CreditCard } from 'lucide-react'
+import { LogOut, Users, LayoutDashboard, Settings, Activity, ShieldAlert, Cpu, Mail, UserPlus, Key, Database, BarChart2, CreditCard, Building } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
@@ -36,8 +36,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             Platform Settings
           </Link>
           <Link href="/admin/institution-counts" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted transition-colors font-medium text-sm text-muted-foreground hover:text-foreground">
-            <BarChart2 className="w-5 h-5" />
-            Institution Counts
+            <Building className="w-5 h-5 text-primary" />
+            UPSA Faculties
           </Link>
           <Link href="/admin/subscriptions" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted transition-colors font-medium text-sm text-muted-foreground hover:text-foreground">
             <CreditCard className="w-5 h-5" />

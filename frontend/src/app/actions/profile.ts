@@ -8,6 +8,7 @@ export interface UpdateAcademicProfileInput {
   username?: string;
   year_of_study?: number | null;
   degree_programme?: string;
+  faculty?: string;
   institution_id?: string;
   study_goal?: string;
 }
@@ -47,8 +48,7 @@ export async function updateAcademicProfile(data: UpdateAcademicProfileInput) {
       }
     }
 
-    let finalInstitutionId: string | null = null;
-    let customUniversityName: string | undefined;
+    let finalInstitutionId: string = '00000000-0000-0000-0000-000000007054';
 
     if (data.institution_id && data.institution_id.trim()) {
       const rawInst = data.institution_id.trim();
@@ -58,24 +58,13 @@ export async function updateAcademicProfile(data: UpdateAcademicProfileInput) {
         );
       if (isUuid) {
         finalInstitutionId = rawInst;
-      } else {
-        // Look up institution by name
-        const { data: existingInst } = await supabase
-          .from('institutions')
-          .select('id')
-          .ilike('name', rawInst)
-          .maybeSingle();
-
-        if (existingInst?.id) {
-          finalInstitutionId = existingInst.id;
-        } else {
-          // If not in database, store as university name text on profiles
-          customUniversityName = rawInst;
-        }
       }
     }
 
-    const payload: Record<string, unknown> = {};
+    const payload: Record<string, unknown> = {
+      university: 'University of Professional Studies, Accra',
+      institution_id: finalInstitutionId
+    };
     if (data.full_name !== undefined) {
       payload.full_name = data.full_name.trim().slice(0, 100);
     }
@@ -90,11 +79,8 @@ export async function updateAcademicProfile(data: UpdateAcademicProfileInput) {
       payload.degree_programme = cleanDegree;
       payload.degree = cleanDegree;
     }
-    if (finalInstitutionId !== null) {
-      payload.institution_id = finalInstitutionId;
-    }
-    if (customUniversityName) {
-      payload.university = customUniversityName;
+    if (data.faculty !== undefined) {
+      payload.faculty = (data.faculty as string).trim();
     }
     if (data.study_goal !== undefined) {
       payload.study_goal = data.study_goal.trim().slice(0, 200);

@@ -579,9 +579,9 @@ export function ReferralsClient({
             <div className="flex items-center gap-2">
               <Award className="w-4 h-4 text-amber-500" />
               <div>
-                <CardTitle className="text-sm font-semibold">Campus Ambassador & Peer Leaderboard</CardTitle>
+                <CardTitle className="text-sm font-semibold">UPSA Faculty Ambassador & Peer Leaderboard</CardTitle>
                 <CardDescription className="text-xs">
-                  Top student advocates driving verified peer signups across university faculties.
+                  Top student advocates driving verified peer signups across UPSA faculties (FITCS, Accounting, Management, Law).
                 </CardDescription>
               </div>
             </div>

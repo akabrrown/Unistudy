@@ -660,33 +660,38 @@ export default function AdminOverviewPage() {
               </div>
             )}
 
-            {/* Tab 3: Institutional Demographics */}
+            {/* Tab 3: UPSA Academic Faculties */}
             {activeTab === 'institutions' && (
               <div className="space-y-3 animate-in fade-in duration-200">
                 <div className="text-xs text-muted-foreground">
-                  Top registered Ghanaian &amp; regional university cohorts in UniStudy.
+                  Official UPSA faculty enrollment distribution across active academic units.
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div className="p-3.5 rounded-xl border border-border/70 bg-muted/20 space-y-1">
-                    <div className="text-xs font-bold text-foreground">UPSA (Accra)</div>
-                    <div className="text-lg font-black font-mono text-primary">~48%</div>
-                    <div className="text-[11px] text-muted-foreground">Connected via Virtual Portal</div>
+                    <div className="text-xs font-bold text-foreground">Accounting &amp; Finance (FAF)</div>
+                    <div className="text-lg font-black font-mono text-emerald-600">~38%</div>
+                    <div className="text-[11px] text-muted-foreground">BSc Accounting, Banking &amp; Actuarial</div>
                   </div>
                   <div className="p-3.5 rounded-xl border border-border/70 bg-muted/20 space-y-1">
-                    <div className="text-xs font-bold text-foreground">Univ. of Ghana (Legon)</div>
-                    <div className="text-lg font-black font-mono text-emerald-600">~27%</div>
-                    <div className="text-[11px] text-muted-foreground">UG Sakai &amp; Past Questions</div>
+                    <div className="text-xs font-bold text-foreground">IT &amp; Comm Studies (FITCS)</div>
+                    <div className="text-lg font-black font-mono text-primary">~32%</div>
+                    <div className="text-[11px] text-muted-foreground">BSc IT, CompSci &amp; PR Management</div>
                   </div>
                   <div className="p-3.5 rounded-xl border border-border/70 bg-muted/20 space-y-1">
-                    <div className="text-xs font-bold text-foreground">KNUST &amp; Others</div>
-                    <div className="text-lg font-black font-mono text-purple-600">~25%</div>
-                    <div className="text-[11px] text-muted-foreground">Engineering &amp; Business</div>
+                    <div className="text-xs font-bold text-foreground">Management Studies (FMS)</div>
+                    <div className="text-lg font-black font-mono text-purple-600">~18%</div>
+                    <div className="text-[11px] text-muted-foreground">BBA, Marketing &amp; HR Management</div>
+                  </div>
+                  <div className="p-3.5 rounded-xl border border-border/70 bg-muted/20 space-y-1">
+                    <div className="text-xs font-bold text-foreground">UPSA Law School</div>
+                    <div className="text-lg font-black font-mono text-amber-600">~12%</div>
+                    <div className="text-[11px] text-muted-foreground">Bachelor of Laws (LLB Regular/Post)</div>
                   </div>
                 </div>
                 <div className="text-right">
                   <Link href="/admin/institution-counts">
                     <Button variant="outline" size="sm" className="text-xs gap-1">
-                      Manage All University Counts
+                      Manage UPSA Faculties &amp; Demographics
                       <ChevronRight className="w-3.5 h-3.5" />
                     </Button>
                   </Link>
@@ -751,8 +756,8 @@ export default function AdminOverviewPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="py-2.5 px-3 text-muted-foreground">
-                            {u.university || 'General University'}
+                          <td className="py-2.5 px-3 text-muted-foreground text-xs">
+                            UPSA • {u.degree || 'Undergraduate'}
                           </td>
                           <td className="py-2.5 px-3">
                             <span

@@ -34,15 +34,10 @@ router.get('/', async (req: any, res) => {
 
         const institutionId = profile?.institution_id || null;
 
-        let query = supabaseAdmin
+        const query = supabaseAdmin
             .from('past_papers')
-            .select('id, title, year, exam_type, status, course_id, course_code, normalized_course_code, institution_id, created_at, courses(id, course_code, title, colour), past_paper_questions(id, question_number, text_content, extracted_topic, marks_available)');
-
-        if (institutionId) {
-            query = query.or(`user_id.eq.${userId},institution_id.eq.${institutionId},shared_to_community.eq.true`);
-        } else {
-            query = query.or(`user_id.eq.${userId},shared_to_community.eq.true`);
-        }
+            .select('id, title, year, exam_type, status, course_id, course_code, normalized_course_code, institution_id, created_at, courses(id, course_code, title, colour), past_paper_questions(id, question_number, text_content, extracted_topic, marks_available)')
+            .or(`user_id.eq.${userId},shared_to_community.eq.true`);
 
         const { data, error } = await query.order('created_at', { ascending: false });
 

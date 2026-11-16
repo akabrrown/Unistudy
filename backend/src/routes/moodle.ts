@@ -257,16 +257,10 @@ router.get('/match-course', async (req: Request, res: Response): Promise<void> =
       institutionId = profile?.institution_id || null;
     }
 
-    let query = supabaseAdmin
+    const query = supabaseAdmin
       .from('past_papers')
       .select('id, title, year, exam_type, status, course_code, institution_id')
       .eq('normalized_course_code', normalized);
-
-    if (institutionId) {
-      query = query.or(`institution_id.eq.${institutionId},shared_to_community.eq.true`);
-    } else {
-      query = query.eq('shared_to_community', true);
-    }
 
     const { data: papers, error } = await query.order('year', { ascending: false });
 

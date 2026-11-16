@@ -1,10 +1,15 @@
-import { fetchInstitutionCountsAction } from './actions';
+import { fetchUPSAFacultyDemographicsAction } from './actions';
 import InstitutionCountsClient from './InstitutionCountsClient';
 
 export const dynamic = 'force-dynamic';
 
-export default async function InstitutionCountsPage() {
-  const { data } = await fetchInstitutionCountsAction();
+export const metadata = {
+  title: 'UPSA Faculties & Demographics | UniStudy Admin',
+  description: 'Manage UPSA academic faculties, degree programmes, and student enrollment distribution'
+};
 
-  return <InstitutionCountsClient initialInstitutions={data || []} />;
+export default async function InstitutionCountsPage() {
+  const { data } = await fetchUPSAFacultyDemographicsAction();
+
+  return <InstitutionCountsClient initialData={data} />;
 }

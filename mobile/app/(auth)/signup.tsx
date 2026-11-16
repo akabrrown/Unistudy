@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -15,29 +15,20 @@ import {
 import { useRouter, Link } from 'expo-router';
 import { useAuth } from '../../lib/AuthContext';
 import { useSettings } from '../../lib/SettingsContext';
-import { apiFetch } from '../../lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-interface Institution {
-  id: string;
-  name: string;
-  short_name?: string;
-}
+import { UPSA_INSTITUTION, UPSA_FACULTIES, UPSAFaculty } from '../../lib/constants/upsa';
 
 export default function SignupScreen() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [selectedFaculty, setSelectedFaculty] = useState<UPSAFaculty | null>(UPSA_FACULTIES[0]);
   const [degreeProgramme, setDegreeProgramme] = useState('');
   const [yearOfStudy, setYearOfStudy] = useState(1);
-  
-  // Institutions selection
-  const [institutions, setInstitutions] = useState<Institution[]>([]);
-  const [selectedInstitution, setSelectedInstitution] = useState<Institution | null>(null);
-  const [isInstitutionModalOpen, setIsInstitutionModalOpen] = useState(false);
-  const [searchInstitution, setSearchInstitution] = useState('');
+  const [isFacultyModalOpen, setIsFacultyModalOpen] = useState(false);
+  const [isProgrammeModalOpen, setIsProgrammeModalOpen] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -45,28 +36,6 @@ export default function SignupScreen() {
   const { signup } = useAuth();
   const { colors } = useSettings();
   const router = useRouter();
-
-  useEffect(() => {
-    async function loadInstitutions() {
-      try {
-        const data = await apiFetch('/institutions');
-        if (Array.isArray(data)) {
-          setInstitutions(data);
-        }
-      } catch (e) {
-        // Fallback default Ghana & international universities
-        setInstitutions([
-          { id: '1', name: 'University of Ghana (UG)', short_name: 'UG' },
-          { id: '2', name: 'Kwame Nkrumah University of Science and Technology (KNUST)', short_name: 'KNUST' },
-          { id: '3', name: 'University of Cape Coast (UCC)', short_name: 'UCC' },
-          { id: '4', name: 'University of Professional Studies, Accra (UPSA)', short_name: 'UPSA' },
-          { id: '5', name: 'Ghana Institute of Management and Public Administration (GIMPA)', short_name: 'GIMPA' },
-          { id: '6', name: 'Ashesi University', short_name: 'Ashesi' },
-        ]);
-      }
-    }
-    loadInstitutions();
-  }, []);
 
   const handleSignup = async () => {
     setErrorMessage(null);
@@ -76,7 +45,7 @@ export default function SignupScreen() {
       return;
     }
     if (!email.trim() || !email.includes('@')) {
-      setErrorMessage('Please provide a valid university email address.');
+      setErrorMessage('Please provide a valid UPSA student email address.');
       return;
     }
     if (!password || password.length < 8) {
@@ -94,7 +63,8 @@ export default function SignupScreen() {
         fullName,
         email,
         password,
-        institutionId: selectedInstitution?.id,
+        institutionId: UPSA_INSTITUTION.id,
+        faculty: selectedFaculty?.code || undefined,
         degreeProgramme: degreeProgramme.trim() || undefined,
         yearOfStudy,
       });
@@ -111,11 +81,6 @@ export default function SignupScreen() {
     }
   };
 
-  const filteredInstitutions = institutions.filter(inst =>
-    inst.name.toLowerCase().includes(searchInstitution.toLowerCase()) ||
-    (inst.short_name && inst.short_name.toLowerCase().includes(searchInstitution.toLowerCase()))
-  );
-
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bgPage }]}>
       <KeyboardAvoidingView
@@ -130,8 +95,28 @@ export default function SignupScreen() {
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.textPrimary }]}>Create Your Account</Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Join your university peers and elevate your study materials with AI.
+              Join your UPSA peers and elevate your study materials with AI.
             </Text>
+          </View>
+
+          {/* UPSA Institution Verified Badge */}
+          <View style={[styles.upsaBadge, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+            <View style={styles.upsaIconWrap}>
+              <Ionicons name="school" size={22} color="#8C52FF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={styles.badgeRow}>
+                <Text style={[styles.upsaBadgeTitle, { color: colors.textPrimary }]}>
+                  {UPSA_INSTITUTION.name}
+                </Text>
+                <View style={styles.verifiedTag}>
+                  <Text style={styles.verifiedText}>UPSA</Text>
+                </View>
+              </View>
+              <Text style={[styles.upsaBadgeSubtitle, { color: colors.textMuted }]}>
+                Official UPSA Student Learning Portal
+              </Text>
+            </View>
           </View>
 
           {/* Error Banner */}
@@ -155,18 +140,19 @@ export default function SignupScreen() {
                   placeholderTextColor={colors.textMuted}
                   value={fullName}
                   onChangeText={setFullName}
+                  autoCapitalize="words"
                 />
               </View>
             </View>
 
-            {/* Email */}
+            {/* Email Address */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textPrimary }]}>University Email</Text>
+              <Text style={[styles.label, { color: colors.textPrimary }]}>UPSA Email Address</Text>
               <View style={[styles.inputContainer, { backgroundColor: colors.bgInput, borderColor: colors.border }]}>
                 <Ionicons name="mail-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: colors.textPrimary }]}
-                  placeholder="student@university.edu"
+                  placeholder="student@upsamail.edu.gh"
                   placeholderTextColor={colors.textMuted}
                   value={email}
                   onChangeText={setEmail}
@@ -204,22 +190,22 @@ export default function SignupScreen() {
               </View>
             </View>
 
-            {/* Institution Picker Trigger */}
+            {/* UPSA Faculty Picker */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textPrimary }]}>Institution / University</Text>
+              <Text style={[styles.label, { color: colors.textPrimary }]}>Academic Faculty</Text>
               <TouchableOpacity
                 style={[styles.inputContainer, { backgroundColor: colors.bgInput, borderColor: colors.border }]}
-                onPress={() => setIsInstitutionModalOpen(true)}
+                onPress={() => setIsFacultyModalOpen(true)}
               >
-                <Ionicons name="school-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
+                <Ionicons name="business-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
                 <Text
                   style={[
                     styles.input,
-                    { color: selectedInstitution ? colors.textPrimary : colors.textMuted, paddingTop: 14 },
+                    { color: selectedFaculty ? colors.textPrimary : colors.textMuted, paddingTop: 14 },
                   ]}
                   numberOfLines={1}
                 >
-                  {selectedInstitution ? selectedInstitution.name : 'Select your university'}
+                  {selectedFaculty ? `${selectedFaculty.name} (${selectedFaculty.code})` : 'Select UPSA Faculty'}
                 </Text>
                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
               </TouchableOpacity>
@@ -228,24 +214,31 @@ export default function SignupScreen() {
             {/* Degree Programme */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.textPrimary }]}>Degree Programme</Text>
-              <View style={[styles.inputContainer, { backgroundColor: colors.bgInput, borderColor: colors.border }]}>
+              <TouchableOpacity
+                style={[styles.inputContainer, { backgroundColor: colors.bgInput, borderColor: colors.border }]}
+                onPress={() => setIsProgrammeModalOpen(true)}
+              >
                 <Ionicons name="book-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: colors.textPrimary }]}
-                  placeholder="e.g. BSc Computer Science"
-                  placeholderTextColor={colors.textMuted}
-                  value={degreeProgramme}
-                  onChangeText={setDegreeProgramme}
-                />
-              </View>
+                <Text
+                  style={[
+                    styles.input,
+                    { color: degreeProgramme ? colors.textPrimary : colors.textMuted, paddingTop: 14 },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {degreeProgramme || 'Select your accredited programme'}
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              </TouchableOpacity>
             </View>
 
             {/* Year of Study */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textPrimary }]}>Year of Study</Text>
+              <Text style={[styles.label, { color: colors.textPrimary }]}>Level / Year of Study</Text>
               <View style={styles.yearRow}>
-                {[1, 2, 3, 4, 5, 6].map((yr) => {
+                {[1, 2, 3, 4, 5].map((yr) => {
                   const isSelected = yearOfStudy === yr;
+                  const label = yr === 5 ? 'L500+' : `L${yr * 100}`;
                   return (
                     <TouchableOpacity
                       key={yr}
@@ -264,7 +257,7 @@ export default function SignupScreen() {
                           { color: isSelected ? '#FFFFFF' : colors.textPrimary },
                         ]}
                       >
-                        Yr {yr}
+                        {label}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -286,7 +279,7 @@ export default function SignupScreen() {
               {loading ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.submitBtnText}>Create Account</Text>
+                <Text style={styles.submitBtnText}>Create UPSA Account</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -305,44 +298,78 @@ export default function SignupScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Institution Selection Modal */}
-      <Modal visible={isInstitutionModalOpen} animationType="slide" transparent>
+      {/* Faculty Modal */}
+      <Modal visible={isFacultyModalOpen} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.bgCard }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Select Institution</Text>
-              <TouchableOpacity onPress={() => setIsInstitutionModalOpen(false)}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Select UPSA Faculty</Text>
+              <TouchableOpacity onPress={() => setIsFacultyModalOpen(false)}>
                 <Ionicons name="close-circle" size={26} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
-            <View style={[styles.modalSearch, { backgroundColor: colors.bgInput, borderColor: colors.border }]}>
-              <Ionicons name="search" size={18} color={colors.textMuted} style={{ marginRight: 8 }} />
-              <TextInput
-                style={[styles.modalSearchInput, { color: colors.textPrimary }]}
-                placeholder="Search university..."
-                placeholderTextColor={colors.textMuted}
-                value={searchInstitution}
-                onChangeText={setSearchInstitution}
-              />
-            </View>
             <FlatList
-              data={filteredInstitutions}
-              keyExtractor={(item) => item.id}
+              data={UPSA_FACULTIES}
+              keyExtractor={(item) => item.code}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[
                     styles.institutionItem,
                     { borderBottomColor: colors.border },
-                    selectedInstitution?.id === item.id && { backgroundColor: colors.bgSubtle },
+                    selectedFaculty?.code === item.code && { backgroundColor: colors.bgSubtle },
                   ]}
                   onPress={() => {
-                    setSelectedInstitution(item);
-                    setIsInstitutionModalOpen(false);
+                    setSelectedFaculty(item);
+                    setDegreeProgramme(item.programmes[0] || '');
+                    setIsFacultyModalOpen(false);
                   }}
                 >
-                  <Ionicons name="school" size={20} color={colors.primaryViolet} style={{ marginRight: 12 }} />
+                  <View style={styles.facultyBadge}>
+                    <Text style={styles.facultyCodeText}>{item.code}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.institutionItemText, { color: colors.textPrimary }]}>
+                      {item.name}
+                    </Text>
+                    <Text style={[styles.facultySubText, { color: colors.textMuted }]}>
+                      {item.programmes.length} Accredited Programmes
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Programme Modal */}
+      <Modal visible={isProgrammeModalOpen} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.bgCard }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Select Degree Programme</Text>
+              <TouchableOpacity onPress={() => setIsProgrammeModalOpen(false)}>
+                <Ionicons name="close-circle" size={26} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={selectedFaculty ? selectedFaculty.programmes : []}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.institutionItem,
+                    { borderBottomColor: colors.border },
+                    degreeProgramme === item && { backgroundColor: colors.bgSubtle },
+                  ]}
+                  onPress={() => {
+                    setDegreeProgramme(item);
+                    setIsProgrammeModalOpen(false);
+                  }}
+                >
+                  <Ionicons name="ribbon-outline" size={20} color={colors.primaryViolet} style={{ marginRight: 12 }} />
                   <Text style={[styles.institutionItemText, { color: colors.textPrimary }]}>
-                    {item.name}
+                    {item}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -366,7 +393,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: 18,
   },
   title: {
     fontSize: 24,
@@ -377,13 +404,56 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  upsaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 18,
+  },
+  upsaIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: 'rgba(140, 82, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  upsaBadgeTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
+  },
+  verifiedTag: {
+    backgroundColor: '#8C52FF',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  verifiedText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  upsaBadgeSubtitle: {
+    fontSize: 11,
+    marginTop: 2,
+  },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderRadius: 12,
     padding: 12,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   errorText: {
     flex: 1,
@@ -391,7 +461,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   form: {
-    gap: 16,
+    gap: 14,
   },
   inputGroup: {
     gap: 6,
@@ -414,34 +484,34 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     height: '100%',
-    fontSize: 15,
+    fontSize: 14,
   },
   eyeBtn: {
     padding: 4,
   },
   yearRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
     marginTop: 4,
   },
   yearBtn: {
     flex: 1,
-    height: 44,
+    height: 42,
     borderRadius: 10,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   yearBtnText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   submitBtn: {
-    height: 52,
+    height: 50,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 16,
+    marginTop: 10,
     shadowColor: '#8C52FF',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
@@ -453,7 +523,7 @@ const styles = StyleSheet.create({
   },
   submitBtnText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
   footer: {
@@ -471,7 +541,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -482,39 +552,38 @@ const styles = StyleSheet.create({
   },
   modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
   },
-  modalSearch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
-    marginBottom: 16,
-  },
-  modalSearchInput: {
-    flex: 1,
-    height: '100%',
-    fontSize: 14,
-  },
   institutionItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
-    paddingHorizontal: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 12,
   },
   institutionItemText: {
     fontSize: 14,
-    fontWeight: '500',
-    flex: 1,
+    fontWeight: '600',
+  },
+  facultyBadge: {
+    backgroundColor: 'rgba(140, 82, 255, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  facultyCodeText: {
+    color: '#8C52FF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  facultySubText: {
+    fontSize: 12,
+    marginTop: 2,
   },
 });
-

@@ -1,152 +1,113 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
-
-import { Building2, Search, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-
-type Institution = {
-  id: string
-  name: string
-}
+import { Building2, ShieldCheck, GraduationCap, CheckCircle2 } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { UPSA_INSTITUTION, UPSA_FACULTIES, UPSA_LEVELS } from '@/lib/constants/upsa'
 
 interface InstitutionSelectProps {
-  initialInstitution?: string | null;
+  initialInstitution?: string | null
+  initialFaculty?: string | null
+  initialLevel?: number | null
 }
 
-export function InstitutionSelect({ initialInstitution }: InstitutionSelectProps = {}) {
-  const [institutions, setInstitutions] = useState<Institution[]>([])
-  const [search, setSearch] = useState(initialInstitution || '')
-  const [selectedId, setSelectedId] = useState<string>(initialInstitution || '')
-  const [loading, setLoading] = useState(true)
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-
-  useEffect(() => {
-    async function fetchInstitutions() {
-
-
-      try {
-        const res = await fetch('/api/institutions?limit=100');
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            const formatted = data.map((inst: any) => ({
-              id: inst.id,
-              name: inst.name,
-            }));
-            setInstitutions(formatted);
-            setLoading(false);
-            return;
-          }
-        }
-        // Fallback to Ghana proxy endpoint if primary database list is unreachable
-        const ghanaRes = await fetch('/api/institutions/ghana');
-        if (!ghanaRes.ok) throw new Error('Network response was not ok');
-        const ghanaData = await ghanaRes.json();
-        const list = Array.isArray(ghanaData) ? ghanaData : (ghanaData.universities || []);
-        const formatted = list.map((inst: any) => ({
-          id: inst.id || inst.name,
-          name: inst.name,
-        }));
-        setInstitutions(formatted);
-      } catch (error) {
-        console.error('Failed to fetch institutions:', error);
-        setInstitutions([]);
-      }
-      setLoading(false)
-    }
-
-    fetchInstitutions()
-    
-    // Listen for custom event from EmailField
-    const handleEmailDetected = async (e: any) => {
-      const domain = e.detail?.domain
-      if (domain) {
-        try {
-          const res = await fetch(`/api/institutions/by-domain?domain=${encodeURIComponent(domain)}`)
-          const data = await res.json()
-          if (data.found && data.institution) {
-            setSelectedId(data.institution.id)
-          }
-        } catch (err) {
-          console.error('Failed to auto-select institution by domain', err)
-        }
-      }
-    }
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('institutional_email_detected', handleEmailDetected)
-      return () => window.removeEventListener('institutional_email_detected', handleEmailDetected)
-    }
-  }, [])
-
-  const filteredInstitutions = institutions.filter(inst => 
-    inst.name.toLowerCase().includes(search.toLowerCase())
+export function InstitutionSelect({
+  initialInstitution,
+  initialFaculty,
+  initialLevel
+}: InstitutionSelectProps = {}) {
+  const [selectedFaculty, setSelectedFaculty] = useState<string>(
+    initialFaculty || UPSA_FACULTIES[0].code
   )
-
-  const selectedInstitution = institutions.find(i => i.id === selectedId)
+  const [selectedLevel, setSelectedLevel] = useState<number>(initialLevel || 100)
 
   return (
-    <div className="space-y-2 relative">
-      <Label htmlFor="institution_search">Institution</Label>
-      
-      <div className="relative">
-        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          id="institution_search"
-          placeholder="Search for your university..."
-          className="pl-9 bg-background/50"
-          value={isDropdownOpen ? search : selectedInstitution?.name || search}
-          onChange={(e) => {
-            setSearch(e.target.value)
-            setIsDropdownOpen(true)
-            if (selectedId) setSelectedId('')
-          }}
-          onFocus={() => setIsDropdownOpen(true)}
-          onBlur={() => {
-            // Delay closing so click registers
-            setTimeout(() => setIsDropdownOpen(false), 200)
-          }}
-        />
-        
+    <div className="space-y-4">
+      {/* ── Verified UPSA Institutional Anchor ── */}
+      <div className="p-3.5 rounded-xl border border-primary/30 bg-primary/5 space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+              <Building2 className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <span>Academic Institution</span>
+                <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30 font-semibold">
+                  Exclusive Campus
+                </Badge>
+              </div>
+              <h3 className="text-sm font-bold text-foreground">
+                {UPSA_INSTITUTION.name} ({UPSA_INSTITUTION.abbreviation})
+              </h3>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md font-mono">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Verified</span>
+          </div>
+        </div>
+
+        <div className="text-[11px] text-muted-foreground flex items-center gap-2 pt-1 border-t border-primary/10 font-mono">
+          <span>Portal: {UPSA_INSTITUTION.portalUrl.replace('https://', '')}</span>
+          <span>•</span>
+          <span>Motto: &ldquo;{UPSA_INSTITUTION.motto}&rdquo;</span>
+        </div>
       </div>
 
-      <input type="hidden" name="institution_id" value={selectedId || search} required />
+      {/* Hidden inputs to pass UPSA canonical info */}
+      <input type="hidden" name="institution_id" value={UPSA_INSTITUTION.id} />
+      <input type="hidden" name="university" value={UPSA_INSTITUTION.name} />
 
-      {isDropdownOpen && (
-        <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-60 overflow-auto">
-          {loading ? (
-            <div className="p-3 text-sm text-muted-foreground text-center">Loading institutions...</div>
-          ) : filteredInstitutions.length > 0 ? (
-            <div className="py-1">
-              {filteredInstitutions.map((inst) => (
-                <div
-                  key={inst.id}
-                  className="px-3 py-2 hover:bg-accent cursor-pointer flex items-center justify-between"
-                  onClick={() => {
-                    setSelectedId(inst.id)
-                    setSearch('')
-                    setIsDropdownOpen(false)
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">{inst.name}</span>
-                  </div>
-                    
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="p-3 text-sm text-muted-foreground text-center">
-              No institution found. <br/>
-              <span className="text-xs">We'll register it for you.</span>
-            </div>
-          )}
-        </div>
-      )}
+      {/* ── UPSA Faculty / School Selection ── */}
+      <div className="space-y-1.5">
+        <Label htmlFor="faculty_select" className="text-xs font-semibold flex items-center gap-1.5">
+          <GraduationCap className="w-3.5 h-3.5 text-primary" />
+          Select Your UPSA Faculty / School
+        </Label>
+        <Select
+          value={selectedFaculty}
+          onValueChange={(val: any) => setSelectedFaculty(val || UPSA_FACULTIES[0].code)}
+        >
+          <SelectTrigger id="faculty_select" className="h-10 text-xs bg-background/50">
+            <SelectValue placeholder="Select Faculty" />
+          </SelectTrigger>
+          <SelectContent>
+            {UPSA_FACULTIES.map((fac) => (
+              <SelectItem key={fac.code} value={fac.code} className="text-xs">
+                <span className="font-semibold text-foreground mr-1.5">[{fac.shortName}]</span>
+                {fac.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <input type="hidden" name="faculty" value={selectedFaculty} />
+      </div>
+
+      {/* ── UPSA Level of Study ── */}
+      <div className="space-y-1.5">
+        <Label htmlFor="level_select" className="text-xs font-semibold">
+          Level of Study
+        </Label>
+        <Select
+          value={String(selectedLevel)}
+          onValueChange={(val) => setSelectedLevel(Number(val) || 100)}
+        >
+          <SelectTrigger id="level_select" className="h-10 text-xs bg-background/50">
+            <SelectValue placeholder="Select Level" />
+          </SelectTrigger>
+          <SelectContent>
+            {UPSA_LEVELS.map((lvl) => (
+              <SelectItem key={lvl.value} value={String(lvl.value)} className="text-xs">
+                {lvl.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <input type="hidden" name="year_of_study" value={selectedLevel} />
+      </div>
     </div>
   )
 }

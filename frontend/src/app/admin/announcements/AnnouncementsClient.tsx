@@ -37,7 +37,8 @@ import {
   Sparkles,
   Info,
   SlidersHorizontal,
-  BookmarkPlus
+  BookmarkPlus,
+  GraduationCap
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -411,15 +412,18 @@ export function AnnouncementsClient({
 
   // Estimated reach calculation helper
   const getEstimatedReach = (target: string) => {
-    if (!target || target === 'all') return `${stats.totalStudents} students (100%)`
+    if (!target || target === 'all') return `${stats.totalStudents} students (100% of UPSA)`
     if (target === 'tier:pro') return `${stats.paidStudents} Pro/Ultra students (${Math.round((stats.paidStudents / (stats.totalStudents || 1)) * 100)}%)`
     if (target === 'tier:free') return `${stats.freeStudents} Free Tier students (${Math.round((stats.freeStudents / (stats.totalStudents || 1)) * 100)}%)`
-    if (target.startsWith('campus:')) {
-      const abbr = target.replace('campus:', '')
-      const inst = institutions.find(i => i.abbreviation.toUpperCase() === abbr.toUpperCase())
-      return inst ? `~${inst.student_count} ${abbr} campus students` : `${abbr} campus members`
+    if (target.startsWith('faculty:')) {
+      const code = target.replace('faculty:', '')
+      return `~${Math.round(stats.totalStudents * 0.25)} students in UPSA ${code}`
     }
-    return 'Targeted student cohort'
+    if (target.startsWith('level:')) {
+      const lvl = target.replace('level:', '')
+      return `~${Math.round(stats.totalStudents * 0.28)} students in UPSA Level ${lvl}`
+    }
+    return 'Targeted UPSA student cohort'
   }
 
   // Channel badge helper
@@ -1346,21 +1350,51 @@ export function AnnouncementsClient({
                         <span>Free Tier Accounts ({stats.freeStudents} students)</span>
                       </div>
                     </SelectItem>
-                    {institutions.length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted/40">
-                          Campus Specific Cohorts
-                        </div>
-                        {institutions.map(inst => (
-                          <SelectItem key={inst.id} value={`campus:${inst.abbreviation}`}>
-                            <div className="flex items-center gap-2">
-                              <Building2 className="w-3.5 h-3.5 text-blue-500" />
-                              <span>{inst.name} ({inst.abbreviation}) &bull; ~{inst.student_count} students</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </>
-                    )}
+                    <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted/40">
+                      UPSA Faculties & Levels
+                    </div>
+                    <SelectItem value="faculty:FITCS">
+                      <div className="flex items-center gap-2">
+                        <GraduationCap className="w-3.5 h-3.5 text-blue-500" />
+                        <span>FITCS (IT, Computer Science & Comm Studies)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="faculty:FAF">
+                      <div className="flex items-center gap-2">
+                        <GraduationCap className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Faculty of Accounting & Finance (FAF)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="faculty:FMS">
+                      <div className="flex items-center gap-2">
+                        <GraduationCap className="w-3.5 h-3.5 text-purple-500" />
+                        <span>Faculty of Management Studies (FMS)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="faculty:LAW">
+                      <div className="flex items-center gap-2">
+                        <GraduationCap className="w-3.5 h-3.5 text-amber-500" />
+                        <span>UPSA Law School (LLB Scholars)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="faculty:GRAD">
+                      <div className="flex items-center gap-2">
+                        <GraduationCap className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>School of Graduate Studies (MBA/MSc)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="level:100">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-3.5 h-3.5 text-cyan-500" />
+                        <span>Level 100 Freshers Cohort</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="level:400">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-3.5 h-3.5 text-rose-500" />
+                        <span>Level 400 Finalists Cohort</span>
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <div className="text-[11px] text-muted-foreground flex items-center justify-between pt-1">
