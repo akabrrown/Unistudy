@@ -33,7 +33,7 @@ export async function deleteLecture(lectureId: string, courseId: string) {
   }
 }
 
-export async function bulkDeleteLectures(lectureIds: string[], courseId: string) {
+export async function bulkDeleteLectures(lectureIds: string[], courseId?: string) {
   const supabase = await createClient()
   
   const { data: { session } } = await supabase.auth.getSession()
@@ -53,15 +53,29 @@ export async function bulkDeleteLectures(lectureIds: string[], courseId: string)
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return { success: false, error: err.error || 'Failed to bulk delete lectures' }
+      // Fallback directly to Supabase client if backend endpoint is waking or unavailable
+      const { error: sbErr } = await supabase.from('lectures').delete().in('id', lectureIds);
+      if (sbErr) {
+        return { success: false, error: sbErr.message || 'Failed to bulk delete lectures' };
+      }
     }
 
-    revalidatePath(`/dashboard/courses/${courseId}`)
-    revalidatePath('/dashboard/lectures')
-    return { success: true }
+    if (courseId) {
+      revalidatePath(`/dashboard/courses/${courseId}`);
+    }
+    revalidatePath('/dashboard/lectures');
+    return { success: true };
   } catch (err: any) {
-    console.error('Failed to bulk delete lectures:', err)
-    return { success: false, error: err.message }
+    // Direct Supabase fallback on network exception
+    try {
+      const { error: sbErr } = await supabase.from('lectures').delete().in('id', lectureIds);
+      if (sbErr) throw sbErr;
+      if (courseId) revalidatePath(`/dashboard/courses/${courseId}`);
+      revalidatePath('/dashboard/lectures');
+      return { success: true };
+    } catch (e: any) {
+      console.error('Failed to bulk delete lectures:', e || err);
+      return { success: false, error: e?.message || err?.message || 'Failed to bulk delete lectures' };
+    }
   }
 }

@@ -19,12 +19,28 @@ import {
   CheckCircle2,
   Calendar,
   Loader2,
+  Trash2,
+  CheckSquare,
+  X,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { resolveCourseColor } from '@/lib/constants/courses';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api/client';
+import { bulkDeleteLectures } from '@/app/actions/lectures';
 import { UploadLectureDialog } from '@/components/courses/UploadLectureDialog';
 import { DeleteLectureButton } from '@/components/courses/DeleteLectureButton';
 
@@ -58,6 +74,9 @@ export default function LecturesHubPage() {
   const [loading, setLoading] = useState(true);
   const [selectedCourseId, setSelectedCourseId] = useState<string | 'all'>(urlCourseId || 'all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedLectureIds, setSelectedLectureIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
 
   // Fetch courses and their lectures
   const loadCourses = useCallback(async () => {
@@ -163,6 +182,65 @@ export default function LecturesHubPage() {
     if (selectedCourseId === 'all') return null;
     return courses.find((c) => c.id === selectedCourseId) || null;
   }, [courses, selectedCourseId]);
+
+  const toggleSelectLecture = useCallback((id: string) => {
+    setSelectedLectureIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    setSelectedLectureIds((prev) => {
+      if (prev.size === filteredLectures.length && filteredLectures.length > 0) {
+        return new Set();
+      }
+      return new Set(filteredLectures.map(({ lecture }) => lecture.id));
+    });
+  }, [filteredLectures]);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedLectureIds(new Set());
+  }, []);
+
+  const handleBulkDeleteConfirm = async () => {
+    if (selectedLectureIds.size === 0) return;
+    setIsBulkDeleting(true);
+
+    const idsToDelete = Array.from(selectedLectureIds);
+    try {
+      const res = await bulkDeleteLectures(idsToDelete, activeCourse?.id);
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to bulk delete lectures');
+      }
+
+      setCourses((prev) =>
+        prev.map((c) => ({
+          ...c,
+          lectures: (c.lectures || []).filter((l) => !selectedLectureIds.has(l.id)),
+        }))
+      );
+
+      toast.success(
+        `Successfully deleted ${idsToDelete.length} lecture deck${idsToDelete.length > 1 ? 's' : ''}`
+      );
+      setSelectedLectureIds(new Set());
+      setIsBulkDeleteDialogOpen(false);
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('lecture-uploaded'));
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to delete selected lectures');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
 
   const totalLectureCount = allLecturesWithCourse.length;
 
@@ -426,12 +504,41 @@ export default function LecturesHubPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
-            <span className="font-mono uppercase tracking-wider font-semibold">
-              Showing {filteredLectures.length}{' '}
-              {filteredLectures.length === 1 ? 'Lecture Deck' : 'Lecture Decks'}
-            </span>
-            <span className="text-[11px]">Click any deck to open the interactive slide viewer</span>
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground px-1">
+            <div className="flex items-center gap-3">
+              <span className="font-mono uppercase tracking-wider font-semibold">
+                Showing {filteredLectures.length}{' '}
+                {filteredLectures.length === 1 ? 'Lecture Deck' : 'Lecture Decks'}
+              </span>
+
+              {filteredLectures.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleSelectAll}
+                  className="text-xs font-semibold text-primary hover:underline flex items-center gap-1.5 cursor-pointer select-none"
+                >
+                  <CheckSquare className="w-3.5 h-3.5" />
+                  {selectedLectureIds.size === filteredLectures.length && filteredLectures.length > 0
+                    ? 'Deselect All'
+                    : 'Select All'}
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {selectedLectureIds.size > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setIsBulkDeleteDialogOpen(true)}
+                  className="h-8 px-3 text-xs gap-1.5 cursor-pointer font-semibold shadow-xs animate-in fade-in"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Selected ({selectedLectureIds.size})
+                </Button>
+              )}
+              <span className="text-[11px] hidden sm:inline">Click any deck to open the interactive slide viewer</span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -444,11 +551,17 @@ export default function LecturesHubPage() {
                     year: 'numeric',
                   })
                 : 'Recent';
+              const isSelected = selectedLectureIds.has(lecture.id);
 
               return (
                 <article
                   key={lecture.id}
-                  className="group relative flex flex-col justify-between rounded-2xl border border-border/80 bg-card hover:border-primary/50 hover:shadow-md p-5 transition-all overflow-hidden"
+                  className={cn(
+                    "group relative flex flex-col justify-between rounded-2xl border bg-card p-5 transition-all overflow-hidden",
+                    isSelected
+                      ? "border-destructive/70 ring-2 ring-destructive/20 bg-destructive/[0.02]"
+                      : "border-border/80 hover:border-primary/50 hover:shadow-md"
+                  )}
                 >
                   <div
                     className="absolute top-0 left-0 right-0 h-1.5"
@@ -456,9 +569,26 @@ export default function LecturesHubPage() {
                   />
 
                   <div className="space-y-3 pt-1">
-                    {/* Course Code & Metadata Top Row */}
+                    {/* Course Code, Checkbox & Metadata Top Row */}
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="flex items-center justify-center p-0.5 rounded cursor-pointer select-none"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleSelectLecture(lecture.id);
+                          }}
+                          title={isSelected ? 'Deselect deck' : 'Select deck for bulk action'}
+                        >
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleSelectLecture(lecture.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="data-checked:bg-destructive data-checked:border-destructive border-border"
+                            aria-label={`Select ${lecture.title}`}
+                          />
+                        </div>
                         <span
                           className="w-2 h-2 rounded-full shrink-0"
                           style={{ backgroundColor: accentColor }}
@@ -544,10 +674,21 @@ export default function LecturesHubPage() {
                       courseId={course.id}
                       lectureTitle={lecture.title || 'Untitled Lecture'}
                       onDeleted={() => {
-                        setCourses(prev => prev.map(c => c.id === course.id ? {
-                          ...c,
-                          lectures: (c.lectures || []).filter(l => l.id !== lecture.id)
-                        } : c));
+                        setSelectedLectureIds((prev) => {
+                          const next = new Set(prev);
+                          next.delete(lecture.id);
+                          return next;
+                        });
+                        setCourses((prev) =>
+                          prev.map((c) =>
+                            c.id === course.id
+                              ? {
+                                  ...c,
+                                  lectures: (c.lectures || []).filter((l) => l.id !== lecture.id),
+                                }
+                              : c
+                          )
+                        );
                       }}
                     />
                   </div>
@@ -557,6 +698,85 @@ export default function LecturesHubPage() {
           </div>
         </div>
       )}
+
+      {/* Floating Sticky Bulk Actions Bar */}
+      {selectedLectureIds.size > 0 && (
+        <aside
+          role="region"
+          aria-label="Bulk actions toolbar"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-card/95 backdrop-blur-md border border-border/80 shadow-xl rounded-2xl px-5 py-3 animate-in fade-in slide-in-from-bottom-3 duration-200"
+        >
+          <span className="text-xs font-semibold text-foreground whitespace-nowrap">
+            {selectedLectureIds.size} deck{selectedLectureIds.size > 1 ? 's' : ''} selected
+          </span>
+          <div className="h-4 w-px bg-border/80" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleClearSelection}
+            className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+          >
+            Clear
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            onClick={() => setIsBulkDeleteDialogOpen(true)}
+            className="h-8 px-3 text-xs gap-1.5 cursor-pointer font-semibold shadow-xs"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete Selected ({selectedLectureIds.size})
+          </Button>
+        </aside>
+      )}
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5 text-destructive" />
+              Delete {selectedLectureIds.size} Lecture Deck{selectedLectureIds.size > 1 ? 's' : ''}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2 text-xs text-muted-foreground pt-1">
+              <span>
+                This will permanently delete the <strong className="text-foreground">{selectedLectureIds.size}</strong> selected lecture deck{selectedLectureIds.size > 1 ? 's' : ''} and all associated extracted slides and study notes. This action cannot be undone.
+              </span>
+              <div className="mt-2.5 p-2.5 rounded-lg bg-muted/60 border border-border/40 text-[11px] font-mono max-h-36 overflow-y-auto space-y-1">
+                {allLecturesWithCourse
+                  .filter(({ lecture }) => selectedLectureIds.has(lecture.id))
+                  .map(({ lecture, course }) => (
+                    <div key={lecture.id} className="truncate">
+                      • {course.course_code ? `[${course.course_code}] ` : ''}{lecture.title || 'Untitled Lecture'}
+                    </div>
+                  ))}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleBulkDeleteConfirm();
+              }}
+              disabled={isBulkDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-1.5 cursor-pointer"
+            >
+              {isBulkDeleting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                `Delete ${selectedLectureIds.size} Deck${selectedLectureIds.size > 1 ? 's' : ''}`
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
