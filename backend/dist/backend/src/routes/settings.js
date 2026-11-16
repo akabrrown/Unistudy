@@ -11,6 +11,7 @@ const redis_1 = require("../lib/redis");
 const quotes_1 = require("../lib/constants/quotes");
 const groq_sdk_1 = __importDefault(require("groq-sdk"));
 const generative_ai_1 = require("@google/generative-ai");
+const aiModels_1 = require("../../../shared/constants/aiModels");
 let memoryCachedQuote = null;
 // Public route: Daily Quote (no auth required)
 router.get('/daily-quote', async (req, res) => {
@@ -48,7 +49,7 @@ router.get('/daily-quote', async (req, res) => {
 Format your response strictly as: "Quote text" - Author Name
 Do not include any greeting, explanation, or extra characters.`
                     }],
-                model: 'llama-3.3-70b-versatile',
+                model: aiModels_1.GROQ_FAST_MODELS[0],
                 temperature: 0.8,
                 max_tokens: 120
             });
@@ -61,7 +62,7 @@ Do not include any greeting, explanation, or extra characters.`
         }
         else if (process.env.GEMINI_API_KEY) {
             const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-            const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+            const model = genAI.getGenerativeModel({ model: aiModels_1.GEMINI_CANDIDATE_MODELS[0] });
             const resAI = await model.generateContent('Generate a single inspiring motivational quote for university students. Format strictly as: "Quote text" - Author Name');
             const text = resAI.response.text().trim();
             const match = text.match(/^["“]?(.*?)["”]?\s*[-–—]\s*(.*)$/);

@@ -4,11 +4,9 @@ exports.getGeminiModel = getGeminiModel;
 exports.callGeminiWithFallback = callGeminiWithFallback;
 exports.handleGeminiRequest = handleGeminiRequest;
 const generative_ai_1 = require("@google/generative-ai");
-const GEMINI_MODELS = [
-    'gemini-3.5-flash',
-    'gemini-3.8-flash',
-    'gemini-3.5-flash-lite'
-];
+const aiModels_1 = require("../../../../../shared/constants/aiModels");
+const flashcardExtractor_1 = require("../../../../../shared/lib/flashcardExtractor");
+const GEMINI_MODELS = [...aiModels_1.GEMINI_CANDIDATE_MODELS];
 async function getGeminiModel() {
     const key = process.env.GEMINI_API_KEY;
     if (!key)
@@ -113,18 +111,12 @@ async function handleGeminiRequest(req) {
             return JSON.parse(result.response.text());
         }
         if (req.feature === 'flashcard_generation') {
-            const prompt = `
-        Generate a set of high-quality, comprehensive flashcards from the provided lecture text and explanations.
-        The flashcards should cover key concepts, definitions, and important facts.
-        Return ONLY a JSON array of objects with the structure:
-        { "front": "question or concept", "back": "answer or explanation" }
-
-        Content to process:
-        ${req.payload.prompt}
-      `;
+            const prompt = (0, flashcardExtractor_1.buildGroundedFlashcardPrompt)(req.payload.slides && req.payload.slides.length > 0
+                ? req.payload.slides
+                : req.payload.prompt || '');
             const result = await model.generateContent({
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                generationConfig: { responseMimeType: "application/json" }
+                generationConfig: { responseMimeType: "application/json", temperature: 0.2 }
             });
             return JSON.parse(result.response.text());
         }

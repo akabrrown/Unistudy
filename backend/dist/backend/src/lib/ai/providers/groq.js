@@ -6,39 +6,64 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getGroqClient = getGroqClient;
 exports.handleGroqRequest = handleGroqRequest;
 const groq_sdk_1 = __importDefault(require("groq-sdk"));
+const aiModels_1 = require("../../../../../shared/constants/aiModels");
+const flashcardExtractor_1 = require("../../../../../shared/lib/flashcardExtractor");
+const mathSolver_1 = require("../../../../../shared/lib/mathSolver");
 function getGroqClient() {
     if (!process.env.GROQ_API_KEY)
         throw new Error("GROQ_API_KEY is not set");
     return new groq_sdk_1.default({ apiKey: process.env.GROQ_API_KEY });
 }
+async function createCompletionWithModels(groq, models, buildPayload) {
+    let lastError = null;
+    for (const model of models) {
+        try {
+            return await groq.chat.completions.create(buildPayload(model));
+        }
+        catch (err) {
+            lastError = err;
+            console.warn(`[Groq] Model ${model} failed, trying next:`, err instanceof Error ? err.message : err);
+        }
+    }
+    throw lastError || new Error('All Groq candidate models failed');
+}
 async function handleGroqRequest(req) {
     const groq = getGroqClient();
-    const model = req.feature === 'daily_brief' || req.feature === 'motivational_quote' || req.feature === 'break_suggestion'
-        ? 'openai/gpt-oss-20b'
-        : 'openai/gpt-oss-120b';
+    const isFast = req.feature === 'daily_brief' ||
+        req.feature === 'motivational_quote' ||
+        req.feature === 'break_suggestion';
+    const models = isFast ? aiModels_1.GROQ_FAST_MODELS : aiModels_1.GROQ_SMART_MODELS;
     if (req.feature === 'calculator') {
-        const systemPrompt = `You are a strict, methodical AI calculator.
-      Subject: ${req.payload.subject}, Level: ${req.payload.level}
-      Show EVERY step of the calculation. Use standard LaTeX $...$ notation for math.`;
-        // Return the stream object to the API route to pipe it to the client
-        return groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: req.payload.prompt || '' }
-            ],
-            model,
-            stream: true
+        const problemText = req.payload.prompt || '';
+        const casCheck = (0, mathSolver_1.tryDeterministicMathSolve)(problemText);
+        const prompt = (0, mathSolver_1.buildUniversalMathSolverPrompt)({
+            problem: problemText,
+            subject: req.payload.subject || 'Mathematics',
+            level: req.payload.level || 'Undergraduate',
+            verifiedComputation: casCheck,
         });
+        return createCompletionWithModels(groq, aiModels_1.GROQ_SMART_MODELS, (model) => ({
+            messages: [{ role: 'user', content: prompt }],
+            model,
+            temperature: 0.15,
+            max_tokens: 3000,
+            stream: true
+        }));
     }
     if (req.feature === 'chat_message') {
-        return groq.chat.completions.create({
+        const cleanMessages = (req.payload.messages || []).map((m) => ({
+            role: m.role === 'assistant' ? 'assistant' : 'user',
+            content: String(m.content || '')
+        }));
+        return createCompletionWithModels(groq, models, (model) => ({
             messages: [
                 { role: 'system', content: req.payload.systemPrompt || 'You are a helpful assistant.' },
-                ...(req.payload.messages || [])
+                ...cleanMessages
             ],
             model,
+            temperature: req.payload.temperature ?? 0.55,
             stream: req.payload.stream || false
-        });
+        }));
     }
     if (req.feature === 'daily_brief') {
         const prompt = `Generate a daily study brief for the student.
@@ -48,19 +73,18 @@ async function handleGroqRequest(req) {
       
       Format: 3 specific tasks, time estimate, one motivational line.
       Constraint: Under 150 words. Strict.`;
-        const result = await groq.chat.completions.create({
+        const result = await createCompletionWithModels(groq, models, (model) => ({
             messages: [{ role: 'user', content: prompt }],
             model
-        });
-        const brief = result.choices[0]?.message?.content || "";
-        return brief;
+        }));
+        return result.choices?.[0]?.message?.content || '';
     }
     if (req.feature === 'motivational_quote') {
-        const result = await groq.chat.completions.create({
+        const result = await createCompletionWithModels(groq, models, (model) => ({
             messages: [{ role: 'user', content: `Give me a single motivational quote tailored for a ${req.payload.degree} student who has been performing ${req.payload.recentPerformance}. No intro.` }],
             model
-        });
-        return result.choices[0]?.message?.content || "Keep going!";
+        }));
+        return result.choices?.[0]?.message?.content || 'Keep going!';
     }
     if (req.feature === 'revision_song') {
         const prompt = `Write a short revision rap or song covering the key facts of the following lecture material.
@@ -71,32 +95,28 @@ async function handleGroqRequest(req) {
       Lecture material:
       ${req.payload.prompt}
     `;
-        const songResult = await groq.chat.completions.create({
+        const songResult = await createCompletionWithModels(groq, aiModels_1.GROQ_SMART_MODELS, (model) => ({
             messages: [{ role: 'user', content: prompt }],
-            model: 'openai/gpt-oss-120b'
-        });
-        return songResult.choices[0]?.message?.content || "No song generated.";
+            model
+        }));
+        return songResult.choices?.[0]?.message?.content || 'No song generated.';
     }
     if (req.feature === 'flashcard_generation') {
-        const prompt = `
-      Generate a set of high-quality, comprehensive flashcards from the provided lecture text.
-      Return ONLY a JSON object containing a "flashcards" array. Structure:
-      { "flashcards": [ { "front": "question or concept", "back": "answer or explanation" } ] }
-
-      Lecture material:
-      ${req.payload.prompt}
-    `;
-        const result = await groq.chat.completions.create({
+        const prompt = (0, flashcardExtractor_1.buildGroundedFlashcardPrompt)(req.payload.slides && req.payload.slides.length > 0
+            ? req.payload.slides
+            : req.payload.prompt || '');
+        const result = await createCompletionWithModels(groq, aiModels_1.GROQ_SMART_MODELS, (model) => ({
             messages: [{ role: 'user', content: prompt }],
-            model: 'openai/gpt-oss-120b',
+            model,
+            temperature: 0.2,
             response_format: { type: 'json_object' }
-        });
-        return result.choices[0]?.message?.content || '{"flashcards": []}';
+        }));
+        return result.choices?.[0]?.message?.content || '{"flashcards": []}';
     }
     // Fallback
-    const result = await groq.chat.completions.create({
+    const result = await createCompletionWithModels(groq, models, (model) => ({
         messages: [{ role: 'user', content: req.payload.prompt || 'Hello' }],
         model
-    });
-    return result.choices[0]?.message?.content;
+    }));
+    return result.choices?.[0]?.message?.content;
 }

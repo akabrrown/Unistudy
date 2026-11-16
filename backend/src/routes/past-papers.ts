@@ -56,19 +56,26 @@ router.get('/', async (req: any, res) => {
         }
 
         const userCourseIds = userCourses.map((c: any) => c.id);
+        const userNormalizedCodes = userCourses.map((c: any) =>
+            (c.course_code || c.title || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+        ).filter(Boolean);
 
-        // 3. Query papers strictly belonging to this user and matching the user's courses
-        const query = supabaseAdmin
+        // 3. Query papers strictly belonging to this user's created courses
+        const { data, error } = await supabaseAdmin
             .from('past_papers')
             .select('id, title, year, exam_type, status, course_id, course_code, normalized_course_code, institution_id, created_at, courses(id, course_code, title, colour), past_paper_questions(id, question_number, text_content, extracted_topic, marks_available)')
-            .eq('user_id', userId)
-            .in('course_id', userCourseIds);
-
-        const { data, error } = await query.order('created_at', { ascending: false });
+            .or(`course_id.in.(${userCourseIds.join(',')}),user_id.eq.${userId}`)
+            .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        const formatted = (data || []).map((p: any) => {
+        const filtered = (data || []).filter((p: any) => {
+            if (p.course_id && userCourseIds.includes(p.course_id)) return true;
+            const pCode = (p.normalized_course_code || p.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            return pCode && userNormalizedCodes.includes(pCode);
+        });
+
+        const formatted = filtered.map((p: any) => {
             const courseJoin = Array.isArray(p.courses) ? p.courses[0] : p.courses;
             const matchingUserCourse = userCourses.find((c: any) => {
                 if (p.course_id && p.course_id === c.id) return true;

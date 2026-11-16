@@ -23,22 +23,21 @@ const CourseUpdateSchema = zod_1.z.object({
     programme_id: zod_1.z.string().uuid().optional(),
     archived: zod_1.z.boolean().optional(),
 }).strict();
+router.use(auth_1.authenticateUser);
 router.get('/', async (req, res) => {
-    const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
-    if (!token) {
-        return res.json([]);
-    }
-    const supabase = (0, supabase_1.supabaseAsUser)(token);
+    const userId = req.user.id;
+    const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
     let { data, error } = await supabase
         .from('courses')
-        .select('*, lectures(id, title), past_papers(id, title, year, exam_type, status)')
+        .select('*, lectures(id, title, week, slide_count, created_at, processing), past_papers(id, title, year, exam_type, status)')
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
     if (error) {
         console.warn('[Courses] Join query failed, falling back to direct select:', error.message);
         const fallback = await supabase
             .from('courses')
             .select('*')
+            .eq('user_id', userId)
             .order('created_at', { ascending: false });
         if (fallback.error) {
             console.error('[Courses] Direct fetch failed:', fallback.error.message);
@@ -49,7 +48,14 @@ router.get('/', async (req, res) => {
     if (data) {
         data.forEach((c) => {
             if (Array.isArray(c.lectures)) {
-                c.lectures = c.lectures.filter((l) => !l.title?.startsWith('[FAILED'));
+                c.lectures = c.lectures
+                    .filter((l) => !l.title?.startsWith('[FAILED'))
+                    .map((l) => {
+                    if (l.processing && typeof l.slide_count === 'number' && l.slide_count > 0) {
+                        return { ...l, processing: false };
+                    }
+                    return l;
+                });
             }
             else {
                 c.lectures = [];
@@ -57,6 +63,12 @@ router.get('/', async (req, res) => {
             if (!Array.isArray(c.past_papers)) {
                 c.past_papers = [];
             }
+        });
+        // Arrange courses in ascending alphanumeric order by course code and title
+        data.sort((a, b) => {
+            const codeA = (a.course_code || a.title || '').trim();
+            const codeB = (b.course_code || b.title || '').trim();
+            return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
         });
     }
     res.json(data || []);
@@ -103,7 +115,7 @@ router.post('/', auth_1.authenticateUser, async (req, res) => {
 });
 router.delete('/:id', auth_1.authenticateUser, async (req, res) => {
     const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
-    const { error } = await supabase.from('courses').delete().eq('id', req.params.id);
+    const { error } = await supabase.from('courses').delete().eq('id', req.params.id).eq('user_id', req.user.id);
     if (error)
         return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
     res.json({ success: true });
@@ -112,8 +124,9 @@ router.get('/:id', auth_1.authenticateUser, async (req, res) => {
     const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
     const { data, error } = await supabase
         .from('courses')
-        .select('*, lectures(id, title, file_url, week, created_at)')
+        .select('*, lectures(id, title, file_url, week, slide_count, created_at, processing)')
         .eq('id', req.params.id)
+        .eq('user_id', req.user.id)
         .maybeSingle();
     if (error)
         return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
@@ -143,6 +156,7 @@ router.patch('/:id', auth_1.authenticateUser, async (req, res) => {
         .from('courses')
         .select('id')
         .eq('id', req.params.id)
+        .eq('user_id', req.user.id)
         .single();
     if (existError || !existing)
         return res.status(404).json({ error: 'Course not found' });
@@ -150,6 +164,7 @@ router.patch('/:id', auth_1.authenticateUser, async (req, res) => {
         .from('courses')
         .update(parsed.data)
         .eq('id', req.params.id)
+        .eq('user_id', req.user.id)
         .select('*, lectures(id)')
         .single();
     if (error)

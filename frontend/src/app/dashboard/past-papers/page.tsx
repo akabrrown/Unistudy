@@ -150,8 +150,14 @@ export default function PastPapersDashboard() {
     }
 
     const [coursesRes, papersRes, attemptsRes] = await Promise.allSettled([
-      apiFetch('/courses').catch(() => []),
-      apiFetch('/v1/past-questions').catch(() => apiFetch('/past-papers')).catch(() => []),
+      fetch(`/api/courses?t=${Date.now()}`, { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : apiFetch('/courses')))
+        .catch(() => apiFetch('/courses'))
+        .catch(() => []),
+      fetch(`/api/v1/past-questions?t=${Date.now()}`, { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => apiFetch('/v1/past-questions'))
+        .catch(() => []),
       supabase
         .from('past_paper_attempts')
         .select(
@@ -223,8 +229,24 @@ export default function PastPapersDashboard() {
       }
     };
     void init();
+
+    // Live real-time Supabase subscription for instant past questions updates
+    const channel = supabase
+      .channel('realtime:past_papers_hub')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'past_papers' }, () => {
+        void loadData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'past_paper_attempts' }, () => {
+        void loadData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, () => {
+        void loadData();
+      })
+      .subscribe();
+
     return () => {
       active = false;
+      void supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

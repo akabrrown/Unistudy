@@ -3,18 +3,216 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.extractQuestionsFromPdfBuffer = extractQuestionsFromPdfBuffer;
 const express_1 = require("express");
+const supabase_1 = require("../lib/supabase");
 const generative_ai_1 = require("@google/generative-ai");
 const pdf_parse_1 = __importDefault(require("pdf-parse"));
 const safeGroq_1 = require("../lib/ai/safeGroq");
+const aiModels_1 = require("../../../shared/constants/aiModels");
+const pastPaperGrader_1 = require("../../../shared/lib/pastPaperGrader");
 const router = (0, express_1.Router)();
 const auth_1 = require("../middleware/auth");
 const quotaGuard_1 = require("../middleware/quotaGuard");
 const quota_1 = require("../lib/ai/quota");
 const router_1 = require("../lib/ai/router");
+const courseQuestionBanks_1 = require("../services/courseQuestionBanks");
+const moodleCrawler_1 = require("../services/moodleCrawler");
 router.use(auth_1.authenticateUser);
+router.get('/', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { data: profile } = await supabase_1.supabaseAdmin
+            .from('profiles')
+            .select('institution_id')
+            .eq('id', userId)
+            .single();
+        const institutionId = profile?.institution_id || null;
+        // 1. Fetch user's own registered courses created on their system
+        const { data: userCourses } = await supabase_1.supabaseAdmin
+            .from('courses')
+            .select('id, course_code, title, colour')
+            .eq('user_id', userId);
+        // If student has no courses created on their system, return empty
+        if (!userCourses || userCourses.length === 0) {
+            return res.json([]);
+        }
+        // 2. Ensure each enrolled course has past question papers ready strictly for these courses
+        try {
+            await (0, courseQuestionBanks_1.ensurePastPapersForUserCourses)(userId, userCourses, institutionId);
+        }
+        catch (seedErr) {
+            console.warn('[Past Papers] Error ensuring course question banks:', seedErr);
+        }
+        const userCourseIds = userCourses.map((c) => c.id);
+        const userNormalizedCodes = userCourses.map((c) => (c.course_code || c.title || '').toUpperCase().replace(/[^A-Z0-9]/g, '')).filter(Boolean);
+        // 3. Query papers strictly belonging to this user's created courses
+        const { data, error } = await supabase_1.supabaseAdmin
+            .from('past_papers')
+            .select('id, title, year, exam_type, status, course_id, course_code, normalized_course_code, institution_id, created_at, courses(id, course_code, title, colour), past_paper_questions(id, question_number, text_content, extracted_topic, marks_available)')
+            .or(`course_id.in.(${userCourseIds.join(',')}),user_id.eq.${userId}`)
+            .order('created_at', { ascending: false });
+        if (error)
+            throw error;
+        const filtered = (data || []).filter((p) => {
+            if (p.course_id && userCourseIds.includes(p.course_id))
+                return true;
+            const pCode = (p.normalized_course_code || p.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            return pCode && userNormalizedCodes.includes(pCode);
+        });
+        const formatted = filtered.map((p) => {
+            const courseJoin = Array.isArray(p.courses) ? p.courses[0] : p.courses;
+            const matchingUserCourse = userCourses.find((c) => {
+                if (p.course_id && p.course_id === c.id)
+                    return true;
+                const pCode = (p.normalized_course_code || p.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const cCode = (c.course_code || c.title || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                return pCode && cCode && (pCode === cCode || pCode.includes(cCode) || cCode.includes(pCode));
+            });
+            const resolvedCourse = matchingUserCourse || courseJoin;
+            const questions = p.past_paper_questions || [];
+            return {
+                id: p.id,
+                course_id: resolvedCourse?.id || p.course_id,
+                course_code: p.course_code || resolvedCourse?.course_code || 'EXAM',
+                normalized_course_code: p.normalized_course_code || (p.course_code || resolvedCourse?.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
+                title: p.title || `${p.year || ''} ${p.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm Exam'}`,
+                year: p.year || new Date().getFullYear(),
+                exam_type: p.exam_type || 'end-semester',
+                status: p.status,
+                created_at: p.created_at,
+                download_url: `/api/v1/past-questions/download?id=${p.id}`,
+                courses: resolvedCourse ? {
+                    id: resolvedCourse.id,
+                    course_code: resolvedCourse.course_code,
+                    title: resolvedCourse.title,
+                    colour: resolvedCourse.colour
+                } : null,
+                question_count: questions.length,
+                questions: questions.map((q) => ({
+                    id: q.id,
+                    question: q.text_content,
+                    options: ['Option A', 'Option B', 'Option C', 'Option D'],
+                    correct_answer: 0,
+                    explanation: q.extracted_topic
+                }))
+            };
+        });
+        res.json(formatted);
+    }
+    catch (err) {
+        console.error('[Past Papers GET /] Error:', err);
+        res.status(500).json({ error: 'Failed to retrieve past papers' });
+    }
+});
+router.get('/download', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const paperId = req.query.id || req.query.paperId;
+        const convert = req.query.convert === 'true';
+        if (!paperId) {
+            return res.status(400).json({ error: 'Missing past question paper id (?id=...)' });
+        }
+        const { data: paper, error } = await supabase_1.supabaseAdmin
+            .from('past_papers')
+            .select('*, courses(id, course_code, title, colour), past_paper_questions(*)')
+            .eq('id', paperId)
+            .eq('user_id', userId)
+            .maybeSingle();
+        if (error || !paper) {
+            return res.status(404).json({ error: 'Past question paper not found or access denied' });
+        }
+        const questions = Array.isArray(paper.past_paper_questions)
+            ? [...paper.past_paper_questions].sort((a, b) => String(a.question_number).localeCompare(String(b.question_number), undefined, { numeric: true }))
+            : [];
+        if (convert) {
+            const formattedText = questions
+                .map((q) => `Question ${q.question_number}: ${q.text_content}`)
+                .join('\n\n');
+            return res.json({
+                success: true,
+                id: paper.id,
+                title: paper.title,
+                course_code: paper.course_code,
+                year: paper.year,
+                exam_type: paper.exam_type,
+                text_content: formattedText,
+                questions: questions.map((q) => ({
+                    id: q.id,
+                    question_number: q.question_number,
+                    text_content: q.text_content,
+                    extracted_topic: q.extracted_topic,
+                    marks_available: q.marks_available,
+                })),
+            });
+        }
+        if (paper.file_url) {
+            try {
+                const pdfBuffer = await (0, moodleCrawler_1.downloadMoodleFileWithToken)(paper.file_url, 'd47af8abe6b5d925a0be01c2e64a49e6');
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(paper.title || 'past-question')}.pdf"`);
+                return res.send(pdfBuffer);
+            }
+            catch (dlErr) {
+                console.warn('[download] Notice streaming file_url via proxy:', dlErr.message);
+            }
+        }
+        const formattedText = questions
+            .map((q) => `Question ${q.question_number}: ${q.text_content}`)
+            .join('\n\n');
+        return res.json({
+            id: paper.id,
+            title: paper.title,
+            course_code: paper.course_code,
+            year: paper.year,
+            exam_type: paper.exam_type,
+            text_content: formattedText,
+            questions,
+        });
+    }
+    catch (err) {
+        console.error('[Past Papers GET /download] Error:', err);
+        res.status(500).json({ error: 'Failed to download past question' });
+    }
+});
+router.get('/:id', async (req, res) => {
+    try {
+        const paperId = req.params.id;
+        const userId = req.user.id;
+        const { data: paper, error } = await supabase_1.supabaseAdmin
+            .from('past_papers')
+            .select('*, courses(id, course_code, title, colour), past_paper_questions(*)')
+            .eq('id', paperId)
+            .eq('user_id', userId)
+            .maybeSingle();
+        if (error)
+            throw error;
+        if (!paper) {
+            return res.status(404).json({ error: 'Past paper not found' });
+        }
+        // Sort questions numerically
+        if (Array.isArray(paper.past_paper_questions)) {
+            paper.past_paper_questions.sort((a, b) => String(a.question_number).localeCompare(String(b.question_number), undefined, { numeric: true }));
+        }
+        res.json(paper);
+    }
+    catch (err) {
+        console.error('[Past Papers GET /:id] Error:', err);
+        res.status(500).json({ error: 'Failed to retrieve past paper details' });
+    }
+});
+router.post('/sync-moodle', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const result = await (0, moodleCrawler_1.syncRealMoodlePastPapers)(userId, req.body);
+        res.json(result);
+    }
+    catch (err) {
+        console.error('[Past Papers POST /sync-moodle] Error:', err);
+        res.status(500).json({ error: err?.message || 'Failed to sync with UPSA Virtual Portal' });
+    }
+});
 const multer_1 = __importDefault(require("multer"));
-const supabase_1 = require("../lib/supabase");
 const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
 async function extractQuestionsFromPdfBuffer(fileBuffer) {
     try {
@@ -71,7 +269,7 @@ ${extractedText}
         // 2. Scanned or image-based PDF: Use Gemini Multimodal PDF parsing
         console.log(`[Past Papers] Running Multimodal/Vision PDF extraction (text length was ${extractedText.length})...`);
         const base64Pdf = fileBuffer.toString('base64');
-        const geminiModels = ['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+        const geminiModels = [...aiModels_1.GEMINI_CANDIDATE_MODELS];
         const geminiKey = process.env.GEMINI_API_KEY;
         if (geminiKey) {
             const genAI = new generative_ai_1.GoogleGenerativeAI(geminiKey);
@@ -338,58 +536,52 @@ router.post('/grade-batch', (0, quotaGuard_1.withAIQuota)('past_paper_grading'),
                 console.error("Failed to fetch context for RAG grading", e);
             }
         }
-        const personality = is_ultra
-            ? "You are a STRICT and UNFORGIVING university examiner. Do not offer encouragement or praise. Use pure mark-scheme language."
-            : "You are an expert university examiner and teaching assistant grading an exam. Be rigorous, constructive, and highly educational.";
-        // Chunk answers into batches of at most 3 to ensure the AI has ample token headroom
-        // to re-answer all questions and all sub-parts completely without lazy truncation.
-        const CHUNK_SIZE = 3;
+        // Chunk answers into batches of at most 2 to preserve token headroom,
+        // then run targeted single-question repair for any skipped or partial sub-part answers.
+        const CHUNK_SIZE = 2;
         const allResults = [];
         for (let i = 0; i < answers.length; i += CHUNK_SIZE) {
             const chunk = answers.slice(i, i + CHUNK_SIZE);
-            const prompt = `
-${personality}
-Grade the following answers to exam questions.
-
-CRITICAL INSTRUCTIONS (MANDATORY FOR EVERY SINGLE QUESTION):
-1. RE-ANSWER EVERY QUESTION COMPLETELY:
-   - For EACH and EVERY question below, you MUST provide a complete, authoritative, step-by-step Model Answer ("model_answer") that fully re-answers the entire question from scratch to 100% completion.
-   - If a question has sub-parts (e.g. part a, part b, part c, i, ii, iii), your "model_answer" MUST re-answer EVERY SINGLE sub-part with full solutions, formulas, steps, explanations, and final answers. 
-   - NEVER answer only some parts and leave others unanswered!
-   - NEVER write "Refer to notes", "N/A", or "Student did not attempt". Even if the student's answer was blank or scored 0 marks, you MUST provide the complete, working model solution for all parts so the student learns the complete answer.
-2. EXAMINER FEEDBACK:
-   - "feedback": State clearly what the student earned marks for, what was missing or incorrect, and the specific marking-scheme allocation.
-3. SCORING:
-   - "marks_awarded": Integer between 0 and marks_available.
-
-CRITICAL INSTRUCTION FOR SLIDES: If "Lecturer's Slide Context" is provided for a question, you MUST strongly base your grading and model answer on that context before considering general factual correctness.
-
-${chunk.map((ans, idx) => `
---- Item ${i + idx} (ID: ${ans.id}) ---
-Question: ${ans.question_content}
-Total Marks Available: ${ans.marks_available}
-Student's Answer: ${ans.student_answer}
-${ans.slide_context ? `\nLecturer's Slide Context (PRIORITIZE THIS):\n${ans.slide_context}` : ''}
-`).join('\n')}
-
-Return EXACTLY ONE valid JSON object with a single root key called "results", which is an array containing an object for each item in this batch, IN THE EXACT SAME ORDER:
-- "id": (string, the exact ID provided in the item)
-- "marks_awarded": (integer)
-- "feedback": (string)
-- "model_answer": (string, complete markdown solution re-answering all question parts completely)
-`;
-            const text = await (0, safeGroq_1.chatCompletionWithFallback)({
-                messages: [{ role: 'user', content: prompt }],
-                response_format: { type: 'json_object' }
-            });
-            const start = text.indexOf('{');
-            const end = text.lastIndexOf('}');
-            if (start !== -1 && end !== -1) {
-                const parsed = JSON.parse(text.slice(start, end + 1));
-                if (Array.isArray(parsed.results)) {
-                    allResults.push(...parsed.results);
+            let rawJsonList = [];
+            try {
+                const prompt = (0, pastPaperGrader_1.buildPastPaperBatchPrompt)(chunk, Boolean(is_ultra));
+                const text = await (0, safeGroq_1.chatCompletionWithFallback)({
+                    messages: [{ role: 'user', content: prompt }],
+                    response_format: { type: 'json_object' },
+                    temperature: 0.2,
+                    max_tokens: 4000
+                });
+                rawJsonList = (0, pastPaperGrader_1.parsePastPaperJsonResults)(text);
+            }
+            catch (chunkErr) {
+                console.warn('[Past Papers] Chunk grading failed, switching to per-item repair:', chunkErr);
+            }
+            const { results, incompleteIds } = (0, pastPaperGrader_1.normalizeBatchGradingResults)(chunk, rawJsonList);
+            for (const badId of incompleteIds) {
+                const sourceItem = chunk.find((c) => c.id === badId);
+                if (!sourceItem)
+                    continue;
+                try {
+                    const repairText = await (0, safeGroq_1.chatCompletionWithFallback)({
+                        messages: [{ role: 'user', content: (0, pastPaperGrader_1.buildSingleRepairPrompt)(sourceItem, Boolean(is_ultra)) }],
+                        response_format: { type: 'json_object' },
+                        temperature: 0.2,
+                        max_tokens: 3500
+                    });
+                    const repaired = (0, pastPaperGrader_1.normalizeBatchGradingResults)([sourceItem], (0, pastPaperGrader_1.parsePastPaperJsonResults)(repairText)).results[0];
+                    const idxToUpdate = results.findIndex((r) => r.id === badId);
+                    if (repaired &&
+                        idxToUpdate >= 0 &&
+                        (!(0, pastPaperGrader_1.isModelAnswerIncomplete)(sourceItem.question_content, repaired.model_answer) ||
+                            repaired.model_answer.length > results[idxToUpdate].model_answer.length)) {
+                        results[idxToUpdate] = repaired;
+                    }
+                }
+                catch (repairErr) {
+                    console.warn(`[Past Papers] Repair failed for ${badId}:`, repairErr);
                 }
             }
+            allResults.push(...results);
         }
         await (0, quota_1.consumeUserQuota)(req.user.id, 'past_paper_grading');
         res.json({ success: true, data: allResults });
@@ -402,9 +594,12 @@ Return EXACTLY ONE valid JSON object with a single root key called "results", wh
 router.post('/grade', (0, quotaGuard_1.withAIQuota)('past_paper_grading'), async (req, res) => {
     try {
         const { question_content, marks_available, student_answer, is_ultra, course_id } = req.body;
-        if (!question_content || !student_answer) {
-            return res.status(400).json({ error: 'Missing required fields' });
+        if (!question_content) {
+            return res.status(400).json({ error: 'Missing required question_content' });
         }
+        const safeStudentAnswer = typeof student_answer === 'string' && student_answer.trim()
+            ? student_answer
+            : '[No answer provided]';
         let slide_context = "";
         if (course_id) {
             try {
@@ -445,49 +640,27 @@ router.post('/grade', (0, quotaGuard_1.withAIQuota)('past_paper_grading'), async
                 console.error("Failed to fetch context for RAG single grading", e);
             }
         }
-        const personality = is_ultra
-            ? "You are a STRICT and UNFORGIVING university examiner. Do not offer encouragement or praise. Use pure mark-scheme language (e.g. 'Candidate correctly identified X [1 mark] but failed to...')."
-            : "You are a helpful university examiner and teaching assistant grading an exam. Be encouraging, thorough, and accurate.";
-        const prompt = `
-        ${personality}
-        Grade the following answer to this exam question.
-        
-        CRITICAL INSTRUCTIONS (MANDATORY):
-        1. RE-ANSWER THE QUESTION COMPLETELY:
-           - You MUST provide a complete, authoritative, step-by-step Model Answer ("model_answer") that fully re-answers the entire question from scratch to 100% completion.
-           - If the question contains multiple sub-parts (e.g. (a), (b), (c), (i), (ii)), your "model_answer" MUST re-answer EVERY SINGLE sub-part with full solutions, formulas, steps, explanations, and final answers.
-           - NEVER answer only some parts and leave others unanswered!
-           - Even if the student's answer was blank or scored 0 marks, you MUST still provide the complete, working model solution for all sub-parts so the student learns the full answer.
-        2. EXAMINER FEEDBACK:
-           - "feedback": Detail what marks were awarded or deducted and why according to the mark scheme.
-        3. SCORING:
-           - "marks_awarded": Integer between 0 and ${marks_available || 0}.
-
-        CRITICAL INSTRUCTION FOR SLIDES: If "Lecturer's Slide Context" is provided, you MUST strongly base your grading and model answer on that context before considering general factual correctness.
-        
-        Question: ${question_content}
-        Total Marks Available: ${marks_available}
-        ${slide_context ? `\nLecturer's Slide Context (PRIORITIZE THIS):\n${slide_context}\n` : ''}
-        
-        Student's Answer:
-        ${student_answer}
-        
-        Return exactly ONE valid JSON object with these keys:
-        - "marks_awarded": (integer)
-        - "feedback": (string)
-        - "model_answer": (string, complete markdown solution re-answering all question parts completely)
-        `;
-        let parsedResult = null;
+        const singleItem = {
+            id: 'single',
+            question_content,
+            marks_available: Number(marks_available) || 0,
+            student_answer: safeStudentAnswer,
+            slide_context: slide_context || null,
+        };
+        const prompt = (0, pastPaperGrader_1.buildSingleRepairPrompt)(singleItem, Boolean(is_ultra));
+        let rawResponseText = '';
         try {
             const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-            for (const modelName of ['gemini-3.5-flash', 'gemini-3.8-flash']) {
+            for (const modelName of aiModels_1.GEMINI_CANDIDATE_MODELS) {
                 try {
-                    const model = genAI.getGenerativeModel({ model: modelName });
+                    const model = genAI.getGenerativeModel({
+                        model: modelName,
+                        generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
+                    });
                     const result = await model.generateContent(prompt);
                     const text = result.response.text();
-                    const jsonMatch = text.match(/\{[\s\S]*\}/);
-                    if (jsonMatch) {
-                        parsedResult = JSON.parse(jsonMatch[0]);
+                    if ((0, pastPaperGrader_1.parsePastPaperJsonResults)(text).length > 0) {
+                        rawResponseText = text;
                         break;
                     }
                 }
@@ -499,16 +672,18 @@ router.post('/grade', (0, quotaGuard_1.withAIQuota)('past_paper_grading'), async
         catch (geminiErr) {
             console.warn('Gemini grading failed, falling back to Groq/OpenRouter:', geminiErr.message);
         }
-        if (!parsedResult) {
-            const fallbackText = await (0, safeGroq_1.chatCompletionWithFallback)({
+        if (!rawResponseText) {
+            rawResponseText = await (0, safeGroq_1.chatCompletionWithFallback)({
                 messages: [{ role: 'user', content: prompt }],
-                response_format: { type: 'json_object' }
+                response_format: { type: 'json_object' },
+                temperature: 0.2,
+                max_tokens: 3500
             });
-            const jsonMatch = fallbackText.match(/\{[\s\S]*\}/);
-            if (!jsonMatch)
-                throw new Error("AI did not return valid JSON");
-            parsedResult = JSON.parse(jsonMatch[0]);
         }
+        const parsedList = (0, pastPaperGrader_1.parsePastPaperJsonResults)(rawResponseText);
+        if (parsedList.length === 0)
+            throw new Error('AI did not return valid JSON');
+        const parsedResult = (0, pastPaperGrader_1.normalizeBatchGradingResults)([singleItem], parsedList).results[0];
         await (0, quota_1.consumeUserQuota)(req.user.id, 'past_paper_grading');
         res.json({ success: true, data: parsedResult });
     }
@@ -534,7 +709,7 @@ router.post('/chat', (0, quotaGuard_1.withAIQuota)('past_paper_question'), async
         let replyText = "";
         try {
             const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-            for (const modelName of ['gemini-3.5-flash', 'gemini-3.8-flash']) {
+            for (const modelName of aiModels_1.GEMINI_CANDIDATE_MODELS) {
                 try {
                     const model = genAI.getGenerativeModel({ model: modelName });
                     const result = await model.generateContent(prompt);
@@ -568,25 +743,71 @@ router.delete('/:id', async (req, res) => {
         // Check ownership
         const { data: paper, error: fetchErr } = await supabase_1.supabaseAdmin
             .from('past_papers')
-            .select('user_id')
+            .select('id, user_id')
             .eq('id', paperId)
-            .single();
+            .maybeSingle();
         if (fetchErr)
             throw fetchErr;
-        if (paper.user_id !== req.user.id) {
+        if (!paper) {
+            return res.status(404).json({ error: 'Past paper not found' });
+        }
+        if (paper.user_id !== req.user.id && req.user.role !== 'admin') {
             return res.status(403).json({ error: 'Unauthorized to delete this paper' });
         }
+        // Clean up child tables to guarantee zero FK restriction errors
+        await Promise.allSettled([
+            supabase_1.supabaseAdmin.from('past_paper_questions').delete().eq('past_paper_id', paperId),
+            supabase_1.supabaseAdmin.from('past_paper_pages').delete().eq('past_paper_id', paperId),
+            supabase_1.supabaseAdmin.from('past_paper_attempts').delete().eq('past_paper_id', paperId),
+        ]);
         const { error: delErr } = await supabase_1.supabaseAdmin
             .from('past_papers')
             .delete()
             .eq('id', paperId);
         if (delErr)
             throw delErr;
-        res.json({ success: true });
+        res.json({ success: true, message: 'Past paper deleted successfully' });
     }
     catch (err) {
         console.error('Error deleting paper:', err);
-        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+        res.status(500).json({ error: err.message || 'Failed to delete past paper', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+    }
+});
+router.post('/delete-batch', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: 'Missing or empty ids array' });
+        }
+        // Filter to only papers owned by user (or any if admin)
+        let query = supabase_1.supabaseAdmin.from('past_papers').select('id, user_id').in('id', ids);
+        if (req.user.role !== 'admin') {
+            query = query.eq('user_id', req.user.id);
+        }
+        const { data: papersToDelete, error: fetchErr } = await query;
+        if (fetchErr)
+            throw fetchErr;
+        if (!papersToDelete || papersToDelete.length === 0) {
+            return res.status(404).json({ error: 'No matching papers found to delete' });
+        }
+        const validIds = papersToDelete.map(p => p.id);
+        // Delete child tables
+        await Promise.allSettled([
+            supabase_1.supabaseAdmin.from('past_paper_questions').delete().in('past_paper_id', validIds),
+            supabase_1.supabaseAdmin.from('past_paper_pages').delete().in('past_paper_id', validIds),
+            supabase_1.supabaseAdmin.from('past_paper_attempts').delete().in('past_paper_id', validIds),
+        ]);
+        const { error: delErr } = await supabase_1.supabaseAdmin
+            .from('past_papers')
+            .delete()
+            .in('id', validIds);
+        if (delErr)
+            throw delErr;
+        res.json({ success: true, count: validIds.length });
+    }
+    catch (err) {
+        console.error('Error deleting batch papers:', err);
+        res.status(500).json({ error: err.message || 'Failed to delete past papers', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 exports.default = router;

@@ -48,12 +48,14 @@ router.use(auth_1.authenticateUser);
 router.use(rateLimit_1.rateLimit);
 const multer_1 = __importDefault(require("multer"));
 const generative_ai_1 = require("@google/generative-ai");
+const mathjs_1 = require("mathjs");
+const aiModels_1 = require("../../../shared/constants/aiModels");
+const aiTutor_1 = require("../../../shared/lib/aiTutor");
+const groundingVerifier_1 = require("../../../shared/lib/groundingVerifier");
+const latexNormalizer_1 = require("../../../shared/lib/latexNormalizer");
+const mathSolver_1 = require("../../../shared/lib/mathSolver");
 const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
-const GEMINI_VISION_MODELS = [
-    'gemini-3.5-flash',
-    'gemini-3.8-flash',
-    'gemini-3.5-flash-lite',
-];
+const GEMINI_VISION_MODELS = [...aiModels_1.GEMINI_CANDIDATE_MODELS];
 async function callWithFallback(genAI, models, buildRequest) {
     let lastErr;
     for (const modelName of models) {
@@ -140,7 +142,7 @@ router.post('/scan-notes', upload.single('file'), (0, quotaGuard_1.withAIQuota)(
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    model: 'openai/gpt-4o-mini',
+                    model: aiModels_1.OPENROUTER_CANDIDATE_MODELS[0],
                     messages: [
                         {
                             role: 'user',
@@ -159,13 +161,7 @@ router.post('/scan-notes', upload.single('file'), (0, quotaGuard_1.withAIQuota)(
             if (!transcription)
                 throw new Error('OpenRouter returned empty response');
         }
-        let cleanTranscription = transcription.trim();
-        if (cleanTranscription.startsWith('```markdown'))
-            cleanTranscription = cleanTranscription.substring(11).trim();
-        else if (cleanTranscription.startsWith('```'))
-            cleanTranscription = cleanTranscription.substring(3).trim();
-        if (cleanTranscription.endsWith('```'))
-            cleanTranscription = cleanTranscription.substring(0, cleanTranscription.length - 3).trim();
+        const cleanTranscription = (0, latexNormalizer_1.normalizeLatexMarkdown)(transcription);
         (0, quota_1.consumeUserQuota)(req.user.id, 'handwriting_scan', req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
         res.json({ transcription: cleanTranscription });
     }
@@ -206,10 +202,50 @@ router.post('/ask', async (req, res) => {
     catch (err) {
         console.error('Failed to fetch user settings for AI:', err);
     }
+    const parsedGrounding = payload.grounding
+        ? aiTutor_1.TutorGroundingSchema.safeParse(payload.grounding)
+        : null;
+    let enrichedPayload = {
+        ...payload,
+        temperature: payload.temperature ?? (feature === 'chat_message' ? 0.55 : undefined),
+    };
+    let groundingSources = [];
+    if (parsedGrounding?.success) {
+        const g = parsedGrounding.data;
+        const rawMsgs = Array.isArray(payload.messages) ? payload.messages : [];
+        const latestQ = [...rawMsgs].reverse().find((m) => m?.role === 'user')?.content ||
+            payload.prompt ||
+            '';
+        const chunks = (0, aiTutor_1.retrieveRelevantSlideChunks)(String(latestQ), g.slides || [], g.currentSlideNumber, 4);
+        groundingSources = (g.slides || [])
+            .map((s, idx) => ({
+            slideNumber: s.slide_number ?? idx + 1,
+            text: `${s.raw_text || ''} ${s.explanation || ''}`.trim(),
+        }))
+            .filter((s) => s.text.length > 0);
+        enrichedPayload = {
+            ...enrichedPayload,
+            systemPrompt: (0, aiTutor_1.buildGroundedTutorPrompt)({
+                tutorName: userSettings?.ai_tutor_name || undefined,
+                courseContext: g.courseContext,
+                currentSlideNumber: g.currentSlideNumber,
+                currentSlideText: g.currentSlideText,
+                currentSlideExplanation: g.currentSlideExplanation,
+                retrievedChunks: chunks,
+                studentConfig: g.studentConfig ?? {
+                    readingLevel: userSettings?.ai_reading_level || undefined,
+                    tone: userSettings?.ai_tone || undefined,
+                    learningStyle: userSettings?.learning_style || undefined,
+                    language: userSettings?.language || undefined,
+                },
+                commandMode: g.commandMode ?? (0, aiTutor_1.detectTutorCommandMode)(String(latestQ)),
+            }),
+        };
+    }
     const aiReq = {
         task: payload.stream ? 'streaming' : 'batch_text',
         feature,
-        payload,
+        payload: enrichedPayload,
         userSettings,
         userId: req.user.id,
         priority: priority || 'medium',
@@ -230,6 +266,23 @@ router.post('/ask', async (req, res) => {
             res.write('data: [DONE]\n\n');
             return res.end();
         }
+        if (feature === 'chat_message' && response.result) {
+            const validSlides = groundingSources
+                .map((s) => s.slideNumber)
+                .filter((n) => typeof n === 'number');
+            const cleanTutorText = (raw) => {
+                const cleaned = (0, aiTutor_1.sanitizeTutorResponse)(raw);
+                return validSlides.length > 0
+                    ? (0, groundingVerifier_1.stripPhantomSlideCitations)(cleaned, validSlides)
+                    : cleaned;
+            };
+            if (typeof response.result === 'string') {
+                response.result = cleanTutorText(response.result);
+            }
+            else if (response.result?.choices?.[0]?.message?.content) {
+                response.result.choices[0].message.content = cleanTutorText(String(response.result.choices[0].message.content));
+            }
+        }
         res.json(response);
     }
     catch (err) {
@@ -238,28 +291,73 @@ router.post('/ask', async (req, res) => {
 });
 // For specific routes that use the middleware strictly:
 router.post('/calculator', (0, quotaGuard_1.withAIQuota)('calculator'), async (req, res) => {
-    const { problem, subject, level } = req.body;
+    const { problem = '', subject = 'Mathematics', level = 'Undergraduate' } = req.body || {};
+    if (!String(problem).trim()) {
+        return res.status(400).json({ error: 'Problem text is required' });
+    }
     const aiReq = {
         task: 'streaming',
         feature: 'calculator',
-        payload: { prompt: problem, subject, level, stream: true },
+        payload: { prompt: String(problem), subject, level, stream: true },
         userId: req.user.id,
         priority: 'high'
     };
     try {
-        const response = await (0, router_1.routeRequest)(aiReq);
-        (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature, req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
-        for await (const chunk of response.result) {
-            res.write(`data: ${JSON.stringify(chunk.choices[0]?.delta?.content || "")}\n\n`);
+        let fullText = '';
+        try {
+            const response = await (0, router_1.routeRequest)(aiReq);
+            (0, quota_1.consumeUserQuota)(aiReq.userId, aiReq.feature, req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
+            if (typeof response.result === 'string') {
+                fullText = response.result;
+                res.write(`data: ${JSON.stringify({ text: fullText })}\n\n`);
+            }
+            else if (response.result && Symbol.asyncIterator in response.result) {
+                for await (const chunk of response.result) {
+                    const delta = chunk?.choices?.[0]?.delta?.content || '';
+                    if (delta) {
+                        fullText += delta;
+                        res.write(`data: ${JSON.stringify({ text: delta })}\n\n`);
+                    }
+                }
+            }
+        }
+        catch (providerErr) {
+            console.warn('[Backend /calculator] Provider failed, trying CAS fallback:', providerErr);
+            const cas = (0, mathSolver_1.tryDeterministicMathSolve)(String(problem), {
+                compile: mathjs_1.compile,
+                derivative: mathjs_1.derivative,
+                evaluate: mathjs_1.evaluate,
+                format: mathjs_1.format,
+                lusolve: mathjs_1.lusolve,
+                simplify: mathjs_1.simplify,
+            });
+            if (cas) {
+                fullText = cas.markdown;
+                res.write(`data: ${JSON.stringify({ text: fullText })}\n\n`);
+            }
+            else {
+                throw providerErr;
+            }
+        }
+        if (fullText.trim()) {
+            res.write(`data: ${JSON.stringify({ finalText: (0, mathSolver_1.sanitizeMathResponse)(fullText) })}\n\n`);
+        }
+        else {
+            res.write(`data: ${JSON.stringify({ error: 'Empty response from solver' })}\n\n`);
         }
         res.write('data: [DONE]\n\n');
         res.end();
     }
     catch (err) {
-        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+        if (!res.headersSent) {
+            return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+        }
+        res.write(`data: ${JSON.stringify({ error: 'Failed to solve mathematical problem' })}\n\n`);
+        res.write('data: [DONE]\n\n');
+        res.end();
     }
 });
 router.post('/explain', auth_1.authenticateUser, (0, quotaGuard_1.withAIQuota)('slide_explanation'), async (req, res) => {
@@ -387,7 +485,7 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
                                 'Content-Type': 'application/json'
                             },
                             body: JSON.stringify({
-                                model: 'google/gemini-2.5-flash',
+                                model: aiModels_1.OPENROUTER_CANDIDATE_MODELS[0],
                                 max_tokens: 1200,
                                 messages: [
                                     {
@@ -420,7 +518,7 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
                 }
                 // 2. Fall back to Groq text LLM if OpenRouter didn't produce text
                 if (!openRouterSuccess) {
-                    console.log('Falling back to Groq (openai/gpt-oss-120b)...');
+                    console.log(`Falling back to Groq (${aiModels_1.GROQ_SMART_MODELS[0]})...`);
                     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                         method: 'POST',
                         headers: {
@@ -428,7 +526,7 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            model: 'openai/gpt-oss-120b',
+                            model: aiModels_1.GROQ_SMART_MODELS[0],
                             messages: [
                                 { role: 'system', content: systemPrompt },
                                 { role: 'user', content: prompt }
@@ -506,7 +604,7 @@ The quote must reference their actual situation naturally (e.g. "You have an Eng
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: 'openai/gpt-oss-120b',
+                model: aiModels_1.GROQ_SMART_MODELS[0],
                 messages: [
                     { role: 'system', content: 'You are an inspiring academic coach.' },
                     { role: 'user', content: prompt }
@@ -533,7 +631,7 @@ router.post('/study-break', (0, quotaGuard_1.withAIQuota)('break_suggestion'), a
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: 'openai/gpt-oss-120b',
+                model: aiModels_1.GROQ_SMART_MODELS[0],
                 messages: [
                     { role: 'system', content: 'You suggest highly practical, specific 5-minute study breaks to prevent burnout.' },
                     { role: 'user', content: 'I just finished a 25-minute pomodoro study session. Suggest one specific, actionable 5-minute break activity (e.g. physical movement, visual rest). Keep it under 2 sentences.' }
@@ -560,7 +658,7 @@ router.post('/anxiety-response', (0, quotaGuard_1.withAIQuota)('chat_message'), 
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: 'openai/gpt-oss-120b',
+                model: aiModels_1.GROQ_SMART_MODELS[0],
                 messages: [
                     { role: 'system', content: 'You are a supportive academic coach helping students with pre-exam anxiety.' },
                     { role: 'user', content: `I have an exam tomorrow and I am feeling: ${feeling}. Suggest one specific, quick technique (like box breathing or positive visualization) to help me right now. Keep it under 3 sentences and very supportive.` }
@@ -574,6 +672,63 @@ router.post('/anxiety-response', (0, quotaGuard_1.withAIQuota)('chat_message'), 
         res.json({ suggestion });
     }
     catch (err) {
+        res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
+    }
+});
+router.post('/grade-essay', async (req, res) => {
+    try {
+        const { z } = await Promise.resolve().then(() => __importStar(require('zod')));
+        const GradeEssaySchema = z.object({
+            prompt: z.string().trim().max(4000).optional(),
+            essay: z.string().trim().min(50, 'Essay is too short to grade (minimum 50 characters)').max(30000),
+        });
+        const parsedInput = GradeEssaySchema.safeParse(req.body);
+        if (!parsedInput.success) {
+            return res.status(400).json({ error: parsedInput.error.issues[0]?.message || 'Invalid essay payload' });
+        }
+        const essay = parsedInput.data.essay;
+        const prompt = parsedInput.data.prompt || 'General University Essay';
+        const { chatCompletionWithFallback } = await Promise.resolve().then(() => __importStar(require('../lib/ai/safeGroq')));
+        const { buildEssayGraderPrompt, buildPerfectEssayRewritePrompt, parseEssayReportJson, normalizeEssayReport, buildDeterministicEssayReport, } = await Promise.resolve().then(() => __importStar(require('../../../shared/lib/essayGrader')));
+        const systemPrompt = buildEssayGraderPrompt(prompt, essay);
+        let parsed = null;
+        try {
+            const rawJson = await chatCompletionWithFallback({
+                messages: [{ role: 'user', content: systemPrompt }],
+                response_format: { type: 'json_object' },
+                max_tokens: 4096,
+            });
+            parsed = parseEssayReportJson(rawJson);
+        }
+        catch (aiErr) {
+            console.warn('AI completion failed on backend essay grading, using fallback report:', aiErr instanceof Error ? aiErr.message : aiErr);
+        }
+        if (parsed) {
+            const existingPerfect = typeof parsed.perfect_essay === 'string' ? parsed.perfect_essay.trim() : '';
+            if (existingPerfect.length < 120) {
+                try {
+                    const weaknesses = Array.isArray(parsed.weaknesses) ? parsed.weaknesses.map((w) => String(w)) : [];
+                    const grammarFeedback = typeof parsed.grammar === 'string' ? parsed.grammar : undefined;
+                    const rewritten = await chatCompletionWithFallback({
+                        messages: [{ role: 'user', content: buildPerfectEssayRewritePrompt(prompt, essay, weaknesses, grammarFeedback) }],
+                        max_tokens: 4096,
+                    });
+                    if (rewritten && rewritten.trim().length >= 120) {
+                        parsed.perfect_essay = rewritten.trim();
+                    }
+                }
+                catch (rewriteErr) {
+                    console.warn('Second-pass 100/100 essay rewrite failed:', rewriteErr instanceof Error ? rewriteErr.message : rewriteErr);
+                }
+            }
+        }
+        const finalReport = parsed
+            ? normalizeEssayReport(parsed, prompt, essay)
+            : buildDeterministicEssayReport(prompt, essay);
+        res.json({ success: true, report: finalReport });
+    }
+    catch (err) {
+        console.error('Backend essay grading error:', err);
         res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });

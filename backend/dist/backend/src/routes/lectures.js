@@ -4,7 +4,7 @@ const express_1 = require("express");
 const zod_1 = require("zod");
 const auth_1 = require("../middleware/auth");
 const supabase_1 = require("../lib/supabase");
-const env_1 = require("../config/env");
+const slideProcessor_1 = require("../services/slideProcessor");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateUser);
 const LectureInsertSchema = zod_1.z.object({
@@ -23,13 +23,29 @@ router.get('/detail/:lectureId', async (req, res) => {
     const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
     const { data, error } = await supabase
         .from('lectures')
-        .select('id, course_id, title, week, processing, slide_count, courses(course_code, title)')
+        .select('id, course_id, title, week, processing, slide_count, file_url, created_at, courses(course_code, title)')
         .eq('id', req.params.lectureId)
         .single();
     if (error)
         return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
     if (data && data.title?.startsWith('[FAILED')) {
         return res.status(404).json({ error: 'Lecture not found' });
+    }
+    // Auto-recovery: If marked processing, check actual slides in DB
+    if (data && data.processing) {
+        const { count } = await supabase
+            .from('slides')
+            .select('id', { count: 'exact', head: true })
+            .eq('lecture_id', data.id);
+        if (count && count > 0) {
+            data.processing = false;
+            data.slide_count = count;
+            void supabase.from('lectures').update({ processing: false, slide_count: count }).eq('id', data.id);
+        }
+        else if (data.file_url) {
+            // Re-trigger fast in-process extraction
+            void (0, slideProcessor_1.processLectureSlidesInBackground)(data.id, req.user.id, data.file_url);
+        }
     }
     res.json(data);
 });
@@ -39,6 +55,20 @@ router.get('/:courseId', async (req, res) => {
     if (error)
         return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
     const filtered = Array.isArray(data) ? data.filter((l) => !l.title?.startsWith('[FAILED')) : [];
+    // Check for any stuck lectures and resolve them
+    for (const lec of filtered) {
+        if (lec.processing) {
+            const { count } = await supabase
+                .from('slides')
+                .select('id', { count: 'exact', head: true })
+                .eq('lecture_id', lec.id);
+            if (count && count > 0) {
+                lec.processing = false;
+                lec.slide_count = count;
+                void supabase.from('lectures').update({ processing: false, slide_count: count }).eq('id', lec.id);
+            }
+        }
+    }
     res.json(filtered);
 });
 router.post('/', async (req, res) => {
@@ -50,6 +80,10 @@ router.post('/', async (req, res) => {
     const { data, error } = await supabase.from('lectures').insert(parsed.data).select().single();
     if (error)
         return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+    // If file_url is provided upfront, immediately dispatch background extraction
+    if (data && data.file_url) {
+        void (0, slideProcessor_1.processLectureSlidesInBackground)(data.id, req.user.id, data.file_url);
+    }
     res.json(data);
 });
 router.get('/:lectureId/slides', async (req, res) => {
@@ -90,11 +124,15 @@ router.patch('/:id', async (req, res) => {
         .single();
     if (error)
         return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+    // If file_url was updated, immediately initiate background slide extraction without waiting for user to open
+    if (data && data.file_url) {
+        void (0, slideProcessor_1.processLectureSlidesInBackground)(data.id, req.user.id, data.file_url);
+    }
     res.json(data);
 });
 router.post('/:id/convert', async (req, res) => {
     try {
-        const lectureId = req.params.id;
+        const lectureId = String(req.params.id);
         const userId = req.user.id;
         let fileUrl = req.body?.file_url;
         // If file_url was not supplied in body, look it up from the lecture record
@@ -106,52 +144,14 @@ router.post('/:id/convert', async (req, res) => {
         if (!fileUrl) {
             return res.status(400).json({ error: 'Lecture has no associated file_url to convert.' });
         }
-        const converterBase = (env_1.env.CONVERTER_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
-        const secret = (env_1.env.CONVERTER_SECRET || 'zT9xK2mP7vL4wQ8rN5bH1jC6dF3gY0').trim();
-        // Render free-tier converter may be waking from cold sleep. Retry with backoff.
-        let convertRes = null;
-        let lastError = null;
-        for (let attempt = 1; attempt <= 4; attempt++) {
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s per attempt
-                const formData = new FormData();
-                formData.append('lecture_id', String(lectureId));
-                formData.append('user_id', String(userId));
-                formData.append('file_url', String(fileUrl));
-                convertRes = await fetch(`${converterBase}/convert`, {
-                    method: 'POST',
-                    headers: {
-                        'X-Converter-Secret': secret,
-                    },
-                    body: formData,
-                    signal: controller.signal,
-                });
-                clearTimeout(timeoutId);
-                if (convertRes.ok || (convertRes.status !== 502 && convertRes.status !== 503 && convertRes.status !== 504)) {
-                    break;
-                }
-                console.warn(`[Converter Dispatch] Attempt ${attempt} returned HTTP ${convertRes.status}. Retrying in case service is waking up...`);
-            }
-            catch (err) {
-                lastError = err;
-                console.warn(`[Converter Dispatch] Attempt ${attempt} failed: ${err.message}. Retrying...`);
-            }
-            if (attempt < 4) {
-                await new Promise((resolve) => setTimeout(resolve, 3000));
-            }
-        }
-        if (!convertRes) {
-            throw lastError || new Error('Could not connect to slide converter service on Render after retries.');
-        }
-        if (!convertRes.ok) {
-            const errText = await convertRes.text().catch(() => '');
-            return res.status(convertRes.status).json({
-                error: errText || `Converter returned HTTP ${convertRes.status}`
-            });
-        }
-        const data = await convertRes.json();
-        res.json(data);
+        // Immediately kick off background processing without blocking the client
+        void (0, slideProcessor_1.processLectureSlidesInBackground)(lectureId, userId, fileUrl);
+        // Return instant success so the upload dialog and UI never hang
+        res.json({
+            status: 'processing started',
+            lecture_id: lectureId,
+            message: 'Slide processing initiated in background'
+        });
     }
     catch (error) {
         console.error('Lecture conversion dispatch error:', error);

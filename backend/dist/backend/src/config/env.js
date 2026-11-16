@@ -35,8 +35,11 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.env = void 0;
 const dotenv = __importStar(require("dotenv"));
+const path = __importStar(require("path"));
 const zod_1 = require("zod");
-dotenv.config({ path: '.env.local' });
+dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env.local') });
 dotenv.config(); // fallback to .env if needed
 const envSchema = zod_1.z.object({
     PORT: zod_1.z.string().default('8000'),

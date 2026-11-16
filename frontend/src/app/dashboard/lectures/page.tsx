@@ -41,6 +41,7 @@ import {
 import { resolveCourseColor } from '@/lib/constants/courses';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api/client';
+import { createClient } from '@/lib/supabase/client';
 import { bulkDeleteLectures } from '@/app/actions/lectures';
 import { UploadLectureDialog } from '@/components/courses/UploadLectureDialog';
 import { DeleteLectureButton } from '@/components/courses/DeleteLectureButton';
@@ -164,7 +165,15 @@ export default function LecturesHubPage() {
       }
 
       if (Array.isArray(data)) {
-        const activeOnly = data.filter((c: CourseItem) => !c.is_archived);
+        const activeOnly = data
+          .filter((c: CourseItem) => !c.is_archived)
+          .map((c: CourseItem) => ({
+            ...c,
+            lectures: (c.lectures || []).map((l: any) => ({
+              ...l,
+              processing: Boolean(l.processing && (!l.slide_count || l.slide_count === 0)),
+            })),
+          }));
         // Arrange courses in strict ascending alphanumeric order by course_code and title
         const sortedCourses = [...activeOnly].sort((a: CourseItem, b: CourseItem) => {
           const codeA = (a.course_code || a.title || '').trim();
@@ -198,6 +207,24 @@ export default function LecturesHubPage() {
     loadCourses();
   }, [loadCourses]);
 
+  // Live real-time Supabase subscription for instant lecture and slide updates
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel('realtime:lectures_hub_live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lectures' }, () => {
+        void loadCourses();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, () => {
+        void loadCourses();
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadCourses]);
+
   // Listen for immediate lecture upload events from anywhere in the window
   useEffect(() => {
     const handleUploaded = () => {
@@ -216,7 +243,7 @@ export default function LecturesHubPage() {
     if (!hasProcessingLecture) return;
     const interval = setInterval(async () => {
       await loadCourses();
-    }, 3000);
+    }, 2500);
     return () => clearInterval(interval);
   }, [hasProcessingLecture, loadCourses]);
 

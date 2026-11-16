@@ -46,7 +46,12 @@ export async function GET() {
     if (Array.isArray(data)) {
       data.forEach((c: any) => {
         if (Array.isArray(c.lectures)) {
-          c.lectures = c.lectures.filter((l: any) => !l.title?.startsWith('[FAILED'));
+          c.lectures = c.lectures
+            .filter((l: any) => !l.title?.startsWith('[FAILED'))
+            .map((l: any) => ({
+              ...l,
+              processing: Boolean(l.processing && (!l.slide_count || l.slide_count === 0)),
+            }));
         } else {
           c.lectures = [];
         }
