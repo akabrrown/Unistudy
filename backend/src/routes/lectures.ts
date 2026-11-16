@@ -26,7 +26,7 @@ router.get('/detail/:lectureId', async (req: Request, res: Response) => {
   const supabase = supabaseAsUser(req.user!.jwt);
   const { data, error } = await supabase
     .from('lectures')
-    .select('id, course_id, title, week, processing, slide_count, courses(course_code, title)')
+    .select('id, course_id, title, week, processing, slide_count, file_url, created_at, courses(course_code, title)')
     .eq('id', req.params.lectureId)
     .single();
   
@@ -34,6 +34,24 @@ router.get('/detail/:lectureId', async (req: Request, res: Response) => {
   if (data && data.title?.startsWith('[FAILED')) {
     return res.status(404).json({ error: 'Lecture not found' });
   }
+
+  // Auto-recovery: If marked processing, check actual slides in DB
+  if (data && data.processing) {
+    const { count } = await supabase
+      .from('slides')
+      .select('id', { count: 'exact', head: true })
+      .eq('lecture_id', data.id);
+
+    if (count && count > 0) {
+      data.processing = false;
+      data.slide_count = count;
+      void supabase.from('lectures').update({ processing: false, slide_count: count }).eq('id', data.id);
+    } else if (data.file_url) {
+      // Re-trigger fast in-process extraction
+      void processLectureSlidesInBackground(data.id, req.user!.id, data.file_url);
+    }
+  }
+
   res.json(data);
 });
 
@@ -43,6 +61,23 @@ router.get('/:courseId', async (req: Request, res: Response) => {
   
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   const filtered = Array.isArray(data) ? data.filter((l: any) => !l.title?.startsWith('[FAILED')) : [];
+
+  // Check for any stuck lectures and resolve them
+  for (const lec of filtered) {
+    if (lec.processing) {
+      const { count } = await supabase
+        .from('slides')
+        .select('id', { count: 'exact', head: true })
+        .eq('lecture_id', lec.id);
+
+      if (count && count > 0) {
+        lec.processing = false;
+        lec.slide_count = count;
+        void supabase.from('lectures').update({ processing: false, slide_count: count }).eq('id', lec.id);
+      }
+    }
+  }
+
   res.json(filtered);
 });
 
