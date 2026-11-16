@@ -33,7 +33,7 @@ router.get('/', async (req: Request, res: Response) => {
   const supabase = supabaseAsUser(token);
   let { data, error } = await supabase
     .from('courses')
-    .select('*, lectures(id, title), past_papers(id, title, year, exam_type, status)')
+    .select('*, lectures(id, title, week, slide_count, created_at, processing), past_papers(id, title, year, exam_type, status)')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -121,7 +121,7 @@ router.get('/:id', authenticateUser, async (req: Request, res: Response) => {
   const supabase = supabaseAsUser(req.user!.jwt);
   const { data, error } = await supabase
     .from('courses')
-    .select('*, lectures(id, title, file_url, week, created_at)')
+    .select('*, lectures(id, title, file_url, week, slide_count, created_at, processing)')
     .eq('id', req.params.id)
     .maybeSingle();
   

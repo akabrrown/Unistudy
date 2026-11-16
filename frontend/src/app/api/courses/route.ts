@@ -25,7 +25,7 @@ export async function GET() {
 
     let { data, error } = await supabase
       .from('courses')
-      .select('*, lectures(id, title, week, slide_count, created_at), past_papers(id, title, year, exam_type, status)')
+      .select('*, lectures(id, title, week, slide_count, created_at, processing), past_papers(id, title, year, exam_type, status)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -56,7 +56,11 @@ export async function GET() {
       });
     }
 
-    return NextResponse.json(data || []);
+    return NextResponse.json(data || [], {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    });
   } catch (err: any) {
     console.error('API /courses GET error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

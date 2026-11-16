@@ -133,10 +133,23 @@ export function UploadLectureDialog({
         }
         
         // 1. Insert lecture placeholder
-        const newLecture = await apiFetch('/lectures', {
-          method: 'POST',
-          body: JSON.stringify(payload)
-        });
+        let newLecture: any = null;
+        try {
+          newLecture = await apiFetch('/lectures', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+          });
+        } catch (apiErr) {
+          console.warn('[UploadLectureDialog] apiFetch /lectures failed, inserting directly to Supabase:', apiErr);
+          const { data: sbData, error: sbErr } = await supabase
+            .from('lectures')
+            .insert(payload)
+            .select()
+            .single();
+          if (sbErr) throw sbErr;
+          newLecture = sbData;
+        }
+
         if (!newLecture?.id) {
           throw new Error('Failed to create lecture record in database.');
         }
@@ -200,10 +213,18 @@ export function UploadLectureDialog({
         uploadedFileUrl = fileData.secure_url;
 
         // Update lecture with Cloudinary URL and set processing to true
-        await apiFetch(`/lectures/${newLectureId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ file_url: uploadedFileUrl, processing: true })
-        });
+        try {
+          await apiFetch(`/lectures/${newLectureId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ file_url: uploadedFileUrl, processing: true })
+          });
+        } catch (patchErr) {
+          console.warn('[UploadLectureDialog] apiFetch PATCH failed, updating directly in Supabase:', patchErr);
+          await supabase
+            .from('lectures')
+            .update({ file_url: uploadedFileUrl, processing: true })
+            .eq('id', newLectureId);
+        }
 
         // 3. Mark as processing AI conversion
         setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'processing', progress: 100 } : f));
@@ -237,6 +258,11 @@ export function UploadLectureDialog({
         // Successfully completed! Slide processing runs immediately in the background.
         successCount++;
         setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'success', progress: 100 } : f));
+
+        // Fire live event so list views update immediately without waiting for modal close
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('lecture-uploaded', { detail: { courseId, lectureId: newLectureId } }));
+        }
       } catch (err: any) {
         console.error(`Upload error for ${item.file.name}:`, err);
         const errorMsg = err?.message || 'Upload failed';
@@ -272,10 +298,16 @@ export function UploadLectureDialog({
       setUploadFiles([]);
       handleOpenChange(false);
       onSuccess?.();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('lecture-uploaded', { detail: { courseId } }));
+      }
       router.refresh();
     } else if (successCount > 0 && failCount > 0) {
       toast.warning(`Uploaded ${successCount} file(s), but ${failCount} failed. Failed files have been removed from your course and are marked in red below.`);
       onSuccess?.();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('lecture-uploaded', { detail: { courseId } }));
+      }
       router.refresh();
     } else if (failCount > 0) {
       toast.error(`Upload failed for ${failCount} file(s). See red error details below.`);

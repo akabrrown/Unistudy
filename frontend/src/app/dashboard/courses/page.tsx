@@ -47,6 +47,10 @@ import { cn } from '@/lib/utils';
 interface LectureSummary {
   id: string;
   title: string | null;
+  week?: number | null;
+  slide_count?: number | null;
+  created_at?: string | null;
+  processing?: boolean | null;
 }
 
 interface PastPaperSummary {
@@ -204,7 +208,7 @@ export default function CoursesPage() {
     if (!data || data.length === 0) {
       const { data: dbData, error } = await supabase
         .from('courses')
-        .select('id, user_id, title, course_code, colour, semester, year, is_archived, created_at, lectures(id, title), past_papers(id, title, year, exam_type, status)')
+        .select('id, user_id, title, course_code, colour, semester, year, is_archived, created_at, lectures(id, title, week, slide_count, created_at, processing), past_papers(id, title, year, exam_type, status)')
         .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(dbData)) {
@@ -266,6 +270,27 @@ export default function CoursesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Live auto-refresh when any lecture is uploaded or processed
+  useEffect(() => {
+    const handleUploaded = () => {
+      void fetchCourses();
+    };
+    window.addEventListener('lecture-uploaded', handleUploaded);
+    return () => window.removeEventListener('lecture-uploaded', handleUploaded);
+  }, []);
+
+  const hasProcessingLecture = useMemo(() => {
+    return courses.some((c) => (c.lectures || []).some((l) => l.processing));
+  }, [courses]);
+
+  useEffect(() => {
+    if (!hasProcessingLecture) return;
+    const interval = setInterval(() => {
+      void fetchCourses();
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [hasProcessingLecture]);
+
   const deleteCourse = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -319,7 +344,7 @@ export default function CoursesPage() {
           const { data, error } = await supabase
             .from('courses')
             .insert({ ...newCourseData, user_id: user.id })
-            .select('id, user_id, title, course_code, colour, semester, year, is_archived, created_at, lectures(id, title)')
+            .select('id, user_id, title, course_code, colour, semester, year, is_archived, created_at, lectures(id, title, week, slide_count, created_at, processing)')
             .single();
           if (!error && data) {
             fetchedCourse = data as CourseRecord;
@@ -385,7 +410,7 @@ export default function CoursesPage() {
           .from('courses')
           .update(updatePayload)
           .eq('id', editCourseId)
-          .select('id, user_id, title, course_code, colour, semester, year, is_archived, created_at, lectures(id, title)')
+          .select('id, user_id, title, course_code, colour, semester, year, is_archived, created_at, lectures(id, title, week, slide_count, created_at, processing)')
           .single();
         if (!error && data) {
           updatedCourse = data as CourseRecord;
@@ -421,7 +446,7 @@ export default function CoursesPage() {
           .from('courses')
           .update({ is_archived: !isArchived })
           .eq('id', id)
-          .select('id, user_id, title, course_code, colour, semester, year, is_archived, created_at, lectures(id, title)')
+          .select('id, user_id, title, course_code, colour, semester, year, is_archived, created_at, lectures(id, title, week, slide_count, created_at, processing)')
           .single();
         if (!error && data) {
           updatedCourse = data as CourseRecord;
@@ -1322,7 +1347,13 @@ export default function CoursesPage() {
                               className="flex items-center justify-between gap-2 text-xs text-foreground hover:text-primary transition-colors cursor-pointer"
                             >
                               <span className="truncate">{lec.title || 'Untitled Lecture'}</span>
-                              <ArrowRight className="w-3 h-3 shrink-0 opacity-60" />
+                              {lec.processing ? (
+                                <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold animate-pulse shrink-0">
+                                  Processing...
+                                </span>
+                              ) : (
+                                <ArrowRight className="w-3 h-3 shrink-0 opacity-60" />
+                              )}
                             </Link>
                           </li>
                         ))}

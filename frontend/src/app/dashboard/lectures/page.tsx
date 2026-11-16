@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -60,28 +60,52 @@ export default function LecturesHubPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch courses and their lectures
-  useEffect(() => {
-    async function loadCourses() {
+  const loadCourses = useCallback(async () => {
+    try {
+      let data: any = null;
       try {
-        const res = await fetch('/api/courses');
+        const res = await fetch(`/api/courses?t=${Date.now()}`, { cache: 'no-store' });
         if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            const activeOnly = data.filter((c: CourseItem) => !c.is_archived);
-            setCourses(activeOnly);
-            if (urlCourseId && activeOnly.some((c: CourseItem) => c.id === urlCourseId)) {
-              setSelectedCourseId(urlCourseId);
-            }
-          }
+          data = await res.json();
         }
-      } catch (err) {
-        console.error('Failed to load courses for lectures hub', err);
-      } finally {
-        setLoading(false);
+      } catch (e) {
+        console.warn('Direct fetch /api/courses failed, falling back to apiFetch:', e);
       }
+
+      if (!Array.isArray(data) || data.length === 0) {
+        try {
+          data = await apiFetch('/courses');
+        } catch {
+          // quiet fallback
+        }
+      }
+
+      if (Array.isArray(data)) {
+        const activeOnly = data.filter((c: CourseItem) => !c.is_archived);
+        setCourses(activeOnly);
+        if (urlCourseId && activeOnly.some((c: CourseItem) => c.id === urlCourseId)) {
+          setSelectedCourseId(urlCourseId);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load courses for lectures hub', err);
+    } finally {
+      setLoading(false);
     }
-    loadCourses();
   }, [urlCourseId]);
+
+  useEffect(() => {
+    loadCourses();
+  }, [loadCourses]);
+
+  // Listen for immediate lecture upload events from anywhere in the window
+  useEffect(() => {
+    const handleUploaded = () => {
+      void loadCourses();
+    };
+    window.addEventListener('lecture-uploaded', handleUploaded);
+    return () => window.removeEventListener('lecture-uploaded', handleUploaded);
+  }, [loadCourses]);
 
   // Auto-refresh lectures list if any lecture is still processing in the background
   const hasProcessingLecture = useMemo(() => {
@@ -91,17 +115,10 @@ export default function LecturesHubPage() {
   useEffect(() => {
     if (!hasProcessingLecture) return;
     const interval = setInterval(async () => {
-      try {
-        const data = await apiFetch('/courses');
-        if (Array.isArray(data)) {
-          setCourses(data);
-        }
-      } catch {
-        // silent polling catch
-      }
-    }, 4000);
+      await loadCourses();
+    }, 3000);
     return () => clearInterval(interval);
-  }, [hasProcessingLecture]);
+  }, [hasProcessingLecture, loadCourses]);
 
   // Aggregate all lectures with their course metadata
   const allLecturesWithCourse = useMemo(() => {
@@ -192,6 +209,13 @@ export default function LecturesHubPage() {
             <UploadLectureDialog
               courseId={activeCourse.id}
               courseCode={activeCourse.course_code || 'COURSE'}
+              onSuccess={loadCourses}
+            />
+          ) : courses.length > 0 ? (
+            <UploadLectureDialog
+              courseId={courses[0].id}
+              courseCode={courses[0].course_code || 'COURSE'}
+              onSuccess={loadCourses}
             />
           ) : (
             <Button
@@ -379,16 +403,14 @@ export default function LecturesHubPage() {
               <UploadLectureDialog
                 courseId={activeCourse.id}
                 courseCode={activeCourse.course_code || 'COURSE'}
+                onSuccess={loadCourses}
               />
             ) : courses.length > 0 ? (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setSelectedCourseId(courses[0].id)}
-                className="bg-primary text-primary-foreground text-xs"
-              >
-                Select {courses[0].course_code || courses[0].title}
-              </Button>
+              <UploadLectureDialog
+                courseId={courses[0].id}
+                courseCode={courses[0].course_code || 'COURSE'}
+                onSuccess={loadCourses}
+              />
             ) : (
               <Button
                 variant="default"
