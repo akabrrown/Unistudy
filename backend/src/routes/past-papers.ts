@@ -21,6 +21,7 @@ import { authenticateUser } from '../middleware/auth';
 import { withAIQuota } from '../middleware/quotaGuard';
 import { consumeUserQuota } from '../lib/ai/quota';
 import { AIRequest, routeRequest } from '../lib/ai/router';
+import { ensurePastPapersForUserCourses } from '../services/courseQuestionBanks';
 router.use(authenticateUser);
 
 router.get('/', async (req: any, res) => {
@@ -34,10 +35,39 @@ router.get('/', async (req: any, res) => {
 
         const institutionId = profile?.institution_id || null;
 
+        // 1. Fetch user's registered courses
+        const { data: userCourses } = await supabaseAdmin
+            .from('courses')
+            .select('id, course_code, title, colour')
+            .eq('user_id', userId);
+
+        // 2. Ensure each enrolled course has past question papers ready
+        if (userCourses && userCourses.length > 0) {
+            try {
+                await ensurePastPapersForUserCourses(userId, userCourses, institutionId);
+            } catch (seedErr) {
+                console.warn('[Past Papers] Error ensuring course question banks:', seedErr);
+            }
+        }
+
+        const userCourseIds = (userCourses || []).map((c: any) => c.id);
+        const userCodes = (userCourses || [])
+            .map((c: any) => (c.course_code || c.title || '').toUpperCase().replace(/[^A-Z0-9]/g, ''))
+            .filter(Boolean);
+
+        // 3. Query papers matching user or shared to community or matching student's enrolled courses
+        let orClauses = [`user_id.eq.${userId}`, 'shared_to_community.eq.true'];
+        if (userCourseIds.length > 0) {
+            orClauses.push(`course_id.in.(${userCourseIds.join(',')})`);
+        }
+        if (userCodes.length > 0) {
+            orClauses.push(`normalized_course_code.in.(${userCodes.join(',')})`);
+        }
+
         const query = supabaseAdmin
             .from('past_papers')
             .select('id, title, year, exam_type, status, course_id, course_code, normalized_course_code, institution_id, created_at, courses(id, course_code, title, colour), past_paper_questions(id, question_number, text_content, extracted_topic, marks_available)')
-            .or(`user_id.eq.${userId},shared_to_community.eq.true`);
+            .or(orClauses.join(','));
 
         const { data, error } = await query.order('created_at', { ascending: false });
 
@@ -45,15 +75,32 @@ router.get('/', async (req: any, res) => {
 
         const formatted = (data || []).map((p: any) => {
             const courseJoin = Array.isArray(p.courses) ? p.courses[0] : p.courses;
+            const matchingUserCourse = (userCourses || []).find((c: any) => {
+                if (p.course_id && p.course_id === c.id) return true;
+                const pCode = (p.normalized_course_code || p.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const cCode = (c.course_code || c.title || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                return pCode && cCode && (pCode === cCode || pCode.includes(cCode) || cCode.includes(pCode));
+            });
+
+            const resolvedCourse = matchingUserCourse || courseJoin;
             const questions = p.past_paper_questions || [];
+
             return {
                 id: p.id,
-                course_id: p.course_id,
-                course_code: p.course_code || courseJoin?.course_code || 'EXAM',
+                course_id: resolvedCourse?.id || p.course_id,
+                course_code: p.course_code || resolvedCourse?.course_code || 'EXAM',
+                normalized_course_code: p.normalized_course_code || (p.course_code || resolvedCourse?.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
                 title: p.title || `${p.year || ''} ${p.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm Exam'}`,
                 year: p.year || new Date().getFullYear(),
                 exam_type: p.exam_type || 'end-semester',
                 status: p.status,
+                created_at: p.created_at,
+                courses: resolvedCourse ? {
+                    id: resolvedCourse.id,
+                    course_code: resolvedCourse.course_code,
+                    title: resolvedCourse.title,
+                    colour: resolvedCourse.colour
+                } : null,
                 question_count: questions.length,
                 questions: questions.map((q: any) => ({
                     id: q.id,
@@ -69,6 +116,36 @@ router.get('/', async (req: any, res) => {
     } catch (err: any) {
         console.error('[Past Papers GET /] Error:', err);
         res.status(500).json({ error: 'Failed to retrieve past papers' });
+    }
+});
+
+router.get('/:id', async (req: any, res) => {
+    try {
+        const paperId = req.params.id;
+        const userId = req.user!.id;
+
+        const { data: paper, error } = await supabaseAdmin
+            .from('past_papers')
+            .select('*, courses(id, course_code, title, colour), past_paper_questions(*)')
+            .eq('id', paperId)
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!paper) {
+            return res.status(404).json({ error: 'Past paper not found' });
+        }
+
+        // Sort questions numerically
+        if (Array.isArray(paper.past_paper_questions)) {
+            paper.past_paper_questions.sort((a: any, b: any) =>
+                String(a.question_number).localeCompare(String(b.question_number), undefined, { numeric: true })
+            );
+        }
+
+        res.json(paper);
+    } catch (err: any) {
+        console.error('[Past Papers GET /:id] Error:', err);
+        res.status(500).json({ error: 'Failed to retrieve past paper details' });
     }
 });
 

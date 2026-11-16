@@ -63,6 +63,29 @@ export default function PastPaperDetails() {
     const fetchDetails = async () => {
       setLoading(true)
       
+      try {
+        const pData: any = await apiFetch(`/past-papers/${params.id}`)
+        if (pData && pData.id) {
+          setPaper(pData)
+          const qData = pData.past_paper_questions || []
+          let sortedQs = [...qData].sort((a: any, b: any) => 
+            String(a.question_number).localeCompare(String(b.question_number), undefined, { numeric: true })
+          )
+          sortedQs = sortedQs.map((q: any) => {
+            const hasPrefix = q.extracted_topic && q.extracted_topic.includes('|')
+            const isMcq = hasPrefix 
+              ? q.extracted_topic.startsWith('MCQ|')
+              : /(?:^|\n)[ \t]*[A-Ea-e][.)][ \t]+\S/m.test(q.text_content)
+            return isMcq ? { ...q, marks_available: 1, isMcq: true } : { ...q, isMcq: false }
+          })
+          setQuestions(sortedQs)
+          setLoading(false)
+          return
+        }
+      } catch (proxyErr) {
+        console.warn('[PastPaperDetails] Proxy fetch failed, falling back to direct query:', proxyErr)
+      }
+
       const { data: pData } = await supabase
         .from('past_papers')
         .select('*, courses(course_code, title)')

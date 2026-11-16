@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Clock, Check, Loader2, Save, UploadCloud } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { apiFetch } from '@/lib/api/client'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -41,12 +42,25 @@ export default function ExamAttempt() {
     }
 
     const fetchExam = async () => {
-      // Fetch questions
-      const { data: qData } = await supabase
-        .from('past_paper_questions')
-        .select('*')
-        .eq('past_paper_id', params.id)
-        .order('question_number', { ascending: true })
+      // 1. Fetch questions via proxy API
+      let qData: any[] | null = null
+      try {
+        const pData: any = await apiFetch(`/past-papers/${params.id}`)
+        if (pData && Array.isArray(pData.past_paper_questions)) {
+          qData = pData.past_paper_questions
+        }
+      } catch (proxyErr) {
+        console.warn('Proxy fetch failed, using supabase fallback:', proxyErr)
+      }
+
+      if (!qData) {
+        const { data: supaQ } = await supabase
+          .from('past_paper_questions')
+          .select('*')
+          .eq('past_paper_id', params.id)
+          .order('question_number', { ascending: true })
+        qData = supaQ
+      }
         
       if (qData) {
         let sortedQs = [...qData].sort((a, b) => 

@@ -260,3 +260,188 @@ export async function downloadMoodlePdf(fileUrl: string, moodleSession: string):
 
   return Buffer.from(response.data);
 }
+
+export interface MoodleStudentProfile {
+  userId: number;
+  username: string;
+  fullName: string;
+  token: string;
+}
+
+export interface MoodleEnrolledCourse {
+  id: number;
+  shortname: string;
+  fullname: string;
+  courseCode: string;
+  normalizedCode: string;
+}
+
+/**
+ * Direct student login using Index Number and Password via Moodle Token Service
+ */
+export async function loginMoodleWithCredentials(
+  username: string,
+  password: string,
+  baseUrl = 'https://join.upsavirtual.site'
+): Promise<{ token: string; privatetoken?: string }> {
+  const cleanBase = baseUrl.trim().replace(/\/+$/, '');
+  const targetUrl = `${cleanBase}/login/token.php`;
+
+  const params = new URLSearchParams({
+    username: username.trim(),
+    password: password.trim(),
+    service: 'moodle_mobile_app',
+  });
+
+  const response = await axios.post(targetUrl, params.toString(), {
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': 'UniStudy-Proxy/2.0 (Academic Integrations)',
+    },
+    timeout: 20000,
+  });
+
+  if (response.data?.error) {
+    throw new Error(response.data.error || 'Authentication failed on university portal');
+  }
+
+  if (!response.data?.token) {
+    throw new Error('University portal did not return an access token. Please check your credentials.');
+  }
+
+  return {
+    token: response.data.token,
+    privatetoken: response.data.privatetoken,
+  };
+}
+
+/**
+ * Fetches the student profile and enrolled courses using the Moodle access token
+ */
+export async function fetchMoodleEnrolledCourses(
+  token: string,
+  baseUrl = 'https://join.upsavirtual.site'
+): Promise<{ profile: MoodleStudentProfile; courses: MoodleEnrolledCourse[] }> {
+  const cleanBase = baseUrl.trim().replace(/\/+$/, '');
+
+  // 1. Get site & user info
+  const siteInfoRes = await axios.get(`${cleanBase}/webservice/rest/server.php`, {
+    params: {
+      wstoken: token,
+      moodlewsrestformat: 'json',
+      wsfunction: 'core_webservice_get_site_info',
+    },
+    timeout: 15000,
+  });
+
+  const siteInfo = siteInfoRes.data;
+  if (!siteInfo || !siteInfo.userid) {
+    throw new Error('Failed to resolve student identity from university portal');
+  }
+
+  const profile: MoodleStudentProfile = {
+    userId: siteInfo.userid,
+    username: siteInfo.username || '',
+    fullName: siteInfo.fullname || `${siteInfo.firstname || ''} ${siteInfo.lastname || ''}`.trim(),
+    token,
+  };
+
+  // 2. Get enrolled courses
+  const coursesRes = await axios.get(`${cleanBase}/webservice/rest/server.php`, {
+    params: {
+      wstoken: token,
+      moodlewsrestformat: 'json',
+      wsfunction: 'core_enrol_get_users_courses',
+      userid: profile.userId,
+    },
+    timeout: 20000,
+  });
+
+  const rawCourses = Array.isArray(coursesRes.data) ? coursesRes.data : [];
+  const courses: MoodleEnrolledCourse[] = rawCourses.map((c: any) => {
+    const extracted = extractCourseCode(c.fullname || c.shortname) || {
+      courseCode: c.shortname || `COURSE ${c.id}`,
+      normalizedCode: normalizeCourseCode(c.shortname || `COURSE${c.id}`),
+    };
+
+    return {
+      id: c.id,
+      shortname: c.shortname || '',
+      fullname: c.fullname || '',
+      courseCode: extracted.courseCode,
+      normalizedCode: extracted.normalizedCode,
+    };
+  });
+
+  return { profile, courses };
+}
+
+/**
+ * Scans course sections and modules via Moodle Web Service for PDF past question documents
+ */
+export async function fetchCourseFilesViaWs(
+  courseId: number,
+  token: string,
+  courseCode: string,
+  baseUrl = 'https://join.upsavirtual.site'
+): Promise<DiscoveredMoodleFile[]> {
+  const cleanBase = baseUrl.trim().replace(/\/+$/, '');
+
+  const contentsRes = await axios.get(`${cleanBase}/webservice/rest/server.php`, {
+    params: {
+      wstoken: token,
+      moodlewsrestformat: 'json',
+      wsfunction: 'core_course_get_contents',
+      courseid: courseId,
+    },
+    timeout: 25000,
+  });
+
+  const sections = Array.isArray(contentsRes.data) ? contentsRes.data : [];
+  const discovered: DiscoveredMoodleFile[] = [];
+
+  for (const section of sections) {
+    const modules = section.modules || [];
+    for (const mod of modules) {
+      const contentsList = mod.contents || [];
+      for (const file of contentsList) {
+        const filename = file.filename || mod.name || '';
+        const fileurl = file.fileurl || '';
+        const isPdf = filename.toLowerCase().endsWith('.pdf') || file.mimetype === 'application/pdf';
+
+        if (isPdf && (isPastPaperCandidate(filename, fileurl) || isPastPaperCandidate(section.name || ''))) {
+          const meta = extractExamMeta(filename, courseCode);
+          discovered.push({
+            title: meta.title,
+            url: fileurl,
+            filename,
+            courseCode,
+            normalizedCode: normalizeCourseCode(courseCode),
+            year: meta.year,
+            examType: meta.examType,
+          });
+        }
+      }
+    }
+  }
+
+  return discovered;
+}
+
+/**
+ * Downloads a binary PDF file from Moodle using the official Web Service token via secure proxy
+ */
+export async function downloadMoodleFileWithToken(fileUrl: string, token: string): Promise<Buffer> {
+  const urlWithToken = fileUrl.includes('?') ? `${fileUrl}&token=${token}` : `${fileUrl}?token=${token}`;
+
+  const response = await axios.get(urlWithToken, {
+    responseType: 'arraybuffer',
+    timeout: 45000,
+    headers: {
+      'User-Agent': 'UniStudy-Proxy/2.0 (Document Ingestion)',
+    },
+  });
+
+  return Buffer.from(response.data);
+}
+

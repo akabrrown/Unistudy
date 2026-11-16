@@ -90,6 +90,14 @@ function resolveExamLabel(examType: string | null | undefined): string {
   return 'Final Exam';
 }
 
+export function matchesCourse(paper: PastPaperRecord, course: CourseItem): boolean {
+  if (paper.course_id && paper.course_id === course.id) return true;
+  const pCode = (paper.normalized_course_code || paper.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const cCode = (course.course_code || course.title || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!pCode || !cCode) return false;
+  return pCode === cCode || pCode.includes(cCode) || cCode.includes(pCode);
+}
+
 function getCourseJoin(paper: PastPaperRecord): PastPaperCourseJoin | null {
   if (!paper.courses) return null;
   return Array.isArray(paper.courses) ? paper.courses[0] || null : paper.courses;
@@ -141,10 +149,7 @@ export default function PastPapersDashboard() {
 
     const [coursesRes, papersRes, attemptsRes] = await Promise.allSettled([
       apiFetch('/courses').catch(() => []),
-      supabase
-        .from('past_papers')
-        .select('id, title, year, exam_type, status, course_id, course_code, normalized_course_code, institution_id, created_at, courses(id, course_code, title, colour)')
-        .order('created_at', { ascending: false }),
+      apiFetch('/past-papers').catch(() => []),
       supabase
         .from('past_paper_attempts')
         .select(
@@ -160,8 +165,10 @@ export default function PastPapersDashboard() {
         ? (coursesRes.value as CourseItem[])
         : [];
     const nextPapers =
-      papersRes.status === 'fulfilled' && Array.isArray(papersRes.value.data)
-        ? (papersRes.value.data as PastPaperRecord[])
+      papersRes.status === 'fulfilled' && Array.isArray(papersRes.value)
+        ? (papersRes.value as PastPaperRecord[])
+        : papersRes.status === 'fulfilled' && Array.isArray((papersRes.value as any)?.data)
+        ? ((papersRes.value as any).data as PastPaperRecord[])
         : [];
     const nextAttempts =
       attemptsRes.status === 'fulfilled' && Array.isArray(attemptsRes.value.data)
@@ -326,8 +333,11 @@ export default function PastPapersDashboard() {
   const filteredPapers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return papers.filter((p) => {
-      if (selectedCourseFilter && p.course_id !== selectedCourseFilter) {
-        return false;
+      if (selectedCourseFilter) {
+        const selCourse = courseById.get(selectedCourseFilter);
+        if (selCourse && !matchesCourse(p, selCourse)) {
+          return false;
+        }
       }
       if (examTypeFilter !== 'all') {
         const normalizedType =
@@ -511,7 +521,7 @@ export default function PastPapersDashboard() {
               All ({papers.length})
             </button>
             {courses.map((c) => {
-              const count = papers.filter((p) => p.course_id === c.id).length;
+              const count = papers.filter((p) => matchesCourse(p, c)).length;
               const isSelected = selectedCourseFilter === c.id;
               return (
                 <button

@@ -6,13 +6,119 @@ import {
   discoverMoodlePastPapers,
   downloadMoodlePdf,
   normalizeCourseCode,
+  loginMoodleWithCredentials,
+  fetchMoodleEnrolledCourses,
+  fetchCourseFilesViaWs,
+  downloadMoodleFileWithToken,
 } from '../services/moodleCrawler';
 import { extractQuestionsFromPdfBuffer } from './past-papers';
+import { ensurePastPapersForUserCourses } from '../services/courseQuestionBanks';
 import { withAIQuota } from '../middleware/quotaGuard';
 import { consumeUserQuota } from '../lib/ai/quota';
 
 const router = Router();
 router.use(authenticateUser);
+
+const syncCredentialsSchema = z.object({
+  username: z.string().min(1, 'Index number or username is required'),
+  password: z.string().min(1, 'Password is required'),
+  baseUrl: z.string().url().optional().default('https://join.upsavirtual.site'),
+});
+
+/**
+ * Direct student login using Index Number and Password via Moodle token service proxy
+ */
+router.post('/sync-credentials', async (req: any, res: Response): Promise<void> => {
+  try {
+    const parseResult = syncCredentialsSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      res.status(400).json({ error: 'Invalid credentials format', details: parseResult.error.format() });
+      return;
+    }
+
+    const { username, password, baseUrl } = parseResult.data;
+    const userId = req.user!.id;
+
+    // 1. Authenticate with Moodle Web Service via server-side proxy
+    const { token } = await loginMoodleWithCredentials(username, password, baseUrl);
+
+    // 2. Fetch student info & enrolled courses
+    const { profile, courses: moodleCourses } = await fetchMoodleEnrolledCourses(token, baseUrl);
+
+    // 3. Resolve user's institution
+    const { data: userProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('institution_id')
+      .eq('id', userId)
+      .single();
+    const institutionId = userProfile?.institution_id || null;
+
+    // 4. Ensure each course from Moodle exists in user's `courses` table
+    const syncedCourses: any[] = [];
+    for (const mc of moodleCourses) {
+      const normalized = mc.normalizedCode || normalizeCourseCode(mc.courseCode);
+      const { data: existingCourse } = await supabaseAdmin
+        .from('courses')
+        .select('id, course_code, title')
+        .eq('user_id', userId)
+        .or(`course_code.ilike.%${normalized}%,title.ilike.%${normalized}%`)
+        .limit(1)
+        .maybeSingle();
+
+      let courseRecord = existingCourse;
+      if (!courseRecord) {
+        const { data: newCourse, error: insertErr } = await supabaseAdmin
+          .from('courses')
+          .insert({
+            user_id: userId,
+            title: mc.fullname || mc.courseCode,
+            course_code: mc.courseCode,
+            institution_id: institutionId,
+            colour: '#5B2D8E',
+            semester: 1,
+            year: new Date().getFullYear(),
+          })
+          .select('id, course_code, title')
+          .single();
+
+        if (!insertErr && newCourse) {
+          courseRecord = newCourse;
+        }
+      }
+
+      if (courseRecord) {
+        syncedCourses.push(courseRecord);
+      }
+    }
+
+    // 5. Ensure complete past question papers exist for all these enrolled courses
+    if (syncedCourses.length > 0) {
+      try {
+        await ensurePastPapersForUserCourses(userId, syncedCourses, institutionId);
+      } catch (paperGenErr) {
+        console.warn('[MoodleSync] Past papers auto-generation notice:', paperGenErr);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Successfully connected as ${profile.fullName}. Enrolled courses and past question banks have been synchronized.`,
+      student: {
+        userId: profile.userId,
+        fullName: profile.fullName,
+        username: profile.username,
+      },
+      coursesCount: moodleCourses.length,
+      courses: moodleCourses,
+    });
+  } catch (err: any) {
+    console.error('[MoodleRouter] sync-credentials error:', err?.message || err);
+    res.status(500).json({
+      error: 'Failed to authenticate and sync from university portal',
+      message: err?.message || 'Authentication failed',
+    });
+  }
+});
 
 const syncCourseSchema = z.object({
   courseId: z.number().int().positive(),
