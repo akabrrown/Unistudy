@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { resolveCourseColor } from '@/lib/constants/courses';
 import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/api/client';
 import { UploadLectureDialog } from '@/components/courses/UploadLectureDialog';
 import { DeleteLectureButton } from '@/components/courses/DeleteLectureButton';
 
@@ -33,6 +34,7 @@ interface LectureItem {
   week?: number | null;
   slide_count?: number | null;
   created_at?: string | null;
+  processing?: boolean | null;
 }
 
 interface CourseItem {
@@ -80,6 +82,26 @@ export default function LecturesHubPage() {
     }
     loadCourses();
   }, [urlCourseId]);
+
+  // Auto-refresh lectures list if any lecture is still processing in the background
+  const hasProcessingLecture = useMemo(() => {
+    return courses.some((c) => (c.lectures || []).some((l: any) => l.processing));
+  }, [courses]);
+
+  useEffect(() => {
+    if (!hasProcessingLecture) return;
+    const interval = setInterval(async () => {
+      try {
+        const data = await apiFetch('/courses');
+        if (Array.isArray(data)) {
+          setCourses(data);
+        }
+      } catch {
+        // silent polling catch
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [hasProcessingLecture]);
 
   // Aggregate all lectures with their course metadata
   const allLecturesWithCourse = useMemo(() => {
@@ -449,10 +471,17 @@ export default function LecturesHubPage() {
 
                     {/* Stats */}
                     <div className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums pt-1">
-                      <span className="inline-flex items-center gap-1">
-                        <Layers className="w-3.5 h-3.5 text-primary" />
-                        {lecture.slide_count || 0} slides
-                      </span>
+                      {lecture.processing ? (
+                        <span className="inline-flex items-center gap-1.5 text-purple-600 dark:text-purple-400 font-semibold animate-pulse">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Processing Slides...
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          <Layers className="w-3.5 h-3.5 text-primary" />
+                          {lecture.slide_count || 0} slides
+                        </span>
+                      )}
                       <span className="inline-flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5 text-muted-foreground" />
                         Interactive AI
@@ -462,13 +491,23 @@ export default function LecturesHubPage() {
 
                   {/* Action Buttons Row */}
                   <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between gap-2">
-                    <Link
-                      href={`/dashboard/courses/${course.id}/lectures/${lecture.id}`}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 py-2 px-3 text-xs font-semibold transition-colors cursor-pointer"
-                    >
-                      <Play className="w-3 h-3 fill-current" />
-                      Study Slides
-                    </Link>
+                    {lecture.processing ? (
+                      <Link
+                        href={`/dashboard/courses/${course.id}/lectures/${lecture.id}`}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-purple-600/90 hover:bg-purple-700 text-white py-2 px-3 text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Processing Slides...
+                      </Link>
+                    ) : (
+                      <Link
+                        href={`/dashboard/courses/${course.id}/lectures/${lecture.id}`}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 py-2 px-3 text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        <Play className="w-3 h-3 fill-current" />
+                        Study Slides
+                      </Link>
+                    )}
 
                     <Link
                       href={`/dashboard/courses/${course.id}/flashcards`}

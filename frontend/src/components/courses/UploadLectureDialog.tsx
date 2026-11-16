@@ -208,54 +208,33 @@ export function UploadLectureDialog({
         // 3. Mark as processing AI conversion
         setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'processing', progress: 100 } : f));
 
-        // 4. Trigger slide conversion
+        // 4. Trigger slide conversion immediately in the background
         const userRes = await supabase.auth.getUser();
         const userId = userRes.data.user?.id || '';
 
-        // Strategy A (Primary): Call Express backend on Render directly via apiFetch.
-        // Render web services do not have Vercel's 10-second serverless execution ceiling.
-        let convertSuccess = false;
-        let lastErrorMsg = '';
-
         try {
-          const res = await apiFetch(`/lectures/${newLectureId}/convert`, {
+          await apiFetch(`/lectures/${newLectureId}/convert`, {
             method: 'POST',
             body: JSON.stringify({ file_url: uploadedFileUrl }),
           });
-          if (res?.status === 'processing started' || res?.lecture_id) {
-            convertSuccess = true;
-          }
         } catch (apiErr: any) {
-          console.warn('Backend /lectures/:id/convert failed, falling back to Next.js proxy route:', apiErr);
-          lastErrorMsg = apiErr?.message || '';
-        }
-
-        // Strategy B (Fallback): If backend route failed, try /api/convert with file_url
-        if (!convertSuccess) {
-          const formDataFastAPI = new FormData();
-          formDataFastAPI.append('file_url', uploadedFileUrl as string);
-          formDataFastAPI.append('lecture_id', newLectureId as string);
-          formDataFastAPI.append('user_id', userId);
-
-          const convertRes = await fetch(`/api/convert`, {
-            method: 'POST',
-            body: formDataFastAPI,
-          });
-
-          if (!convertRes.ok) {
-            const rawText = await convertRes.text().catch(() => '');
-            let errText = '';
-            try {
-              const errJson = JSON.parse(rawText);
-              errText = errJson?.error || errJson?.detail || rawText;
-            } catch {
-              errText = rawText || `Conversion server returned HTTP ${convertRes.status}`;
-            }
-            throw new Error(errText || lastErrorMsg || 'Conversion failed');
+          console.warn('Backend /lectures/:id/convert trigger notice:', apiErr);
+          // Fallback: fire /api/convert
+          try {
+            const formDataFastAPI = new FormData();
+            formDataFastAPI.append('file_url', uploadedFileUrl as string);
+            formDataFastAPI.append('lecture_id', newLectureId as string);
+            formDataFastAPI.append('user_id', userId);
+            await fetch(`/api/convert`, {
+              method: 'POST',
+              body: formDataFastAPI,
+            });
+          } catch (e) {
+            console.warn('Fallback /api/convert notice:', e);
           }
         }
 
-        // Successfully completed!
+        // Successfully completed! Slide processing runs immediately in the background.
         successCount++;
         setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'success', progress: 100 } : f));
       } catch (err: any) {

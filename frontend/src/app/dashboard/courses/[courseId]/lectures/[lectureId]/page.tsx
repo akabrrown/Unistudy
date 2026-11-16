@@ -867,7 +867,7 @@ export default function LectureViewer() {
     );
   }
 
-  if (lecture?.processing) {
+  if (lecture?.processing && slides.length === 0) {
     return (
       <div className="h-[calc(100vh-theme(spacing.16))] flex flex-col items-center justify-center bg-background border border-border rounded-xl shadow-sm relative text-center space-y-4 p-8">
         <div className="relative">

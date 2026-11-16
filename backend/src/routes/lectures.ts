@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authenticateUser } from '../middleware/auth';
 import { supabaseAsUser } from '../lib/supabase';
 import { env } from '../config/env';
+import { processLectureSlidesInBackground } from '../services/slideProcessor';
 
 const router = Router();
 router.use(authenticateUser);
@@ -54,6 +55,12 @@ router.post('/', async (req: Request, res: Response) => {
   const { data, error } = await supabase.from('lectures').insert(parsed.data).select().single();
   
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+  
+  // If file_url is provided upfront, immediately dispatch background extraction
+  if (data && data.file_url) {
+    void processLectureSlidesInBackground(data.id, req.user!.id, data.file_url);
+  }
+
   res.json(data);
 });
 
@@ -97,12 +104,18 @@ router.patch('/:id', async (req: Request, res: Response) => {
     .single();
     
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+  
+  // If file_url was updated, immediately initiate background slide extraction without waiting for user to open
+  if (data && data.file_url) {
+    void processLectureSlidesInBackground(data.id, req.user!.id, data.file_url);
+  }
+
   res.json(data);
 });
 
 router.post('/:id/convert', async (req: Request, res: Response) => {
   try {
-    const lectureId = req.params.id;
+    const lectureId = String(req.params.id);
     const userId = req.user!.id;
     let fileUrl = req.body?.file_url;
 
@@ -117,62 +130,15 @@ router.post('/:id/convert', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Lecture has no associated file_url to convert.' });
     }
 
-    const converterBase = (env.CONVERTER_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
-    const secret = (env.CONVERTER_SECRET || 'zT9xK2mP7vL4wQ8rN5bH1jC6dF3gY0').trim();
+    // Immediately kick off background processing without blocking the client
+    void processLectureSlidesInBackground(lectureId, userId, fileUrl);
 
-    // Render free-tier converter may be waking from cold sleep. Retry with backoff.
-    let convertRes: any = null;
-    let lastError: any = null;
-
-    for (let attempt = 1; attempt <= 4; attempt++) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s per attempt
-
-        const formData = new FormData();
-        formData.append('lecture_id', String(lectureId));
-        formData.append('user_id', String(userId));
-        formData.append('file_url', String(fileUrl));
-
-        convertRes = await fetch(`${converterBase}/convert`, {
-          method: 'POST',
-          headers: {
-            'X-Converter-Secret': secret,
-          },
-          body: formData,
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
-
-        if (convertRes.ok || (convertRes.status !== 502 && convertRes.status !== 503 && convertRes.status !== 504)) {
-          break;
-        }
-
-        console.warn(`[Converter Dispatch] Attempt ${attempt} returned HTTP ${convertRes.status}. Retrying in case service is waking up...`);
-      } catch (err: any) {
-        lastError = err;
-        console.warn(`[Converter Dispatch] Attempt ${attempt} failed: ${err.message}. Retrying...`);
-      }
-
-      if (attempt < 4) {
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-      }
-    }
-
-    if (!convertRes) {
-      throw lastError || new Error('Could not connect to slide converter service on Render after retries.');
-    }
-
-    if (!convertRes.ok) {
-      const errText = await convertRes.text().catch(() => '');
-      return res.status(convertRes.status).json({
-        error: errText || `Converter returned HTTP ${convertRes.status}`
-      });
-    }
-
-    const data = await convertRes.json();
-    res.json(data);
+    // Return instant success so the upload dialog and UI never hang
+    res.json({
+      status: 'processing started',
+      lecture_id: lectureId,
+      message: 'Slide processing initiated in background'
+    });
   } catch (error: any) {
     console.error('Lecture conversion dispatch error:', error);
     res.status(500).json({ error: error.message || 'Failed to dispatch conversion' });
