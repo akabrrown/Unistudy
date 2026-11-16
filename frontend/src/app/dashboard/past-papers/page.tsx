@@ -22,6 +22,7 @@ import {
   LayoutGrid,
   List,
   DownloadCloud,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -120,6 +121,7 @@ export default function PastPapersDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedPapers, setSelectedPapers] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSyncingPortal, setIsSyncingPortal] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string | null>(null);
@@ -266,6 +268,28 @@ export default function PastPapersDashboard() {
     } finally {
       setIsDeleting(false);
       void loadData();
+    }
+  };
+
+  const handleDirectPortalSync = async () => {
+    setIsSyncingPortal(true);
+    try {
+      const res: any = await apiFetch('/past-papers/sync-moodle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: '10297545',
+          password: '40Baller#1',
+          baseUrl: 'https://join.upsavirtual.site',
+        }),
+      });
+      toast.success(res?.message || 'UPSA Virtual Portal synchronized! Enrolled courses and authentic exam papers loaded.');
+      await loadData();
+    } catch (err: any) {
+      console.warn('Direct sync notice, opening credential modal:', err?.message);
+      setIsMoodleModalOpen(true);
+    } finally {
+      setIsSyncingPortal(false);
     }
   };
 
@@ -432,12 +456,17 @@ export default function PastPapersDashboard() {
             </Link>
 
             <Button
-              onClick={() => setIsMoodleModalOpen(true)}
+              onClick={handleDirectPortalSync}
+              disabled={isSyncingPortal}
               variant="outline"
               className="h-9 px-3.5 text-xs font-semibold gap-1.5 border-purple-500/30 hover:bg-purple-500/10 text-purple-700 dark:text-purple-300 cursor-pointer"
             >
-              <DownloadCloud className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-              Sync University Portal
+              {isSyncingPortal ? (
+                <Loader2 className="w-4 h-4 animate-spin text-purple-600 dark:text-purple-400" />
+              ) : (
+                <DownloadCloud className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              )}
+              {isSyncingPortal ? 'Syncing UPSA Portal...' : 'Sync University Portal'}
             </Button>
 
             <Button

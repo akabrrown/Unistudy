@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../lib/supabase';
-import { normalizeCourseCode } from './moodleCrawler';
+import { normalizeCourseCode, syncRealMoodlePastPapers } from './moodleCrawler';
 
 export interface DefaultQuestion {
   question_number: string;
@@ -404,6 +404,13 @@ export async function ensurePastPapersForUserCourses(
   userCourses: { id: string; course_code: string | null; title: string }[],
   institutionId?: string | null
 ): Promise<void> {
+  // Always trigger synchronization of authentic UPSA Moodle course papers
+  try {
+    await syncRealMoodlePastPapers(userId);
+  } catch (moodleErr: any) {
+    console.warn('[ensurePastPapersForUserCourses] Notice syncing Moodle portal:', moodleErr?.message);
+  }
+
   if (!userCourses || userCourses.length === 0) return;
 
   for (const course of userCourses) {
@@ -423,36 +430,11 @@ export async function ensurePastPapersForUserCourses(
       continue;
     }
 
-    // Resolve template or generate standard university exam paper
-    const template = COURSE_EXAM_TEMPLATES[normalizedCode] || {
-      title: course.title || rawCode,
-      questions: [
-        {
-          question_number: '1',
-          text_content: `Which fundamental principle is central to ${rawCode} in enterprise systems?\nA. System modularity and fault tolerance\nB. Manual paper-based verification\nC. Unrestricted arbitrary network access\nD. Non-deterministic data structures`,
-          extracted_topic: 'MCQ|Core Fundamentals',
-          marks_available: 1,
-        },
-        {
-          question_number: '2',
-          text_content: `When designing solutions in ${rawCode}, how is risk management effectively integrated into lifecycle governance?\nA. By ignoring testing until deployment\nB. Through continuous verification, threat modeling, and stakeholder reviews\nC. By disabling logging to improve system latency\nD. By delegating all security decisions to end users`,
-          extracted_topic: 'MCQ|Risk & Lifecycle Management',
-          marks_available: 1,
-        },
-        {
-          question_number: '3',
-          text_content: `Explain the foundational theoretical models underlying ${rawCode}. Provide practical real-world scenarios illustrating their application in Ghanaian organizations.`,
-          extracted_topic: 'THEORY|Theoretical Models & Application',
-          marks_available: 10,
-        },
-        {
-          question_number: '4',
-          text_content: `Analyze the critical challenges faced during the implementation and monitoring of ${rawCode} solutions. Propose concrete engineering and administrative strategies to mitigate these risks.`,
-          extracted_topic: 'THEORY|Implementation Risk & Mitigation',
-          marks_available: 15,
-        },
-      ],
-    };
+    // Resolve template if available for specific department course
+    const template = COURSE_EXAM_TEMPLATES[normalizedCode];
+    if (!template) {
+      continue;
+    }
 
     // Insert Final Examination Paper
     const paperTitle = `${rawCode} - 2024 End of Semester Examination`;
@@ -482,36 +464,6 @@ export async function ensurePastPapersForUserCourses(
         marks_available: q.marks_available,
       }));
       await supabaseAdmin.from('past_paper_questions').insert(qRows);
-    }
-
-    // Insert Mid-Semester Examination Paper
-    const midTitle = `${rawCode} - 2023 Mid-Semester Examination`;
-    const { data: insertedMid, error: midErr } = await supabaseAdmin
-      .from('past_papers')
-      .insert({
-        user_id: userId,
-        course_id: course.id,
-        course_code: rawCode,
-        normalized_course_code: normalizedCode,
-        title: midTitle,
-        year: 2023,
-        exam_type: 'mid-semester',
-        status: 'ready',
-        shared_to_community: true,
-        institution_id: institutionId || null,
-      })
-      .select('id')
-      .single();
-
-    if (!midErr && insertedMid) {
-      const midQuestions = template.questions.slice(0, 3).map((q, idx) => ({
-        past_paper_id: insertedMid.id,
-        question_number: String(idx + 1),
-        text_content: q.text_content,
-        extracted_topic: q.extracted_topic,
-        marks_available: q.marks_available,
-      }));
-      await supabaseAdmin.from('past_paper_questions').insert(midQuestions);
     }
   }
 }

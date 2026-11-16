@@ -10,6 +10,7 @@ import {
   fetchMoodleEnrolledCourses,
   fetchCourseFilesViaWs,
   downloadMoodleFileWithToken,
+  syncRealMoodlePastPapers,
 } from '../services/moodleCrawler';
 import { extractQuestionsFromPdfBuffer } from './past-papers';
 import { ensurePastPapersForUserCourses } from '../services/courseQuestionBanks';
@@ -91,13 +92,11 @@ router.post('/sync-credentials', async (req: any, res: Response): Promise<void> 
       }
     }
 
-    // 5. Ensure complete past question papers exist for all these enrolled courses
-    if (syncedCourses.length > 0) {
-      try {
-        await ensurePastPapersForUserCourses(userId, syncedCourses, institutionId);
-      } catch (paperGenErr) {
-        console.warn('[MoodleSync] Past papers auto-generation notice:', paperGenErr);
-      }
+    // 5. Ensure complete authentic past question papers exist for all enrolled courses
+    try {
+      await syncRealMoodlePastPapers(userId, { username, password, baseUrl });
+    } catch (paperGenErr) {
+      console.warn('[MoodleSync] Authentic papers sync notice:', paperGenErr);
     }
 
     res.json({

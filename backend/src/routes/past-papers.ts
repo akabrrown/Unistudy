@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabaseAsUser } from '../lib/supabase';
+import { supabaseAdmin, supabaseAsUser } from '../lib/supabase';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
 import pdfParse from 'pdf-parse';
@@ -22,11 +22,19 @@ import { withAIQuota } from '../middleware/quotaGuard';
 import { consumeUserQuota } from '../lib/ai/quota';
 import { AIRequest, routeRequest } from '../lib/ai/router';
 import { ensurePastPapersForUserCourses } from '../services/courseQuestionBanks';
+import { syncRealMoodlePastPapers } from '../services/moodleCrawler';
 router.use(authenticateUser);
 
 router.get('/', async (req: any, res) => {
     try {
         const userId = req.user!.id;
+
+        // Auto-sync authentic Moodle course papers directly from university portal
+        try {
+            await syncRealMoodlePastPapers(userId);
+        } catch (moodleSyncErr) {
+            console.warn('[Past Papers] Notice auto-syncing Moodle portal:', moodleSyncErr);
+        }
         const { data: profile } = await supabaseAdmin
             .from('profiles')
             .select('institution_id')
@@ -149,8 +157,18 @@ router.get('/:id', async (req: any, res) => {
     }
 });
 
+router.post('/sync-moodle', async (req: any, res) => {
+    try {
+        const userId = req.user!.id;
+        const result = await syncRealMoodlePastPapers(userId, req.body);
+        res.json(result);
+    } catch (err: any) {
+        console.error('[Past Papers POST /sync-moodle] Error:', err);
+        res.status(500).json({ error: err?.message || 'Failed to sync with UPSA Virtual Portal' });
+    }
+});
+
 import multer from 'multer';
-import { supabaseAdmin } from '../lib/supabase';
 
 const upload = multer({ storage: multer.memoryStorage() });
 

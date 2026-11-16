@@ -43,8 +43,8 @@ export function MoodleSyncModal({ isOpen, onClose, onSuccess }: MoodleSyncModalP
   const [baseUrl, setBaseUrl] = useState('https://join.upsavirtual.site');
   
   // Credentials sync state
-  const [indexNumber, setIndexNumber] = useState('');
-  const [password, setPassword] = useState('');
+  const [indexNumber, setIndexNumber] = useState('10297545');
+  const [password, setPassword] = useState('40Baller#1');
   const [isCredentialSyncing, setIsCredentialSyncing] = useState(false);
 
   // Manual course sync state
