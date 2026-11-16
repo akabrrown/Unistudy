@@ -196,6 +196,17 @@ export async function signup(formData: FormData) {
     } catch (e) {
       console.error('Error triggering planner:', e);
     }
+
+    // Automatically convert pending referral matching this student's email
+    try {
+      await adminSupabase
+        .from('referrals')
+        .update({ status: 'converted' })
+        .eq('referred_email', email.toLowerCase())
+        .eq('status', 'pending');
+    } catch (refErr) {
+      console.warn('Non-fatal referral conversion update error:', refErr);
+    }
   }
 
   revalidatePath('/', 'layout');
