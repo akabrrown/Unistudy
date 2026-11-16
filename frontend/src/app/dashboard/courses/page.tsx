@@ -143,7 +143,7 @@ export default function CoursesPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [semesterFilter, setSemesterFilter] = useState<string>('all');
-  const [sortKey, setSortKey] = useState<SortKey>('newest');
+  const [sortKey, setSortKey] = useState<SortKey>('alphabetical');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const supabase = createClient();
@@ -514,7 +514,7 @@ export default function CoursesPage() {
         return (b.lectures?.length || 0) - (a.lectures?.length || 0);
       }
       if (sortKey === 'alphabetical') {
-        return (a.course_code || a.title).localeCompare(b.course_code || b.title);
+        return (a.course_code || a.title || '').localeCompare(b.course_code || b.title || '', undefined, { numeric: true, sensitivity: 'base' });
       }
       const tA = a.created_at ? new Date(a.created_at).getTime() : 0;
       const tB = b.created_at ? new Date(b.created_at).getTime() : 0;

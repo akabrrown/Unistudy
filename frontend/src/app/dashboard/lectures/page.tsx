@@ -22,6 +22,7 @@ import {
   Trash2,
   CheckSquare,
   X,
+  ArrowUpDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -65,6 +66,24 @@ interface CourseItem {
   lectures?: LectureItem[];
 }
 
+function resolveWeekNumber(lec: LectureItem): number | null {
+  if (typeof lec.week === 'number' && !isNaN(lec.week) && lec.week > 0) {
+    return lec.week;
+  }
+  if (typeof (lec as any).week === 'string' && (lec as any).week.trim()) {
+    const parsed = parseInt((lec as any).week.trim(), 10);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+  if (lec.title) {
+    const match = String(lec.title).match(/(?:week|w|lecture|lec|session)[\s._-]*(\d{1,2})/i);
+    if (match && match[1]) {
+      const val = parseInt(match[1], 10);
+      if (val >= 1 && val <= 52) return val;
+    }
+  }
+  return null;
+}
+
 export default function LecturesHubPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -73,6 +92,7 @@ export default function LecturesHubPage() {
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCourseId, setSelectedCourseId] = useState<string | 'all'>(urlCourseId || 'all');
+  const [sortOrder, setSortOrder] = useState<'sequence' | 'newest'>('sequence');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLectureIds, setSelectedLectureIds] = useState<Set<string>>(new Set());
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
@@ -101,8 +121,14 @@ export default function LecturesHubPage() {
 
       if (Array.isArray(data)) {
         const activeOnly = data.filter((c: CourseItem) => !c.is_archived);
-        setCourses(activeOnly);
-        if (urlCourseId && activeOnly.some((c: CourseItem) => c.id === urlCourseId)) {
+        // Arrange courses in strict ascending alphanumeric order by course_code and title
+        const sortedCourses = [...activeOnly].sort((a: CourseItem, b: CourseItem) => {
+          const codeA = (a.course_code || a.title || '').trim();
+          const codeB = (b.course_code || b.title || '').trim();
+          return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+        });
+        setCourses(sortedCourses);
+        if (urlCourseId && sortedCourses.some((c: CourseItem) => c.id === urlCourseId)) {
           setSelectedCourseId(urlCourseId);
         }
       }
@@ -153,13 +179,31 @@ export default function LecturesHubPage() {
       }
     }
 
-    // Sort newest first
+    // Sort lectures according to selected order
     return list.sort((a, b) => {
-      const tA = a.lecture.created_at ? new Date(a.lecture.created_at).getTime() : 0;
-      const tB = b.lecture.created_at ? new Date(b.lecture.created_at).getTime() : 0;
-      return tB - tA;
+      if (sortOrder === 'newest') {
+        const tA = a.lecture.created_at ? new Date(a.lecture.created_at).getTime() : 0;
+        const tB = b.lecture.created_at ? new Date(b.lecture.created_at).getTime() : 0;
+        return tB - tA;
+      }
+
+      // Default 'sequence': Arrange by course in order, then within each course by week / sequence
+      const codeA = (a.course.course_code || a.course.title || '').trim();
+      const codeB = (b.course.course_code || b.course.title || '').trim();
+      const codeComp = codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+      if (codeComp !== 0) return codeComp;
+
+      const wA = resolveWeekNumber(a.lecture);
+      const wB = resolveWeekNumber(b.lecture);
+      if (wA !== null && wB !== null && wA !== wB) {
+        return wA - wB;
+      }
+      if (wA !== null && wB === null) return -1;
+      if (wA === null && wB !== null) return 1;
+
+      return (a.lecture.title || '').localeCompare(b.lecture.title || '', undefined, { numeric: true, sensitivity: 'base' });
     });
-  }, [courses]);
+  }, [courses, sortOrder]);
 
   // Filter lectures based on selected course and search query
   const filteredLectures = useMemo(() => {
@@ -525,7 +569,38 @@ export default function LecturesHubPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="inline-flex items-center gap-1 rounded-xl border border-border bg-background p-0.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setSortOrder('sequence')}
+                  className={cn(
+                    "px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1",
+                    sortOrder === 'sequence'
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                  title="Sequential order: Arranged by course and week sequence"
+                >
+                  <ArrowUpDown className="w-3 h-3" />
+                  <span>Sequential</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortOrder('newest')}
+                  className={cn(
+                    "px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1",
+                    sortOrder === 'newest'
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                  title="Newest uploaded first"
+                >
+                  <Clock className="w-3 h-3" />
+                  <span>Newest</span>
+                </button>
+              </div>
+
               {selectedLectureIds.size > 0 && (
                 <Button
                   variant="destructive"
@@ -537,7 +612,7 @@ export default function LecturesHubPage() {
                   Delete Selected ({selectedLectureIds.size})
                 </Button>
               )}
-              <span className="text-[11px] hidden sm:inline">Click any deck to open the interactive slide viewer</span>
+              <span className="text-[11px] hidden lg:inline">Click any deck to open slide viewer</span>
             </div>
           </div>
 

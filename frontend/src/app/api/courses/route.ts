@@ -54,6 +54,13 @@ export async function GET() {
           c.past_papers = [];
         }
       });
+
+      // Arrange courses in ascending alphanumeric order by course code and title
+      data.sort((a: any, b: any) => {
+        const codeA = (a.course_code || a.title || '').trim();
+        const codeB = (b.course_code || b.title || '').trim();
+        return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+      });
     }
 
     return NextResponse.json(data || [], {
