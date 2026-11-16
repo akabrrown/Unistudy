@@ -379,7 +379,7 @@ def gemini_vision(payload: Dict[str, Any]) -> Dict[str, Any]:
                     "Content-Type": "application/json",
                 }
                 or_payload = {
-                    "model": "google/gemini-flash-1.5",
+                    "model": "google/gemini-2.0-flash-001",
                     "messages": [
                         {
                             "role": "user",

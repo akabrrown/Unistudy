@@ -18,8 +18,8 @@ export const GROQ_SMART_MODELS = [
 ] as const;
 
 export const OPENROUTER_CANDIDATE_MODELS = [
-  'google/gemini-flash-1.5',
   'google/gemini-2.0-flash-001',
+  'google/gemini-2.0-flash-lite-001',
   'meta-llama/llama-3.3-70b-instruct',
   'qwen/qwen-2.5-72b-instruct',
 ] as const;

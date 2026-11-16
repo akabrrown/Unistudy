@@ -18,8 +18,8 @@ exports.GROQ_SMART_MODELS = [
     'deepseek-r1-distill-llama-70b',
 ];
 exports.OPENROUTER_CANDIDATE_MODELS = [
-    'google/gemini-flash-1.5',
     'google/gemini-2.0-flash-001',
+    'google/gemini-2.0-flash-lite-001',
     'meta-llama/llama-3.3-70b-instruct',
     'qwen/qwen-2.5-72b-instruct',
 ];
