@@ -24,16 +24,16 @@ const CourseUpdateSchema = z.object({
   programme_id: z.string().uuid().optional(),
   archived: z.boolean().optional(),
 }).strict();
+
+router.use(authenticateUser);
+
 router.get('/', async (req: Request, res: Response) => {
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
-  if (!token) {
-    return res.json([]);
-  }
-  const supabase = supabaseAsUser(token);
+  const userId = req.user!.id;
+  const supabase = supabaseAsUser(req.user!.jwt);
   let { data, error } = await supabase
     .from('courses')
     .select('*, lectures(id, title, week, slide_count, created_at, processing), past_papers(id, title, year, exam_type, status)')
+    .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -41,6 +41,7 @@ router.get('/', async (req: Request, res: Response) => {
     const fallback = await supabase
       .from('courses')
       .select('*')
+      .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (fallback.error) {
@@ -118,7 +119,7 @@ router.post('/', authenticateUser, async (req: Request, res: Response) => {
 
 router.delete('/:id', authenticateUser, async (req: Request, res: Response) => {
   const supabase = supabaseAsUser(req.user!.jwt);
-  const { error } = await supabase.from('courses').delete().eq('id', req.params.id);
+  const { error } = await supabase.from('courses').delete().eq('id', req.params.id).eq('user_id', req.user!.id);
   
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   res.json({ success: true });
@@ -130,6 +131,7 @@ router.get('/:id', authenticateUser, async (req: Request, res: Response) => {
     .from('courses')
     .select('*, lectures(id, title, file_url, week, slide_count, created_at, processing)')
     .eq('id', req.params.id)
+    .eq('user_id', req.user!.id)
     .maybeSingle();
   
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
@@ -161,6 +163,7 @@ router.patch('/:id', authenticateUser, async (req: Request, res: Response) => {
     .from('courses')
     .select('id')
     .eq('id', req.params.id)
+    .eq('user_id', req.user!.id)
     .single();
     
   if (existError || !existing) return res.status(404).json({ error: 'Course not found' });
@@ -169,6 +172,7 @@ router.patch('/:id', authenticateUser, async (req: Request, res: Response) => {
     .from('courses')
     .update(parsed.data)
     .eq('id', req.params.id)
+    .eq('user_id', req.user!.id)
     .select('*, lectures(id)')
     .single();
     

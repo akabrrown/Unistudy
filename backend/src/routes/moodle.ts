@@ -54,47 +54,27 @@ router.post('/sync-credentials', async (req: any, res: Response): Promise<void> 
       .single();
     const institutionId = userProfile?.institution_id || null;
 
-    // 4. Ensure each course from Moodle exists in user's `courses` table
+    // 4. Match against courses already created on the user's system (Zero auto-course creation)
+    const { data: userCreatedCourses } = await supabaseAdmin
+      .from('courses')
+      .select('id, course_code, title, colour')
+      .eq('user_id', userId);
+
     const syncedCourses: any[] = [];
     for (const mc of moodleCourses) {
       const normalized = mc.normalizedCode || normalizeCourseCode(mc.courseCode);
-      const { data: existingCourse } = await supabaseAdmin
-        .from('courses')
-        .select('id, course_code, title')
-        .eq('user_id', userId)
-        .or(`course_code.ilike.%${normalized}%,title.ilike.%${normalized}%`)
-        .limit(1)
-        .maybeSingle();
-
-      let courseRecord = existingCourse;
-      if (!courseRecord) {
-        const { data: newCourse, error: insertErr } = await supabaseAdmin
-          .from('courses')
-          .insert({
-            user_id: userId,
-            title: mc.fullname || mc.courseCode,
-            course_code: mc.courseCode,
-            institution_id: institutionId,
-            colour: '#5B2D8E',
-            semester: 1,
-            year: new Date().getFullYear(),
-          })
-          .select('id, course_code, title')
-          .single();
-
-        if (!insertErr && newCourse) {
-          courseRecord = newCourse;
-        }
-      }
-
-      if (courseRecord) {
-        syncedCourses.push(courseRecord);
+      const match = (userCreatedCourses || []).find((c) => {
+        const cNorm = normalizeCourseCode(c.course_code || c.title || '');
+        return cNorm && normalized && (cNorm === normalized || cNorm.includes(normalized) || normalized.includes(cNorm));
+      });
+      if (match) {
+        syncedCourses.push(match);
       }
     }
 
-    // 5. Ensure complete authentic past question papers exist for all enrolled courses
+    // 5. Ensure complete authentic past question papers exist strictly for student's created courses
     try {
-      await syncRealMoodlePastPapers(userId, { username, password, baseUrl });
+      await syncRealMoodlePastPapers(userId, syncedCourses, { username, password, baseUrl });
     } catch (paperGenErr) {
       console.warn('[MoodleSync] Authentic papers sync notice:', paperGenErr);
     }

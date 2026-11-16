@@ -22,19 +22,13 @@ import { withAIQuota } from '../middleware/quotaGuard';
 import { consumeUserQuota } from '../lib/ai/quota';
 import { AIRequest, routeRequest } from '../lib/ai/router';
 import { ensurePastPapersForUserCourses } from '../services/courseQuestionBanks';
-import { syncRealMoodlePastPapers } from '../services/moodleCrawler';
+import { syncRealMoodlePastPapers, downloadMoodleFileWithToken } from '../services/moodleCrawler';
 router.use(authenticateUser);
 
 router.get('/', async (req: any, res) => {
     try {
         const userId = req.user!.id;
 
-        // Auto-sync authentic Moodle course papers directly from university portal
-        try {
-            await syncRealMoodlePastPapers(userId);
-        } catch (moodleSyncErr) {
-            console.warn('[Past Papers] Notice auto-syncing Moodle portal:', moodleSyncErr);
-        }
         const { data: profile } = await supabaseAdmin
             .from('profiles')
             .select('institution_id')
@@ -43,39 +37,32 @@ router.get('/', async (req: any, res) => {
 
         const institutionId = profile?.institution_id || null;
 
-        // 1. Fetch user's registered courses
+        // 1. Fetch user's own registered courses created on their system
         const { data: userCourses } = await supabaseAdmin
             .from('courses')
             .select('id, course_code, title, colour')
             .eq('user_id', userId);
 
-        // 2. Ensure each enrolled course has past question papers ready
-        if (userCourses && userCourses.length > 0) {
-            try {
-                await ensurePastPapersForUserCourses(userId, userCourses, institutionId);
-            } catch (seedErr) {
-                console.warn('[Past Papers] Error ensuring course question banks:', seedErr);
-            }
+        // If student has no courses created on their system, return empty
+        if (!userCourses || userCourses.length === 0) {
+            return res.json([]);
         }
 
-        const userCourseIds = (userCourses || []).map((c: any) => c.id);
-        const userCodes = (userCourses || [])
-            .map((c: any) => (c.course_code || c.title || '').toUpperCase().replace(/[^A-Z0-9]/g, ''))
-            .filter(Boolean);
-
-        // 3. Query papers matching user or shared to community or matching student's enrolled courses
-        let orClauses = [`user_id.eq.${userId}`, 'shared_to_community.eq.true'];
-        if (userCourseIds.length > 0) {
-            orClauses.push(`course_id.in.(${userCourseIds.join(',')})`);
-        }
-        if (userCodes.length > 0) {
-            orClauses.push(`normalized_course_code.in.(${userCodes.join(',')})`);
+        // 2. Ensure each enrolled course has past question papers ready strictly for these courses
+        try {
+            await ensurePastPapersForUserCourses(userId, userCourses, institutionId);
+        } catch (seedErr) {
+            console.warn('[Past Papers] Error ensuring course question banks:', seedErr);
         }
 
+        const userCourseIds = userCourses.map((c: any) => c.id);
+
+        // 3. Query papers strictly belonging to this user and matching the user's courses
         const query = supabaseAdmin
             .from('past_papers')
             .select('id, title, year, exam_type, status, course_id, course_code, normalized_course_code, institution_id, created_at, courses(id, course_code, title, colour), past_paper_questions(id, question_number, text_content, extracted_topic, marks_available)')
-            .or(orClauses.join(','));
+            .eq('user_id', userId)
+            .in('course_id', userCourseIds);
 
         const { data, error } = await query.order('created_at', { ascending: false });
 
@@ -83,7 +70,7 @@ router.get('/', async (req: any, res) => {
 
         const formatted = (data || []).map((p: any) => {
             const courseJoin = Array.isArray(p.courses) ? p.courses[0] : p.courses;
-            const matchingUserCourse = (userCourses || []).find((c: any) => {
+            const matchingUserCourse = userCourses.find((c: any) => {
                 if (p.course_id && p.course_id === c.id) return true;
                 const pCode = (p.normalized_course_code || p.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
                 const cCode = (c.course_code || c.title || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -103,6 +90,7 @@ router.get('/', async (req: any, res) => {
                 exam_type: p.exam_type || 'end-semester',
                 status: p.status,
                 created_at: p.created_at,
+                download_url: `/api/v1/past-questions/download?id=${p.id}`,
                 courses: resolvedCourse ? {
                     id: resolvedCourse.id,
                     course_code: resolvedCourse.course_code,
@@ -127,6 +115,86 @@ router.get('/', async (req: any, res) => {
     }
 });
 
+router.get('/download', async (req: any, res) => {
+    try {
+        const userId = req.user!.id;
+        const paperId = (req.query.id as string) || (req.query.paperId as string);
+        const convert = req.query.convert === 'true';
+
+        if (!paperId) {
+            return res.status(400).json({ error: 'Missing past question paper id (?id=...)' });
+        }
+
+        const { data: paper, error } = await supabaseAdmin
+            .from('past_papers')
+            .select('*, courses(id, course_code, title, colour), past_paper_questions(*)')
+            .eq('id', paperId)
+            .eq('user_id', userId)
+            .maybeSingle();
+
+        if (error || !paper) {
+            return res.status(404).json({ error: 'Past question paper not found or access denied' });
+        }
+
+        const questions = Array.isArray(paper.past_paper_questions)
+            ? [...paper.past_paper_questions].sort((a: any, b: any) =>
+                String(a.question_number).localeCompare(String(b.question_number), undefined, { numeric: true })
+            )
+            : [];
+
+        if (convert) {
+            const formattedText = questions
+                .map((q: any) => `Question ${q.question_number}: ${q.text_content}`)
+                .join('\n\n');
+
+            return res.json({
+                success: true,
+                id: paper.id,
+                title: paper.title,
+                course_code: paper.course_code,
+                year: paper.year,
+                exam_type: paper.exam_type,
+                text_content: formattedText,
+                questions: questions.map((q: any) => ({
+                    id: q.id,
+                    question_number: q.question_number,
+                    text_content: q.text_content,
+                    extracted_topic: q.extracted_topic,
+                    marks_available: q.marks_available,
+                })),
+            });
+        }
+
+        if (paper.file_url) {
+            try {
+                const pdfBuffer = await downloadMoodleFileWithToken(paper.file_url, 'd47af8abe6b5d925a0be01c2e64a49e6');
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(paper.title || 'past-question')}.pdf"`);
+                return res.send(pdfBuffer);
+            } catch (dlErr: any) {
+                console.warn('[download] Notice streaming file_url via proxy:', dlErr.message);
+            }
+        }
+
+        const formattedText = questions
+            .map((q: any) => `Question ${q.question_number}: ${q.text_content}`)
+            .join('\n\n');
+
+        return res.json({
+            id: paper.id,
+            title: paper.title,
+            course_code: paper.course_code,
+            year: paper.year,
+            exam_type: paper.exam_type,
+            text_content: formattedText,
+            questions,
+        });
+    } catch (err: any) {
+        console.error('[Past Papers GET /download] Error:', err);
+        res.status(500).json({ error: 'Failed to download past question' });
+    }
+});
+
 router.get('/:id', async (req: any, res) => {
     try {
         const paperId = req.params.id;
@@ -136,6 +204,7 @@ router.get('/:id', async (req: any, res) => {
             .from('past_papers')
             .select('*, courses(id, course_code, title, colour), past_paper_questions(*)')
             .eq('id', paperId)
+            .eq('user_id', userId)
             .maybeSingle();
 
         if (error) throw error;

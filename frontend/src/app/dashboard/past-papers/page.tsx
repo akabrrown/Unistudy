@@ -151,7 +151,7 @@ export default function PastPapersDashboard() {
 
     const [coursesRes, papersRes, attemptsRes] = await Promise.allSettled([
       apiFetch('/courses').catch(() => []),
-      apiFetch('/past-papers').catch(() => []),
+      apiFetch('/v1/past-questions').catch(() => apiFetch('/past-papers')).catch(() => []),
       supabase
         .from('past_paper_attempts')
         .select(
@@ -166,12 +166,26 @@ export default function PastPapersDashboard() {
       coursesRes.status === 'fulfilled' && Array.isArray(coursesRes.value)
         ? (coursesRes.value as CourseItem[])
         : [];
-    const nextPapers =
+    const rawPapers =
       papersRes.status === 'fulfilled' && Array.isArray(papersRes.value)
         ? (papersRes.value as PastPaperRecord[])
         : papersRes.status === 'fulfilled' && Array.isArray((papersRes.value as any)?.data)
         ? ((papersRes.value as any).data as PastPaperRecord[])
         : [];
+
+    // Strictly ensure only papers belonging to courses created on the user's system are displayed
+    const userCourseIdSet = new Set(nextCourses.map((c) => c.id));
+    const userCourseCodeSet = new Set(
+      nextCourses
+        .map((c) => (c.course_code || c.title || '').toUpperCase().replace(/[^A-Z0-9]/g, ''))
+        .filter(Boolean)
+    );
+
+    const nextPapers = rawPapers.filter((p) => {
+      if (p.course_id && userCourseIdSet.has(p.course_id)) return true;
+      const pCode = (p.normalized_course_code || p.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      return pCode && userCourseCodeSet.has(pCode);
+    });
     const nextAttempts =
       attemptsRes.status === 'fulfilled' && Array.isArray(attemptsRes.value.data)
         ? (attemptsRes.value.data as PastPaperAttemptRecord[])

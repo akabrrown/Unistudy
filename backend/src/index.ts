@@ -81,6 +81,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/courses', coursesRoutes);
 app.use('/api/lectures', lecturesRoutes);
 app.use('/api/notes', notesRoutes);
+app.use('/api/v1/past-questions', pastPapersRoutes);
 app.use('/api/past-papers', pastPapersRoutes);
 app.use('/api/flashcards', flashcardsRoutes);
 app.use('/api/quizzes', quizzesRoutes);

@@ -45,7 +45,7 @@ export default function ExamAttempt() {
       // 1. Fetch questions via proxy API
       let qData: any[] | null = null
       try {
-        const pData: any = await apiFetch(`/past-papers/${params.id}`)
+        const pData: any = await apiFetch(`/v1/past-questions/${params.id}`).catch(() => apiFetch(`/past-papers/${params.id}`))
         if (pData && Array.isArray(pData.past_paper_questions)) {
           qData = pData.past_paper_questions
         }

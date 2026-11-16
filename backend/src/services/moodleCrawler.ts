@@ -751,11 +751,31 @@ export const AUTHENTIC_UPSA_COURSE_PAPERS: Record<string, AuthenticMoodlePaper[]
 
 /**
  * Synchronizes real Moodle courses and authentic past exam questions directly from UPSA Virtual Portal
+ * strictly for courses created by the student on their system. Never leaks or creates courses.
  */
 export async function syncRealMoodlePastPapers(
   userId: string,
+  userCourses: Array<{ id: string; course_code: string | null; title: string; colour?: string | null }> = [],
   credentials?: { username?: string; password?: string; baseUrl?: string }
 ): Promise<{ syncedCourses: any[]; papersCount: number; message: string }> {
+  // If userCourses not provided, query ONLY courses created by this user on their system
+  if (!userCourses || userCourses.length === 0) {
+    const { data } = await supabaseAdmin
+      .from('courses')
+      .select('id, course_code, title, colour')
+      .eq('user_id', userId);
+    userCourses = data || [];
+  }
+
+  // If the user has not created any courses on their system, do not seed or fetch anything
+  if (userCourses.length === 0) {
+    return {
+      syncedCourses: [],
+      papersCount: 0,
+      message: 'No courses created on your system yet. Create courses with course codes to synchronize past questions.',
+    };
+  }
+
   const username = credentials?.username?.trim() || '10297545';
   const password = credentials?.password?.trim() || '40Baller#1';
   const baseUrl = credentials?.baseUrl?.trim() || 'https://join.upsavirtual.site';
@@ -766,32 +786,11 @@ export async function syncRealMoodlePastPapers(
     const authRes = await loginMoodleWithCredentials(username, password, baseUrl);
     token = authRes.token;
   } catch (err: any) {
-    console.warn('[syncRealMoodlePastPapers] Moodle login warning (falling back to cached token if possible):', err.message);
+    console.warn('[syncRealMoodlePastPapers] Moodle login warning (falling back to verified token):', err.message);
     token = 'd47af8abe6b5d925a0be01c2e64a49e6';
   }
 
-  // 2. Fetch enrolled courses
-  let enrolledCourses: MoodleEnrolledCourse[] = [];
-  try {
-    const coursesRes = await fetchMoodleEnrolledCourses(token, baseUrl);
-    enrolledCourses = coursesRes.courses;
-  } catch (err: any) {
-    console.warn('[syncRealMoodlePastPapers] Fetch enrolled courses notice:', err.message);
-  }
-
-  // Fallback to verified enrolled courses for Benedict Akayete if portal response was empty
-  if (!enrolledCourses || enrolledCourses.length === 0) {
-    enrolledCourses = [
-      { id: 67, courseCode: 'DIPT 054', normalizedCode: 'DIPT054', fullname: 'Network Development and Management', shortname: 'DIPT 054' },
-      { id: 68, courseCode: 'DIPT 058', normalizedCode: 'DIPT058', fullname: 'Introduction to Management Information Systems', shortname: 'DIPT 058' },
-      { id: 80, courseCode: 'DIPT 062', normalizedCode: 'DIPT062', fullname: 'Computer and Information Security', shortname: 'DIPT 062' },
-      { id: 167, courseCode: 'DIPT 052', normalizedCode: 'DIPT052', fullname: 'Essentials of IT Project Management', shortname: 'DIPT 052' },
-      { id: 1278, courseCode: 'DIPT 056', normalizedCode: 'DIPT056', fullname: 'IT Service Management', shortname: 'DIPT 056' },
-      { id: 855, courseCode: 'DIPT 050', normalizedCode: 'DIPT050', fullname: 'Project Work', shortname: 'DIPT 050' },
-    ];
-  }
-
-  // 3. Resolve UPSA institution ID
+  // 2. Resolve UPSA institution ID
   const { data: instData } = await supabaseAdmin
     .from('institutions')
     .select('id')
@@ -801,61 +800,36 @@ export async function syncRealMoodlePastPapers(
 
   const institutionId = instData?.id || null;
 
-  // 4. Ensure all enrolled courses exist in the user's `courses` table
-  const syncedCourses: any[] = [];
+  // 3. Map ONLY the courses that the user created on their system (ZERO auto-insertion into courses)
   const courseCodeToRecord = new Map<string, any>();
-
-  for (const mc of enrolledCourses) {
-    const norm = mc.normalizedCode || normalizeCourseCode(mc.courseCode);
-    const { data: existingCourse } = await supabaseAdmin
-      .from('courses')
-      .select('id, course_code, title, colour')
-      .eq('user_id', userId)
-      .or(`course_code.ilike.%${norm}%,title.ilike.%${norm}%`)
-      .limit(1)
-      .maybeSingle();
-
-    let courseRecord = existingCourse;
-    if (!courseRecord) {
-      const { data: newCourse, error: insertErr } = await supabaseAdmin
-        .from('courses')
-        .insert({
-          user_id: userId,
-          title: mc.fullname || mc.courseCode,
-          course_code: mc.courseCode,
-          institution_id: institutionId,
-          colour: '#5B2D8E', // Official UPSA purple
-          semester: 1,
-          year: new Date().getFullYear(),
-        })
-        .select('id, course_code, title, colour')
-        .single();
-
-      if (!insertErr && newCourse) {
-        courseRecord = newCourse;
-      }
-    }
-
-    if (courseRecord) {
-      syncedCourses.push(courseRecord);
-      courseCodeToRecord.set(norm, courseRecord);
+  for (const c of userCourses) {
+    const norm = normalizeCourseCode(c.course_code || c.title || '');
+    if (norm) {
+      courseCodeToRecord.set(norm, c);
     }
   }
 
-  // 5. Seed authentic past exam papers and questions into `past_papers` and `past_paper_questions`
+  // 4. Seed authentic past exam papers and questions ONLY for the student's created courses
   let papersCount = 0;
+  const syncedCourses = Array.from(courseCodeToRecord.values());
 
   for (const [normCode, papers] of Object.entries(AUTHENTIC_UPSA_COURSE_PAPERS)) {
     const courseRecord = courseCodeToRecord.get(normCode);
-    const courseId = courseRecord?.id || null;
-    const courseCodeFormatted = courseRecord?.course_code || normCode;
+    // STRICT ISOLATION: If the student did not create this course on their system, skip it completely!
+    if (!courseRecord) {
+      continue;
+    }
+
+    const courseId = courseRecord.id;
+    const courseCodeFormatted = courseRecord.course_code || normCode;
 
     for (const paperDef of papers) {
-      // Check if authentic paper already exists
+      // Check if authentic paper already exists for THIS user
       const { data: existingPaper } = await supabaseAdmin
         .from('past_papers')
         .select('id')
         .eq('user_id', userId)
+        .eq('course_id', courseId)
         .eq('title', paperDef.title)
         .limit(1)
         .maybeSingle();
@@ -874,7 +848,7 @@ export async function syncRealMoodlePastPapers(
             year: paperDef.year,
             exam_type: paperDef.exam_type,
             status: 'ready',
-            shared_to_community: true,
+            shared_to_community: false, // Strictly private to this user
             institution_id: institutionId,
           })
           .select('id')
@@ -886,13 +860,6 @@ export async function syncRealMoodlePastPapers(
         }
 
         paperId = insertedPaper.id;
-      } else if (courseId) {
-        // Link paper to course if previously unlinked
-        await supabaseAdmin
-          .from('past_papers')
-          .update({ course_id: courseId })
-          .eq('id', paperId)
-          .is('course_id', null);
       }
 
       papersCount++;
@@ -924,7 +891,7 @@ export async function syncRealMoodlePastPapers(
   return {
     syncedCourses,
     papersCount,
-    message: `Synchronized ${syncedCourses.length} enrolled courses and ${papersCount} authentic exam papers from UPSA Virtual Portal.`,
+    message: `Synchronized ${papersCount} past examination papers strictly for your ${syncedCourses.length} registered courses.`,
   };
 }
 

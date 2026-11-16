@@ -64,7 +64,7 @@ export default function PastPaperDetails() {
       setLoading(true)
       
       try {
-        const pData: any = await apiFetch(`/past-papers/${params.id}`)
+        const pData: any = await apiFetch(`/v1/past-questions/${params.id}`).catch(() => apiFetch(`/past-papers/${params.id}`))
         if (pData && pData.id) {
           setPaper(pData)
           const qData = pData.past_paper_questions || []

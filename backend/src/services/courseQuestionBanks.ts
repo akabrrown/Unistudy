@@ -404,25 +404,26 @@ export async function ensurePastPapersForUserCourses(
   userCourses: { id: string; course_code: string | null; title: string }[],
   institutionId?: string | null
 ): Promise<void> {
-  // Always trigger synchronization of authentic UPSA Moodle course papers
+  if (!userCourses || userCourses.length === 0) return;
+
+  // Always trigger synchronization of authentic UPSA Moodle course papers strictly for user's created courses
   try {
-    await syncRealMoodlePastPapers(userId);
+    await syncRealMoodlePastPapers(userId, userCourses);
   } catch (moodleErr: any) {
     console.warn('[ensurePastPapersForUserCourses] Notice syncing Moodle portal:', moodleErr?.message);
   }
-
-  if (!userCourses || userCourses.length === 0) return;
 
   for (const course of userCourses) {
     const rawCode = (course.course_code || course.title || '').trim();
     const normalizedCode = normalizeCourseCode(rawCode);
     if (!normalizedCode) continue;
 
-    // Check if past paper already exists for this course
+    // Check if past paper already exists for this user and course
     const { data: existingPaper } = await supabaseAdmin
       .from('past_papers')
       .select('id')
-      .or(`course_id.eq.${course.id},normalized_course_code.eq.${normalizedCode}`)
+      .eq('user_id', userId)
+      .eq('course_id', course.id)
       .limit(1)
       .maybeSingle();
 
@@ -436,7 +437,7 @@ export async function ensurePastPapersForUserCourses(
       continue;
     }
 
-    // Insert Final Examination Paper
+    // Insert Final Examination Paper (strictly private to user)
     const paperTitle = `${rawCode} - 2024 End of Semester Examination`;
     const { data: insertedPaper, error: pErr } = await supabaseAdmin
       .from('past_papers')
@@ -449,7 +450,7 @@ export async function ensurePastPapersForUserCourses(
         year: 2024,
         exam_type: 'end-semester',
         status: 'ready',
-        shared_to_community: true,
+        shared_to_community: false,
         institution_id: institutionId || null,
       })
       .select('id')
