@@ -177,3 +177,16 @@ test('parseDeterministicGraphProblem extracts natural-prose quadratic functions 
   assert.equal(res3.shapes[0].vertices.length, 3);
 });
 
+test('GraphSpec resolves and preserves extractedProblemText for vision-based question extraction', () => {
+  const spec = resolveGraphSpec({
+    title: 'WASSCE Exam Problem',
+    extractedProblemText: 'Draw the graph of y = x^2 - 3x + 2 for -2 <= x <= 4',
+    xAxis: { min: -2, max: 4 },
+    yAxis: { min: -5, max: 15 },
+    functions: [{ expression: 'x^2 - 3*x + 2', label: 'y = x^2 - 3x + 2' }],
+  });
+
+  assert.equal(spec.extractedProblemText, 'Draw the graph of y = x^2 - 3x + 2 for -2 <= x <= 4');
+  assert.equal(spec.functions.length, 1);
+});
+

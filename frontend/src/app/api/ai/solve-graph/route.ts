@@ -314,11 +314,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!resolvedSpec && problem.trim()) {
-      resolvedSpec = parseDeterministicGraphProblem(problem);
+    const effectiveProblemText = problem.trim() || (typeof rawCandidate?.extractedProblemText === 'string' ? rawCandidate.extractedProblemText.trim() : '');
+
+    if (!resolvedSpec && effectiveProblemText) {
+      resolvedSpec = parseDeterministicGraphProblem(effectiveProblemText);
       if (resolvedSpec) {
         modelUsed = 'deterministic-fallback';
       }
+    }
+
+    if (resolvedSpec && !resolvedSpec.extractedProblemText && effectiveProblemText) {
+      resolvedSpec.extractedProblemText = effectiveProblemText;
     }
 
     // Graceful fallback coordinate grid with interactive guidance so the route never fails with 422

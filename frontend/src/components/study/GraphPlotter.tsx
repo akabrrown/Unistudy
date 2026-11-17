@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Loader2,
   ImagePlus,
+  ScanLine,
   X,
   FunctionSquare,
   Compass,
@@ -26,6 +27,7 @@ import {
   Layers,
   SlidersHorizontal,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   parseDeterministicGraphProblem,
   type GraphSpec,
@@ -242,6 +244,7 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageMime, setImageMime] = useState<string>('image/png')
   const [isSolving, setIsSolving] = useState(false)
+  const [isExtracting, setIsExtracting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -424,19 +427,71 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
     }
   }
 
-  const runGraphSolve = async (textOverride?: string) => {
-    const queryText = (textOverride ?? problemText).trim()
-    if (!queryText && !imagePreview) return
-    if (textOverride !== undefined) {
-      setProblemText(textOverride)
+  const handleExtractFromImage = async () => {
+    if (!imagePreview || isExtracting) return
+    setIsExtracting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/ai/ocr-math', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: imagePreview,
+          mimeType: imageMime,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data?.extractedText) {
+        setProblemText(data.extractedText)
+        toast.success('Question extracted from image!')
+      } else {
+        setError(data?.error || 'Could not extract question from image.')
+      }
+    } catch {
+      setError('Network error extracting question from image.')
+    } finally {
+      setIsExtracting(false)
     }
+  }
+
+  const runGraphSolve = async (textOverride?: string) => {
+    let queryText = (textOverride ?? problemText).trim()
+    if (!queryText && !imagePreview) return
 
     setIsSolving(true)
     setError(null)
     setCanvasTab('plot')
 
+    // If an image is attached but problem text is empty, auto-extract the text first
+    if (!queryText && imagePreview) {
+      setIsExtracting(true)
+      try {
+        const ocrRes = await fetch('/api/ai/ocr-math', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64: imagePreview,
+            mimeType: imageMime,
+          }),
+        })
+        const ocrData = await ocrRes.json().catch(() => ({}))
+        if (ocrRes.ok && ocrData?.extractedText) {
+          queryText = ocrData.extractedText.trim()
+          setProblemText(queryText)
+        }
+      } catch {
+        // Fall back to direct solve-graph
+      } finally {
+        setIsExtracting(false)
+      }
+    }
+
+    if (textOverride !== undefined) {
+      setProblemText(textOverride)
+    }
+
     // Instant client-side CAS & coordinate geometry path when text is deterministic
-    if (!imagePreview && queryText) {
+    if (queryText) {
       const localSpec = parseDeterministicGraphProblem(queryText)
       if (
         localSpec &&
@@ -468,6 +523,9 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
         const nextSpec = data.spec as GraphSpec
         setGraphSpec(nextSpec)
         syncBoundsFromSpec(nextSpec)
+        if (nextSpec.extractedProblemText && !problemText.trim()) {
+          setProblemText(nextSpec.extractedProblemText)
+        }
         return
       }
 
@@ -636,11 +694,25 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
               <div className="flex items-center justify-between gap-2 bg-background border border-border rounded-lg px-2.5 py-1.5">
                 <div className="flex items-center gap-2 min-w-0">
                   <Image src={imagePreview} alt="Graph question" width={32} height={32} unoptimized className="h-8 w-8 rounded object-cover border border-border" />
-                  <span className="text-xs text-muted-foreground truncate">Question screenshot attached</span>
+                  <span className="text-xs text-muted-foreground truncate">Screenshot attached</span>
                 </div>
-                <Button type="button" variant="ghost" size="icon-sm" onClick={() => setImagePreview(null)} aria-label="Remove attached image">
-                  <X className="w-3.5 h-3.5" />
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExtractFromImage}
+                    disabled={isExtracting}
+                    className="h-7 text-[11px] px-2 gap-1"
+                    title="Extract math and question text from this image"
+                  >
+                    {isExtracting ? <Loader2 className="w-3 h-3 animate-spin" /> : <ScanLine className="w-3 h-3 text-primary" />}
+                    Extract Text
+                  </Button>
+                  <Button type="button" variant="ghost" size="icon-sm" onClick={() => setImagePreview(null)} aria-label="Remove attached image">
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
               </div>
             ) : null}
             <textarea
@@ -763,17 +835,35 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
                       unoptimized
                       className="h-9 w-9 rounded object-cover border border-border"
                     />
-                    <span className="text-xs text-muted-foreground truncate">Question screenshot attached</span>
+                    <span className="text-xs text-muted-foreground truncate">Screenshot attached</span>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setImagePreview(null)}
-                    aria-label="Remove attached image"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExtractFromImage}
+                      disabled={isExtracting}
+                      className="h-7 text-[11px] px-2.5 gap-1.5"
+                      title="Extract math and question text from this image"
+                    >
+                      {isExtracting ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <ScanLine className="w-3 h-3 text-primary" />
+                      )}
+                      Extract Text
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setImagePreview(null)}
+                      aria-label="Remove attached image"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
               ) : null}
 

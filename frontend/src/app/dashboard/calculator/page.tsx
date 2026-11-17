@@ -25,6 +25,7 @@ import {
   Cpu,
   ArrowRight,
   Play,
+  ScanLine,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -251,6 +252,7 @@ export default function CalculatorPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageMime, setImageMime] = useState('image/png')
   const [isComputing, setIsComputing] = useState(false)
+  const [isExtracting, setIsExtracting] = useState(false)
   const [result, setResult] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -357,9 +359,61 @@ export default function CalculatorPage() {
     }
   }
 
+  const handleExtractFromImage = async () => {
+    if (!imagePreview || isExtracting) return
+    setIsExtracting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/ai/ocr-math', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: imagePreview,
+          mimeType: imageMime,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data?.extractedText) {
+        setProblem(data.extractedText)
+        toast.success('Question extracted from image!')
+      } else {
+        setError(data?.error || 'Could not extract question from image.')
+      }
+    } catch {
+      setError('Network error extracting question from image.')
+    } finally {
+      setIsExtracting(false)
+    }
+  }
+
   async function runSolve(problemOverride?: string) {
-    const activeProblem = (problemOverride ?? problem).trim()
+    let activeProblem = (problemOverride ?? problem).trim()
     if (!activeProblem && !imagePreview) return
+
+    // If an image is attached but problem text is empty, auto-extract the text first
+    if (!activeProblem && imagePreview) {
+      setIsExtracting(true)
+      try {
+        const ocrRes = await fetch('/api/ai/ocr-math', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64: imagePreview,
+            mimeType: imageMime,
+          }),
+        })
+        const ocrData = await ocrRes.json().catch(() => ({}))
+        if (ocrRes.ok && ocrData?.extractedText) {
+          activeProblem = ocrData.extractedText.trim()
+          setProblem(activeProblem)
+        }
+      } catch {
+        // Fall back to direct solve
+      } finally {
+        setIsExtracting(false)
+      }
+    }
+
     if (problemOverride !== undefined) {
       setProblem(problemOverride)
     }
@@ -826,16 +880,34 @@ export default function CalculatorPage() {
                     />
                     <span className="text-xs font-medium text-foreground truncate">Question image attached</span>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setImagePreview(null)}
-                    aria-label="Remove attached image"
-                    className="cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExtractFromImage}
+                      disabled={isExtracting}
+                      className="h-8 text-xs px-2.5 gap-1.5"
+                      title="Transcribe mathematical problem from image into input"
+                    >
+                      {isExtracting ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <ScanLine className="w-3.5 h-3.5 text-primary" />
+                      )}
+                      Extract Question
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setImagePreview(null)}
+                      aria-label="Remove attached image"
+                      className="cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
               ) : null}
 

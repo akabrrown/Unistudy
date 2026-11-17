@@ -64,8 +64,20 @@ test('buildUniversalMathSolverPrompt delimits untrusted input, injects CAS check
 
   assert.ok(prompt.includes('<math_problem>'));
   assert.ok(prompt.includes('<verified_cas_check'));
+  assert.ok(prompt.includes('### Problem Restatement'));
   assert.match(prompt, /Markdown|\*\*|KaTeX/i);
   assert.equal(prompt.includes('Use HTML for bolding'), false);
+});
+
+test('buildUniversalMathSolverPrompt for image-only request enforces verbatim transcription before solving', () => {
+  const prompt = buildUniversalMathSolverPrompt({
+    problem: '',
+    subject: 'Calculus',
+  });
+
+  assert.ok(prompt.includes('Solve the mathematical problem shown in the attached image step-by-step.'));
+  assert.ok(prompt.includes('If an image is attached: Transcribe the EXACT question and numbers'));
+  assert.ok(prompt.includes('### Problem Restatement'));
 });
 
 test('sanitizeMathResponse converts accidental HTML tags to Markdown, normalizes MixTeX LaTeX, and removes AI footprints', () => {

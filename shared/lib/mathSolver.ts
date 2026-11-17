@@ -406,12 +406,13 @@ ${params.problem || 'Solve the mathematical problem shown in the attached image 
 
 FORMAT & ACCURACY RULES (MANDATORY):
 1. Structure cleanly with Markdown headings:
-   - ### Problem Restatement
+   - ### Problem Restatement (Transcribe the EXACT problem text, equations, and numbers from the image or problem text verbatim first)
    - ### Given & Formula / Method
    - ### Step-by-Step Solution (show every algebraic, calculus, or geometric step clearly without skipping)
    - ### Verification Check (plug values back in, check units, or verify edge cases)
    - ### Final Answer (highlighted in **bold**)
-2. Use standard Markdown (**bold**, bullet lists) — NEVER output raw HTML tags like <strong> or <br>.
-3. Wrap inline math strictly in $...$ and display equations strictly in $$...$$. Never use \\(...\\) or \\[...\\].
-4. Never use em-dashes ("—") or AI filler words ("delve", "pivotal", "paramount", "underscore", "testament", "seamless", "Moreover,").`;
+2. If an image is attached: Transcribe the EXACT question and numbers from the image under "### Problem Restatement" before doing any math. Do NOT substitute or invent any numbers, variables, or signs.
+3. Use standard Markdown (**bold**, bullet lists) — NEVER output raw HTML tags like <strong> or <br>.
+4. Wrap inline math strictly in $...$ and display equations strictly in $$...$$. Never use \\(...\\) or \\[...\\].
+5. Never use em-dashes ("—") or AI filler words ("delve", "pivotal", "paramount", "underscore", "testament", "seamless", "Moreover,").`;
 }
