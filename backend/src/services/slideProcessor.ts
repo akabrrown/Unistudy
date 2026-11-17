@@ -170,6 +170,18 @@ export async function processLectureSlidesInBackground(
       .eq('id', lectureId);
 
     console.log(`[SlideProcessor] Successfully processed ${slideRows.length} slides for lecture ${lectureId} in real time!`);
+
+    // 6. For PPTX files, asynchronously generate high-resolution slide pictures via PowerPoint COM
+    if (isPptx) {
+      const scriptPath = path.join(__dirname, '../scripts/process_and_upload_slides.py');
+      execFile('python', [scriptPath, lectureId], { timeout: 180000 }, (err, stdout, stderr) => {
+        if (err) {
+          console.warn(`[SlideProcessor] PowerPoint slide image generation warning for ${lectureId}: ${err.message}`);
+        } else {
+          console.log(`[SlideProcessor] PowerPoint slide images successfully generated and uploaded for ${lectureId}`);
+        }
+      });
+    }
   } catch (err: any) {
     console.error(`[SlideProcessor] Unexpected error processing lecture ${lectureId}:`, err);
   } finally {

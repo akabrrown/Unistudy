@@ -19,6 +19,7 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import { apiFetch, apiFetchRaw } from '@/lib/api/client'
+import { createClient } from '@/lib/supabase/client'
 import { getOptimizedSlideUrl, getSlideThumbnailUrl, isPlaceholderSlideUrl } from '@/lib/images'
 import {
   buildGroundedTutorPrompt,
@@ -712,6 +713,35 @@ export default function LectureViewer() {
       if (interval) clearInterval(interval);
     };
   }, [lecture?.processing, lectureId, slides.length]);
+
+  // Real-time listener: instantly reflect slide image updates without full page refresh
+  useEffect(() => {
+    if (!lectureId) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`realtime:lecture_slides_${lectureId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'slides', filter: `lecture_id=eq.${lectureId}` },
+        (payload: any) => {
+          if (payload.eventType === 'UPDATE' && payload.new) {
+            setSlides(prev => prev.map(s => s.id === payload.new.id ? { ...s, ...payload.new } : s));
+          } else if (payload.eventType === 'INSERT' && payload.new) {
+            setSlides(prev => {
+              const exists = prev.some(s => s.id === payload.new.id);
+              if (exists) return prev;
+              const next = [...prev, payload.new];
+              return next.sort((a, b) => (Number(a.slide_number) || 0) - (Number(b.slide_number) || 0));
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [lectureId]);
 
   const handleGenerateExplanation = async (targetIndex?: number) => {
     const idx = typeof targetIndex === 'number' ? targetIndex : slideIndex;
