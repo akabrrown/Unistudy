@@ -13,11 +13,13 @@ import { env } from '../config/env';
  */
 function getCloudinaryPdfSlideUrl(fileUrl: string, pageNumber: number): string {
   if (fileUrl.includes('res.cloudinary.com') && fileUrl.toLowerCase().includes('.pdf')) {
-    return fileUrl
-      .replace(/\/upload\/(?:[^/]+\/)?/, `/upload/pg_${pageNumber},w_1400,f_auto,q_auto/`)
+    // Cloudinary PDF page rendering requires resource_type 'image' instead of 'raw'
+    const imageUrl = fileUrl.replace('/raw/upload/', '/image/upload/');
+    return imageUrl
+      .replace(/\/upload\/(?:v\d+\/)?/, `/upload/pg_${pageNumber},w_1400,f_auto,q_auto/`)
       .replace(/\.pdf$/i, '.jpg');
   }
-  return 'https://res.cloudinary.com/dwyxspqbe/image/upload/v1721820468/slide_placeholder.webp';
+  return 'https://example.com/placeholder.png';
 }
 
 /**
@@ -119,7 +121,7 @@ export async function processLectureSlidesInBackground(
         slide_number: s.slide_number,
         raw_text: s.raw_text || `Slide ${s.slide_number}`,
         explanation: '',
-        image_url: 'https://res.cloudinary.com/dwyxspqbe/image/upload/v1721820468/slide_placeholder.webp',
+        image_url: 'https://example.com/placeholder.png',
       }));
     } else {
       console.log(`[SlideProcessor] Extracting PDF slides for lecture ${lectureId}...`);
@@ -147,7 +149,7 @@ export async function processLectureSlidesInBackground(
         slide_number: 1,
         raw_text: 'Slide 1 Content',
         explanation: '',
-        image_url: 'https://res.cloudinary.com/dwyxspqbe/image/upload/v1721820468/slide_placeholder.webp',
+        image_url: 'https://example.com/placeholder.png',
       });
     }
 

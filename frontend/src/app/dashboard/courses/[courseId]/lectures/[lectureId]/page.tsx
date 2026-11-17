@@ -19,7 +19,7 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import { apiFetch, apiFetchRaw } from '@/lib/api/client'
-import { getOptimizedSlideUrl, getSlideThumbnailUrl } from '@/lib/images'
+import { getOptimizedSlideUrl, getSlideThumbnailUrl, isPlaceholderSlideUrl } from '@/lib/images'
 import {
   buildGroundedTutorPrompt,
   detectTutorCommandMode,
@@ -103,16 +103,18 @@ export default function LectureViewer() {
 
     indicesToPreload.forEach(idx => {
       const targetSlide = slides[idx];
-      if (targetSlide?.image_url && targetSlide.image_url !== 'https://example.com/placeholder.png') {
+      if (targetSlide?.image_url && !isPlaceholderSlideUrl(targetSlide.image_url) && !imageErrors[idx]) {
         const optimizedUrl = getOptimizedSlideUrl(targetSlide.image_url, {
           lowBandwidth: settings.low_bandwidth,
         });
 
-        // Preload and decode in background
-        const img = new Image();
-        img.src = optimizedUrl;
-        if ('decode' in img) {
-          img.decode().catch(() => {});
+        if (optimizedUrl) {
+          // Preload and decode in background
+          const img = new Image();
+          img.src = optimizedUrl;
+          if ('decode' in img) {
+            img.decode().catch(() => {});
+          }
         }
       }
     });
@@ -124,6 +126,8 @@ export default function LectureViewer() {
   const explanation = slideExplanations[slideIndex] || currentSlideExplanation
   
   const [loadingAI, setLoadingAI] = useState(false)
+  const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({})
+  const [thumbErrors, setThumbErrors] = useState<Record<number, boolean>>({})
 
   // --- NEW TOOLBAR STATES ---
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -1118,48 +1122,114 @@ export default function LectureViewer() {
           >
             <div ref={slideContainerRef} className="w-full max-w-3xl aspect-video rounded-2xl border border-border shadow-md flex items-center justify-center relative overflow-hidden bg-card">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 opacity-50" />
-              {currentSlide?.image_url && currentSlide.image_url !== 'https://example.com/placeholder.png' ? (
-                <>
-                  <div className="absolute inset-0 z-10 select-none overflow-hidden bg-white flex items-center justify-center">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img 
-                      src={getOptimizedSlideUrl(currentSlide.image_url, { lowBandwidth: settings.low_bandwidth })} 
-                      alt={`Slide ${slideIndex + 1}`} 
-                      className="w-full h-full object-contain pointer-events-none select-none transition-opacity duration-150"
-                      loading="eager"
-                      decoding="async"
-                    />
-                  </div>
-                  {isDrawMode && (
-                    <>
-                      <canvas 
-                        ref={canvasRef}
-                        width={800} // Logical width, scales via CSS
-                        height={450} // 16:9 ratio logical height
-                        className="absolute inset-0 w-full h-full z-20 cursor-crosshair touch-none"
-                        onMouseDown={startDrawing}
-                        onMouseMove={draw}
-                        onMouseUp={stopDrawing}
-                        onMouseLeave={stopDrawing}
+              {(() => {
+                const optimizedSlideImg = currentSlide?.image_url
+                  ? getOptimizedSlideUrl(currentSlide.image_url, { lowBandwidth: settings.low_bandwidth })
+                  : '';
+                const hasDisplayImage = Boolean(optimizedSlideImg && !imageErrors[slideIndex]);
+
+                if (hasDisplayImage) {
+                  return (
+                    <div className="absolute inset-0 z-10 select-none overflow-hidden bg-white flex items-center justify-center">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img 
+                        src={optimizedSlideImg} 
+                        alt={`Slide ${slideIndex + 1}`} 
+                        className="w-full h-full object-contain pointer-events-none select-none transition-opacity duration-150"
+                        loading="eager"
+                        decoding="async"
+                        onError={() => {
+                          setImageErrors(prev => ({ ...prev, [slideIndex]: true }));
+                        }}
                       />
-                      <Button 
-                        variant="destructive" 
-                        size="sm" 
-                        onClick={clearCanvas}
-                        className="absolute bottom-4 right-4 z-30 shadow-lg rounded-full"
-                      >
-                        <Eraser className="w-4 h-4 mr-2" /> Clear Drawings
-                      </Button>
-                    </>
-                  )}
-                </>
-              ) : (
-                <div className="relative z-20 w-full h-full p-8 overflow-y-auto flex flex-col items-center justify-center text-center">
-                  <h2 className="text-3xl font-bold text-foreground tracking-tight mb-6">{currentSlide?.title || `Slide ${slideIndex + 1}`}</h2>
-                  <div className="text-muted-foreground text-left max-w-2xl whitespace-pre-wrap leading-relaxed text-lg">
-                    {currentSlide?.raw_text || "No text extracted."}
+                    </div>
+                  );
+                }
+
+                // High-yield Presentation Slide Card fallback
+                return (
+                  <div className="relative z-10 w-full h-full p-6 md:p-8 overflow-y-auto flex flex-col justify-between bg-card text-card-foreground select-text">
+                    <div className="flex items-center justify-between border-b border-border/60 pb-2 mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                          Slide {slideIndex + 1} of {totalSlides}
+                        </span>
+                        {headerWeek && (
+                          <span className="text-xs text-muted-foreground font-medium">
+                            {headerWeek}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground font-mono truncate max-w-[200px]">
+                        {lecture?.title || 'UniStudy AI'}
+                      </span>
+                    </div>
+
+                    <div className="flex-1 flex flex-col justify-center my-auto max-w-2xl mx-auto w-full">
+                      <h2 className="text-xl md:text-2xl font-bold tracking-tight text-foreground mb-4 text-center">
+                        {currentSlide?.title || (
+                          currentSlide?.raw_text
+                            ? currentSlide.raw_text.split('\n').filter(Boolean)[0] || `Slide ${slideIndex + 1}`
+                            : `Slide ${slideIndex + 1}`
+                        )}
+                      </h2>
+
+                      <div className="text-muted-foreground text-left whitespace-pre-wrap leading-relaxed text-sm md:text-base max-h-[220px] overflow-y-auto pr-2 space-y-2">
+                        {(() => {
+                          const raw = currentSlide?.raw_text || '';
+                          const lines: string[] = raw.split('\n').map((l: string) => l.trim()).filter(Boolean);
+                          const contentLines = lines.length > 1 ? lines.slice(1) : lines;
+                          if (contentLines.length === 0) {
+                            return <p className="italic text-center text-muted-foreground/70">No text content available for this slide.</p>;
+                          }
+                          return contentLines.map((line: string, idx: number) => {
+                            const isBullet = line.startsWith('•') || line.startsWith('-') || line.startsWith('*') || /^\d+[\.\)]/.test(line);
+                            return (
+                              <p key={idx} className={isBullet ? "flex items-start gap-2 pl-2" : "mb-2"}>
+                                {isBullet ? (
+                                  <>
+                                    <span className="text-primary mt-1 select-none font-bold">•</span>
+                                    <span>{line.replace(/^[•\-*]|\d+[\.\)]/, '').trim()}</span>
+                                  </>
+                                ) : (
+                                  line
+                                )}
+                              </p>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-border/40 pt-2 mt-3 text-[11px] text-muted-foreground">
+                      <span>UniStudy Learning Deck</span>
+                      <span className="font-medium">Slide {slideIndex + 1}</span>
+                    </div>
                   </div>
-                </div>
+                );
+              })()}
+
+              {isDrawMode && (
+                <>
+                  <canvas 
+                    ref={canvasRef}
+                    width={800} // Logical width, scales via CSS
+                    height={450} // 16:9 ratio logical height
+                    className="absolute inset-0 w-full h-full z-20 cursor-crosshair touch-none"
+                    onMouseDown={startDrawing}
+                    onMouseMove={draw}
+                    onMouseUp={stopDrawing}
+                    onMouseLeave={stopDrawing}
+                  />
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    onClick={clearCanvas}
+                    className="absolute bottom-4 right-4 z-30 shadow-lg rounded-full"
+                  >
+                    <Eraser className="w-4 h-4 mr-2" /> Clear Drawings
+                  </Button>
+                </>
               )}
 
               {/* Floating Nav Buttons in Focus Mode */}
@@ -1344,8 +1414,8 @@ export default function LectureViewer() {
           >
             {slides.map((slide, i) => {
               const isActive = i === slideIndex;
-              const hasImage = slide?.image_url && slide.image_url !== 'https://example.com/placeholder.png';
-              const thumbUrl = hasImage ? getSlideThumbnailUrl(slide.image_url) : null;
+              const rawThumbUrl = getSlideThumbnailUrl(slide?.image_url);
+              const showThumbImg = Boolean(rawThumbUrl && !thumbErrors[i]);
 
               return (
                 <button
@@ -1358,16 +1428,20 @@ export default function LectureViewer() {
                   }`}
                   title={`Slide ${i + 1}`}
                 >
-                  {thumbUrl ? (
+                  {showThumbImg ? (
                     <img
-                      src={thumbUrl}
+                      src={rawThumbUrl}
                       alt={`Slide ${i + 1} thumbnail`}
                       className="w-full h-full object-cover pointer-events-none"
                       loading="lazy"
+                      onError={() => {
+                        setThumbErrors(prev => ({ ...prev, [i]: true }));
+                      }}
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-card">
-                      <span className={`text-xs font-bold ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-card to-muted/30 p-1 text-center">
+                      <div className="w-5 h-0.5 rounded-full bg-primary/25 mb-1" />
+                      <span className={`text-xs font-bold leading-none ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
                         {i + 1}
                       </span>
                     </div>
