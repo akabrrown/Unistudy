@@ -339,7 +339,26 @@ router.post('/calculator', (0, quotaGuard_1.withAIQuota)('calculator'), async (r
                 res.write(`data: ${JSON.stringify({ text: fullText })}\n\n`);
             }
             else {
-                throw providerErr;
+                try {
+                    const cleaned = String(problem)
+                        .replace(/^(?:calculate|evaluate|what\s+is|solve|find|compute)\s+/i, '')
+                        .replace(/[?=]+$/, '')
+                        .trim();
+                    const evalResult = (0, mathjs_1.evaluate)(cleaned);
+                    if (evalResult !== undefined && evalResult !== null) {
+                        const formattedResult = (0, mathjs_1.format)(evalResult, { precision: 12 });
+                        fullText = `### Computed Result\n\n$$\n${cleaned} = ${formattedResult}\n$$\n\n**Answer:** **${formattedResult}**`;
+                        res.write(`data: ${JSON.stringify({ text: fullText })}\n\n`);
+                    }
+                    else {
+                        fullText = `### Problem\n\n**Question:** ${String(problem).trim()}\n\nAI computation providers were unreachable or timed out. Please enter algebraic expressions (e.g., \`2x + 5 = 15\` or \`derivative of x^2\`) for immediate verified step-by-step computation.`;
+                        res.write(`data: ${JSON.stringify({ text: fullText })}\n\n`);
+                    }
+                }
+                catch {
+                    fullText = `### Problem\n\n**Question:** ${String(problem).trim()}\n\nAI computation providers were unreachable or timed out. Please enter algebraic expressions (e.g., \`2x + 5 = 15\` or \`derivative of x^2\`) for immediate verified step-by-step computation.`;
+                    res.write(`data: ${JSON.stringify({ text: fullText })}\n\n`);
+                }
             }
         }
         if (fullText.trim()) {

@@ -75,17 +75,16 @@ async function handler(req: Request) {
   }
 
   const { problem = '', subject, level, imageBase64, mimeType } = parsed.data
-  const casCheck =
-    !imageBase64 && problem
-      ? tryDeterministicMathSolve(problem, {
-          compile,
-          derivative,
-          evaluate,
-          format,
-          lusolve,
-          simplify,
-        })
-      : null
+  const casCheck = problem.trim()
+    ? tryDeterministicMathSolve(problem, {
+        compile,
+        derivative,
+        evaluate,
+        format,
+        lusolve,
+        simplify,
+      })
+    : null
   const promptText = buildUniversalMathSolverPrompt({
     problem,
     subject,
@@ -191,6 +190,36 @@ async function handler(req: Request) {
               }
             }
           }
+
+          // 3. Groq Vision fallback
+          if (!fullText && process.env.GROQ_API_KEY) {
+            try {
+              const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+              const groqVisionRes = await groq.chat.completions.create({
+                model: 'llama-3.2-11b-vision-preview',
+                temperature: 0.15,
+                max_tokens: 3000,
+                messages: [
+                  {
+                    role: 'user',
+                    content: [
+                      { type: 'text', text: promptText },
+                      {
+                        type: 'image_url',
+                        image_url: { url: `data:${effectiveMime};base64,${img.data}` },
+                      },
+                    ],
+                  },
+                ],
+              })
+              const visionContent = groqVisionRes.choices?.[0]?.message?.content?.trim()
+              if (visionContent) {
+                emitDelta(visionContent)
+              }
+            } catch (groqVisionErr) {
+              console.warn('[Calculator] Groq vision failed:', groqVisionErr)
+            }
+          }
         }
 
         // Text-based solver (or fallback when problem text was also provided alongside an image)
@@ -281,6 +310,31 @@ async function handler(req: Request) {
           // 4. Deterministic CAS fallback if all LLM providers failed
           if (!fullText && casCheck) {
             emitDelta(casCheck.markdown)
+          }
+
+          // 5. Direct Math.js arithmetic and algebraic evaluation fallback
+          if (!fullText.trim() && problem.trim()) {
+            try {
+              const cleaned = problem
+                .replace(/^(?:calculate|evaluate|what\s+is|solve|find|compute)\s+/i, '')
+                .replace(/[?=]+$/, '')
+                .trim()
+              const evalResult = evaluate(cleaned)
+              if (evalResult !== undefined && evalResult !== null) {
+                const formattedResult = format(evalResult, { precision: 12 })
+                const mathMarkdown = `### Computed Result\n\n$$\n${cleaned} = ${formattedResult}\n$$\n\n**Answer:** **${formattedResult}**`
+                emitDelta(mathMarkdown)
+              }
+            } catch {
+              // Direct eval not applicable
+            }
+          }
+
+          // 6. Helpful Problem Structure fallback
+          if (!fullText.trim() && problem.trim()) {
+            emitDelta(
+              `### Problem\n\n**Question:** ${problem.trim()}\n\nAI computation providers were unreachable or timed out. Please verify algebraic notation (e.g. \`2x + 5 = 15\` or \`derivative of x^2\`) to compute step-by-step.`
+            )
           }
         }
 
