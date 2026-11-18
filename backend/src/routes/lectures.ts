@@ -4,7 +4,7 @@ import { authenticateUser } from '../middleware/auth';
 import { deduplicateInFlightRequests } from '../middleware/expensiveGuard';
 import { supabaseAsUser } from '../lib/supabase';
 import { isLectureProcessingInFlight, processLectureSlidesInBackground } from '../services/slideProcessor';
-import { dedupeSlidesByNumber } from '../../../shared/lib/slideDedupe';
+import { dedupeSlidesByNumber, isRenderableSlideImage } from '../../../shared/lib/slideDedupe';
 import { TTLCache } from '../../../shared/lib/cpuOptimization';
 
 const router = Router();
@@ -182,10 +182,32 @@ router.get('/:lectureId/slides', async (req: Request, res: Response) => {
 
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   const deduped = dedupeSlidesByNumber(data);
-  if (deduped.length > 0) {
+  const allHaveRealImages =
+    deduped.length > 0 && deduped.every((s) => isRenderableSlideImage(s.image_url));
+
+  if (allHaveRealImages) {
     slidesCache.set(cacheKey, deduped);
+    res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
+  } else {
+    slidesCache.delete(cacheKey);
+    res.setHeader('Cache-Control', 'no-store');
+    if (deduped.length > 0 && !isLectureProcessingInFlight(lectureId)) {
+      void (async () => {
+        try {
+          const { data: lec } = await supabase
+            .from('lectures')
+            .select('file_url')
+            .eq('id', lectureId)
+            .maybeSingle();
+          if (lec?.file_url) {
+            void processLectureSlidesInBackground(lectureId, req.user!.id, lec.file_url);
+          }
+        } catch {
+          // non-blocking auto-heal lookup
+        }
+      })();
+    }
   }
-  res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
   res.json(deduped);
 });
 

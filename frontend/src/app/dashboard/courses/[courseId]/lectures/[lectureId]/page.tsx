@@ -698,20 +698,17 @@ export default function LectureViewer() {
     loadData()
   }, [lectureId, courseId])
 
-  // Keep current slide count in a ref so polling doesn't restart whenever slides load
-  const slidesCountRef = useRef(0);
-  useEffect(() => {
-    slidesCountRef.current = slides.length;
-  }, [slides.length]);
+  const hasPlaceholderSlides =
+    slides.length > 0 && slides.some((s) => isPlaceholderSlideUrl(s?.image_url));
 
-  // Poll for slides if they are still processing in the background
+  // Poll for slides while background conversion OR slide image generation is still pending
   useEffect(() => {
     let interval: NodeJS.Timeout;
     let isCancelled = false;
     let pollCount = 0;
-    const MAX_POLLS = 15;
+    const MAX_POLLS = 20;
 
-    if (lecture?.processing) {
+    if (lecture?.processing || hasPlaceholderSlides) {
       interval = setInterval(async () => {
         if (isCancelled) return;
         if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
@@ -722,27 +719,42 @@ export default function LectureViewer() {
         }
 
         try {
-          const lData = await apiFetch(`/lectures/detail/${lectureId}`);
-          if (isCancelled || !lData) return;
-          setLecture(lData);
+          const [lData, rawSlidesData] = await Promise.all([
+            apiFetch(`/lectures/detail/${lectureId}`),
+            apiFetch(`/lectures/${lectureId}/slides`),
+          ]);
+          if (isCancelled) return;
+          if (lData) setLecture(lData);
 
-          // Only fetch slides if processing is completed or slide count increased
-          if (!lData.processing || (lData.slide_count && lData.slide_count > slidesCountRef.current)) {
-            const slidesData = dedupeSlidesByNumber(await apiFetch(`/lectures/${lectureId}/slides`));
-            if (!isCancelled && slidesData.length > 0) {
-              setSlides(slidesData);
+          const slidesData = dedupeSlidesByNumber<any>(rawSlidesData);
+          if (slidesData.length > 0) {
+            setSlides(slidesData);
+            const healedIds = new Set(
+              slidesData.filter((s: any) => !isPlaceholderSlideUrl(s?.image_url)).map((s: any) => String(s.id))
+            );
+            if (healedIds.size > 0) {
+              setImageStage((prev) => {
+                const next = { ...prev };
+                for (const id of healedIds) delete next[id];
+                return next;
+              });
+              setThumbStage((prev) => {
+                const next = { ...prev };
+                for (const id of healedIds) delete next[id];
+                return next;
+              });
             }
           }
         } catch (e: any) {
           console.warn("Polling status update:", e?.message || e);
         }
-      }, 10000);
+      }, 6000);
     }
     return () => {
       isCancelled = true;
       if (interval) clearInterval(interval);
     };
-  }, [lecture?.processing, lectureId]);
+  }, [lecture?.processing, hasPlaceholderSlides, lectureId]);
 
   // Real-time listener: instantly reflect slide image updates without full page refresh
   useEffect(() => {

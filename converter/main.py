@@ -115,8 +115,9 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
                     else:
                         cmd = "soffice"
                 
+                profile_uri = "file:///" + os.path.join(temp_dir, "lo_profile").replace("\\", "/").lstrip("/")
                 result = subprocess.run(
-                    [cmd, "--headless", "--convert-to", "pdf", file_path, "--outdir", temp_dir],
+                    [cmd, "--headless", "--norestore", f"-env:UserInstallation={profile_uri}", "--convert-to", "pdf", file_path, "--outdir", temp_dir],
                     capture_output=True, text=True, timeout=120
                 )
                 if result.returncode == 0:
@@ -172,36 +173,94 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
             finally:
                 doc.close()
 
-        print(f"Extracted {len(slides_to_process)} slide images. Processing with AI concurrently...")
+        print(f"Extracted {len(slides_to_process)} slide images. Syncing to Supabase and Cloudinary concurrently...")
         try:
             supabase.table("lectures").update({"slide_count": len(slides_to_process)}).eq("id", lecture_id).execute()
         except Exception as e:
             print(f"Failed to update slide count: {e}")
 
+        # Fetch existing slide rows to update in-place instead of inserting duplicates
+        existing_by_num = {}
+        try:
+            existing_res = (
+                supabase.table("slides")
+                .select("id, slide_number, image_url, raw_text")
+                .eq("lecture_id", lecture_id)
+                .execute()
+            )
+            grouped = {}
+            for row in (existing_res.data or []):
+                try:
+                    num = int(row.get("slide_number") or 0)
+                except Exception:
+                    continue
+                if num > 0:
+                    grouped.setdefault(num, []).append(row)
+
+            for num, rows in grouped.items():
+                rows.sort(
+                    key=lambda r: 0
+                    if (
+                        isinstance(r.get("image_url"), str)
+                        and r["image_url"].startswith("http")
+                        and "placeholder" not in r["image_url"].lower()
+                        and "dwyxspqbe" not in r["image_url"].lower()
+                    )
+                    else 1
+                )
+                existing_by_num[num] = rows[0]
+                for extra in rows[1:]:
+                    try:
+                        supabase.table("slides").delete().eq("id", extra["id"]).execute()
+                    except Exception:
+                        pass
+                if num > len(slides_to_process):
+                    try:
+                        supabase.table("slides").delete().eq("id", rows[0]["id"]).execute()
+                        existing_by_num.pop(num, None)
+                    except Exception:
+                        pass
+        except Exception as fetch_existing_err:
+            print(f"Warning fetching existing slides for upsert: {fetch_existing_err}")
+
+        def is_valid_slide_url(u: Optional[str]) -> bool:
+            if not u or not isinstance(u, str) or not u.startswith("http"):
+                return False
+            low = u.lower()
+            return "placeholder" not in low and "dwyxspqbe" not in low and "example.com" not in low
+
         def process_single_slide(slide_info):
             sn = slide_info["slide_number"]
             img_path = slide_info["image_path"]
-            
-            # 1. Upload slide image to Cloudinary (real-time fast upload, max 2 attempts)
+            existing_row = existing_by_num.get(sn)
+
+            # 1. Upload slide image to Cloudinary only when a rendered image file exists
             image_url = ""
-            for attempt in range(2):
-                try:
-                    response = cloudinary.uploader.upload(
-                        img_path,
-                        folder=f"unistudy/{user_id}/slides/{lecture_id}/",
-                        format="webp",
-                        quality="auto:good",
-                        timeout=20
-                    )
-                    image_url = response.get("secure_url", "")
-                    break
-                except Exception as upload_err:
-                    if attempt == 1:
-                        print(f"Warning: Cloudinary upload failed for slide {sn}: {upload_err}")
-                        image_url = ""
-                    else:
-                        import time
-                        time.sleep(1)
+            if img_path and os.path.exists(img_path):
+                for attempt in range(2):
+                    try:
+                        response = cloudinary.uploader.upload(
+                            img_path,
+                            folder=f"unistudy/{user_id}/slides/{lecture_id}/",
+                            format="webp",
+                            quality="auto:good",
+                            timeout=20
+                        )
+                        image_url = response.get("secure_url", "")
+                        break
+                    except Exception as upload_err:
+                        if attempt == 1:
+                            print(f"Warning: Cloudinary upload failed for slide {sn}: {upload_err}")
+                            image_url = ""
+                        else:
+                            import time
+                            time.sleep(1)
+
+            if not is_valid_slide_url(image_url):
+                if existing_row and is_valid_slide_url(existing_row.get("image_url")):
+                    image_url = existing_row["image_url"]
+                else:
+                    image_url = "https://example.com/placeholder.png"
 
             # 2. Text extraction (direct from document structure, instant and 100% accurate)
             raw_text = slide_info.get("extracted_text", "") or f"Slide {sn}"
@@ -216,10 +275,17 @@ def process_file_task(file_path: str, lecture_id: str, user_id: str, is_pptx: bo
             }
 
             try:
-                supabase.table("slides").insert(slide_record).execute()
-                print(f"Inserted slide {sn} into DB.")
+                if existing_row:
+                    update_fields = {"image_url": image_url}
+                    if raw_text and raw_text != f"Slide {sn}":
+                        update_fields["raw_text"] = raw_text
+                    supabase.table("slides").update(update_fields).eq("id", existing_row["id"]).execute()
+                    print(f"Updated slide {sn} image in DB.")
+                else:
+                    supabase.table("slides").insert(slide_record).execute()
+                    print(f"Inserted slide {sn} into DB.")
             except Exception as e:
-                print(f"Error inserting slide {sn} into DB: {e}")
+                print(f"Error saving slide {sn} into DB: {e}")
             return slide_record
 
         slides_to_insert = []

@@ -45,6 +45,18 @@ function hasActiveProcessing(payload: unknown): boolean {
   if ('processing' in payload && (payload as { processing?: boolean }).processing === true) {
     return true;
   }
+  if ('slide_number' in payload) {
+    const imgUrl = (payload as { image_url?: unknown }).image_url;
+    if (
+      typeof imgUrl !== 'string' ||
+      imgUrl.trim() === '' ||
+      imgUrl.toLowerCase().includes('placeholder') ||
+      imgUrl.toLowerCase().includes('dwyxspqbe') ||
+      imgUrl.toLowerCase().includes('example.com')
+    ) {
+      return true;
+    }
+  }
   if (Array.isArray(payload)) {
     return payload.some((item) => hasActiveProcessing(item));
   }
