@@ -7,8 +7,13 @@ import os from 'os';
 import { supabaseAdmin } from '../lib/supabase';
 import { env } from '../config/env';
 import { isRenderableSlideImage } from '../../../shared/lib/slideDedupe';
+import {
+  extractPptxSlidesFromBuffer,
+  renderAndUploadMissingSlideImages,
+} from './pptxFallbackRenderer';
 
 const activeLectures = new Set<string>();
+const DEFAULT_CONVERTER_SECRET = 'zT9xK2mP7vL4wQ8rN5bH1jC6dF3gY0';
 
 export function isLectureProcessingInFlight(lectureId: string): boolean {
   return activeLectures.has(lectureId);
@@ -29,23 +34,12 @@ function getCloudinaryPdfSlideUrl(fileUrl: string, pageNumber: number): string {
   return 'https://example.com/placeholder.png';
 }
 
-/**
- * Fast helper to extract PPTX slides via lightweight Python XML extractor.
- */
-async function extractPptxSlidesFast(buffer: Buffer): Promise<Array<{ slide_number: number; raw_text: string }>> {
-  const tmpPath = path.join(os.tmpdir(), `pptx_${Date.now()}_${Math.random().toString(36).substring(7)}.pptx`);
-  await fs.promises.writeFile(tmpPath, buffer);
-
-  const scriptPath = path.join(__dirname, '../scripts/extract_pptx.py');
-
+function runPythonExtractPptx(bin: string, scriptPath: string, tmpPath: string): Promise<Array<{ slide_number: number; raw_text: string }>> {
   return new Promise((resolve, reject) => {
-    execFile('python', [scriptPath, tmpPath], { timeout: 35000 }, (err, stdout, stderr) => {
-      fs.promises.unlink(tmpPath).catch(() => {});
-
+    execFile(bin, [scriptPath, tmpPath], { timeout: 35000 }, (err, stdout, stderr) => {
       if (err) {
-        return reject(new Error(`PPTX extraction failed: ${err.message}. Stderr: ${stderr}`));
+        return reject(new Error(`PPTX extraction (${bin}) failed: ${err.message}. Stderr: ${stderr}`));
       }
-
       try {
         const parsed = JSON.parse(stdout.trim());
         if (!parsed.success) {
@@ -59,6 +53,41 @@ async function extractPptxSlidesFast(buffer: Buffer): Promise<Array<{ slide_numb
   });
 }
 
+/**
+ * Fast helper to extract PPTX slides in-process using Node ZIP/XML parsing,
+ * falling back to Python XML extractor if needed.
+ */
+async function extractPptxSlidesFast(buffer: Buffer): Promise<Array<{ slide_number: number; raw_text: string }>> {
+  try {
+    const nodeParsed = extractPptxSlidesFromBuffer(buffer);
+    if (nodeParsed.length > 0) {
+      return nodeParsed.map((s) => ({
+        slide_number: s.slide_number,
+        raw_text: s.raw_text,
+      }));
+    }
+  } catch (nodeErr: any) {
+    console.warn(`[SlideProcessor] Node PPTX parser fallback notice: ${nodeErr?.message || nodeErr}`);
+  }
+
+  const tmpPath = path.join(os.tmpdir(), `pptx_${Date.now()}_${Math.random().toString(36).substring(7)}.pptx`);
+  await fs.promises.writeFile(tmpPath, buffer);
+  const scriptPath = path.join(__dirname, '../scripts/extract_pptx.py');
+
+  try {
+    for (const bin of process.platform === 'win32' ? ['python', 'python3'] : ['python3', 'python']) {
+      try {
+        return await runPythonExtractPptx(bin, scriptPath, tmpPath);
+      } catch {
+        // Try next python executable name
+      }
+    }
+    throw new Error('Both Node ZIP parser and Python extract_pptx failed');
+  } finally {
+    fs.promises.unlink(tmpPath).catch(() => {});
+  }
+}
+
 async function dispatchToRemoteConverter(
   lectureId: string,
   userId: string,
@@ -66,8 +95,17 @@ async function dispatchToRemoteConverter(
 ): Promise<boolean> {
   const converterBase = (env.CONVERTER_URL || '').trim().replace(/\/+$/, '');
   if (!converterBase) return false;
+  if (
+    env.NODE_ENV === 'production' &&
+    /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(converterBase)
+  ) {
+    console.warn(`[SlideProcessor] Skipping localhost CONVERTER_URL (${converterBase}) in production.`);
+    return false;
+  }
 
-  const secret = (env.CONVERTER_SECRET || '').trim();
+  const secret = (env.CONVERTER_SECRET || DEFAULT_CONVERTER_SECRET)
+    .trim()
+    .replace(/^["']|["']$/g, '');
   const maxAttempts = 3;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -86,7 +124,7 @@ async function dispatchToRemoteConverter(
         method: 'POST',
         headers,
         body: formData,
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.timeout(65_000),
       });
 
       if (convertRes.ok) {
@@ -125,9 +163,55 @@ function runWindowsPowerPointFallback(lectureId: string): Promise<void> {
   });
 }
 
-function scheduleConverterUnstickFallback(lectureId: string): void {
+async function runNodeCloudinaryFallback(
+  lectureId: string,
+  fileUrl: string,
+  existingBuffer?: Buffer
+): Promise<void> {
+  const { data: slides } = await supabaseAdmin
+    .from('slides')
+    .select('id, image_url')
+    .eq('lecture_id', lectureId);
+
+  const hasPlaceholders = (slides || []).some((s) => !isRenderableSlideImage(s.image_url));
+  if (!hasPlaceholders) return;
+
+  let buffer = existingBuffer;
+  if (!buffer && fileUrl) {
+    try {
+      const resp = await axios.get(fileUrl, {
+        responseType: 'arraybuffer',
+        timeout: 45_000,
+      });
+      buffer = Buffer.from(resp.data);
+    } catch (dlErr: any) {
+      console.warn(`[SlideProcessor] Could not download file for Node fallback (${lectureId}): ${dlErr?.message || dlErr}`);
+    }
+  }
+
+  const healed = await renderAndUploadMissingSlideImages(lectureId, fileUrl, buffer);
+  if (healed > 0) {
+    console.log(`[SlideProcessor] Node Cloudinary fallback generated ${healed} slide images for ${lectureId}`);
+  }
+}
+
+function scheduleConverterUnstickFallback(lectureId: string, fileUrl: string): void {
   const timer = setTimeout(async () => {
     try {
+      const { data: slideRows } = await supabaseAdmin
+        .from('slides')
+        .select('id, image_url')
+        .eq('lecture_id', lectureId);
+
+      const hasPlaceholders =
+        !slideRows ||
+        slideRows.length === 0 ||
+        slideRows.some((s) => !isRenderableSlideImage(s.image_url));
+
+      if (hasPlaceholders && fileUrl) {
+        await runNodeCloudinaryFallback(lectureId, fileUrl);
+      }
+
       const { count } = await supabaseAdmin
         .from('slides')
         .select('id', { count: 'exact', head: true })
@@ -169,6 +253,7 @@ export async function processLectureSlidesInBackground(
   console.log(`[SlideProcessor] Starting slide processing for lecture ${lectureId}`);
 
   let handedOffToRemoteConverter = false;
+  let downloadedBuffer: Buffer | undefined;
 
   try {
     // 1. Check existing slides first
@@ -209,9 +294,9 @@ export async function processLectureSlidesInBackground(
       console.log(`[SlideProcessor] Downloading file for lecture ${lectureId} (${isPptx ? 'PPTX' : 'PDF'})`);
       const fileResponse = await axios.get(fileUrl, {
         responseType: 'arraybuffer',
-        timeout: 40_000,
+        timeout: 45_000,
       });
-      const buffer = Buffer.from(fileResponse.data);
+      downloadedBuffer = Buffer.from(fileResponse.data);
 
       let slideRows: Array<{
         lecture_id: string;
@@ -223,7 +308,7 @@ export async function processLectureSlidesInBackground(
 
       if (isPptx) {
         console.log(`[SlideProcessor] Extracting PPTX slide text for lecture ${lectureId}...`);
-        const extractedPptx = await extractPptxSlidesFast(buffer);
+        const extractedPptx = await extractPptxSlidesFast(downloadedBuffer);
         slideRows = extractedPptx.map((s) => ({
           lecture_id: lectureId,
           slide_number: s.slide_number,
@@ -233,7 +318,7 @@ export async function processLectureSlidesInBackground(
         }));
       } else {
         console.log(`[SlideProcessor] Extracting PDF slides for lecture ${lectureId}...`);
-        const pdfData = await pdfParse(buffer);
+        const pdfData = await pdfParse(downloadedBuffer);
         const rawPages = (pdfData.text || '').split('\f');
         const cleanPages = rawPages.map((p) => p.trim());
         const totalPages = Math.max(pdfData.numpages || 1, cleanPages.length || 1);
@@ -270,11 +355,12 @@ export async function processLectureSlidesInBackground(
         }
       }
 
+      const anyInsertedPlaceholder = slideRows.some((s) => !isRenderableSlideImage(s.image_url));
       await supabaseAdmin
         .from('lectures')
         .update({
           slide_count: slideRows.length,
-          processing: isPptx,
+          processing: isPptx || anyInsertedPlaceholder,
         })
         .eq('id', lectureId);
     }
@@ -286,11 +372,11 @@ export async function processLectureSlidesInBackground(
       false;
 
     if (needsImageRendering) {
-      // Tier 1: Dispatch to remote/Docker Python converter (LibreOffice + PyMuPDF -> Cloudinary WebP)
+      // Tier 1: Dispatch to remote/Docker Python converter (LibreOffice / PyMuPDF -> Cloudinary WebP)
       handedOffToRemoteConverter = await dispatchToRemoteConverter(lectureId, userId, fileUrl);
 
       if (handedOffToRemoteConverter) {
-        scheduleConverterUnstickFallback(lectureId);
+        scheduleConverterUnstickFallback(lectureId, fileUrl);
         return;
       }
 
@@ -298,6 +384,9 @@ export async function processLectureSlidesInBackground(
       if (isPptx && process.platform === 'win32') {
         await runWindowsPowerPointFallback(lectureId);
       }
+
+      // Tier 3: Cross-platform Node.js SVG-to-Cloudinary WebP slide renderer fallback
+      await runNodeCloudinaryFallback(lectureId, fileUrl, downloadedBuffer);
     }
   } catch (err: any) {
     console.error(`[SlideProcessor] Unexpected error processing lecture ${lectureId}:`, err);

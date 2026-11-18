@@ -22,8 +22,20 @@ def extract_pptx_slides(file_path_or_buffer):
     for idx, f in enumerate(slide_files):
         xml_content = zf.read(f)
         root = ET.fromstring(xml_content)
-        texts = [elem.text for elem in root.iter() if elem.tag.endswith('}t') and elem.text]
-        slide_text = '\n'.join([t.strip() for t in texts if t.strip()])
+        paragraphs = []
+        for p in root.iter():
+            if p.tag.endswith('}p'):
+                runs = [elem.text for elem in p.iter() if elem.tag.endswith('}t') and elem.text]
+                if runs:
+                    para_text = ' '.join(''.join(runs).split())
+                    if para_text:
+                        paragraphs.append(para_text)
+        if not paragraphs:
+            runs = [elem.text for elem in root.iter() if elem.tag.endswith('}t') and elem.text]
+            fallback = ' '.join(''.join(runs).split())
+            if fallback:
+                paragraphs.append(fallback)
+        slide_text = '\n'.join(paragraphs)
         results.append({
             'slide_number': idx + 1,
             'raw_text': slide_text or f'Slide {idx + 1}',

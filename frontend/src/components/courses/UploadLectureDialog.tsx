@@ -233,23 +233,31 @@ export function UploadLectureDialog({
         const userRes = await supabase.auth.getUser();
         const userId = userRes.data.user?.id || '';
 
+        const dispatchViaNextProxy = () => {
+          const formDataFastAPI = new FormData();
+          formDataFastAPI.append('file_url', uploadedFileUrl as string);
+          formDataFastAPI.append('lecture_id', newLectureId as string);
+          formDataFastAPI.append('user_id', userId);
+          return fetch(`/api/convert`, {
+            method: 'POST',
+            body: formDataFastAPI,
+          });
+        };
+
         try {
           await apiFetch(`/lectures/${newLectureId}/convert`, {
             method: 'POST',
             body: JSON.stringify({ file_url: uploadedFileUrl }),
           });
+          // Also dispatch via Vercel /api/convert for PPTX in background in case Express backend uses a stale CONVERTER_URL
+          if (item.file.name.toLowerCase().endsWith('.pptx')) {
+            void dispatchViaNextProxy().catch(() => {});
+          }
         } catch (apiErr: any) {
           console.warn('Backend /lectures/:id/convert trigger notice:', apiErr);
           // Fallback: fire /api/convert
           try {
-            const formDataFastAPI = new FormData();
-            formDataFastAPI.append('file_url', uploadedFileUrl as string);
-            formDataFastAPI.append('lecture_id', newLectureId as string);
-            formDataFastAPI.append('user_id', userId);
-            await fetch(`/api/convert`, {
-              method: 'POST',
-              body: formDataFastAPI,
-            });
+            await dispatchViaNextProxy();
           } catch (e) {
             console.warn('Fallback /api/convert notice:', e);
           }

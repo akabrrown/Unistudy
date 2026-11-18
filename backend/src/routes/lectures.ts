@@ -67,19 +67,22 @@ router.get('/detail/:lectureId', async (req: Request, res: Response) => {
     return res.status(404).json({ error: 'Lecture not found' });
   }
 
-  // Auto-recovery: If marked processing, check actual slides in DB
+  // Auto-recovery: Only mark processing complete when slides exist AND all have genuine images
   if (data && data.processing) {
-    const { count } = await supabase
+    const { data: slideCheckRows } = await supabase
       .from('slides')
-      .select('id', { count: 'exact', head: true })
+      .select('id, image_url')
       .eq('lecture_id', data.id);
 
-    if (count && count > 0) {
+    const rows = slideCheckRows || [];
+    const allReady = rows.length > 0 && rows.every((r: any) => isRenderableSlideImage(r.image_url));
+
+    if (allReady) {
       data.processing = false;
-      data.slide_count = count;
-      void supabase.from('lectures').update({ processing: false, slide_count: count }).eq('id', data.id);
+      data.slide_count = rows.length;
+      void supabase.from('lectures').update({ processing: false, slide_count: rows.length }).eq('id', data.id);
     } else if (data.file_url && !isLectureProcessingInFlight(data.id)) {
-      // Re-trigger fast in-process extraction only when not already running
+      // Re-trigger image/slide generation if missing or still placeholders
       void processLectureSlidesInBackground(data.id, req.user!.id, data.file_url);
     }
   }
@@ -116,17 +119,21 @@ router.get('/:courseId', async (req: Request, res: Response) => {
   if (processingIds.length > 0) {
     const { data: slideRows } = await supabase
       .from('slides')
-      .select('lecture_id')
+      .select('lecture_id, image_url')
       .in('lecture_id', processingIds);
 
     const counts = new Map<string, number>();
+    const allReadyMap = new Map<string, boolean>();
     for (const row of slideRows || []) {
       counts.set(row.lecture_id, (counts.get(row.lecture_id) || 0) + 1);
+      const prevReady = allReadyMap.get(row.lecture_id) ?? true;
+      allReadyMap.set(row.lecture_id, prevReady && isRenderableSlideImage(row.image_url));
     }
     for (const lec of filtered) {
       if (lec.processing) {
         const count = counts.get(lec.id) || 0;
-        if (count > 0) {
+        const allReady = count > 0 && (allReadyMap.get(lec.id) ?? false);
+        if (allReady) {
           lec.processing = false;
           lec.slide_count = count;
           void supabase.from('lectures').update({ processing: false, slide_count: count }).eq('id', lec.id);

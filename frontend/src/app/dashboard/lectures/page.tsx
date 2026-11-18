@@ -171,7 +171,7 @@ export default function LecturesHubPage() {
             ...c,
             lectures: (c.lectures || []).map((l: any) => ({
               ...l,
-              processing: Boolean(l.processing && (!l.slide_count || l.slide_count === 0)),
+              processing: Boolean(l.processing),
             })),
           }));
         // Arrange courses in strict ascending alphanumeric order by course_code and title
