@@ -4,6 +4,8 @@ import { MarketingNavbar } from "@/components/layout/MarketingNavbar";
 import { MarketingFooter } from "@/components/layout/MarketingFooter";
 import { FileText, Shield, AlertCircle, ArrowLeft } from "lucide-react";
 
+export const dynamic = 'force-static';
+
 export const metadata = {
   title: "Terms of Service | UniStudy AI",
   description: "Terms and conditions governing the use of the UniStudy AI study and revision platform.",

@@ -4,6 +4,8 @@ import { MarketingNavbar } from '@/components/layout/MarketingNavbar';
 import { MarketingFooter } from '@/components/layout/MarketingFooter';
 import CheckoutButton from './checkout-button';
 
+export const dynamic = 'force-static';
+
 export default function PricingPage() {
   const bundles = [
     {

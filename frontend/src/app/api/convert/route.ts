@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceHighCostLimit } from '@/lib/ratelimit';
 
 // Allow up to 60 seconds for Render free-tier cold starts
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  let releaseGuard: (() => void) | undefined;
   try {
+    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'anon';
+    const limit = await enforceHighCostLimit(`convert:${clientIp}`);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many file conversion requests. Please wait a moment and try again.' },
+        { status: 429, headers: { 'Retry-After': String(limit.retryAfterSec) } }
+      );
+    }
+    releaseGuard = limit.release;
+
     const formData = await req.formData();
     
     // We append the secure backend secret from the server environment
@@ -86,5 +98,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('API Conversion Error:', error);
     return NextResponse.json({ error: error.message || 'Internal conversion error' }, { status: 500 });
+  } finally {
+    releaseGuard?.();
   }
 }

@@ -213,10 +213,11 @@ export default function AdminOverviewPage() {
     fetchOverviewData();
   }, [fetchOverviewData]);
 
-  // Periodic Auto-refresh
+  // Periodic Auto-refresh (paused while tab is hidden)
   useEffect(() => {
     if (autoRefreshInterval <= 0) return;
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       fetchOverviewData(true);
     }, autoRefreshInterval * 1000);
     return () => clearInterval(interval);

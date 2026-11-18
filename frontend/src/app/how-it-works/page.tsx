@@ -2,6 +2,8 @@ import { MarketingNavbar } from "@/components/layout/MarketingNavbar";
 import { MarketingFooter } from "@/components/layout/MarketingFooter";
 import { Upload, Brain, Zap, Video, Scan, Heart, Activity, LineChart, FileText } from "lucide-react";
 
+export const dynamic = 'force-static';
+
 export default function HowItWorksPage() {
   return (
     <div className="min-h-screen bg-[#FAF8FF] dark:bg-[#0F0C29] transition-colors" style={{ fontFamily: "Inter, sans-serif" }}>

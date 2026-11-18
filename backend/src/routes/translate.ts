@@ -1,9 +1,14 @@
 import { Router, Request, Response } from 'express'
 import { authenticateUser } from '../middleware/auth'
+import { protectExpensiveEndpoint, deduplicateInFlightRequests } from '../middleware/expensiveGuard'
 
 const router = Router()
 
-router.post('/', authenticateUser, async (req: Request, res: Response) => {
+router.use(authenticateUser)
+router.use(protectExpensiveEndpoint({ maxPerMinute: 20, maxConcurrent: 2 }))
+router.use(deduplicateInFlightRequests({ methods: ['POST'] }))
+
+router.post('/', async (req: Request, res: Response) => {
   const { text, targetLanguage } = req.body;
   
   if (!text || !targetLanguage) {

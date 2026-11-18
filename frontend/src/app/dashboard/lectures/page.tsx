@@ -241,9 +241,17 @@ export default function LecturesHubPage() {
 
   useEffect(() => {
     if (!hasProcessingLecture) return;
+    let pollCount = 0;
+    const MAX_POLLS = 20;
     const interval = setInterval(async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      pollCount += 1;
+      if (pollCount > MAX_POLLS) {
+        clearInterval(interval);
+        return;
+      }
       await loadCourses();
-    }, 2500);
+    }, 8000);
     return () => clearInterval(interval);
   }, [hasProcessingLecture, loadCourses]);
 

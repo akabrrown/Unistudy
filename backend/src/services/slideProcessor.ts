@@ -7,6 +7,12 @@ import os from 'os';
 import { supabaseAdmin } from '../lib/supabase';
 import { env } from '../config/env';
 
+const activeLectures = new Set<string>();
+
+export function isLectureProcessingInFlight(lectureId: string): boolean {
+  return activeLectures.has(lectureId);
+}
+
 /**
  * Cloudinary dynamic transformation:
  * Renders any PDF page on-demand as a crisp, fast-loading, cached CDN image.
@@ -65,6 +71,11 @@ export async function processLectureSlidesInBackground(
   userId: string,
   fileUrl: string
 ): Promise<void> {
+  if (activeLectures.has(lectureId)) {
+    console.log(`[SlideProcessor] Lecture ${lectureId} already has processing in flight; skipping duplicate run.`);
+    return;
+  }
+  activeLectures.add(lectureId);
   console.log(`[SlideProcessor] Starting real-time slide extraction for lecture ${lectureId}`);
 
   try {
@@ -201,6 +212,8 @@ export async function processLectureSlidesInBackground(
         .eq('id', lectureId);
     } catch {
       // quiet fallback
+    } finally {
+      activeLectures.delete(lectureId);
     }
   }
 }

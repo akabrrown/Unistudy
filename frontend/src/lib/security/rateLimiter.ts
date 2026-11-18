@@ -5,17 +5,20 @@ interface RateLimitRecord {
 }
 
 const memoryStore = new Map<string, RateLimitRecord>();
+const MAX_MEMORY_ENTRIES = 500;
 
-// Clean up expired keys every 5 minutes to prevent memory leaks
-if (typeof setInterval !== 'undefined') {
-  setInterval(() => {
-    const now = Date.now();
-    for (const [key, record] of memoryStore.entries()) {
-      if (record.resetAt <= now) {
-        memoryStore.delete(key);
-      }
+function pruneExpiredMemoryStore(now: number): void {
+  for (const [key, record] of memoryStore.entries()) {
+    if (record.resetAt <= now) {
+      memoryStore.delete(key);
     }
-  }, 5 * 60 * 1000);
+  }
+  if (memoryStore.size > MAX_MEMORY_ENTRIES) {
+    const oldestKey = memoryStore.keys().next().value;
+    if (oldestKey !== undefined) {
+      memoryStore.delete(oldestKey);
+    }
+  }
 }
 
 export interface RateLimitOptions {
@@ -65,6 +68,10 @@ export async function checkRateLimit(
     } catch (err) {
       console.warn('Upstash rate limiter fallback to in-memory store:', err);
     }
+  }
+
+  if (memoryStore.size > MAX_MEMORY_ENTRIES) {
+    pruneExpiredMemoryStore(now);
   }
 
   // Resilient In-Memory Sliding Window

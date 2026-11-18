@@ -12,17 +12,24 @@ from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '..', '.env'))
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'frontend', '.env.local'))
 
-# Cloudinary Setup
+_cloud_key = os.getenv('CLOUDINARY_API_KEY')
+_cloud_secret = os.getenv('CLOUDINARY_API_SECRET')
+if not _cloud_key or not _cloud_secret:
+    print('[Error] Missing CLOUDINARY_API_KEY or CLOUDINARY_API_SECRET')
+    sys.exit(1)
+
 cloudinary.config(
     cloud_name=os.getenv('NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME') or os.getenv('CLOUDINARY_CLOUD_NAME') or 'dtauhhlve',
-    api_key=os.getenv('CLOUDINARY_API_KEY') or '615949239867952',
-    api_secret=os.getenv('CLOUDINARY_API_SECRET') or 'jlRdeZIDa1te3PgsJju78AIM-eo'
+    api_key=_cloud_key,
+    api_secret=_cloud_secret
 )
 
-# Supabase Setup
-supabase_url = os.getenv('NEXT_PUBLIC_SUPABASE_URL') or os.getenv('SUPABASE_URL') or 'https://zkpaplwboqhlikdmsryx.supabase.co'
-supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('NEXT_PUBLIC_SUPABASE_ANON_KEY') or ''
+# Supabase Setup (service role only; the anon key cannot update other users' slides)
+supabase_url = os.getenv('NEXT_PUBLIC_SUPABASE_URL') or os.getenv('SUPABASE_URL')
+supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 
 if not supabase_url or not supabase_key:
     print('[Error] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
@@ -32,6 +39,12 @@ supabase: Client = create_client(supabase_url, supabase_key)
 
 def natural_sort_key(s):
     return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+
+def is_real_image(url) -> bool:
+    if not isinstance(url, str) or not url.startswith('http'):
+        return False
+    lowered = url.lower()
+    return not any(marker in lowered for marker in ('placeholder', 'dwyxspqbe', 'example.com'))
 
 def export_pptx_slides(pptx_path: str, output_dir: str):
     """Exports every slide in a PPTX file to JPG images using native PowerPoint."""
@@ -160,14 +173,15 @@ def process_lecture(lecture_id: str):
         
         slide_map = {}
         for num, rows in grouped.items():
-            # If multiple rows exist, keep the first one and delete any duplicates
+            # Keep the row that already has a real image; delete every other duplicate.
+            rows.sort(key=lambda r: 0 if is_real_image(r.get('image_url')) else 1)
             slide_map[num] = rows[0]['id']
             if len(rows) > 1:
                 for extra in rows[1:]:
                     try:
                         supabase.table('slides').delete().eq('id', extra['id']).execute()
-                    except Exception:
-                        pass
+                    except Exception as dup_err:
+                        print(f"[SlideGen] Could not delete duplicate slide {extra['id']}: {dup_err}")
 
         print(f"[SlideGen] Updating {len(uploaded_urls)} slide records in Supabase...")
         update_count = 0

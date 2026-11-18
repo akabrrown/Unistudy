@@ -4,6 +4,8 @@ import { MarketingNavbar } from "@/components/layout/MarketingNavbar";
 import { MarketingFooter } from "@/components/layout/MarketingFooter";
 import { Cookie, ShieldCheck, CheckCircle2, XCircle, ArrowLeft } from "lucide-react";
 
+export const dynamic = 'force-static';
+
 export const metadata = {
   title: "Cookie & Storage Policy | UniStudy AI",
   description: "Essential cookies and browser storage technologies used by UniStudy AI.",

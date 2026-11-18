@@ -1,23 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
 
-export async function GET(req: NextRequest) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+export const dynamic = 'force-static';
 
-  // We can extract unique email domains from institutional emails if a direct domain table doesn't exist
-  // or return a hardcoded list of verified domains for now
-  
+export async function GET() {
   const domains = [
     'upsamail.edu.gh',
     'st.ug.edu.gh',
     'knust.edu.gh',
     'ucc.edu.gh',
     'ashesi.edu.gh',
-    'gimpa.edu.gh'
+    'gimpa.edu.gh',
   ];
 
-  return NextResponse.json({ domains });
+  return NextResponse.json(
+    { domains },
+    {
+      headers: {
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
+      },
+    }
+  );
 }

@@ -1,9 +1,22 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticateUser } from '../middleware/auth';
-import { supabaseAdmin, supabaseAsUser } from '../lib/supabase';
+import { deduplicateInFlightRequests } from '../middleware/expensiveGuard';
+import { supabaseAsUser } from '../lib/supabase';
+import { TTLCache } from '../../../shared/lib/cpuOptimization';
 
 const router = Router();
+const coursesListCache = new TTLCache<any[]>(15_000, 300);
+const courseDetailCache = new TTLCache<any>(15_000, 300);
+
+function invalidateCourseCaches(userId: string, courseId?: string): void {
+  coursesListCache.delete(userId);
+  if (courseId) {
+    courseDetailCache.delete(`${userId}:${courseId}`);
+  } else {
+    courseDetailCache.invalidatePrefix(`${userId}:`);
+  }
+}
 
 const CourseInsertSchema = z.object({
   title: z.string().min(1).max(255),
@@ -26,9 +39,16 @@ const CourseUpdateSchema = z.object({
 }).strict();
 
 router.use(authenticateUser);
+router.use(deduplicateInFlightRequests({ methods: ['GET'] }));
 
 router.get('/', async (req: Request, res: Response) => {
   const userId = req.user!.id;
+  const cached = coursesListCache.get(userId);
+  if (cached) {
+    res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
+    return res.json(cached);
+  }
+
   const supabase = supabaseAsUser(req.user!.jwt);
   let { data, error } = await supabase
     .from('courses')
@@ -77,7 +97,13 @@ router.get('/', async (req: Request, res: Response) => {
       return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
     });
   }
-  res.json(data || []);
+  const result = data || [];
+  const anyProcessing = result.some((c: any) => (c.lectures || []).some((l: any) => l.processing));
+  if (!anyProcessing) {
+    coursesListCache.set(userId, result);
+    res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
+  }
+  res.json(result);
 });
 router.get('/calendar-events', authenticateUser, async (req: Request, res: Response) => {
   const supabase = supabaseAsUser(req.user!.jwt);
@@ -121,29 +147,40 @@ router.post('/', authenticateUser, async (req: Request, res: Response) => {
   const { data, error } = await supabase.from('courses').insert({ ...parsed.data, user_id: req.user!.id }).select('*, lectures(id)').single();
   
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+  invalidateCourseCaches(req.user!.id, data?.id);
   res.json(data);
 });
 
 router.delete('/:id', authenticateUser, async (req: Request, res: Response) => {
   const supabase = supabaseAsUser(req.user!.jwt);
   const { error } = await supabase.from('courses').delete().eq('id', req.params.id).eq('user_id', req.user!.id);
-  
+
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+  invalidateCourseCaches(req.user!.id, String(req.params.id));
   res.json({ success: true });
 });
 
 router.get('/:id', authenticateUser, async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const courseId = String(req.params.id);
+  const cacheKey = `${userId}:${courseId}`;
+  const cached = courseDetailCache.get(cacheKey);
+  if (cached) {
+    res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
+    return res.json(cached);
+  }
+
   const supabase = supabaseAsUser(req.user!.jwt);
   const { data, error } = await supabase
     .from('courses')
     .select('*, lectures(id, title, file_url, week, slide_count, created_at, processing)')
-    .eq('id', req.params.id)
-    .eq('user_id', req.user!.id)
+    .eq('id', courseId)
+    .eq('user_id', userId)
     .maybeSingle();
-  
+
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
   if (!data) return res.status(404).json({ error: 'Course not found' });
-  
+
   if (Array.isArray(data.lectures)) {
     data.lectures = data.lectures
       .filter((l: any) => !l.title?.startsWith('[FAILED'))
@@ -154,7 +191,13 @@ router.get('/:id', authenticateUser, async (req: Request, res: Response) => {
         return (a.title || '').localeCompare(b.title || '', undefined, { numeric: true });
       });
   }
-  
+
+  const anyProcessing = Array.isArray(data.lectures) && data.lectures.some((l: any) => l.processing);
+  if (!anyProcessing) {
+    courseDetailCache.set(cacheKey, data);
+    res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
+  }
+
   res.json(data);
 });
 
@@ -184,6 +227,7 @@ router.patch('/:id', authenticateUser, async (req: Request, res: Response) => {
     .single();
     
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+  invalidateCourseCaches(req.user!.id, String(req.params.id));
   res.json(data);
 });
 

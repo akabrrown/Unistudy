@@ -285,9 +285,17 @@ export default function CoursesPage() {
 
   useEffect(() => {
     if (!hasProcessingLecture) return;
+    let pollCount = 0;
+    const MAX_POLLS = 20;
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      pollCount += 1;
+      if (pollCount > MAX_POLLS) {
+        clearInterval(interval);
+        return;
+      }
       void fetchCourses();
-    }, 3500);
+    }, 8000);
     return () => clearInterval(interval);
   }, [hasProcessingLecture]);
 

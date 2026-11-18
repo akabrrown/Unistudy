@@ -1,20 +1,29 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getServerUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { DashboardShell } from '@/components/layout/DashboardShell'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getServerUser()
 
   if (!user) {
     redirect('/login')
   }
 
-  const { data: profile } = await supabase
+  const supabase = await createClient()
+  const { data: rawProfile } = await supabase
     .from('profiles')
-    .select('*, institutions(abbreviation, name)')
+    .select('id, role, avatar_url, full_name, username, subscription_tier, faculty, year_of_study, institutions(abbreviation, name)')
     .eq('id', user.id)
     .single()
+
+  const profile = rawProfile
+    ? {
+        ...rawProfile,
+        institutions: Array.isArray(rawProfile.institutions)
+          ? rawProfile.institutions[0] ?? null
+          : rawProfile.institutions ?? null,
+      }
+    : null
 
   // Fetch the single most recent announcement targeted to all or matching student's tier/faculty/level
   const userTier = profile?.subscription_tier === 'pro' || profile?.subscription_tier === 'ultra' ? 'tier:pro' : 'tier:free'

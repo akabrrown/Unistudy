@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateUser } from '../middleware/auth';
 import { supabaseAsUser, supabaseAdmin } from '../lib/supabase';
+import { globalTelemetry } from '../../../shared/lib/cpuOptimization';
 
 const router = Router();
 
@@ -154,7 +155,8 @@ router.get('/overview', async (req: Request, res: Response) => {
       recentUsers: recentUsers || [],
       auditLogs: auditLogs || [],
       activityTrend: Object.values(trendMap),
-      systemHealth
+      systemHealth,
+      telemetry: globalTelemetry.getSnapshot(),
     });
   } catch (err: any) {
     console.error('[AdminOverview] Error:', err);
@@ -1135,6 +1137,10 @@ router.post('/subscriptions/override', async (req: Request, res: Response) => {
     console.error('[AdminSubscriptionOverride] Error:', err);
     res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
   }
+});
+
+router.get('/telemetry', (_req: Request, res: Response) => {
+  res.json(globalTelemetry.getSnapshot());
 });
 
 export default router;

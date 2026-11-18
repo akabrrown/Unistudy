@@ -26,6 +26,10 @@ import {
   detectTutorCommandMode,
   retrieveRelevantSlideChunks,
 } from '../../../../../../../../shared/lib/aiTutor'
+import { dedupeSlidesByNumber } from '../../../../../../../../shared/lib/slideDedupe'
+
+type ImageStage = 'raw' | 'failed';
+const slideKey = (slide: any, index: number): string => String(slide?.id ?? `idx-${index}`);
 export default function LectureViewer() {
   const router = useRouter()
   const params = useParams()
@@ -104,7 +108,7 @@ export default function LectureViewer() {
 
     indicesToPreload.forEach(idx => {
       const targetSlide = slides[idx];
-      if (targetSlide?.image_url && !isPlaceholderSlideUrl(targetSlide.image_url) && !imageErrors[idx]) {
+      if (targetSlide?.image_url && !isPlaceholderSlideUrl(targetSlide.image_url)) {
         const optimizedUrl = getOptimizedSlideUrl(targetSlide.image_url, {
           lowBandwidth: settings.low_bandwidth,
         });
@@ -127,8 +131,27 @@ export default function LectureViewer() {
   const explanation = slideExplanations[slideIndex] || currentSlideExplanation
   
   const [loadingAI, setLoadingAI] = useState(false)
-  const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({})
-  const [thumbErrors, setThumbErrors] = useState<Record<number, boolean>>({})
+  // Keyed by slide id (not index) so a failure in one lecture never leaks into another.
+  const [imageStage, setImageStage] = useState<Record<string, ImageStage>>({})
+  const [thumbStage, setThumbStage] = useState<Record<string, ImageStage>>({})
+
+  useEffect(() => {
+    setImageStage({});
+    setThumbStage({});
+  }, [lectureId]);
+
+  const advanceStage = (
+    setter: React.Dispatch<React.SetStateAction<Record<string, ImageStage>>>,
+    key: string,
+    hasDistinctRaw: boolean,
+  ) => {
+    setter(prev => {
+      const current = prev[key];
+      if (current === 'failed') return prev;
+      const next: ImageStage = !current && hasDistinctRaw ? 'raw' : 'failed';
+      return { ...prev, [key]: next };
+    });
+  };
 
   // --- NEW TOOLBAR STATES ---
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -643,8 +666,8 @@ export default function LectureViewer() {
         }
 
         // Fetch slides
-        const slidesData = await apiFetch(`/lectures/${lectureId}/slides`)
-        if (slidesData && slidesData.length > 0) {
+        const slidesData = dedupeSlidesByNumber(await apiFetch(`/lectures/${lectureId}/slides`))
+        if (slidesData.length > 0) {
           setSlides(slidesData)
           if (initialSlideParam) {
             const parsed = parseInt(initialSlideParam, 10);
@@ -675,16 +698,23 @@ export default function LectureViewer() {
     loadData()
   }, [lectureId, courseId])
 
+  // Keep current slide count in a ref so polling doesn't restart whenever slides load
+  const slidesCountRef = useRef(0);
+  useEffect(() => {
+    slidesCountRef.current = slides.length;
+  }, [slides.length]);
+
   // Poll for slides if they are still processing in the background
   useEffect(() => {
     let interval: NodeJS.Timeout;
     let isCancelled = false;
     let pollCount = 0;
-    const MAX_POLLS = 60; // 6 minutes max
+    const MAX_POLLS = 15;
 
     if (lecture?.processing) {
       interval = setInterval(async () => {
         if (isCancelled) return;
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
         pollCount++;
         if (pollCount > MAX_POLLS) {
           clearInterval(interval);
@@ -697,22 +727,22 @@ export default function LectureViewer() {
           setLecture(lData);
 
           // Only fetch slides if processing is completed or slide count increased
-          if (!lData.processing || (lData.slide_count && lData.slide_count > slides.length)) {
-            const slidesData = await apiFetch(`/lectures/${lectureId}/slides`);
-            if (!isCancelled && slidesData && slidesData.length > 0) {
+          if (!lData.processing || (lData.slide_count && lData.slide_count > slidesCountRef.current)) {
+            const slidesData = dedupeSlidesByNumber(await apiFetch(`/lectures/${lectureId}/slides`));
+            if (!isCancelled && slidesData.length > 0) {
               setSlides(slidesData);
             }
           }
         } catch (e: any) {
           console.warn("Polling status update:", e?.message || e);
         }
-      }, 6000);
+      }, 10000);
     }
     return () => {
       isCancelled = true;
       if (interval) clearInterval(interval);
     };
-  }, [lecture?.processing, lectureId, slides.length]);
+  }, [lecture?.processing, lectureId]);
 
   // Real-time listener: instantly reflect slide image updates without full page refresh
   useEffect(() => {
@@ -725,14 +755,24 @@ export default function LectureViewer() {
         { event: '*', schema: 'public', table: 'slides', filter: `lecture_id=eq.${lectureId}` },
         (payload: any) => {
           if (payload.eventType === 'UPDATE' && payload.new) {
-            setSlides(prev => prev.map(s => s.id === payload.new.id ? { ...s, ...payload.new } : s));
+            setSlides(prev => dedupeSlidesByNumber(prev.map(s => s.id === payload.new.id ? { ...s, ...payload.new } : s)));
+            setImageStage(prev => {
+              if (!(payload.new.id in prev)) return prev;
+              const { [payload.new.id]: _discard, ...rest } = prev;
+              return rest;
+            });
+            setThumbStage(prev => {
+              if (!(payload.new.id in prev)) return prev;
+              const { [payload.new.id]: _discard, ...rest } = prev;
+              return rest;
+            });
           } else if (payload.eventType === 'INSERT' && payload.new) {
             setSlides(prev => {
-              const exists = prev.some(s => s.id === payload.new.id);
-              if (exists) return prev;
-              const next = [...prev, payload.new];
-              return next.sort((a, b) => (Number(a.slide_number) || 0) - (Number(b.slide_number) || 0));
+              if (prev.some(s => s.id === payload.new.id)) return prev;
+              return dedupeSlidesByNumber([...prev, payload.new]);
             });
+          } else if (payload.eventType === 'DELETE' && payload.old?.id) {
+            setSlides(prev => prev.filter(s => s.id !== payload.old.id));
           }
         }
       )
@@ -1153,24 +1193,35 @@ export default function LectureViewer() {
             <div ref={slideContainerRef} className="w-full max-w-3xl aspect-video rounded-2xl border border-border shadow-md flex items-center justify-center relative overflow-hidden bg-card">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 opacity-50" />
               {(() => {
-                const optimizedSlideImg = currentSlide?.image_url
-                  ? getOptimizedSlideUrl(currentSlide.image_url, { lowBandwidth: settings.low_bandwidth })
+                const currentKey = slideKey(currentSlide, slideIndex);
+                const rawSlideImg = currentSlide?.image_url && !isPlaceholderSlideUrl(currentSlide.image_url)
+                  ? String(currentSlide.image_url).trim()
                   : '';
-                const hasDisplayImage = Boolean(optimizedSlideImg && !imageErrors[slideIndex]);
+                const optimizedSlideImg = rawSlideImg
+                  ? getOptimizedSlideUrl(rawSlideImg, { lowBandwidth: settings.low_bandwidth })
+                  : '';
+                const stage = imageStage[currentKey];
+                const displaySrc = stage === 'raw' ? rawSlideImg : (optimizedSlideImg || rawSlideImg);
+                const hasDisplayImage = Boolean(displaySrc && stage !== 'failed');
+                const handleSlideImgError = () =>
+                  advanceStage(setImageStage, currentKey, Boolean(rawSlideImg && rawSlideImg !== optimizedSlideImg));
 
                 if (hasDisplayImage) {
                   return (
                     <div className="absolute inset-0 z-10 select-none overflow-hidden bg-white flex items-center justify-center">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img 
-                        src={optimizedSlideImg} 
+                        key={displaySrc}
+                        src={displaySrc} 
                         alt={`Slide ${slideIndex + 1}`} 
                         className="w-full h-full object-contain pointer-events-none select-none transition-opacity duration-150"
                         loading="eager"
                         decoding="async"
-                        onError={() => {
-                          setImageErrors(prev => ({ ...prev, [slideIndex]: true }));
+                        ref={(el) => {
+                          // Catches failures that resolved before React attached onError.
+                          if (el && el.complete && el.naturalWidth === 0 && el.currentSrc) handleSlideImgError();
                         }}
+                        onError={handleSlideImgError}
                       />
                     </div>
                   );
@@ -1444,12 +1495,20 @@ export default function LectureViewer() {
           >
             {slides.map((slide, i) => {
               const isActive = i === slideIndex;
-              const rawThumbUrl = getSlideThumbnailUrl(slide?.image_url);
-              const showThumbImg = Boolean(rawThumbUrl && !thumbErrors[i]);
+              const thumbKey = slideKey(slide, i);
+              const rawThumbSource = slide?.image_url && !isPlaceholderSlideUrl(slide.image_url)
+                ? String(slide.image_url).trim()
+                : '';
+              const optimizedThumb = getSlideThumbnailUrl(rawThumbSource);
+              const tStage = thumbStage[thumbKey];
+              const thumbSrc = tStage === 'raw' ? rawThumbSource : (optimizedThumb || rawThumbSource);
+              const showThumbImg = Boolean(thumbSrc && tStage !== 'failed');
+              const handleThumbError = () =>
+                advanceStage(setThumbStage, thumbKey, Boolean(rawThumbSource && rawThumbSource !== optimizedThumb));
 
               return (
                 <button
-                  key={i}
+                  key={thumbKey}
                   onClick={() => setSlideIndex(i)}
                   className={`flex-shrink-0 w-20 h-12 rounded-lg border-2 transition-all overflow-hidden relative group focus:outline-none ${
                     isActive
@@ -1460,13 +1519,12 @@ export default function LectureViewer() {
                 >
                   {showThumbImg ? (
                     <img
-                      src={rawThumbUrl}
-                      alt={`Slide ${i + 1} thumbnail`}
+                      key={thumbSrc}
+                      src={thumbSrc}
+                      alt=""
                       className="w-full h-full object-cover pointer-events-none"
                       loading="lazy"
-                      onError={() => {
-                        setThumbErrors(prev => ({ ...prev, [i]: true }));
-                      }}
+                      onError={handleThumbError}
                     />
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-card to-muted/30 p-1 text-center">

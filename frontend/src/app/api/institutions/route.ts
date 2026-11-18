@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getPublicSupabaseClient } from '@/lib/supabase/anon';
 import { UPSA_INSTITUTION } from '@/lib/constants/upsa';
+
+const PUBLIC_CACHE_HEADERS = {
+  'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
+};
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    const supabase = getPublicSupabaseClient();
 
     const { data, error } = await supabase
       .from('institutions')
@@ -24,10 +25,10 @@ export async function GET(req: NextRequest) {
           city: 'Accra',
           type: 'university'
         }
-      ]);
+      ], { headers: PUBLIC_CACHE_HEADERS });
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(data, { headers: PUBLIC_CACHE_HEADERS });
   } catch (err) {
     return NextResponse.json([
       {
@@ -37,6 +38,6 @@ export async function GET(req: NextRequest) {
         city: 'Accra',
         type: 'university'
       }
-    ]);
+    ], { headers: PUBLIC_CACHE_HEADERS });
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/security/adminGuard';
+import { enforceHighCostLimit } from '@/lib/ratelimit';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
   GEMINI_CANDIDATE_MODELS,
@@ -26,9 +27,19 @@ function buildScanModeInstruction(mode: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  let releaseGuard: (() => void) | undefined;
   try {
-    const { error } = await requireAuth();
+    const { error, userId } = await requireAuth();
     if (error) return error;
+
+    const limit = await enforceHighCostLimit(userId || 'anon');
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many scan requests. Please slow down and try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(limit.retryAfterSec) } }
+      );
+    }
+    releaseGuard = limit.release;
 
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
@@ -141,5 +152,7 @@ RULES:
     console.error('Notes Scanner Error:', err);
     const msg = err instanceof Error ? err.message : 'Internal server error';
     return NextResponse.json({ error: msg }, { status: 500 });
+  } finally {
+    releaseGuard?.();
   }
 }

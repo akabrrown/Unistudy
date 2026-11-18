@@ -1,6 +1,3 @@
-'use client'
-
-import { useState } from "react"
 import Link from 'next/link'
 import { MarketingNavbar } from '@/components/layout/MarketingNavbar'
 import { MarketingFooter } from '@/components/layout/MarketingFooter'
@@ -9,6 +6,8 @@ import {
   Upload, Zap, CheckCircle, Eye,
   Globe, MessageCircle, Share2
 } from "lucide-react"
+
+export const dynamic = 'force-static';
 
 function Badge({ children, variant = "default", className = "" }: {
   children: React.ReactNode; variant?: "default" | "pro" | "new" | "success" | "warning" | "error"; className?: string;

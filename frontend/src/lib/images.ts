@@ -48,7 +48,7 @@ export function getOptimizedSlideUrl(
     let normalizedUrl = cleanUrl.replace('/raw/upload/', '/image/upload/');
 
     const isLow = Boolean(options.lowBandwidth);
-    const width = options.width || (isLow ? 1000 : 1600);
+    const width = options.width || (isLow ? 800 : 1280);
     const quality = options.quality ? `q_auto:${options.quality}` : (isLow ? 'q_auto:eco' : 'q_auto:good');
     const format = 'f_auto';
 
@@ -83,7 +83,7 @@ export function getSlideThumbnailUrl(url: string | null | undefined): string {
     const pageMatch = normalizedUrl.match(/pg_(\d+)/);
     const pageParam = pageMatch ? `${pageMatch[0]},` : '';
 
-    const transformation = `${pageParam}f_auto,q_auto:eco,w_180,h_100,c_fill`;
+    const transformation = `${pageParam}f_auto,q_auto:low,w_160,h_90,c_fill`;
 
     if (/\/upload\/[^/]+\//.test(normalizedUrl) && (normalizedUrl.includes('/upload/pg_') || normalizedUrl.includes('/upload/f_') || normalizedUrl.includes('/upload/q_') || normalizedUrl.includes('/upload/w_'))) {
       return normalizedUrl.replace(/\/upload\/[^/]+\//, `/upload/${transformation}/`);

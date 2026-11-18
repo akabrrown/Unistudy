@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticateUser } from '../middleware/auth';
+import { protectExpensiveEndpoint, deduplicateInFlightRequests } from '../middleware/expensiveGuard';
 import { supabaseAdmin } from '../lib/supabase';
 import {
   discoverMoodlePastPapers,
@@ -19,6 +20,8 @@ import { consumeUserQuota } from '../lib/ai/quota';
 
 const router = Router();
 router.use(authenticateUser);
+router.use(protectExpensiveEndpoint({ maxPerMinute: 10, maxConcurrent: 2 }));
+router.use(deduplicateInFlightRequests({ methods: ['GET', 'POST'] }));
 
 const syncCredentialsSchema = z.object({
   username: z.string().min(1, 'Index number or username is required'),

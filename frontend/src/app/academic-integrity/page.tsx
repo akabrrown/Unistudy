@@ -4,6 +4,8 @@ import { MarketingNavbar } from "@/components/layout/MarketingNavbar";
 import { MarketingFooter } from "@/components/layout/MarketingFooter";
 import { GraduationCap, BookOpen, AlertTriangle, CheckCircle, ArrowLeft } from "lucide-react";
 
+export const dynamic = 'force-static';
+
 export const metadata = {
   title: "Academic Integrity Policy | UniStudy AI",
   description: "UniStudy AI's standards for authentic learning, ethical study habits, and university honor codes.",

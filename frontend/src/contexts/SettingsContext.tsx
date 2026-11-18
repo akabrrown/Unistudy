@@ -67,6 +67,33 @@ interface SettingsContextType {
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
+const SETTINGS_CACHE_KEY = 'unistudy_settings_cache_v1';
+const SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function readCachedSettings(): UserSettings | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(SETTINGS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { settings?: UserSettings; cachedAt?: number };
+    if (parsed.settings && typeof parsed.cachedAt === 'number' && Date.now() - parsed.cachedAt < SETTINGS_CACHE_TTL_MS) {
+      return parsed.settings;
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return null;
+}
+
+function writeCachedSettings(next: UserSettings): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify({ settings: next, cachedAt: Date.now() }));
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
@@ -87,6 +114,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function loadSettings() {
       try {
+        const cached = readCachedSettings();
+        if (cached) {
+          setSettings(cached);
+          applyDOMChanges(cached);
+          setLoading(false);
+          return;
+        }
+
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
@@ -99,6 +134,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (data && data.settings) {
           setSettings(data.settings);
           applyDOMChanges(data.settings);
+          writeCachedSettings(data.settings);
           return;
         }
       } catch (err) {
@@ -118,6 +154,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const newSettings = { ...settings, ...updates };
     setSettings(newSettings);
     applyDOMChanges(newSettings);
+    writeCachedSettings(newSettings);
     
     try {
       await apiFetch('/settings/accessibility', {

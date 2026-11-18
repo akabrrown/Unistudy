@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getServerUser } from '@/lib/supabase/server';
 import { AnxietyCheckIn } from '@/components/AnxietyCheckIn';
 import {
   DashboardCommandCenter,
@@ -128,10 +128,7 @@ function computeHeatLevel(points: number): 0 | 1 | 2 | 3 | 4 {
 }
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [supabase, user] = await Promise.all([createClient(), getServerUser()]);
 
   const now = new Date();
   const todayStr = toUtcDateKey(now);
@@ -188,7 +185,8 @@ export default async function DashboardPage() {
       supabase
         .from('flashcards')
         .select('id, lecture_id, next_review')
-        .eq('user_id', user.id),
+        .eq('user_id', user.id)
+        .limit(500),
       supabase
         .from('calendar_events')
         .select('id, title, date, type, time')
@@ -200,7 +198,8 @@ export default async function DashboardPage() {
         .from('study_sessions')
         .select('id, duration_secs, session_date')
         .eq('user_id', user.id)
-        .gte('session_date', startOf28Days.toISOString().split('T')[0]),
+        .gte('session_date', startOf28Days.toISOString().split('T')[0])
+        .limit(500),
       supabase
         .from('quiz_attempts')
         .select('id, lecture_id, score, total, completed_at')
@@ -217,7 +216,8 @@ export default async function DashboardPage() {
         .from('confidence_ratings')
         .select('rated_at')
         .eq('user_id', user.id)
-        .gte('rated_at', startOf28Iso),
+        .gte('rated_at', startOf28Iso)
+        .limit(500),
       supabase
         .from('pinned_videos')
         .select('id, video_id, title, channel, watched, pinned_at')

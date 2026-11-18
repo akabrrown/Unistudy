@@ -4,6 +4,8 @@ import { MarketingNavbar } from "@/components/layout/MarketingNavbar";
 import { MarketingFooter } from "@/components/layout/MarketingFooter";
 import { Lock, ShieldCheck, Database, Server, UserCheck, ArrowLeft } from "lucide-react";
 
+export const dynamic = 'force-static';
+
 export const metadata = {
   title: "Privacy Policy | UniStudy AI",
   description: "How UniStudy AI collects, processes, and protects your educational data under Ghana's Data Protection Act.",

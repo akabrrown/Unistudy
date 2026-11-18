@@ -3,6 +3,8 @@ import { env } from './config/env';
 import { corsMiddleware } from './middleware/cors';
 import { requestLogger, logger } from './middleware/requestLogger';
 import { errorHandler } from './middleware/errorHandler';
+import { botGuard } from './middleware/botGuard';
+import { telemetryMiddleware } from './middleware/telemetry';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
@@ -60,6 +62,8 @@ app.use(rateLimit({
   skip: (req) => HEALTH_PATHS.has(req.path),
 }));
 
+app.use(botGuard);
+
 // Defensive rewrite for client configurations that include duplicate /api prefixes
 app.use((req, _res, next) => {
   if (req.url.startsWith('/api/api/')) {
@@ -75,6 +79,7 @@ app.use('/api/webhooks/paystack', express.raw({ type: 'application/json' }), pay
 app.use('/api/webhooks/mux', express.raw({ type: 'application/json' }), muxWebhook);
 
 app.use(express.json());
+app.use(telemetryMiddleware);
 
 // API Routes
 app.use('/api/ai', aiRoutes);

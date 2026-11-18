@@ -4,6 +4,7 @@ import Groq from 'groq-sdk'
 import { compile, derivative, evaluate, format, lusolve, simplify } from 'mathjs'
 import { z } from 'zod'
 import { withAIQuota } from '@/lib/ai/middleware'
+import { enforceHighCostLimit } from '@/lib/ratelimit'
 import {
   GEMINI_CANDIDATE_MODELS,
   GROQ_SMART_MODELS,
@@ -59,15 +60,30 @@ function stripDataUrlPrefix(input: string): { mimeType: string; data: string } {
 }
 
 async function handler(req: Request) {
+  const clientKey =
+    req.headers.get('authorization')?.slice(-16) ||
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
+    'anon'
+  const limit = await enforceHighCostLimit(`calc:${clientKey}`)
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many solver requests. Please wait a moment and try again.' },
+      { status: 429, headers: { 'Retry-After': String(limit.retryAfterSec) } }
+    )
+  }
+
   let rawBody: unknown
   try {
     rawBody = await req.json()
   } catch {
+    limit.release()
     return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 })
   }
 
   const parsed = CalculatorRequestSchema.safeParse(rawBody)
   if (!parsed.success) {
+    limit.release()
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message || 'Invalid math request' },
       { status: 400 }
@@ -351,6 +367,7 @@ async function handler(req: Request) {
         controller.enqueue(encoder.encode('data: [DONE]\n\n'))
       } finally {
         controller.close()
+        limit.release()
       }
     },
   })

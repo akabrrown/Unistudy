@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateUser } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimit';
+import { protectExpensiveEndpoint, deduplicateInFlightRequests } from '../middleware/expensiveGuard';
 import { withAIQuota } from '../middleware/quotaGuard';
 import { routeRequest, AIRequest } from '../lib/ai/router';
 import { consumeUserQuota, checkUserQuota } from '../lib/ai/quota';
@@ -10,6 +11,8 @@ const router = Router();
 
 router.use(authenticateUser);
 router.use(rateLimit);
+router.use(protectExpensiveEndpoint({ maxPerMinute: 12, maxConcurrent: 2 }));
+router.use(deduplicateInFlightRequests({ methods: ['GET', 'POST'] }));
 
 import multer from 'multer';
 import { GoogleGenerativeAI } from '@google/generative-ai';

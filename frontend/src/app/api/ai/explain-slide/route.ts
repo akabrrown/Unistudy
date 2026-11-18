@@ -1,20 +1,19 @@
 import { NextResponse } from 'next/server';
 import { generateSlideExplanation } from '@/app/actions/explain';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { getPublicSupabaseClient } from '@/lib/supabase/anon';
+import { enforceHighCostLimit } from '@/lib/ratelimit';
 
 export async function POST(request: Request) {
+  let releaseGuard: (() => void) | undefined;
   try {
     const authHeader = request.headers.get('Authorization');
     const token = authHeader?.split('Bearer ')[1];
-    
+
     let user;
     let authErr = null;
     if (token) {
-      // Use clean client without cookies to verify the token natively
-      const supabase = createSupabaseClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
+      // Reuse stateless anon client to verify bearer token without per-request client allocation
+      const supabase = getPublicSupabaseClient();
       const { data, error } = await supabase.auth.getUser(token);
       user = data?.user;
       authErr = error;
@@ -31,6 +30,15 @@ export async function POST(request: Request) {
       console.error('API Unauthorized. Token present?', !!token, 'Error:', authErr);
       return NextResponse.json({ error: `Unauthorized: ${authErr?.message || 'No user found'}` }, { status: 401 });
     }
+
+    const limit = await enforceHighCostLimit(user.id);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many explanation requests. Please wait a moment and try again.' },
+        { status: 429, headers: { 'Retry-After': String(limit.retryAfterSec) } }
+      );
+    }
+    releaseGuard = limit.release;
 
     const { slideText, level, courseContext, visionExplanation, imageUrl } = await request.json();
 
@@ -50,5 +58,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error('API /explain-slide error:', error);
     return NextResponse.json({ error: 'Failed to generate explanation' }, { status: 500 });
+  } finally {
+    releaseGuard?.();
   }
 }
