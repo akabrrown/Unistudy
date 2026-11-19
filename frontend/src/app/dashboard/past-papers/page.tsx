@@ -140,6 +140,19 @@ export default function PastPapersDashboard() {
   const [dismissedUploadAction, setDismissedUploadAction] = useState(false);
   const effectiveUploadOpen = isUploadModalOpen || (uploadParam === 'upload' && !dismissedUploadAction);
 
+  const [dismissedExamAreasAction, setDismissedExamAreasAction] = useState(false);
+  const isExamAreasAction = uploadParam === 'exam-areas' || uploadParam === 'exam-focus';
+  const effectiveExamFocusOpen = isExamFocusOpen || (isExamAreasAction && !dismissedExamAreasAction);
+  const handleExamFocusOpenChange = (open: boolean) => {
+    setIsExamFocusOpen(open);
+    if (!open && isExamAreasAction) {
+      setDismissedExamAreasAction(true);
+      router.replace('/dashboard/past-papers');
+    } else if (open) {
+      setDismissedExamAreasAction(false);
+    }
+  };
+
   const fetchDashboardState = async (): Promise<{
     nextCourses: CourseItem[];
     nextPapers: PastPaperRecord[];
@@ -1142,8 +1155,8 @@ export default function PastPapersDashboard() {
 
       {/* Exam Areas of Concentration Workspace */}
       <ExamFocusDialog
-        open={isExamFocusOpen}
-        onOpenChange={setIsExamFocusOpen}
+        open={effectiveExamFocusOpen}
+        onOpenChange={handleExamFocusOpenChange}
         courses={courses}
         initialCourseId={selectedCourseFilter || courses[0]?.id}
         defaultTab="questions"

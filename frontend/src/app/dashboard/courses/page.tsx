@@ -157,6 +157,7 @@ export default function CoursesPage() {
   const tabParam = searchParams.get('tab');
 
   const [dismissedNewAction, setDismissedNewAction] = useState(false);
+  const [dismissedExamAreasAction, setDismissedExamAreasAction] = useState(false);
   const [manualTab, setManualTab] = useState<{ forUrl: string | null; tab: 'active' | 'archived' } | null>(null);
 
   const activeView: 'active' | 'archived' =
@@ -179,6 +180,18 @@ export default function CoursesPage() {
       router.replace(activeView === 'archived' ? '/dashboard/courses?tab=archived' : '/dashboard/courses');
     } else if (open) {
       setDismissedNewAction(false);
+    }
+  };
+
+  const isExamAreasAction = actionParam === 'exam-areas' || actionParam === 'exam-focus';
+  const effectiveExamFocusOpen = isExamFocusOpen || (isExamAreasAction && !dismissedExamAreasAction);
+  const handleExamFocusOpenChange = (open: boolean) => {
+    setIsExamFocusOpen(open);
+    if (!open && isExamAreasAction) {
+      setDismissedExamAreasAction(true);
+      router.replace(activeView === 'archived' ? '/dashboard/courses?tab=archived' : '/dashboard/courses');
+    } else if (open) {
+      setDismissedExamAreasAction(false);
     }
   };
 
@@ -1470,8 +1483,8 @@ export default function CoursesPage() {
       ) : null}
 
       <ExamFocusDialog
-        open={isExamFocusOpen}
-        onOpenChange={setIsExamFocusOpen}
+        open={effectiveExamFocusOpen}
+        onOpenChange={handleExamFocusOpenChange}
         courses={activeCourses}
         initialCourseId={examFocusCourseId}
       />

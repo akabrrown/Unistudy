@@ -38,6 +38,7 @@ import {
   Clock,
   Pin,
   Compass,
+  Target,
 } from 'lucide-react';
 
 interface SubNavItem {
@@ -74,6 +75,7 @@ const NAV_SECTIONS: NavSection[] = [
         icon: BookOpen,
         subItems: [
           { label: 'Active Courses', href: '/dashboard/courses', icon: BookOpen },
+          { label: 'Exam Areas', href: '/dashboard/courses?action=exam-areas', icon: Target },
           { label: 'Recent Lectures', href: '/dashboard/lectures', icon: Clock },
           { label: 'New Course', href: '/dashboard/courses?action=new', icon: Plus },
           { label: 'Archived Courses', href: '/dashboard/courses?tab=archived', icon: Archive },
@@ -87,6 +89,7 @@ const NAV_SECTIONS: NavSection[] = [
         icon: Award,
         subItems: [
           { label: 'Question Bank', href: '/dashboard/past-papers', icon: FileText },
+          { label: 'Exam Areas', href: '/dashboard/past-papers?action=exam-areas', icon: Target },
           { label: 'Upload Paper', href: '/dashboard/past-papers?action=upload', icon: Upload },
         ],
       },
