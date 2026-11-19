@@ -458,7 +458,7 @@ export default function CalendarPage() {
                 setSelectedDate(todayDateString);
                 setIsAdding(true);
               }}
-              className="h-9 px-4 text-xs font-semibold bg-[#5B2D8E] dark:bg-primary hover:bg-[#492274] text-white gap-1.5 cursor-pointer"
+              className="h-9 px-4 text-xs font-semibold bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white gap-1.5 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               Add Event
@@ -729,7 +729,7 @@ export default function CalendarPage() {
                         className={cn(
                           'text-xs font-mono font-semibold w-6 h-6 flex items-center justify-center rounded-full tabular-nums',
                           isToday
-                            ? 'bg-[#5B2D8E] dark:bg-primary text-white'
+                            ? 'bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] text-white'
                             : isSelected
                               ? 'bg-primary/15 text-primary'
                               : 'text-foreground'
@@ -911,7 +911,7 @@ export default function CalendarPage() {
                   type="submit"
                   size="sm"
                   disabled={isSubmitting || !newEventTitle.trim()}
-                  className="w-full h-8 text-xs bg-[#5B2D8E] dark:bg-primary hover:bg-[#492274] text-white cursor-pointer"
+                  className="w-full h-8 text-xs bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white cursor-pointer"
                 >
                   {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
                   Save to {selectedDate}

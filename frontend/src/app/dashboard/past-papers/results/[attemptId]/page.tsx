@@ -248,8 +248,8 @@ export default function ExamResults() {
       <div className="max-w-2xl mx-auto text-center py-24 space-y-6">
         <div className="relative w-24 h-24 mx-auto">
           <div className="absolute inset-0 border-4 border-muted rounded-full"></div>
-          <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
-          <Bot className="absolute inset-0 m-auto w-8 h-8 text-purple-500 animate-pulse" />
+          <div className="absolute inset-0 border-4 border-primary rounded-full border-t-transparent animate-spin"></div>
+          <Bot className="absolute inset-0 m-auto w-8 h-8 text-primary animate-pulse" />
         </div>
         <div>
           <h2 className="text-2xl font-bold mb-2">AI is grading your exam...</h2>
@@ -295,7 +295,7 @@ export default function ExamResults() {
                 </Button>
                 {attempt?.past_papers?.course_id && (
                   <Link href={`/dashboard/courses/${attempt.past_papers.course_id}/past-papers`}>
-                    <Button className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-500/20 border-none">
+                    <Button className="bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#000038] dark:hover:bg-[#C28905] text-white shadow-lg border-none font-semibold">
                       <RefreshCw className="w-4 h-4 mr-2" /> Start Weakness Drill
                     </Button>
                   </Link>
@@ -347,7 +347,7 @@ export default function ExamResults() {
       {/* Detailed Feedback */}
       <div className="space-y-6">
         <h3 className="text-2xl font-bold flex items-center gap-2">
-          <Bot className="w-6 h-6 text-purple-500" /> AI Examiner Feedback
+          <Bot className="w-6 h-6 text-primary" /> AI Examiner Feedback
         </h3>
 
         {answers.map((ans, idx) => {
@@ -404,8 +404,8 @@ export default function ExamResults() {
                 </div>
 
                 {ans.feedback && (
-                  <div className="bg-purple-500/5 border border-purple-500/20 p-4 rounded-lg">
-                    <h4 className="font-semibold text-purple-600 flex items-center gap-2 mb-2">
+                  <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg">
+                    <h4 className="font-semibold text-primary flex items-center gap-2 mb-2">
                       <Bot className="w-4 h-4" /> Examiner Feedback &amp; Mark Breakdown
                     </h4>
                     <div className="text-foreground/90 leading-relaxed text-sm prose prose-sm dark:prose-invert max-w-none">

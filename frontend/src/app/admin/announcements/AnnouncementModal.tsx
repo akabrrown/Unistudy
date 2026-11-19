@@ -142,7 +142,7 @@ export function AnnouncementModal({ open, onOpenChange, onSuccess, announcement 
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white">
+            <Button type="submit" disabled={loading} className="bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#000038] dark:hover:bg-[#C28905] text-white font-semibold">
               {loading ? 'Saving...' : 'Save Announcement'}
             </Button>
           </DialogFooter>

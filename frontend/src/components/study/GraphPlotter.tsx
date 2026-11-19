@@ -45,7 +45,7 @@ const Plot = dynamic(() => import('react-plotly.js'), {
   ),
 })
 
-const FUNCTION_COLORS = ['#5B2D8E', '#0284c7', '#059669', '#d97706', '#dc2626']
+const FUNCTION_COLORS = ['#00004E', '#0284c7', '#059669', '#d97706', '#dc2626']
 
 interface ExpressionEntry {
   id: string
@@ -693,7 +693,7 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
                 f(x)=
               </span>
             </div>
-            <Button onClick={handleQuickPlot} size="sm" className="bg-[#5B2D8E] hover:bg-[#492274] text-white cursor-pointer">
+            <Button onClick={handleQuickPlot} size="sm" className="bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white cursor-pointer">
               Plot
             </Button>
           </div>
@@ -767,7 +767,7 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
                 size="sm"
                 onClick={() => void runGraphSolve()}
                 disabled={isSolving || isExtracting || (!problemText.trim() && !imagePreview)}
-                className="h-7 px-3 text-xs bg-[#5B2D8E] hover:bg-[#492274] text-white cursor-pointer"
+                className="h-7 px-3 text-xs bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white cursor-pointer"
               >
                 {isExtracting
                   ? 'Extracting...'
@@ -934,7 +934,7 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
                   size="sm"
                   onClick={() => void runGraphSolve()}
                   disabled={isSolving || isExtracting || (!problemText.trim() && !imagePreview)}
-                  className="h-8 px-4 text-xs bg-[#5B2D8E] dark:bg-primary hover:bg-[#492274] text-white cursor-pointer"
+                  className="h-8 px-4 text-xs bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white cursor-pointer"
                 >
                   {isExtracting ? (
                     <>
@@ -1075,7 +1075,7 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
                 type="button"
                 size="sm"
                 onClick={handleQuickPlot}
-                className="flex-1 text-xs h-8 bg-[#5B2D8E] dark:bg-primary hover:bg-[#492274] text-white cursor-pointer"
+                className="flex-1 text-xs h-8 bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white cursor-pointer"
               >
                 Plot Expressions
               </Button>

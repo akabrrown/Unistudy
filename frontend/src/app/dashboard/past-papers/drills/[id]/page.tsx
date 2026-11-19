@@ -112,8 +112,8 @@ export default function WeaknessDrillPage() {
       <div className="max-w-2xl mx-auto text-center py-24 space-y-6">
         <div className="relative w-24 h-24 mx-auto">
           <div className="absolute inset-0 border-4 border-muted rounded-full"></div>
-          <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
-          <Bot className="absolute inset-0 m-auto w-8 h-8 text-purple-500 animate-pulse" />
+          <div className="absolute inset-0 border-4 border-primary rounded-full border-t-transparent animate-spin"></div>
+          <Bot className="absolute inset-0 m-auto w-8 h-8 text-primary animate-pulse" />
         </div>
         <div>
           <h2 className="text-2xl font-bold mb-2">Generating Drills...</h2>
@@ -143,7 +143,7 @@ export default function WeaknessDrillPage() {
           </Button>
         </Link>
         <h1 className="text-3xl font-bold text-foreground">Weakness Drill</h1>
-        <p className="text-muted-foreground mt-1">Topic: <span className="font-semibold text-purple-600">{drill.topic}</span></p>
+        <p className="text-muted-foreground mt-1">Topic: <span className="font-semibold text-primary">{drill.topic}</span></p>
       </div>
 
       {submitted && (
@@ -168,7 +168,7 @@ export default function WeaknessDrillPage() {
             <Card key={qIndex} className={submitted ? (isCorrect ? 'border-green-500/50' : 'border-destructive/50') : ''}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg leading-relaxed font-medium flex gap-3">
-                  <span className="text-purple-500 flex-shrink-0">Q{qIndex + 1}.</span> 
+                  <span className="text-[#D89A06] flex-shrink-0">Q{qIndex + 1}.</span> 
                   {q.question}
                 </CardTitle>
               </CardHeader>
@@ -177,8 +177,8 @@ export default function WeaknessDrillPage() {
                   const isSelected = answers[qIndex] === opt;
                   const isActuallyCorrect = opt === q.correct_answer;
                   
-                  let optionClass = "border-border hover:border-purple-500/50";
-                  if (isSelected) optionClass = "border-purple-500 bg-purple-500/10";
+                  let optionClass = "border-border hover:border-primary/50";
+                  if (isSelected) optionClass = "border-primary bg-primary/10";
                   
                   if (submitted) {
                     if (isActuallyCorrect) {

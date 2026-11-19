@@ -37,7 +37,7 @@ export function QuotaExhaustedModal({ feature, provider, reason, open, onOpenCha
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Lock className="w-5 h-5 text-[var(--color-plum-500)]" />
+            <Lock className="w-5 h-5 text-primary" />
             Quota Exhausted
           </DialogTitle>
           <DialogDescription>
@@ -48,7 +48,7 @@ export function QuotaExhaustedModal({ feature, provider, reason, open, onOpenCha
         <div className="flex flex-col gap-3 mt-4">
           <Button 
             onClick={handleTopup} 
-            className="w-full bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white"
+            className="w-full bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#000038] dark:hover:bg-[#C28905] text-white font-semibold"
           >
             Top Up Credits
           </Button>

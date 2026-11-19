@@ -646,7 +646,7 @@ export function ExamFocusDialog({
                     <Button
                       type="submit"
                       disabled={generatingPack || extractingFile || !rawAreasInput.trim() || isOffline}
-                      className="h-9 px-4 text-xs font-semibold gap-1.5 bg-[#5B2D8E] dark:bg-primary text-white hover:bg-[#492274] cursor-pointer"
+                      className="h-9 px-4 text-xs font-semibold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
                     >
                       {generatingPack ? (
                         <>

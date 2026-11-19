@@ -17,7 +17,7 @@ export function ModelSelector({ isCollapsed = false }: ModelSelectorProps) {
       case 'fast':
         return <Zap className="w-4 h-4 text-yellow-500" />;
       case 'smart':
-        return <BrainCircuit className="w-4 h-4 text-purple-500" />;
+        return <BrainCircuit className="w-4 h-4 text-[#D89A06]" />;
       default:
         return <BrainCircuit className="w-4 h-4 text-blue-500" />;
     }
@@ -63,7 +63,7 @@ export function ModelSelector({ isCollapsed = false }: ModelSelectorProps) {
                     </SelectItem>
                     <SelectItem value="smart">
                       <div className="flex items-center gap-2">
-                        <BrainCircuit className="w-4 h-4 text-purple-500" />
+                        <BrainCircuit className="w-4 h-4 text-[#D89A06]" />
                         <span>Smart & Precise (2.0x)</span>
                       </div>
                     </SelectItem>
@@ -102,7 +102,7 @@ export function ModelSelector({ isCollapsed = false }: ModelSelectorProps) {
           </SelectItem>
           <SelectItem value="smart">
             <div className="flex items-center gap-2">
-              <BrainCircuit className="w-4 h-4 text-purple-500" />
+              <BrainCircuit className="w-4 h-4 text-[#D89A06]" />
               <span>Smart & Precise (2.0x)</span>
             </div>
           </SelectItem>

@@ -111,7 +111,7 @@ function VerifyContent() {
         <ArrowLeft size={16} />
         Back to Sign Up
       </Link>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-purple-500/20 via-background to-background -z-10" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background -z-10" />
 
       <Card className="w-full max-w-md shadow-2xl shadow-primary/10 border-primary/20 bg-card/80 backdrop-blur-sm">
         <CardHeader className="space-y-4 text-center pb-6">
@@ -148,7 +148,7 @@ function VerifyContent() {
           <Button
             onClick={handleVerify}
             disabled={verifying || otp.join('').length !== OTP_LENGTH}
-            className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-600 text-white"
+            className="w-full"
           >
             {verifying ? (
               <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying...</>

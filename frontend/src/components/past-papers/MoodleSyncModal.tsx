@@ -280,7 +280,7 @@ export function MoodleSyncModal({ isOpen, onClose, onSuccess }: MoodleSyncModalP
             <Button
               type="submit"
               disabled={isCredentialSyncing}
-              className="w-full h-10 text-xs font-semibold bg-[#5B2D8E] dark:bg-primary hover:bg-[#492274] text-white gap-2 cursor-pointer"
+              className="w-full h-10 text-xs font-semibold bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white gap-2 cursor-pointer"
             >
               {isCredentialSyncing ? (
                 <>
@@ -405,7 +405,7 @@ export function MoodleSyncModal({ isOpen, onClose, onSuccess }: MoodleSyncModalP
                     className="p-2.5 rounded-lg border border-border/80 bg-muted/20 flex items-center justify-between text-xs"
                   >
                     <div className="flex items-center gap-2 truncate pr-2">
-                      <FileText className="w-4 h-4 text-purple-600 shrink-0" />
+                      <FileText className="w-4 h-4 text-primary shrink-0" />
                       <div className="truncate">
                         <div className="font-semibold text-foreground truncate">{p.title}</div>
                         <div className="text-[11px] text-muted-foreground">{p.filename} · Year {p.year}</div>
@@ -422,7 +422,7 @@ export function MoodleSyncModal({ isOpen, onClose, onSuccess }: MoodleSyncModalP
             <Button
               onClick={handleManualSync}
               disabled={isSyncing || previewData.papers.length === 0}
-              className="w-full h-10 text-xs font-semibold bg-[#5B2D8E] dark:bg-primary hover:bg-[#492274] text-white gap-2 cursor-pointer"
+              className="w-full h-10 text-xs font-semibold bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white gap-2 cursor-pointer"
             >
               {isSyncing ? (
                 <>

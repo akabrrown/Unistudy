@@ -129,7 +129,7 @@ export default function ForgotPasswordPage() {
         <ArrowLeft size={16} />
         Back to Login
       </Link>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-purple-500/20 via-background to-background -z-10" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background -z-10" />
       
       <Card className="w-full max-w-md shadow-2xl shadow-primary/10 border-primary/20 bg-card/80 backdrop-blur-sm mt-12 md:mt-0">
         
@@ -159,7 +159,7 @@ export default function ForgotPasswordPage() {
                   />
                 </div>
                 {error && <p className="text-sm text-destructive">{error}</p>}
-                <Button type="submit" disabled={loading || !email} className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-600 text-white">
+                <Button type="submit" disabled={loading || !email} className="w-full">
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Send Reset Code'}
                 </Button>
               </form>
@@ -196,7 +196,7 @@ export default function ForgotPasswordPage() {
                 ))}
               </div>
               {error && <p className="text-sm text-center text-destructive">{error}</p>}
-              <Button onClick={handleVerifyOtp} disabled={loading || otp.join('').length !== OTP_LENGTH} className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 text-white">
+              <Button onClick={handleVerifyOtp} disabled={loading || otp.join('').length !== OTP_LENGTH} className="w-full">
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Verify Code'}
               </Button>
             </CardContent>
@@ -224,7 +224,7 @@ export default function ForgotPasswordPage() {
                   />
                 </div>
                 {error && <p className="text-sm text-destructive">{error}</p>}
-                <Button type="submit" disabled={loading || newPassword.length < 6} className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 text-white">
+                <Button type="submit" disabled={loading || newPassword.length < 6} className="w-full">
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Update Password'}
                 </Button>
               </form>
@@ -243,7 +243,7 @@ export default function ForgotPasswordPage() {
                 Your password has been successfully updated. You can now log in with your new password.
               </p>
             </div>
-            <Button onClick={() => router.replace('/login')} className="w-full bg-gradient-to-r from-purple-600 to-indigo-500 text-white">
+            <Button onClick={() => router.replace('/login')} className="w-full">
               Go to Login
             </Button>
           </CardContent>

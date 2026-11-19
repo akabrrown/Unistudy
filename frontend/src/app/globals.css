@@ -39,6 +39,47 @@
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
 
+  /* Official UPSA Brand Utilities */
+  --color-upsa-blue: #00004E;
+  --color-upsa-navy: #00004E;
+  --color-upsa-gold: #D89A06;
+  --color-upsa-white: #FFFFFF;
+
+  /* Legacy Plum & Purple Alias Map to UPSA Navy & Gold */
+  --color-plum-50: #F0F3FA;
+  --color-plum-100: #E0E6F5;
+  --color-plum-200: #C2CEEC;
+  --color-plum-400: #D89A06;
+  --color-plum-500: var(--color-plum-500);
+  --color-plum-600: var(--color-plum-600);
+  --color-plum-700: #000038;
+  --color-plum-800: #000030;
+  --color-plum-900: #000028;
+
+  --color-purple-50: #F0F3FA;
+  --color-purple-100: #E0E6F5;
+  --color-purple-200: #C2CEEC;
+  --color-purple-300: #8FA5DC;
+  --color-purple-400: #D89A06;
+  --color-purple-500: #00004E;
+  --color-purple-600: #000038;
+  --color-purple-700: #000030;
+  --color-purple-800: #000028;
+  --color-purple-900: #000020;
+  --color-purple-950: #000015;
+
+  --color-violet-50: #FEF9EC;
+  --color-violet-100: #FDF2D0;
+  --color-violet-200: #FBE3A1;
+  --color-violet-300: #F7CE67;
+  --color-violet-400: #F1B730;
+  --color-violet-500: #D89A06;
+  --color-violet-600: #B88205;
+  --color-violet-700: #936504;
+  --color-violet-800: #775007;
+  --color-violet-900: #62420A;
+  --color-violet-950: #392403;
+
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
@@ -115,81 +156,113 @@
 
 @layer base {
   :root {
-    --bg-page: #FAF8FF;
-    --bg-card: #F5F3FA;
-    --bg-subtle: #EDE7F6;
-    --color-plum-500: #5B2D8E;
-    --color-plum-600: #3D1A6E;
-    --text-muted: #6B5A8A;
-    --text-primary: #3D2B5E;
+    /* UPSA Brand Direct Variables */
+    --upsa-navy: #00004E;
+    --upsa-gold: #D89A06;
+    --upsa-white: #FFFFFF;
 
-    --background: 268 33% 97%;
-    --foreground: 268 40% 10%;
+    /* Semantic Surface Variables */
+    --bg-page: #F8F9FD;
+    --bg-card: #FFFFFF;
+    --bg-subtle: #F0F3F9;
+    --color-plum-500: #00004E;
+    --color-plum-600: #000038;
+    --text-muted: #4B526B;
+    --text-primary: #00004E;
+
+    /* Theme Tokens in HSL */
+    /* Background: Clean crisp ivory/ice white */
+    --background: 220 25% 98%;
+    /* Foreground: UPSA Deep Navy Blue (#00004E) */
+    --foreground: 240 100% 15%;
     
+    /* Card & Popover: Pure White (#FFFFFF) with Deep Navy text */
     --card: 0 0% 100%;
-    --card-foreground: 268 40% 10%;
+    --card-foreground: 240 100% 15%;
     
     --popover: 0 0% 100%;
-    --popover-foreground: 268 40% 10%;
+    --popover-foreground: 240 100% 15%;
     
-    --primary: 268 52% 37%;
+    /* Primary: UPSA Deep Navy Blue (#00004E) with Pure White text */
+    --primary: 240 100% 15%;
     --primary-foreground: 0 0% 100%;
     
-    --secondary: 268 53% 85%;
-    --secondary-foreground: 268 52% 37%;
+    /* Secondary: Soft Gold Wash with Navy Text */
+    --secondary: 42 90% 93%;
+    --secondary-foreground: 240 100% 15%;
     
-    --muted: 268 20% 93%;
-    --muted-foreground: 268 20% 40%;
+    /* Muted: Subtle cool slate tint */
+    --muted: 220 20% 93%;
+    --muted-foreground: 240 25% 42%;
     
-    --accent: 268 53% 85%;
-    --accent-foreground: 268 52% 37%;
+    /* Accent: UPSA Gold (#D89A06) with Deep Navy Text */
+    --accent: 42 95% 44%;
+    --accent-foreground: 240 100% 15%;
     
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
     
-    --border: 268 30% 88%;
-    --input: 268 30% 88%;
-    --ring: 268 52% 37%;
+    /* Borders: Crisp clean slate border */
+    --border: 220 20% 88%;
+    --input: 220 20% 88%;
+    /* Ring: UPSA Gold for clear, accessible focus states */
+    --ring: 42 95% 44%;
     
     --radius: 1rem;
   }
 
   .dark {
-    --bg-page: #0F0520;
-    --bg-card: #1C0A3A;
-    --bg-subtle: #2A1050;
-    --color-plum-500: #9B72CF;
-    --color-plum-600: #7B4DB5;
-    --text-muted: #9B72CF;
-    --text-primary: #D1C4E9;
+    /* UPSA Brand Direct Variables (Dark) */
+    --upsa-navy: #00004E;
+    --upsa-gold: #D89A06;
+    --upsa-white: #FFFFFF;
 
-    --background: 268 76% 7%;
-    --foreground: 268 20% 90%;
+    /* Semantic Surface Variables */
+    --bg-page: #040416;
+    --bg-card: #0A0A28;
+    --bg-subtle: #121238;
+    --color-plum-500: #D89A06;
+    --color-plum-600: #B88205;
+    --text-muted: #A3A8C2;
+    --text-primary: #FFFFFF;
+
+    /* Theme Tokens in HSL */
+    /* Background: Deepest Midnight Navy */
+    --background: 240 70% 5%;
+    /* Foreground: Pure White */
+    --foreground: 0 0% 100%;
     
-    --card: 263 70% 13%;
-    --card-foreground: 268 20% 90%;
+    /* Card & Popover: Elevated Deep Navy */
+    --card: 240 60% 10%;
+    --card-foreground: 0 0% 100%;
     
-    --popover: 263 70% 13%;
-    --popover-foreground: 268 20% 90%;
+    --popover: 240 60% 10%;
+    --popover-foreground: 0 0% 100%;
     
-    --primary: 268 52% 60%;
-    --primary-foreground: 0 0% 100%;
+    /* Primary: UPSA Gold (#D89A06) glowing against dark navy */
+    --primary: 42 95% 46%;
+    --primary-foreground: 240 100% 12%;
     
-    --secondary: 268 40% 25%;
-    --secondary-foreground: 268 20% 90%;
+    /* Secondary: Deep Navy tile with Gold highlight */
+    --secondary: 240 45% 18%;
+    --secondary-foreground: 42 95% 75%;
     
-    --muted: 268 40% 20%;
-    --muted-foreground: 268 20% 70%;
+    /* Muted: Deep navy tone with readable muted text */
+    --muted: 240 40% 14%;
+    --muted-foreground: 220 20% 70%;
     
-    --accent: 268 40% 25%;
-    --accent-foreground: 268 20% 90%;
+    /* Accent: UPSA Gold */
+    --accent: 42 95% 46%;
+    --accent-foreground: 240 100% 12%;
     
-    --destructive: 0 62% 30%;
-    --destructive-foreground: 268 20% 90%;
+    --destructive: 0 65% 45%;
+    --destructive-foreground: 0 0% 100%;
     
-    --border: 268 40% 25%;
-    --input: 268 40% 25%;
-    --ring: 268 52% 60%;
+    /* Borders: Subtle illuminated midnight navy border */
+    --border: 240 35% 20%;
+    --input: 240 35% 20%;
+    /* Ring: UPSA Gold */
+    --ring: 42 95% 46%;
   }
 }
 

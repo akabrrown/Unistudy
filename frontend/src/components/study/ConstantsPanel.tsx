@@ -276,9 +276,9 @@ export function ConstantsPanel({ onCopy }: { onCopy?: (value: string) => void })
 
         {/* AI Searching Indicator */}
         {isSearchingAI && (
-          <div className="text-center p-3 border border-purple-500/30 bg-purple-500/10 rounded-lg flex items-center justify-center gap-2 animate-pulse">
-            <Bot className="w-4 h-4 text-purple-500" />
-            <span className="text-xs text-purple-600 font-medium">Searching AI for '{search}'...</span>
+          <div className="text-center p-3 border border-primary/30 bg-primary/10 rounded-lg flex items-center justify-center gap-2 animate-pulse">
+            <Bot className="w-4 h-4 text-primary" />
+            <span className="text-xs text-primary font-medium">Searching AI for '{search}'...</span>
           </div>
         )}
 
@@ -301,7 +301,7 @@ export function ConstantsPanel({ onCopy }: { onCopy?: (value: string) => void })
                   <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                     {c.name}
                     {c.id.startsWith('ai-') ? (
-                      <Bot className="w-3 h-3 text-purple-500" />
+                      <Bot className="w-3 h-3 text-[#D89A06]" />
                     ) : (
                       <Atom className="w-2.5 h-2.5 text-primary opacity-60" />
                     )}

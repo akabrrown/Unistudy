@@ -289,7 +289,7 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
 
             <Link
               href="/dashboard/courses?action=new"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#5B2D8E] dark:bg-primary px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#492274] dark:hover:bg-primary/90 transition-colors cursor-pointer active:scale-[0.98]"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3.5 py-2 text-xs font-semibold hover:bg-primary/90 transition-colors cursor-pointer active:scale-[0.98]"
             >
               <FolderPlus className="h-3.5 w-3.5" strokeWidth={1.75} />
               New Course
@@ -465,7 +465,7 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
                       </div>
                       <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
                         <div
-                          className="h-full rounded-full bg-[#5B2D8E] dark:bg-primary transition-all"
+                          className="h-full rounded-full bg-primary transition-all"
                           style={{
                             width: `${Math.min(100, Math.round((resumeItem.slideNumber / resumeItem.slideCount) * 100))}%`,
                           }}
@@ -478,7 +478,7 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
                 <div className="flex sm:flex-row md:flex-col items-stretch sm:items-center md:items-end gap-2 shrink-0">
                   <Link
                     href={`/dashboard/courses/${resumeItem.courseId}/lectures/${resumeItem.lectureId}`}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#5B2D8E] dark:bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#492274] dark:hover:bg-primary/90 transition-colors cursor-pointer active:scale-[0.98]"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground px-4 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer active:scale-[0.98]"
                   >
                     Continue Deck
                     <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
@@ -508,7 +508,7 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
                 </div>
                 <Link
                   href="/dashboard/courses?action=new"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#5B2D8E] dark:bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#492274] dark:hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground px-4 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
                 >
                   <FolderPlus className="h-4 w-4" strokeWidth={1.75} />
                   Create First Course
@@ -862,12 +862,12 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
                   cell.level === 0
                     ? 'bg-muted/70 border border-border/40'
                     : cell.level === 1
-                    ? 'bg-[#E9D5FF] dark:bg-[#3B1861]'
+                    ? 'bg-[#FEF8E7] dark:bg-[#00004E]/50 border border-[#D89A06]/20'
                     : cell.level === 2
-                    ? 'bg-[#C084FC] dark:bg-[#5B2D8E]'
+                    ? 'bg-[#FAD980] dark:bg-[#00006E] border border-[#D89A06]/40'
                     : cell.level === 3
-                    ? 'bg-[#9333EA] dark:bg-[#7C3AED]'
-                    : 'bg-[#5B2D8E] dark:bg-[#A855F7]';
+                    ? 'bg-[#D89A06] dark:bg-[#D89A06]/80 text-[#00004E]'
+                    : 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E]';
                 return (
                   <div
                     key={cell.dateKey}
@@ -883,9 +883,9 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
               <div className="flex items-center gap-1">
                 <span>Less</span>
                 <span className="h-2.5 w-2.5 rounded-xs bg-muted/70 border border-border/40" />
-                <span className="h-2.5 w-2.5 rounded-xs bg-[#E9D5FF] dark:bg-[#3B1861]" />
-                <span className="h-2.5 w-2.5 rounded-xs bg-[#9333EA] dark:bg-[#7C3AED]" />
-                <span className="h-2.5 w-2.5 rounded-xs bg-[#5B2D8E] dark:bg-[#A855F7]" />
+                <span className="h-2.5 w-2.5 rounded-xs bg-[#FEF8E7] dark:bg-[#00004E]/50 border border-[#D89A06]/20" />
+                <span className="h-2.5 w-2.5 rounded-xs bg-[#FAD980] dark:bg-[#00006E]" />
+                <span className="h-2.5 w-2.5 rounded-xs bg-[#00004E] dark:bg-[#D89A06]" />
                 <span>More</span>
               </div>
             </div>

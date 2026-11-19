@@ -53,25 +53,25 @@ export default function FeaturesPage() {
   const features = ["Explain", "Practice", "Analyze", "Optimize"];
 
   return (
-    <div className="min-h-screen bg-[#FAF8FF] dark:bg-[#0F0C29] transition-colors" style={{ fontFamily: "Inter, sans-serif" }}>
+    <div className="min-h-screen bg-[#F8F9FD] dark:bg-[#040416] transition-colors" style={{ fontFamily: "Inter, sans-serif" }}>
       <MarketingNavbar />
       <main className="max-w-7xl mx-auto px-8 py-20">
         <div className="text-center mb-16">
-          <p className="text-[12px] font-bold tracking-[0.2em] uppercase text-[#9B72CF] mb-4">Enterprise-Grade Study Tools</p>
-          <h1 className="text-5xl md:text-6xl font-black text-[#1A0A2E] dark:text-white mb-6 tracking-tight">
+          <p className="text-[12px] font-bold tracking-[0.2em] uppercase text-[#D89A06] mb-4">Enterprise-Grade Study Tools</p>
+          <h1 className="text-5xl md:text-6xl font-black text-[#00004E] dark:text-white mb-6 tracking-tight">
             Powerful Features for Smarter Study
           </h1>
-          <p className="text-xl text-[#6B5A8A] dark:text-[#B39DDB] max-w-3xl mx-auto leading-relaxed">
+          <p className="text-xl text-[#4B526B] dark:text-[#A3A8C2] max-w-3xl mx-auto leading-relaxed">
             Everything you need to turn chaotic lecture notes, YouTube videos, and past papers into structured, retained knowledge.
           </p>
         </div>
 
-        <section className="bg-white dark:bg-[#1A0A2E] rounded-[32px] border border-[#D1C4E9] dark:border-white/10 shadow-xl shadow-[#5B2D8E]/5 py-16 px-8 mb-24 overflow-hidden relative">
+        <section className="bg-white dark:bg-[#0A0A28] rounded-[32px] border border-[#D89A06]/20 dark:border-white/10 shadow-xl shadow-[#00004E]/5 py-16 px-8 mb-24 overflow-hidden relative">
           {/* Decorative background blur */}
-          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#9B72CF]/10 blur-[120px] rounded-full pointer-events-none" />
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#D89A06]/10 blur-[120px] rounded-full pointer-events-none" />
           
           <div className="max-w-5xl mx-auto relative z-10">
-            <h2 className="text-3xl font-bold text-[#1A0A2E] dark:text-white mb-10" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+            <h2 className="text-3xl font-bold text-[#00004E] dark:text-white mb-10" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>
               The Ultimate Study Suite
             </h2>
             <div className="flex gap-3 mb-12 flex-wrap">
@@ -79,8 +79,8 @@ export default function FeaturesPage() {
                 <button key={f} onClick={() => setActiveTab(i)}
                   className={`px-6 py-2.5 rounded-full text-[15px] font-bold transition-all duration-300 ${
                     activeTab === i 
-                      ? "bg-[#5B2D8E] text-white shadow-lg shadow-[#5B2D8E]/25 scale-105" 
-                      : "bg-[#F5F3FA] dark:bg-white/5 border border-transparent text-[#6B5A8A] dark:text-[#B39DDB] hover:bg-[#EBE5F0] dark:hover:bg-white/10"
+                      ? "bg-[#00004E] text-white shadow-lg shadow-[#00004E]/25 dark:bg-[#D89A06] dark:text-[#00004E] scale-105" 
+                      : "bg-[#F0F3F9] dark:bg-white/5 border border-transparent text-[#4B526B] dark:text-[#A3A8C2] hover:bg-[#FEF8E7] dark:hover:bg-white/10"
                   }`}>
                   {f}
                 </button>
@@ -91,26 +91,26 @@ export default function FeaturesPage() {
               <div className="space-y-8 animate-in slide-in-from-left-4 duration-500">
                 {tabData[activeTab].items.map(([title, desc], idx) => (
                   <div key={title} className="flex gap-4 group">
-                    <div className="w-8 h-8 rounded-full bg-[#F5F3FA] dark:bg-[#5B2D8E]/20 flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-[#5B2D8E] group-hover:text-white transition-colors">
-                      <CheckCircle size={16} className="text-[#5B2D8E] group-hover:text-white transition-colors" />
+                    <div className="w-8 h-8 rounded-full bg-[#FEF8E7] dark:bg-[#00004E]/40 flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-[#00004E] dark:group-hover:bg-[#D89A06] group-hover:text-white dark:group-hover:text-[#00004E] transition-colors">
+                      <CheckCircle size={16} className="text-[#00004E] dark:text-[#D89A06] group-hover:text-white dark:group-hover:text-[#00004E] transition-colors" />
                     </div>
                     <div>
-                      <p className="text-[17px] font-bold text-[#1A0A2E] dark:text-white mb-1.5">{title}</p>
-                      <p className="text-[15px] text-[#6B5A8A] dark:text-[#B39DDB] leading-relaxed">{desc}</p>
+                      <p className="text-[17px] font-bold text-[#00004E] dark:text-white mb-1.5">{title}</p>
+                      <p className="text-[15px] text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">{desc}</p>
                     </div>
                   </div>
                 ))}
               </div>
               
-              <div className="bg-gradient-to-br from-[#FAF8FF] to-[#F5F3FA] dark:from-[#2A1B4E] dark:to-[#1A0A2E] rounded-[24px] border border-[#EBE5F0] dark:border-[#3D266E] shadow-2xl p-10 h-[320px] flex items-center justify-center transition-all animate-in zoom-in-95 duration-500">
+              <div className="bg-gradient-to-br from-[#F8F9FD] to-[#F0F3F9] dark:from-[#0E0E32] dark:to-[#0A0A28] rounded-[24px] border border-[#D9E0EE] dark:border-[#D89A06]/20 shadow-2xl p-10 h-[320px] flex items-center justify-center transition-all animate-in zoom-in-95 duration-500">
                 <div className="text-center space-y-4">
-                  <div className="w-20 h-20 bg-white dark:bg-[#5B2D8E]/40 rounded-2xl flex items-center justify-center mx-auto text-[#5B2D8E] shadow-sm border border-[#EBE5F0] dark:border-transparent">
+                  <div className="w-20 h-20 bg-white dark:bg-[#00004E]/50 rounded-2xl flex items-center justify-center mx-auto text-[#00004E] dark:text-[#D89A06] shadow-sm border border-[#D9E0EE] dark:border-transparent">
                     {(() => {
                       const ActiveIcon = tabData[activeTab].icon;
                       return <ActiveIcon size={36} strokeWidth={2.5} />;
                     })()}
                   </div>
-                  <p className="text-[16px] font-bold text-[#5B2D8E] dark:text-[#D1C4E9] tracking-wide">{tabData[activeTab].previewText}</p>
+                  <p className="text-[16px] font-bold text-[#00004E] dark:text-[#D89A06] tracking-wide">{tabData[activeTab].previewText}</p>
                 </div>
               </div>
             </div>
@@ -129,12 +129,12 @@ export default function FeaturesPage() {
             { icon: BookOpen, title: "Past Paper Simulator", desc: "Practice under timed, exam-like conditions using questions generated from your curriculum." },
             { icon: Heart, title: "Wellbeing Tracker", desc: "Log your mood, track your study efforts, and get AI-suggested breaks to prevent burnout." },
           ].map((feature, i) => (
-            <div key={i} className="group bg-white dark:bg-[#1A0A2E] p-8 rounded-[24px] shadow-sm hover:shadow-xl transition-all duration-300 border border-[#EBE5F0] dark:border-white/10 hover:-translate-y-1">
-              <div className="w-14 h-14 bg-[#F5F3FA] dark:bg-[#5B2D8E]/40 rounded-xl mb-6 flex items-center justify-center text-[#5B2D8E] group-hover:scale-110 transition-transform duration-300">
+            <div key={i} className="group bg-white dark:bg-[#0A0A28] p-8 rounded-[24px] shadow-sm hover:shadow-xl transition-all duration-300 border border-[#D9E0EE] dark:border-white/10 hover:-translate-y-1">
+              <div className="w-14 h-14 bg-[#FEF8E7] dark:bg-[#00004E]/40 rounded-xl mb-6 flex items-center justify-center text-[#00004E] dark:text-[#D89A06] group-hover:scale-110 transition-transform duration-300">
                 <feature.icon size={24} strokeWidth={2} />
               </div>
-              <h3 className="text-[19px] font-bold text-[#1A0A2E] dark:text-white mb-3">{feature.title}</h3>
-              <p className="text-[15px] text-[#6B5A8A] dark:text-[#B39DDB] leading-relaxed">{feature.desc}</p>
+              <h3 className="text-[19px] font-bold text-[#00004E] dark:text-white mb-3">{feature.title}</h3>
+              <p className="text-[15px] text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">{feature.desc}</p>
             </div>
           ))}
         </div>

@@ -15,40 +15,40 @@ export default function AcademicIntegrityPage() {
   const lastUpdated = "October 25, 2026";
 
   return (
-    <div className="min-h-screen bg-[#FAF8FF] dark:bg-[#0F0C29] text-[#1A0A2E] dark:text-[#E2D9F3] transition-colors flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#040416] text-[#00004E] dark:text-[#E2E8F0] transition-colors flex flex-col font-sans">
       <MarketingNavbar />
 
       <main className="flex-1 max-w-4xl mx-auto px-6 py-12 md:py-16">
         <div className="mb-8">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#5B2D8E] dark:text-[#B39DDB] hover:underline mb-4"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline mb-4"
           >
             <ArrowLeft size={14} /> Back to home
           </Link>
           <div className="flex items-center gap-3 mb-2">
-            <span className="p-2.5 rounded-xl bg-[#EDE7F6] dark:bg-white/5 text-[#5B2D8E] dark:text-[#B39DDB]">
+            <span className="p-2.5 rounded-xl bg-primary/10 text-primary">
               <GraduationCap size={24} />
             </span>
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-[#1A0A2E] dark:text-white" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>
               Academic integrity statement
             </h1>
           </div>
-          <p className="text-sm text-[#6B5A8A] dark:text-[#B39DDB]">
-            Last updated: <span className="font-medium text-[#1A0A2E] dark:text-white">{lastUpdated}</span> (guidelines on active recall, honor codes, and ethical revision).
+          <p className="text-sm text-muted-foreground">
+            Last updated: <span className="font-medium text-foreground">{lastUpdated}</span> (guidelines on active recall, honor codes, and ethical revision).
           </p>
         </div>
 
-        <div className="mb-10 p-4 md:p-5 rounded-2xl bg-[#EDE7F6]/60 dark:bg-white/5 border border-[#D1C4E9]/60 dark:border-white/10 flex items-start gap-3.5">
-          <BookOpen className="text-[#5B2D8E] dark:text-[#B39DDB] shrink-0 mt-0.5" size={20} />
-          <div className="text-xs md:text-sm text-[#4A3B66] dark:text-[#D1C4E9] leading-relaxed">
+        <div className="mb-10 p-4 md:p-5 rounded-2xl bg-secondary/50 dark:bg-card border border-border flex items-start gap-3.5">
+          <BookOpen className="text-primary shrink-0 mt-0.5" size={20} />
+          <div className="text-xs md:text-sm text-foreground leading-relaxed">
             <strong>Study principle:</strong> AI should act as a patient revision tutor that tests your comprehension and clarifies difficult concepts, <strong>never as a shortcut to bypass authentic learning</strong>. Our features are designed around active recall, spaced repetition, and step-by-step understanding.
           </div>
         </div>
 
-        <div className="space-y-10 text-[15px] leading-relaxed text-[#4A3B66] dark:text-[#C5B7DF]">
+        <div className="space-y-10 text-[15px] leading-relaxed text-foreground/90">
           <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#1A0A2E] dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
               1. Our stance on ethical AI in higher education
             </h2>
             <p>
@@ -65,7 +65,7 @@ export default function AcademicIntegrityPage() {
           </section>
 
           <section className="space-y-4">
-            <h2 className="text-xl font-bold text-[#1A0A2E] dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
               2. Student guidelines: permitted vs. prohibited use
             </h2>
 
@@ -99,7 +99,7 @@ export default function AcademicIntegrityPage() {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#1A0A2E] dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
               3. For faculty, lecturers, and institutions
             </h2>
             <p>
@@ -108,9 +108,9 @@ export default function AcademicIntegrityPage() {
             <p>
               If you are a lecturer or university administrator with questions on how UniStudy operates for your department, contact our academic liaison:
             </p>
-            <div className="p-4 rounded-xl bg-[#EDE7F6]/50 dark:bg-white/5 border border-[#D1C4E9]/50 dark:border-white/10 text-sm">
+            <div className="p-4 rounded-xl bg-[#00004E]/5 dark:bg-white/5 border border-[#00004E]/15 dark:border-white/10 text-sm">
               <p><strong>UniStudy AI (Academic Integrity Liaison)</strong></p>
-              <p>Email: <a href="mailto:unistudy.ai@gmail.com" className="text-[#5B2D8E] dark:text-[#D1C4E9] underline font-medium">unistudy.ai@gmail.com</a></p>
+              <p>Email: <a href="mailto:unistudy.ai@gmail.com" className="text-primary underline font-medium">unistudy.ai@gmail.com</a></p>
             </div>
           </section>
         </div>

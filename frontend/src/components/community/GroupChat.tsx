@@ -32,7 +32,7 @@ function renderMessageContent(content: string): ReactNode {
     }
     // Push the mention as a styled React element
     parts.push(
-      <span key={`m-${match.index}`} className="text-plum-400 font-bold">
+      <span key={`m-${match.index}`} className="text-[#D89A06] dark:text-[#F3CA68] font-bold">
         @{match[1]}
       </span>
     );
@@ -201,11 +201,11 @@ export function GroupChat({ groupId, userRole }: { groupId: string, userRole?: s
         <h3 className="font-semibold">Group Chat</h3>
         {pinnedMessages.length > 0 && (
           <div className="mt-2 bg-background border rounded-md p-2 flex flex-col gap-2">
-            <span className="text-xs font-bold text-plum-500 uppercase tracking-wider flex items-center gap-1">
+            <span className="text-xs font-bold text-[#00004E] dark:text-[#D89A06] uppercase tracking-wider flex items-center gap-1">
               <Pin className="w-3 h-3" /> Pinned Messages
             </span>
             {pinnedMessages.map(pm => (
-              <div key={pm.id} className="text-sm truncate pl-2 border-l-2 border-plum-500 cursor-pointer" onClick={() => document.getElementById(`msg-${pm.id}`)?.scrollIntoView({ behavior: 'smooth' })}>
+              <div key={pm.id} className="text-sm truncate pl-2 border-l-2 border-[#00004E] dark:border-[#D89A06] cursor-pointer" onClick={() => document.getElementById(`msg-${pm.id}`)?.scrollIntoView({ behavior: 'smooth' })}>
                 <span className="font-semibold text-xs">{pm.profiles?.full_name}:</span> {pm.content}
               </div>
             ))}

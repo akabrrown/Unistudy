@@ -64,7 +64,7 @@ export function AttachmentPicker({
               YouTube Video
             </Button>
             <Button variant="ghost" className="justify-start text-sm h-8" onClick={handleMaterialAttach}>
-              <Book className="w-4 h-4 mr-2 text-plum-500" />
+              <Book className="w-4 h-4 mr-2 text-[#00004E] dark:text-[#D89A06]" />
               Study Material
             </Button>
           </div>

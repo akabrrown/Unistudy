@@ -60,8 +60,8 @@ export function ExamCountdownList({ exams, courses }: { exams: Exam[], courses: 
           colorClass = 'text-green-600 dark:text-green-500';
           bgClass = 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-900/50';
         } else {
-          colorClass = 'text-[#5B2D8E] dark:text-[#D4B3FF]'; // Lavender / Brand color
-          bgClass = 'bg-[#FAF8FF] border-[#EBE5F0] dark:bg-[#5B2D8E]/10 dark:border-[#5B2D8E]/20';
+          colorClass = 'text-[#00004E] dark:text-[#D89A06]'; // UPSA Brand Colors
+          bgClass = 'bg-[#FEF8E7] border-[#D89A06]/30 dark:bg-[#00004E]/30 dark:border-[#D89A06]/20';
         }
 
         const widgetContent = (

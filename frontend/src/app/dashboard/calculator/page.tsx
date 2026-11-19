@@ -979,7 +979,7 @@ export default function CalculatorPage() {
                   size="sm"
                   onClick={() => void runSolve()}
                   disabled={isComputing || isExtracting || (!problem.trim() && !imagePreview)}
-                  className="h-9 px-4 text-xs font-semibold bg-[#5B2D8E] dark:bg-primary hover:bg-[#492274] text-white gap-1.5 cursor-pointer"
+                  className="h-9 px-4 text-xs font-semibold bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white gap-1.5 cursor-pointer"
                 >
                   {isExtracting ? (
                     <>

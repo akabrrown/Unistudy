@@ -875,7 +875,7 @@ export default function LecturesHubPage() {
                     {/* Stats */}
                     <div className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
                       {lecture.processing ? (
-                        <span className="inline-flex items-center gap-1.5 text-purple-600 dark:text-purple-400 font-semibold animate-pulse">
+                        <span className="inline-flex items-center gap-1.5 text-[#D89A06] font-semibold animate-pulse">
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           Processing Slides...
                         </span>
@@ -897,7 +897,7 @@ export default function LecturesHubPage() {
                     {lecture.processing ? (
                       <Link
                         href={`/dashboard/courses/${course.id}/lectures/${lecture.id}`}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-purple-600/90 hover:bg-purple-700 text-white py-2 px-3 text-xs font-semibold transition-colors cursor-pointer"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#D89A06] hover:bg-[#C28905] text-[#00004E] py-2 px-3 text-xs font-semibold transition-colors cursor-pointer"
                       >
                         <Loader2 className="w-3 h-3 animate-spin" />
                         Processing Slides...

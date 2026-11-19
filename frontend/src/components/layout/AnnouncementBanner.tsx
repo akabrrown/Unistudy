@@ -31,7 +31,7 @@ export function AnnouncementBanner({ announcement }: AnnouncementBannerProps) {
   }
 
   return (
-    <div className="bg-[var(--color-plum-500)] text-white px-4 py-3 flex items-start sm:items-center justify-between gap-4 rounded-xl mb-6 shadow-sm">
+    <div className="bg-[#00004E] dark:bg-[#D89A06] text-white dark:text-[#00004E] px-4 py-3 flex items-start sm:items-center justify-between gap-4 rounded-xl mb-6 shadow-sm">
       <div className="flex items-start sm:items-center gap-3">
         <div className="bg-white/20 p-2 rounded-full shrink-0">
           <Megaphone className="w-4 h-4 text-white" />

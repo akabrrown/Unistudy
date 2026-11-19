@@ -15,49 +15,49 @@ export default function TermsPage() {
   const lastUpdated = "October 25, 2026";
 
   return (
-    <div className="min-h-screen bg-[#FAF8FF] dark:bg-[#0F0C29] text-[#1A0A2E] dark:text-[#E2D9F3] transition-colors flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#040416] text-[#00004E] dark:text-[#E2E8F0] transition-colors flex flex-col font-sans">
       <MarketingNavbar />
 
       <main className="flex-1 max-w-4xl mx-auto px-6 py-12 md:py-16">
         <div className="mb-8">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#5B2D8E] dark:text-[#B39DDB] hover:underline mb-4"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline mb-4"
           >
             <ArrowLeft size={14} /> Back to home
           </Link>
           <div className="flex items-center gap-3 mb-2">
-            <span className="p-2.5 rounded-xl bg-[#EDE7F6] dark:bg-white/5 text-[#5B2D8E] dark:text-[#B39DDB]">
+            <span className="p-2.5 rounded-xl bg-primary/10 text-primary">
               <FileText size={24} />
             </span>
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-[#1A0A2E] dark:text-white" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>
               Terms of service
             </h1>
           </div>
-          <p className="text-sm text-[#6B5A8A] dark:text-[#B39DDB]">
-            Last updated: <span className="font-medium text-[#1A0A2E] dark:text-white">{lastUpdated}</span> (effective immediately upon registration or platform use).
+          <p className="text-sm text-muted-foreground">
+            Last updated: <span className="font-medium text-foreground">{lastUpdated}</span> (effective immediately upon registration or platform use).
           </p>
         </div>
 
-        <div className="mb-10 p-4 md:p-5 rounded-2xl bg-[#EDE7F6]/60 dark:bg-white/5 border border-[#D1C4E9]/60 dark:border-white/10 flex items-start gap-3.5">
-          <Shield className="text-[#5B2D8E] dark:text-[#B39DDB] shrink-0 mt-0.5" size={20} />
-          <div className="text-xs md:text-sm text-[#4A3B66] dark:text-[#D1C4E9] leading-relaxed">
+        <div className="mb-10 p-4 md:p-5 rounded-2xl bg-secondary/50 dark:bg-card border border-border flex items-start gap-3.5">
+          <Shield className="text-primary shrink-0 mt-0.5" size={20} />
+          <div className="text-xs md:text-sm text-foreground leading-relaxed">
             <strong>Key summary:</strong> UniStudy AI is a revision and active recall platform designed to help university students understand lecture materials, practice with quizzes, and prepare for examinations. We respect your intellectual property, enforce academic honesty, and process payments securely via Paystack.
           </div>
         </div>
 
-        <div className="space-y-10 text-[15px] leading-relaxed text-[#4A3B66] dark:text-[#C5B7DF]">
+        <div className="space-y-10 text-[15px] leading-relaxed text-foreground/90">
           <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#1A0A2E] dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-foreground tracking-tight">
               1. Acceptance of terms
             </h2>
             <p>
-              By accessing, browsing, registering, or using UniStudy AI (&ldquo;UniStudy&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;), accessible at unistudy.ai or unistudy-silk.vercel.app, you agree to these Terms of Service and our <Link href="/privacy" className="text-[#5B2D8E] dark:text-[#D1C4E9] font-medium underline">Privacy policy</Link>. If you do not agree to these terms, discontinue use of the platform.
+              By accessing, browsing, registering, or using UniStudy AI (&ldquo;UniStudy&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;), accessible at unistudy.ai or unistudy-silk.vercel.app, you agree to these Terms of Service and our <Link href="/privacy" className="text-primary font-medium underline">Privacy policy</Link>. If you do not agree to these terms, discontinue use of the platform.
             </p>
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#1A0A2E] dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
               2. Description of services
             </h2>
             <p>
@@ -73,7 +73,7 @@ export default function TermsPage() {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#1A0A2E] dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
               3. User accounts and eligibility
             </h2>
             <p>
@@ -83,12 +83,12 @@ export default function TermsPage() {
               <li>Provide accurate, current registration information.</li>
               <li>Maintain the confidentiality of your login credentials and accept responsibility for account activity.</li>
               <li>Be at least 16 years of age or enrolled in a secondary or tertiary educational institution.</li>
-              <li>Promptly notify us at <a href="mailto:unistudy.ai@gmail.com" className="text-[#5B2D8E] dark:text-[#D1C4E9] underline">unistudy.ai@gmail.com</a> if you notice unauthorized account access.</li>
+              <li>Promptly notify us at <a href="mailto:unistudy.ai@gmail.com" className="text-primary underline">unistudy.ai@gmail.com</a> if you notice unauthorized account access.</li>
             </ul>
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#1A0A2E] dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
               4. User content and intellectual property
             </h2>
             <p>
@@ -103,7 +103,7 @@ export default function TermsPage() {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#1A0A2E] dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
               5. Academic integrity and acceptable use
             </h2>
             <p>
@@ -116,12 +116,12 @@ export default function TermsPage() {
               <li>You will not upload malicious files, copyrighted commercial textbooks without permission, or defamatory material.</li>
             </ul>
             <p>
-              Misuse may result in immediate account termination. Review our full <Link href="/academic-integrity" className="text-[#5B2D8E] dark:text-[#D1C4E9] underline font-medium">Academic integrity policy</Link>.
+              Misuse may result in immediate account termination. Review our full <Link href="/academic-integrity" className="text-primary underline font-medium">Academic integrity policy</Link>.
             </p>
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#1A0A2E] dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
               6. AI disclaimers and limitations
             </h2>
             <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 text-xs md:text-sm text-amber-900 dark:text-amber-200 space-y-2">
@@ -138,7 +138,7 @@ export default function TermsPage() {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#1A0A2E] dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
               7. Fees, credits, and Paystack billing
             </h2>
             <p>
@@ -152,7 +152,7 @@ export default function TermsPage() {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#1A0A2E] dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
               8. Limitation of liability
             </h2>
             <p>
@@ -161,7 +161,7 @@ export default function TermsPage() {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#1A0A2E] dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
               9. Governing law
             </h2>
             <p>
@@ -170,15 +170,15 @@ export default function TermsPage() {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#1A0A2E] dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
               10. Contact and legal inquiries
             </h2>
             <p>
               If you have questions regarding these terms, contact our team:
             </p>
-            <div className="p-4 rounded-xl bg-[#EDE7F6]/50 dark:bg-white/5 border border-[#D1C4E9]/50 dark:border-white/10 text-sm">
+            <div className="p-4 rounded-xl bg-[#00004E]/5 dark:bg-white/5 border border-[#00004E]/15 dark:border-white/10 text-sm">
               <p><strong>UniStudy AI Ltd. (Legal &amp; Compliance)</strong></p>
-              <p>Email: <a href="mailto:unistudy.ai@gmail.com" className="text-[#5B2D8E] dark:text-[#D1C4E9] underline">unistudy.ai@gmail.com</a></p>
+              <p>Email: <a href="mailto:unistudy.ai@gmail.com" className="text-primary underline">unistudy.ai@gmail.com</a></p>
               <p>Location: Accra, Ghana</p>
             </div>
           </section>

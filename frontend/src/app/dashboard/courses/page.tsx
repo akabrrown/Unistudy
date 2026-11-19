@@ -104,7 +104,7 @@ export default function CoursesPage() {
 
   const [newCourseCode, setNewCourseCode] = useState('');
   const [newCourseName, setNewCourseName] = useState('');
-  const [newCourseColor, setNewCourseColor] = useState('#5B2D8E');
+  const [newCourseColor, setNewCourseColor] = useState('#00004E');
   const [newCourseSemester, setNewCourseSemester] = useState('1');
   const [newCourseYear, setNewCourseYear] = useState(new Date().getFullYear().toString());
   const [matchedPapersCount, setMatchedPapersCount] = useState<number>(0);
@@ -141,7 +141,7 @@ export default function CoursesPage() {
   const [editCourseId, setEditCourseId] = useState<string | null>(null);
   const [editCourseCode, setEditCourseCode] = useState('');
   const [editCourseName, setEditCourseName] = useState('');
-  const [editCourseColor, setEditCourseColor] = useState('#5B2D8E');
+  const [editCourseColor, setEditCourseColor] = useState('#00004E');
   const [editCourseSemester, setEditCourseSemester] = useState('1');
   const [editCourseYear, setEditCourseYear] = useState('');
 
@@ -345,7 +345,7 @@ export default function CoursesPage() {
     }
 
     try {
-      const colour = newCourseColor || '#5B2D8E';
+      const colour = newCourseColor || '#00004E';
       const newCourseData = {
         course_code: newCourseCode.trim().toUpperCase(),
         title: newCourseName.trim(),
@@ -594,7 +594,7 @@ export default function CoursesPage() {
             </Link>
 
             <Dialog open={effectiveCourseDialogOpen} onOpenChange={handleCourseDialogChange}>
-              <DialogTrigger className="inline-flex items-center justify-center rounded-lg bg-[#5B2D8E] dark:bg-primary hover:bg-[#492274] dark:hover:bg-primary/90 text-white h-9 px-4 py-2 gap-1.5 text-xs font-semibold transition-colors cursor-pointer">
+              <DialogTrigger className="inline-flex items-center justify-center rounded-lg bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white h-9 px-4 py-2 gap-1.5 text-xs font-semibold transition-colors cursor-pointer">
                 <Plus size={15} /> Add Course
               </DialogTrigger>
               <DialogContent className="sm:max-w-[440px]">
@@ -978,7 +978,7 @@ export default function CoursesPage() {
                   <Button
                     type="button"
                     onClick={() => switchView('active')}
-                    className="bg-[#5B2D8E] dark:bg-primary hover:bg-[#492274] text-white shrink-0 cursor-pointer"
+                    className="bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white shrink-0 cursor-pointer"
                   >
                     Manage Active Courses
                     <ArrowRight className="w-4 h-4 ml-1.5" />
@@ -1124,7 +1124,7 @@ export default function CoursesPage() {
               <Button
                 type="button"
                 onClick={() => handleCourseDialogChange(true)}
-                className="bg-[#5B2D8E] dark:bg-primary hover:bg-[#492274] text-white shrink-0 cursor-pointer"
+                className="bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white shrink-0 cursor-pointer"
               >
                 <Plus className="w-4 h-4 mr-1.5" />
                 Create First Course
@@ -1396,7 +1396,7 @@ export default function CoursesPage() {
                             >
                               <span className="truncate">{lec.title || 'Untitled Lecture'}</span>
                               {lec.processing ? (
-                                <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold animate-pulse shrink-0">
+                                <span className="text-[10px] text-[#D89A06] font-semibold animate-pulse shrink-0">
                                   Processing...
                                 </span>
                               ) : (

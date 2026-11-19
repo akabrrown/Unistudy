@@ -16,7 +16,7 @@ export default function PastPaperAttemptRedirectPage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
-      <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+      <Loader2 className="w-8 h-8 animate-spin text-primary" />
       <p className="text-muted-foreground text-sm">Opening past paper exam...</p>
     </div>
   )

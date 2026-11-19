@@ -92,10 +92,10 @@ export function CalculatorPanel({ onClose }: { onClose: () => void }) {
   return (
     <div className="absolute right-0 top-14 bottom-0 w-[400px] bg-card border-l border-border shadow-2xl flex flex-col z-[60] animate-in slide-in-from-right">
       {/* Header */}
-      <div className="flex-shrink-0 flex flex-col px-4 py-3 border-b border-border bg-purple-500/5">
+      <div className="flex-shrink-0 flex flex-col px-4 py-3 border-b border-border bg-[#00004E]/5 dark:bg-white/5">
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-sm flex items-center gap-2">
-            <Calculator size={15} className="text-purple-500" />
+            <Calculator size={15} className="text-primary" />
             Math Toolkit
           </h3>
           <Button variant="ghost" size="icon-sm" onClick={onClose}>
@@ -109,28 +109,28 @@ export function CalculatorPanel({ onClose }: { onClose: () => void }) {
       <div className="flex-shrink-0 flex border-b border-border px-2 pt-2 gap-1 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('calculator')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${activeTab === 'calculator' ? 'border-purple-500 text-purple-500' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${activeTab === 'calculator' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
         >
           <Calculator size={13} />
           Solver
         </button>
         <button
           onClick={() => setActiveTab('graph')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${activeTab === 'graph' ? 'border-purple-500 text-purple-500' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${activeTab === 'graph' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
         >
           <LineChart size={13} />
           Plotter
         </button>
         <button
           onClick={() => setActiveTab('formulas')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${activeTab === 'formulas' ? 'border-purple-500 text-purple-500' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${activeTab === 'formulas' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
         >
           <Sigma size={13} />
           Formulas
         </button>
         <button
           onClick={() => setActiveTab('constants')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${activeTab === 'constants' ? 'border-purple-500 text-purple-500' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${activeTab === 'constants' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
         >
           <Atom size={13} />
           Constants
@@ -160,7 +160,7 @@ export function CalculatorPanel({ onClose }: { onClose: () => void }) {
                 </div>
               )}
               {isComputing && !result && (
-                <div className="flex items-center gap-2 text-purple-500 font-medium text-sm p-2">
+                <div className="flex items-center gap-2 text-primary font-medium text-sm p-2">
                   <Loader2 size={16} className="animate-spin" />
                   Analysing problem…
                 </div>
@@ -177,7 +177,7 @@ export function CalculatorPanel({ onClose }: { onClose: () => void }) {
 
             {/* Input */}
             <div className="flex-shrink-0 bg-card border border-border rounded-xl p-3 flex flex-col gap-2 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-transparent pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent pointer-events-none" />
               {imagePreview && (
                 <div className="relative z-10 flex items-center justify-between gap-2 bg-muted/40 border border-border rounded-lg px-2 py-1">
                   <div className="flex items-center gap-2 min-w-0">
@@ -238,7 +238,7 @@ export function CalculatorPanel({ onClose }: { onClose: () => void }) {
                   </Button>
                   <Button
                     size="icon"
-                    className="rounded-full bg-purple-500 hover:bg-purple-600 text-white shadow-lg shadow-purple-500/20 transition-transform hover:scale-105 active:scale-95"
+                    className="rounded-full bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#000038] dark:hover:bg-[#C28905] text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
                     onClick={handleSolve}
                     disabled={isComputing || (!problem.trim() && !imagePreview)}
                   >

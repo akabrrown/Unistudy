@@ -22,7 +22,7 @@ export function QuotaBar() {
 
   return (
     <Link href="/pricing" className="fixed bottom-4 left-4 bg-background border border-border rounded-full shadow-lg px-4 py-2 z-50 flex items-center gap-2 hover:bg-muted transition-colors cursor-pointer group">
-      <div className="bg-[var(--color-plum-100)] dark:bg-[var(--color-plum-900)] p-1.5 rounded-full text-[var(--color-plum-600)] dark:text-[var(--color-plum-400)]">
+      <div className="bg-[#D89A06]/15 dark:bg-[#D89A06]/20 p-1.5 rounded-full text-[#00004E] dark:text-[#D89A06]">
         <Coins className="w-4 h-4" />
       </div>
       <div className="flex flex-col">

@@ -62,7 +62,7 @@ export default async function PastPapersPage(props: { params: Promise<{ courseId
         {/* Left Column: Papers List */}
         <div className="md:col-span-2 space-y-6">
           <h2 className="text-xl font-semibold flex items-center gap-2">
-            <FileText className="w-5 h-5 text-purple-500" />
+            <FileText className="w-5 h-5 text-primary" />
             Available Papers
           </h2>
           {papers.length === 0 ? (
@@ -72,12 +72,12 @@ export default async function PastPapersPage(props: { params: Promise<{ courseId
           ) : (
             <div className="grid gap-3">
               {papers.map(paper => (
-                <div key={paper.id} className="flex items-center justify-between p-4 bg-card border border-border rounded-xl shadow-sm hover:border-purple-500/50 transition-colors">
+                <div key={paper.id} className="flex items-center justify-between p-4 bg-card border border-border rounded-xl shadow-sm hover:border-primary/50 transition-colors">
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-base">{paper.title || `${paper.year} ${paper.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm'}`}</h3>
                       {paper.course_id !== params.courseId && (
-                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                           University Bank
                         </span>
                       )}

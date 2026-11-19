@@ -521,19 +521,19 @@ export default function PastPapersDashboard() {
               onClick={handleDirectPortalSync}
               disabled={isSyncingPortal}
               variant="outline"
-              className="h-9 px-3.5 text-xs font-semibold gap-1.5 border-purple-500/30 hover:bg-purple-500/10 text-purple-700 dark:text-purple-300 cursor-pointer"
+              className="h-9 px-3.5 text-xs font-semibold gap-1.5 border-primary/30 hover:bg-primary/10 text-primary cursor-pointer"
             >
               {isSyncingPortal ? (
-                <Loader2 className="w-4 h-4 animate-spin text-purple-600 dark:text-purple-400" />
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
               ) : (
-                <DownloadCloud className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <DownloadCloud className="w-4 h-4 text-primary" />
               )}
               {isSyncingPortal ? 'Syncing UPSA Portal...' : 'Sync University Portal'}
             </Button>
 
             <Button
               onClick={() => handleOpenUpload(selectedCourseFilter || undefined)}
-              className="h-9 px-4 text-xs font-semibold bg-[#5B2D8E] dark:bg-primary hover:bg-[#492274] text-white gap-1.5 cursor-pointer"
+              className="h-9 px-4 text-xs font-semibold bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white gap-1.5 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               Upload Past Paper
@@ -605,7 +605,7 @@ export default function PastPapersDashboard() {
               className={cn(
                 'rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer tabular-nums',
                 selectedCourseFilter === null
-                  ? 'bg-[#5B2D8E] dark:bg-primary text-white border-transparent'
+                  ? 'bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] text-white border-transparent'
                   : 'bg-background border-border text-muted-foreground hover:text-foreground'
               )}
             >
@@ -793,7 +793,7 @@ export default function PastPapersDashboard() {
                 {papers.length === 0 ? (
                   <Button
                     onClick={() => handleOpenUpload(selectedCourseFilter || undefined)}
-                    className="bg-[#5B2D8E] dark:bg-primary hover:bg-[#492274] text-white shrink-0 cursor-pointer"
+                    className="bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white shrink-0 cursor-pointer"
                   >
                     <Upload className="w-4 h-4 mr-1.5" />
                     Upload Paper PDF
@@ -952,7 +952,7 @@ export default function PastPapersDashboard() {
                     >
                       <Link
                         href={`/dashboard/past-papers/${paper.id}/attempt`}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#5B2D8E] dark:bg-primary hover:bg-[#492274] text-white px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
                       >
                         <Play className="w-3 h-3" />
                         Start Attempt

@@ -247,7 +247,7 @@ export default function PastPaperDetails() {
           <CardContent>
             {paper.status === 'processing' ? (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground bg-muted/20 rounded-lg border border-dashed border-border">
-                <Bot className="w-8 h-8 mb-3 animate-pulse text-purple-500" />
+                <Bot className="w-8 h-8 mb-3 animate-pulse text-[#00004E] dark:text-[#D89A06]" />
                 <p>AI is currently extracting questions from the PDF...</p>
                 <p className="text-sm mt-1 opacity-70">This usually takes about 30-60 seconds.</p>
               </div>
@@ -298,7 +298,7 @@ export default function PastPaperDetails() {
                           })()}
                         </div>
                         {q.extracted_topic && (
-                          <div className="mt-3 inline-block text-[10px] uppercase tracking-wider font-semibold text-purple-500 bg-purple-500/10 px-2 py-1 rounded">
+                          <div className="mt-3 inline-block text-[10px] uppercase tracking-wider font-semibold text-[#D89A06] bg-[#D89A06]/10 px-2 py-1 rounded">
                             {cleanTopic(q.extracted_topic)}
                           </div>
                         )}
@@ -324,7 +324,7 @@ export default function PastPaperDetails() {
                           </ReactMarkdown>
                         </div>
                         {q.extracted_topic && (
-                          <div className="mt-3 inline-block text-[10px] uppercase tracking-wider font-semibold text-purple-500 bg-purple-500/10 px-2 py-1 rounded">
+                          <div className="mt-3 inline-block text-[10px] uppercase tracking-wider font-semibold text-[#D89A06] bg-[#D89A06]/10 px-2 py-1 rounded">
                             {cleanTopic(q.extracted_topic)}
                           </div>
                         )}

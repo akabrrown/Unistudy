@@ -63,7 +63,7 @@ export default function WeaknessDrillPage() {
         </div>
         <h1 className="text-3xl font-bold">Topic Mastered!</h1>
         <p className="text-muted-foreground">You got 3 consecutive correct answers in {MOCK_DRILL.topic}. This topic has been cleared from your weak areas.</p>
-        <Button className="w-full bg-purple-600 hover:bg-purple-700">Back to Dashboard</Button>
+        <Button className="w-full bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#000038] dark:hover:bg-[#C28905] text-white font-semibold">Back to Dashboard</Button>
       </div>
     )
   }
@@ -86,7 +86,7 @@ export default function WeaknessDrillPage() {
         <CardHeader className="bg-muted/30 border-b border-border">
           <CardTitle className="text-lg flex justify-between items-center">
             Problem {currentIndex + 1}
-            <span className="text-xs font-medium uppercase tracking-wider text-purple-500 bg-purple-500/10 px-2 py-1 rounded">Difficulty: {MOCK_DRILL.difficulty}</span>
+            <span className="text-xs font-medium uppercase tracking-wider text-[#D89A06] bg-[#D89A06]/10 px-2 py-1 rounded">Difficulty: {MOCK_DRILL.difficulty}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6 space-y-6">
@@ -102,7 +102,7 @@ export default function WeaknessDrillPage() {
 
           {!result ? (
             <Button 
-              className="w-full bg-purple-600 hover:bg-purple-700 gap-2"
+              className="w-full bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#000038] dark:hover:bg-[#C28905] text-white font-semibold gap-2"
               onClick={handleCheck}
               disabled={!answer.trim() || isGrading}
             >

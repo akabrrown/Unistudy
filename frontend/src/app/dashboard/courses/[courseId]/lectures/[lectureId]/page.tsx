@@ -1578,7 +1578,7 @@ export default function LectureViewer() {
               <Button variant="ghost" size="icon-sm" className="text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50" onClick={() => setIsChatOpen(true)} title="Ask AI about this slide">
                 <MessageCircle size={16} />
               </Button>
-              <Button variant="ghost" size="icon-sm" className="text-purple-500 hover:text-purple-600 hover:bg-purple-50" onClick={() => setIsCalculatorOpen(true)} title="Open Math Calculator">
+              <Button variant="ghost" size="icon-sm" className="text-[#00004E] dark:text-[#D89A06] hover:bg-[#00004E]/10 dark:hover:bg-white/10" onClick={() => setIsCalculatorOpen(true)} title="Open Math Calculator">
                 <Calculator size={16} />
               </Button>
               <Button variant="ghost" size="icon-sm" className="text-orange-500 hover:text-orange-600 hover:bg-orange-50" onClick={() => { setIsSongOpen(true); handleGenerateSong(); }} title="Generate Revision Song">
