@@ -44,6 +44,10 @@
   --color-upsa-navy: #00004E;
   --color-upsa-gold: #D89A06;
   --color-upsa-white: #FFFFFF;
+  --color-upsa-gold-subtle: #FEF8E7;
+  --color-upsa-gold-hover: #C28905;
+  --color-upsa-navy-subtle: #F0F3F9;
+  --color-upsa-navy-deep: #000038;
 
   /* Legacy Plum & Purple Alias Map to UPSA Navy & Gold */
   --color-plum-50: #F0F3FA;

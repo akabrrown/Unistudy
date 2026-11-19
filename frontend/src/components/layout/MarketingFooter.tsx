@@ -4,7 +4,7 @@ import { ShieldCheck, Mail } from "lucide-react";
 
 export function MarketingFooter() {
   return (
-    <footer className="bg-[#F0F3F9] dark:bg-[#06061E] border-t border-[#D89A06]/20 dark:border-white/10 transition-colors">
+    <footer className="bg-[#F0F3F9] dark:bg-[#06061E] border-t-2 border-[#D89A06]/40 dark:border-white/10 transition-colors">
       <div className="max-w-7xl mx-auto px-6 md:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-12 pb-12 border-b border-[#D89A06]/15 dark:border-white/5">
           <div className="lg:col-span-2 space-y-4">

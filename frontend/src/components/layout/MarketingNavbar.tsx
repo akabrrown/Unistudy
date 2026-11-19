@@ -15,7 +15,7 @@ export function MarketingNavbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <nav className="sticky top-0 z-40 bg-[#F8F9FD]/90 dark:bg-[#040416]/90 backdrop-blur border-b border-[#D89A06]/20 dark:border-white/10 px-8 h-16 flex items-center justify-between transition-colors">
+    <nav className="sticky top-0 z-40 bg-[#FFFFFF]/90 dark:bg-[#040416]/90 backdrop-blur border-b-2 border-[#D89A06]/30 dark:border-white/10 px-8 h-16 flex items-center justify-between transition-colors shadow-2xs">
       <Link href="/" className="flex items-center gap-2">
         <img src="/logo.jpeg" alt="UniStudy AI" className="h-8 w-auto object-contain dark:hidden" />
         <img src="/logo-dark.jpeg" alt="UniStudy AI" className="h-8 w-auto object-contain hidden dark:block" />
@@ -41,10 +41,10 @@ export function MarketingNavbar() {
         </div>
         <div className="hidden md:flex items-center gap-3">
           <ThemeToggle />
-          <Link href="/login" className="text-[14px] font-medium text-[#00004E] dark:text-[#D89A06] px-4 py-2 hover:bg-[#FEF8E7] dark:hover:bg-white/5 rounded-xl transition-colors">
+          <Link href="/login" className="text-[14px] font-bold text-[#00004E] dark:text-[#D89A06] px-4 py-2 hover:bg-[#FEF8E7] dark:hover:bg-white/5 rounded-xl transition-colors">
             Log in
           </Link>
-          <Link href="/signup" className="text-[14px] font-medium bg-[#00004E] text-white hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#B88205] px-5 py-2 rounded-[14px] transition-colors shadow-sm">
+          <Link href="/signup" className="text-[14px] font-bold bg-[#00004E] text-white hover:bg-[#000038] border border-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#B88205] px-5 py-2 rounded-xl transition-all shadow-xs cursor-pointer">
             Get Started Free
           </Link>
         </div>

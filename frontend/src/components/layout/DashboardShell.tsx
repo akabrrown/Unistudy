@@ -333,7 +333,7 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
                     className={cn(
                       "flex items-center rounded-xl transition-all duration-200 group",
                       active
-                        ? "bg-primary/10 text-primary font-semibold shadow-xs"
+                        ? "bg-[#FEF8E7] dark:bg-white/10 text-[#00004E] dark:text-[#D89A06] font-bold shadow-2xs border-l-[3px] border-[#D89A06]"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     )}
                   >
@@ -350,7 +350,7 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
                       <Icon
                         className={cn(
                           "w-4 h-4 mr-3 transition-colors shrink-0",
-                          item.color ? item.color : active ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                          item.color ? item.color : active ? "text-[#D89A06]" : "text-muted-foreground group-hover:text-foreground"
                         )}
                       />
                       <span className="truncate">{item.label}</span>
@@ -391,11 +391,11 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
                             className={cn(
                               "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
                               subActive
-                                ? "bg-primary/10 text-primary font-semibold"
+                                ? "bg-[#FEF8E7] dark:bg-white/10 text-[#00004E] dark:text-[#D89A06] font-bold border-l-2 border-[#D89A06]"
                                 : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
                             )}
                           >
-                            <SubIcon className={cn("w-3.5 h-3.5 shrink-0", subActive ? "text-primary" : "opacity-75")} />
+                            <SubIcon className={cn("w-3.5 h-3.5 shrink-0", subActive ? "text-[#D89A06]" : "opacity-75")} />
                             <span className="truncate">{sub.label}</span>
                           </Link>
                         );

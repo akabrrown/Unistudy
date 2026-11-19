@@ -28,9 +28,9 @@ export default function HowItWorksPage() {
               { n: "02", icon: Brain, title: "AI explains everything", desc: "Get layered explanations at your chosen complexity level with examples tailored to your exact degree programme." },
               { n: "03", icon: Zap, title: "Practice until confident", desc: "Flashcards, quizzes, and past papers, all generated specifically from your actual lecture content." },
             ].map(({ n, icon: Icon, title, desc }) => (
-              <div key={n} className="group relative p-8 bg-white dark:bg-[#0A0A28] rounded-[32px] border border-[#D9E0EE] dark:border-white/10 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-2 overflow-hidden">
+              <div key={n} className="group relative p-8 bg-white dark:bg-[#0A0A28] rounded-[32px] border-2 border-border/80 hover:border-[#D89A06] dark:border-white/10 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-2 overflow-hidden">
                 <span className="text-7xl font-black text-[#F0F3F9] dark:text-[#D89A06]/10 absolute top-4 right-4 select-none group-hover:text-[#FEF8E7] dark:group-hover:text-[#D89A06]/20 transition-colors">{n}</span>
-                <div className="w-16 h-16 rounded-2xl bg-[#FEF8E7] dark:bg-[#00004E]/40 flex items-center justify-center text-[#00004E] dark:text-[#D89A06] mb-8 relative z-10 group-hover:bg-[#00004E] dark:group-hover:bg-[#D89A06] group-hover:text-white dark:group-hover:text-[#00004E] transition-colors">
+                <div className="w-16 h-16 rounded-2xl bg-[#00004E] text-[#D89A06] border border-[#D89A06]/40 flex items-center justify-center mb-8 relative z-10 group-hover:scale-105 transition-transform shadow-xs">
                   <Icon size={28} />
                 </div>
                 <h3 className="text-[22px] font-bold text-[#00004E] dark:text-white mb-4 relative z-10" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>{title}</h3>
@@ -53,8 +53,8 @@ export default function HowItWorksPage() {
               { icon: Video, title: "YouTube Videos", desc: "Paste any educational YouTube link. Our AI instantly extracts the transcript, summarizes the key points, and generates structured notes." },
               { icon: Scan, title: "Handwritten Notes (OCR)", desc: "Take a picture of your whiteboard or notebook. We'll scan, digitize, and turn your handwriting into searchable, studyable text." },
             ].map(({ icon: Icon, title, desc }, i) => (
-              <div key={i} className="flex gap-6 p-8 bg-white dark:bg-[#0A0A28] rounded-[24px] border border-[#D9E0EE] dark:border-white/10 shadow-sm hover:border-[#D89A06]/40 transition-colors">
-                <div className="w-14 h-14 flex-shrink-0 rounded-2xl bg-[#FEF8E7] dark:bg-[#00004E]/40 flex items-center justify-center text-[#00004E] dark:text-[#D89A06]">
+              <div key={i} className="flex gap-6 p-8 bg-white dark:bg-[#0A0A28] rounded-[24px] border-2 border-border/80 dark:border-white/10 shadow-sm hover:border-[#D89A06] transition-colors">
+                <div className="w-14 h-14 flex-shrink-0 rounded-2xl bg-[#00004E] text-[#D89A06] border border-[#D89A06]/40 flex items-center justify-center shadow-xs">
                   <Icon size={26} />
                 </div>
                 <div>
@@ -80,8 +80,8 @@ export default function HowItWorksPage() {
               { icon: FileText, title: "Essay Grader", desc: "Don't wait for your professor. Paste your essay drafts and get instant structural and grammatical feedback to improve your grade." },
               { icon: Heart, title: "Wellbeing Tracker", desc: "Log your mood and anxiety levels. We'll automatically suggest optimal study breaks and interventions to ensure you avoid burnout." },
             ].map(({ icon: Icon, title, desc }, i) => (
-              <div key={i} className="p-8 bg-white dark:bg-[#0A0A28] rounded-[24px] border border-[#D9E0EE] dark:border-white/10 shadow-sm text-center hover:-translate-y-1 transition-transform">
-                <div className="w-16 h-16 mx-auto rounded-2xl bg-[#FEF8E7] dark:bg-[#00004E]/40 flex items-center justify-center text-[#00004E] dark:text-[#D89A06] mb-6">
+              <div key={i} className="p-8 bg-white dark:bg-[#0A0A28] rounded-[24px] border-2 border-border/80 hover:border-[#D89A06] dark:border-white/10 shadow-sm text-center hover:-translate-y-1 transition-all">
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-[#00004E] text-[#D89A06] border border-[#D89A06]/40 flex items-center justify-center mb-6 shadow-xs">
                   <Icon size={28} />
                 </div>
                 <h3 className="text-[20px] font-bold text-[#00004E] dark:text-white mb-3" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>{title}</h3>

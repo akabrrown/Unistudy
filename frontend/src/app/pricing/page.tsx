@@ -75,7 +75,7 @@ export default function PricingPage() {
             >
               {bundle.popular && (
                 <div className='absolute -top-4 inset-x-0 flex justify-center z-20 pointer-events-none'>
-                  <span className='bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest shadow-lg inline-flex items-center gap-2 whitespace-nowrap pointer-events-auto border border-[#D89A06]/40'>
+                  <span className='bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest shadow-lg inline-flex items-center gap-2 whitespace-nowrap pointer-events-auto border-2 border-[#D89A06]'>
                     <Zap className='w-3.5 h-3.5' fill="currentColor" />
                     Most Popular
                   </span>
@@ -128,8 +128,8 @@ export default function PricingPage() {
                   label="Purchase Credits"
                   className={`w-full py-3.5 rounded-xl font-bold transition-all duration-300 border ${
                     bundle.popular 
-                      ? 'bg-[#00004E] text-white hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#B88205] shadow-lg shadow-[#00004E]/20 border-transparent hover:-translate-y-0.5' 
-                      : 'bg-white dark:bg-transparent text-[#00004E] dark:text-white border-[#D9E0EE] dark:border-white/20 hover:bg-[#F0F3F9] dark:hover:bg-white/5'
+                      ? 'bg-[#00004E] text-white hover:bg-[#000038] border-2 border-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#B88205] shadow-lg shadow-[#00004E]/20 hover:-translate-y-0.5' 
+                      : 'bg-[#FEF8E7] dark:bg-transparent text-[#00004E] dark:text-white border border-[#D89A06]/40 dark:border-white/20 hover:bg-[#FDF2D0] dark:hover:bg-white/5'
                   }`}
                 />
               </CardFooter>
@@ -142,8 +142,8 @@ export default function PricingPage() {
           <div className="grid md:grid-cols-2 gap-12">
             
             {/* Free Tier Info */}
-            <div className="bg-white dark:bg-[#0A0A28] rounded-[32px] p-10 border border-[#D9E0EE] dark:border-white/10 shadow-sm">
-              <div className="w-12 h-12 rounded-xl bg-[#FEF8E7] dark:bg-[#00004E]/40 flex items-center justify-center text-[#00004E] dark:text-[#D89A06] mb-6">
+            <div className="bg-white dark:bg-[#0A0A28] rounded-[32px] p-10 border-2 border-[#D89A06]/30 dark:border-white/10 shadow-sm">
+              <div className="w-12 h-12 rounded-xl bg-[#00004E] text-[#D89A06] border border-[#D89A06]/40 flex items-center justify-center mb-6 shadow-xs">
                 <Clock size={24} />
               </div>
               <h3 className="text-2xl font-bold text-[#00004E] dark:text-white mb-4">Generous Free Daily Limits</h3>

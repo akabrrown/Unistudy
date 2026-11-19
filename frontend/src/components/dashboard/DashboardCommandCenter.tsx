@@ -248,23 +248,23 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
   return (
     <div className="max-w-[1380px] mx-auto pb-12 space-y-5">
       {/* Row 1: Command Header */}
-      <header className="rounded-2xl border border-border/80 bg-card p-5 md:p-6 shadow-xs space-y-4">
+      <header className="relative overflow-hidden rounded-2xl border-2 border-[#D89A06]/35 bg-white dark:bg-card p-5 md:p-6 shadow-sm space-y-4 before:absolute before:top-0 before:left-0 before:right-0 before:h-1.5 before:bg-gradient-to-r before:from-[#00004E] before:via-[#D89A06] before:to-[#00004E]">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="space-y-1.5 min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-mono uppercase tracking-wider text-[11px] text-primary font-semibold">
-                Study Command Center
+              <span className="font-mono uppercase tracking-wider text-[11px] text-[#00004E] dark:text-[#D89A06] bg-[#FEF8E7] dark:bg-[#00004E] px-2.5 py-0.5 rounded-full border border-[#D89A06]/40 font-bold">
+                UPSA Study Command Center
               </span>
-              <span aria-hidden="true">/</span>
-              <span>{todayLabel}</span>
+              <span aria-hidden="true" className="text-[#D89A06]">/</span>
+              <span className="font-medium text-[#00004E] dark:text-white">{todayLabel}</span>
               {academicSubtitle ? (
                 <>
-                  <span aria-hidden="true">/</span>
-                  <span className="truncate max-w-xs">{academicSubtitle}</span>
+                  <span aria-hidden="true" className="text-[#D89A06]">/</span>
+                  <span className="truncate max-w-xs font-medium text-[#4B526B] dark:text-[#A3A8C2]">{academicSubtitle}</span>
                 </>
               ) : null}
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-[#00004E] dark:text-white">
               {greeting}, {firstName}
             </h1>
           </div>
@@ -272,26 +272,26 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
           <div className="flex flex-wrap items-center gap-2.5">
             <Link
               href="/dashboard/settings/billing"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-xs font-medium text-foreground hover:border-primary/40 hover:bg-muted/70 transition-colors cursor-pointer tabular-nums"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#D89A06]/50 bg-[#FEF8E7] dark:bg-white/5 px-3 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] hover:bg-[#FDF2D0] transition-colors cursor-pointer tabular-nums shadow-2xs"
             >
-              <Coins className="h-3.5 w-3.5 text-primary" strokeWidth={1.75} />
-              <span className="font-mono font-semibold">{creditBalance}</span>
-              <span className="text-muted-foreground">credits</span>
+              <Coins className="h-3.5 w-3.5 text-[#D89A06]" strokeWidth={2} />
+              <span className="font-mono font-bold">{creditBalance}</span>
+              <span className="text-[#8C6404] dark:text-[#D89A06]/80 text-[11px]">credits</span>
             </Link>
 
             <Link
               href="/dashboard/calendar?view=timetable"
               className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer active:scale-[0.98]"
             >
-              <CalendarIcon className="h-3.5 w-3.5 text-primary" strokeWidth={1.75} />
+              <CalendarIcon className="h-3.5 w-3.5 text-[#00004E] dark:text-[#D89A06]" strokeWidth={1.75} />
               Timetable
             </Link>
 
             <Link
               href="/dashboard/courses?action=new"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3.5 py-2 text-xs font-semibold hover:bg-primary/90 transition-colors cursor-pointer active:scale-[0.98]"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#00004E] text-white border border-[#D89A06] hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] px-3.5 py-2 text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
             >
-              <FolderPlus className="h-3.5 w-3.5" strokeWidth={1.75} />
+              <FolderPlus className="h-3.5 w-3.5" strokeWidth={2} />
               New Course
             </Link>
           </div>
@@ -310,16 +310,16 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
                 <Link
                   key={tool.href}
                   href={tool.href}
-                  className="group flex flex-col justify-between rounded-xl border border-border/70 bg-muted/25 hover:bg-muted/60 hover:border-primary/40 p-2.5 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
+                  className="group flex flex-col justify-between rounded-xl border border-[#D89A06]/20 bg-muted/20 hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5 hover:border-[#D89A06]/60 p-2.5 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
                 >
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-background border border-border/70 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                      <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-card border border-[#D89A06]/40 group-hover:scale-105 transition-transform shadow-2xs">
+                      <Icon className="h-3.5 w-3.5" strokeWidth={2} />
                     </span>
-                    <ArrowRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all" strokeWidth={1.75} />
+                    <ArrowRight className="h-3 w-3 text-[#D89A06] opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all" strokeWidth={2} />
                   </div>
                   <div>
-                    <div className="text-xs font-semibold text-foreground leading-tight truncate">{tool.label}</div>
+                    <div className="text-xs font-bold text-[#00004E] dark:text-foreground leading-tight truncate">{tool.label}</div>
                     <div className="text-[11px] text-muted-foreground leading-tight mt-0.5 truncate">{tool.hint}</div>
                   </div>
                 </Link>
@@ -333,14 +333,14 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
       <section aria-label="Study metrics" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <Link
           href={primaryReviewHref}
-          className="group rounded-xl border border-border/80 bg-card p-4 hover:border-primary/45 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="group rounded-xl border border-border/80 bg-card p-4 hover:border-[#D89A06] hover:shadow-xs transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-2xs"
         >
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-mono uppercase tracking-wider text-[11px]">Due Review Queue</span>
-            <BrainCircuit className="h-4 w-4 text-primary" strokeWidth={1.75} />
+            <span className="font-mono uppercase tracking-wider text-[11px] font-bold text-[#00004E] dark:text-white">Due Review Queue</span>
+            <BrainCircuit className="h-4 w-4 text-[#D89A06]" strokeWidth={2} />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-mono text-2xl font-bold tracking-tight text-foreground tabular-nums">
+            <span className="font-mono text-2xl font-black tracking-tight text-[#00004E] dark:text-white tabular-nums">
               {dueFlashcards}
             </span>
             <span className="text-xs text-muted-foreground tabular-nums">
@@ -349,20 +349,20 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
           </div>
           <p className="mt-1.5 text-xs text-muted-foreground flex items-center justify-between">
             <span>{dueFlashcards > 0 ? 'Ready for SM-2 recall' : 'All cards caught up'}</span>
-            <span className="text-primary font-medium group-hover:underline">Review</span>
+            <span className="text-[#00004E] dark:text-[#D89A06] font-bold group-hover:underline text-[11px] uppercase tracking-wider">Review &rarr;</span>
           </p>
         </Link>
 
         <Link
           href="/dashboard/analytics#velocity"
-          className="group rounded-xl border border-border/80 bg-card p-4 hover:border-primary/45 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="group rounded-xl border border-border/80 bg-card p-4 hover:border-[#D89A06] hover:shadow-xs transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-2xs"
         >
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-mono uppercase tracking-wider text-[11px]">7-Day Focus Time</span>
-            <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" strokeWidth={1.75} />
+            <span className="font-mono uppercase tracking-wider text-[11px] font-bold text-[#00004E] dark:text-white">7-Day Focus Time</span>
+            <Clock className="h-4 w-4 text-[#00004E] dark:text-[#D89A06]" strokeWidth={2} />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-mono text-2xl font-bold tracking-tight text-foreground tabular-nums">
+            <span className="font-mono text-2xl font-black tracking-tight text-[#00004E] dark:text-white tabular-nums">
               {formatStudyHours(weeklyMinutes)}
             </span>
             <span className="text-xs text-muted-foreground tabular-nums">
@@ -371,20 +371,20 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
           </div>
           <p className="mt-1.5 text-xs text-muted-foreground flex items-center justify-between">
             <span>Weekly study log</span>
-            <span className="text-primary font-medium group-hover:underline">Velocity</span>
+            <span className="text-[#00004E] dark:text-[#D89A06] font-bold group-hover:underline text-[11px] uppercase tracking-wider">Velocity &rarr;</span>
           </p>
         </Link>
 
         <Link
           href="/dashboard/past-papers"
-          className="group rounded-xl border border-border/80 bg-card p-4 hover:border-primary/45 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="group rounded-xl border border-border/80 bg-card p-4 hover:border-[#D89A06] hover:shadow-xs transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-2xs"
         >
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-mono uppercase tracking-wider text-[11px]">Exam Readiness</span>
-            <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" strokeWidth={1.75} />
+            <span className="font-mono uppercase tracking-wider text-[11px] font-bold text-[#00004E] dark:text-white">Exam Readiness</span>
+            <TrendingUp className="h-4 w-4 text-[#D89A06]" strokeWidth={2} />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-mono text-2xl font-bold tracking-tight text-foreground tabular-nums">
+            <span className="font-mono text-2xl font-black tracking-tight text-[#00004E] dark:text-white tabular-nums">
               {avgScorePercent !== null ? `${avgScorePercent}%` : '--'}
             </span>
             <span className="text-xs text-muted-foreground tabular-nums">
@@ -393,29 +393,29 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
           </div>
           <p className="mt-1.5 text-xs text-muted-foreground flex items-center justify-between">
             <span>{avgScorePercent !== null ? 'Past papers & quizzes avg' : 'Complete a quiz or paper'}</span>
-            <span className="text-primary font-medium group-hover:underline">Practice</span>
+            <span className="text-[#00004E] dark:text-[#D89A06] font-bold group-hover:underline text-[11px] uppercase tracking-wider">Practice &rarr;</span>
           </p>
         </Link>
 
         <Link
           href="/dashboard/calendar"
-          className="group rounded-xl border border-border/80 bg-card p-4 hover:border-primary/45 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="group rounded-xl border border-border/80 bg-card p-4 hover:border-[#D89A06] hover:shadow-xs transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-2xs"
         >
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-mono uppercase tracking-wider text-[11px]">Next Exam</span>
-            <CalendarIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" strokeWidth={1.75} />
+            <span className="font-mono uppercase tracking-wider text-[11px] font-bold text-[#00004E] dark:text-white">Next Exam</span>
+            <CalendarIcon className="h-4 w-4 text-[#D89A06]" strokeWidth={2} />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-mono text-2xl font-bold tracking-tight text-foreground tabular-nums">
+            <span className="font-mono text-2xl font-black tracking-tight text-[#00004E] dark:text-white tabular-nums">
               {nearestExam ? `${nearestExam.daysLeft}d` : '--'}
             </span>
-            <span className="text-xs text-muted-foreground truncate">
+            <span className="text-xs text-muted-foreground truncate font-medium">
               {nearestExam ? nearestExam.title : 'No exams queued'}
             </span>
           </div>
           <p className="mt-1.5 text-xs text-muted-foreground flex items-center justify-between">
             <span>{upcomingEvents.length} upcoming agenda {upcomingEvents.length === 1 ? 'item' : 'items'}</span>
-            <span className="text-primary font-medium group-hover:underline">Planner</span>
+            <span className="text-[#00004E] dark:text-[#D89A06] font-bold group-hover:underline text-[11px] uppercase tracking-wider">Planner &rarr;</span>
           </p>
         </Link>
       </section>
@@ -434,7 +434,7 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
               <div className="pl-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-2 min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-mono font-semibold text-primary">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-[#FEF8E7] dark:bg-[#00004E] border border-[#D89A06]/40 px-2 py-0.5 text-[11px] font-mono font-bold text-[#00004E] dark:text-[#D89A06]">
                       RESUME STUDYING
                     </span>
                     <span className="text-xs font-mono font-semibold text-muted-foreground">
@@ -459,13 +459,13 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
                         <span className="text-muted-foreground">
                           Slide <strong className="text-foreground">{resumeItem.slideNumber}</strong> of {resumeItem.slideCount}
                         </span>
-                        <span className="font-mono font-semibold text-primary">
+                        <span className="font-mono font-bold text-[#00004E] dark:text-[#D89A06]">
                           {Math.min(100, Math.round((resumeItem.slideNumber / resumeItem.slideCount) * 100))}%
                         </span>
                       </div>
-                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                         <div
-                          className="h-full rounded-full bg-primary transition-all"
+                          className="h-full rounded-full bg-gradient-to-r from-[#00004E] via-[#D89A06] to-[#D89A06] transition-all"
                           style={{
                             width: `${Math.min(100, Math.round((resumeItem.slideNumber / resumeItem.slideCount) * 100))}%`,
                           }}
@@ -478,10 +478,10 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
                 <div className="flex sm:flex-row md:flex-col items-stretch sm:items-center md:items-end gap-2 shrink-0">
                   <Link
                     href={`/dashboard/courses/${resumeItem.courseId}/lectures/${resumeItem.lectureId}`}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground px-4 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer active:scale-[0.98]"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#00004E] text-white border border-[#D89A06] hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] px-4 py-2.5 text-sm font-bold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
                   >
                     Continue Deck
-                    <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
+                    <ArrowRight className="h-4 w-4 text-[#D89A06]" strokeWidth={2} />
                   </Link>
                   <Link
                     href={`/dashboard/courses/${resumeItem.courseId}/quiz`}
@@ -493,13 +493,13 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
               </div>
             </section>
           ) : (
-            <section className="rounded-2xl border border-border/80 bg-card p-6 shadow-xs space-y-5">
+            <section className="rounded-2xl border-2 border-[#D89A06]/30 bg-white dark:bg-card p-6 shadow-xs space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
+                  <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-[#00004E] dark:text-[#D89A06] bg-[#FEF8E7] dark:bg-[#00004E] px-2.5 py-0.5 rounded-full border border-[#D89A06]/40">
                     Getting Started
                   </span>
-                  <h2 className="text-xl font-bold tracking-tight text-foreground mt-1">
+                  <h2 className="text-xl font-black tracking-tight text-[#00004E] dark:text-white mt-2">
                     Build your semester study workspace
                   </h2>
                   <p className="text-sm text-muted-foreground mt-1 max-w-xl">
@@ -508,9 +508,9 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
                 </div>
                 <Link
                   href="/dashboard/courses?action=new"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground px-4 py-2.5 text-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#00004E] text-white border border-[#D89A06] hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] px-4 py-2.5 text-sm font-bold transition-all shadow-xs cursor-pointer shrink-0"
                 >
-                  <FolderPlus className="h-4 w-4" strokeWidth={1.75} />
+                  <FolderPlus className="h-4 w-4" strokeWidth={2} />
                   Create First Course
                 </Link>
               </div>
