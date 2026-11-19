@@ -34,7 +34,6 @@ import {
   Moon,
   Sun,
   Layers,
-  Sparkles,
   Info,
   SlidersHorizontal,
   BookmarkPlus,

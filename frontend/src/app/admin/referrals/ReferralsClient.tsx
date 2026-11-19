@@ -20,7 +20,6 @@ import {
   ChevronLeft,
   Building2,
   Crown,
-  Sparkles,
   TrendingUp,
   ShieldCheck,
   MoreVertical,

@@ -23,7 +23,6 @@ import {
   FileText,
   BarChart3,
   Layers,
-  Sparkles,
   ExternalLink,
   ChevronRight,
   BookOpen,

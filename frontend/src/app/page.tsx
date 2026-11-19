@@ -9,7 +9,6 @@ import {
   Target,
   Calculator,
   CheckCircle2,
-  Sparkles,
   ShieldCheck,
   GraduationCap,
   DownloadCloud,
@@ -139,7 +138,7 @@ export default function LandingPage() {
                     {/* Active Recall Key Takeaway Box with UPSA Gold Accent */}
                     <div className="p-3.5 rounded-xl bg-gradient-to-r from-[#FEF8E7] to-white dark:from-[#00004E]/40 dark:to-white/5 border-l-4 border-l-[#D89A06] border border-[#D89A06]/30">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] uppercase tracking-wider mb-1">
-                        <Sparkles className="w-3.5 h-3.5 text-[#D89A06]" />
+                        <GraduationCap className="w-3.5 h-3.5 text-[#D89A06]" />
                         Key Exam Takeaway
                       </div>
                       <p className="text-xs text-[#2A314E] dark:text-white/90 leading-relaxed font-mono">

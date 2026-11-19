@@ -23,7 +23,6 @@ import {
   CheckCircle2,
   Cpu,
   Clock,
-  Sparkles,
   TrendingUp,
   DollarSign,
   Plus,

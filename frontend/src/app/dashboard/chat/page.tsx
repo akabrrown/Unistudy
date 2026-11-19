@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -11,7 +11,6 @@ import { toast } from 'sonner';
 import {
   BrainCircuit,
   Send,
-  Sparkles,
   Paperclip,
   Trash2,
   Download,
@@ -25,13 +24,13 @@ import {
   RefreshCw,
   Search,
   CheckCircle2,
-  HelpCircle,
   Clock,
   ArrowRight,
   GraduationCap,
   FileText,
-  AlertCircle,
   Lightbulb,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -97,6 +96,60 @@ const SUGGESTED_PROMPTS_DECK = [
   '/plan - Break down the study sequence for mastering this lecture deck.',
 ];
 
+function CodeBlock({ className, children }: { className?: string; children: React.ReactNode }) {
+  const [copied, setCopied] = useState(false);
+  const codeString = String(children).replace(/\n$/, '');
+  const langMatch = className?.match(/language-(\w+)/);
+  const lang = langMatch ? langMatch[1] : 'code';
+
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(codeString);
+      setCopied(true);
+      toast.success('Code copied to clipboard');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Failed to copy code');
+    }
+  };
+
+  return (
+    <div className="my-3.5 rounded-xl overflow-hidden border border-border bg-[#0B1021] text-slate-100 shadow-sm font-mono text-xs not-prose">
+      <div className="px-3.5 py-1.5 bg-[#070A15] border-b border-border/40 text-[11px] text-slate-400 flex items-center justify-between">
+        <span className="font-bold uppercase tracking-wider text-[#D89A06]">{lang}</span>
+        <button
+          onClick={onCopy}
+          className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-white transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-white/10"
+          title="Copy code"
+        >
+          {copied ? (
+            <>
+              <Check className="h-3 w-3 text-emerald-400" />
+              <span className="text-emerald-400 font-medium">Copied</span>
+            </>
+          ) : (
+            <>
+              <Copy className="h-3 w-3" />
+              <span>Copy</span>
+            </>
+          )}
+        </button>
+      </div>
+      <pre className="p-4 overflow-x-auto leading-relaxed scrollbar-thin">
+        <code>{codeString}</code>
+      </pre>
+    </div>
+  );
+}
+
+function formatContentWithSlideLinks(content: string, deck?: ChatMessage['referencedDeck']) {
+  if (!deck?.courseId || !deck?.lectureId) return content;
+  return content.replace(
+    /\[Slide\s+(\d+)\]/gi,
+    (_match, num) => `[Slide ${num}](/dashboard/courses/${deck.courseId}/lectures/${deck.lectureId}?slide=${num})`
+  );
+}
+
 export default function GeneralAiChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputPrompt, setInputPrompt] = useState('');
@@ -107,6 +160,7 @@ export default function GeneralAiChatPage() {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [deckSearchQuery, setDeckSearchQuery] = useState('');
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
 
   // Active referenced lecture deck
   const [activeDeck, setActiveDeck] = useState<{
@@ -288,6 +342,38 @@ export default function GeneralAiChatPage() {
     }
   };
 
+  // Text-to-speech narration
+  const handleSpeak = (id: string, text: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      toast.error('Text-to-speech is not supported in this browser.');
+      return;
+    }
+
+    if (speakingMessageId === id) {
+      window.speechSynthesis.cancel();
+      setSpeakingMessageId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const cleanSpeech = text
+      .replace(/<[^>]*>?/gm, '')
+      .replace(/\[\^.*?\]/g, '')
+      .replace(/\[Slide\s+\d+\]/gi, '')
+      .replace(/[`#*_~$\\]/g, '')
+      .trim();
+
+    const utterance = new SpeechSynthesisUtterance(cleanSpeech);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+
+    utterance.onend = () => setSpeakingMessageId(null);
+    utterance.onerror = () => setSpeakingMessageId(null);
+
+    setSpeakingMessageId(id);
+    window.speechSynthesis.speak(utterance);
+  };
+
   // Submit message
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputPrompt).trim();
@@ -412,6 +498,143 @@ export default function GeneralAiChatPage() {
     );
   }, [activeCourse, deckSearchQuery]);
 
+  // Markdown component specifications
+  const markdownComponents: Components = {
+    h1: ({ children }) => (
+      <h1 className="text-lg md:text-xl font-black text-[#00004E] dark:text-white mt-5 mb-2.5 pb-1.5 border-b border-border/70 first:mt-0 tracking-tight">
+        {children}
+      </h1>
+    ),
+    h2: ({ children }) => (
+      <h2 className="text-base md:text-lg font-bold text-[#00004E] dark:text-white mt-4 mb-2 first:mt-0 tracking-tight flex items-center gap-2">
+        <span className="w-1.5 h-4 rounded-full bg-[#D89A06] inline-block shrink-0" />
+        {children}
+      </h2>
+    ),
+    h3: ({ children }) => (
+      <h3 className="text-sm md:text-base font-bold text-[#00004E] dark:text-[#D89A06] mt-3.5 mb-1.5 first:mt-0">
+        {children}
+      </h3>
+    ),
+    h4: ({ children }) => (
+      <h4 className="text-xs md:text-sm font-bold text-foreground mt-2.5 mb-1 uppercase tracking-wider">
+        {children}
+      </h4>
+    ),
+    p: ({ children }) => (
+      <p className="my-2.5 text-xs md:text-sm leading-relaxed text-foreground/90 last:mb-0">
+        {children}
+      </p>
+    ),
+    ul: ({ children }) => (
+      <ul className="my-3 ml-6 list-disc space-y-1.5 text-xs md:text-sm text-foreground/90 marker:text-[#D89A06]">
+        {children}
+      </ul>
+    ),
+    ol: ({ children }) => (
+      <ol className="my-3 ml-6 list-decimal space-y-1.5 text-xs md:text-sm text-foreground/90 marker:text-[#00004E] dark:marker:text-[#D89A06] font-semibold">
+        {children}
+      </ol>
+    ),
+    li: ({ children }) => (
+      <li className="leading-relaxed pl-1 font-normal">
+        {children}
+      </li>
+    ),
+    blockquote: ({ children }) => (
+      <blockquote className="my-3.5 pl-4 py-2 border-l-4 border-l-[#D89A06] bg-[#FEF8E7]/60 dark:bg-white/5 rounded-r-xl italic text-muted-foreground text-xs md:text-sm shadow-2xs">
+        {children}
+      </blockquote>
+    ),
+    strong: ({ children }) => (
+      <strong className="font-bold text-[#00004E] dark:text-white">
+        {children}
+      </strong>
+    ),
+    em: ({ children }) => (
+      <em className="italic text-foreground">
+        {children}
+      </em>
+    ),
+    hr: () => (
+      <hr className="my-4 border-border/70" />
+    ),
+    table: ({ children }) => (
+      <div className="my-4 overflow-x-auto rounded-xl border border-border bg-card shadow-2xs not-prose">
+        <table className="min-w-full divide-y divide-border text-xs">
+          {children}
+        </table>
+      </div>
+    ),
+    thead: ({ children }) => (
+      <thead className="bg-[#00004E]/5 dark:bg-white/5 text-[#00004E] dark:text-[#D89A06] font-bold">
+        {children}
+      </thead>
+    ),
+    tbody: ({ children }) => (
+      <tbody className="divide-y divide-border/50 bg-transparent">
+        {children}
+      </tbody>
+    ),
+    tr: ({ children }) => (
+      <tr className="hover:bg-muted/40 transition-colors">
+        {children}
+      </tr>
+    ),
+    th: ({ children }) => (
+      <th className="px-4 py-2.5 text-left font-bold tracking-wider uppercase text-[11px] text-[#00004E] dark:text-[#D89A06]">
+        {children}
+      </th>
+    ),
+    td: ({ children }) => (
+      <td className="px-4 py-2.5 text-foreground/90">
+        {children}
+      </td>
+    ),
+    code: ({ className, children, ...props }) => {
+      const isInline = !className || !className.includes('language-');
+      if (isInline) {
+        return (
+          <code
+            className="font-mono text-[11px] md:text-xs font-semibold px-1.5 py-0.5 rounded-md bg-[#FEF8E7] dark:bg-white/10 text-[#00004E] dark:text-[#D89A06] border border-[#D89A06]/30 inline-block align-baseline mx-0.5"
+            {...props}
+          >
+            {children}
+          </code>
+        );
+      }
+      return <CodeBlock className={className}>{children}</CodeBlock>;
+    },
+    a: ({ href, children, ...props }) => {
+      const isSlideLink = href?.includes('/lectures/') && href?.includes('slide=');
+      if (isSlideLink) {
+        return (
+          <Link
+            href={href || '#'}
+            target="_blank"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FEF8E7] dark:bg-white/10 border border-[#D89A06]/40 text-[#00004E] dark:text-[#D89A06] text-[11px] font-bold hover:border-[#D89A06] hover:scale-105 transition-all shadow-2xs mx-1 align-baseline not-prose"
+            title="View slide in lecture deck"
+          >
+            <BookOpen className="h-2.5 w-2.5 text-[#D89A06]" />
+            <span>{children}</span>
+            <ExternalLink className="h-2.5 w-2.5 opacity-70" />
+          </Link>
+        );
+      }
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[#00004E] dark:text-[#D89A06] font-semibold underline underline-offset-2 hover:opacity-80"
+          {...props}
+        >
+          {children}
+        </a>
+      );
+    },
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] max-w-6xl mx-auto pb-4">
       {/* Top Header & Context Bar */}
@@ -419,12 +642,12 @@ export default function GeneralAiChatPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] flex items-center justify-center font-bold shadow-xs border border-[#D89A06]/40">
-              <BrainCircuit className="h-5 w-5" />
+              <GraduationCap className="h-5 w-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-black tracking-tight text-[#00004E] dark:text-white">
-                  AI Study Tutor & Assistant
+                  AI Study Tutor &amp; Assistant
                 </h1>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#FEF8E7] text-[#00004E] border border-[#D89A06]/40 dark:bg-white/10 dark:text-[#D89A06]">
                   Collegiate 24/7
@@ -502,8 +725,8 @@ export default function GeneralAiChatPage() {
               </div>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted text-xs font-medium text-muted-foreground">
-                <Sparkles className="h-3 w-3 text-[#D89A06]" />
-                General Academic Chat (All subjects & formulas)
+                <BookOpen className="h-3 w-3 text-[#D89A06]" />
+                General Academic Chat (All subjects &amp; formulas)
               </span>
             )}
           </div>
@@ -521,7 +744,7 @@ export default function GeneralAiChatPage() {
       </header>
 
       {/* Main Chat Message Area */}
-      <div className="flex-1 bg-card border border-border rounded-2xl p-4 md:p-6 overflow-y-auto space-y-4 shadow-xs relative">
+      <div className="flex-1 bg-card border border-border rounded-2xl p-4 md:p-6 overflow-y-auto space-y-5 shadow-xs relative">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto py-10 space-y-6">
             <div className="h-16 w-16 rounded-2xl bg-[#FEF8E7] dark:bg-[#00004E] border-2 border-[#D89A06] flex items-center justify-center text-[#00004E] dark:text-[#D89A06] shadow-sm">
@@ -566,96 +789,115 @@ export default function GeneralAiChatPage() {
               <div
                 key={message.id}
                 className={cn(
-                  'flex flex-col space-y-1.5 max-w-[85%] md:max-w-[80%]',
-                  isUser ? 'ml-auto items-end' : 'mr-auto items-start'
+                  'flex flex-col space-y-1.5',
+                  isUser ? 'ml-auto max-w-[85%] md:max-w-[75%] items-end' : 'w-full max-w-4xl mr-auto items-start'
                 )}
               >
-                {/* Author & Timestamp Header */}
-                <div className="flex items-center gap-2 text-[11px] text-muted-foreground px-1">
-                  {isUser ? (
-                    <>
+                {isUser ? (
+                  <>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground px-1">
                       <span>{new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       <span className="font-bold text-[#00004E] dark:text-white">You</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="font-bold text-[#00004E] dark:text-[#D89A06] flex items-center gap-1">
-                        <BrainCircuit className="h-3 w-3 text-[#D89A06]" />
-                        UniStudy AI Tutor
-                      </span>
-                      <span>·</span>
-                      <span>{new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    </>
-                  )}
-                </div>
-
-                {/* Message Bubble */}
-                <div
-                  className={cn(
-                    'rounded-2xl p-4 text-xs md:text-sm leading-relaxed shadow-2xs relative group',
-                    isUser
-                      ? 'bg-[#00004E] text-white rounded-br-xs selection:bg-[#D89A06] selection:text-[#00004E]'
-                      : 'bg-background border border-border border-l-4 border-l-[#D89A06] text-foreground rounded-bl-xs w-full'
-                  )}
-                >
-                  {isUser ? (
-                    <div className="whitespace-pre-wrap break-words font-medium">
+                    </div>
+                    <div className="rounded-2xl rounded-br-xs p-4 bg-[#00004E] text-white text-xs md:text-sm leading-relaxed shadow-2xs font-medium whitespace-pre-wrap break-words selection:bg-[#D89A06] selection:text-[#00004E]">
                       {message.content}
                     </div>
-                  ) : (
-                    <div className="prose dark:prose-invert max-w-none text-xs md:text-sm prose-p:my-2 prose-headings:font-bold prose-headings:text-[#00004E] dark:prose-headings:text-white prose-pre:bg-muted/60 prose-pre:p-3 prose-pre:rounded-xl prose-code:font-mono prose-code:text-[#00004E] dark:prose-code:text-[#D89A06]">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm, remarkMath]}
-                        rehypePlugins={[rehypeKatex]}
-                      >
-                        {message.content}
-                      </ReactMarkdown>
-
-                      {/* Cited Slides Ribbon */}
-                      {message.citations && message.citations.length > 0 && message.referencedDeck && (
-                        <div className="mt-4 pt-3 border-t border-border/80 flex flex-wrap items-center gap-2 not-prose">
-                          <span className="text-[11px] font-bold text-muted-foreground flex items-center gap-1">
-                            <BookOpen className="h-3 w-3 text-[#D89A06]" />
-                            Referenced Slides:
-                          </span>
-                          {message.citations.map((slideNum) => (
-                            <Link
-                              key={slideNum}
-                              href={`/dashboard/courses/${message.referencedDeck?.courseId}/lectures/${message.referencedDeck?.lectureId}?slide=${slideNum}`}
-                              target="_blank"
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#FEF8E7] dark:bg-white/10 border border-[#D89A06]/40 text-[#00004E] dark:text-[#D89A06] text-[11px] font-bold hover:border-[#D89A06] hover:scale-105 transition-all shadow-2xs"
-                              title={`Jump to Slide ${slideNum}`}
-                            >
-                              Slide {slideNum}
-                              <ExternalLink className="h-2.5 w-2.5" />
-                            </Link>
-                          ))}
+                  </>
+                ) : (
+                  <div className="w-full rounded-2xl border border-border/80 border-l-[4px] border-l-[#D89A06] bg-card text-foreground shadow-xs overflow-hidden transition-all duration-200">
+                    {/* Tutor Header Card Banner */}
+                    <div className="flex items-center justify-between px-4 md:px-5 py-2.5 bg-[#00004E]/[0.03] dark:bg-white/[0.03] border-b border-border/60">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="h-7 w-7 rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] flex items-center justify-center font-bold shadow-2xs shrink-0">
+                          <GraduationCap className="h-4 w-4" />
                         </div>
-                      )}
+                        <div className="min-w-0 flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-xs text-[#00004E] dark:text-white">
+                            UniStudy AI Tutor
+                          </span>
+                          {message.referencedDeck ? (
+                            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#FEF8E7] text-[#00004E] border border-[#D89A06]/40 dark:bg-white/10 dark:text-[#D89A06] truncate max-w-[240px]">
+                              {message.referencedDeck.courseCode} · {message.referencedDeck.lectureTitle}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-semibold">
+                              Academic Tutor
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-                      {/* Copy Action Pill */}
-                      <div className="mt-2 flex items-center justify-end not-prose">
+                      {/* Actions Toolbar */}
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <button
+                          type="button"
+                          onClick={() => handleSpeak(message.id, message.content)}
+                          className={cn(
+                            'p-1.5 rounded-lg text-xs transition-colors cursor-pointer',
+                            speakingMessageId === message.id
+                              ? 'text-[#D89A06] bg-[#FEF8E7] dark:bg-white/10 animate-pulse'
+                              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          )}
+                          title={speakingMessageId === message.id ? 'Stop reading' : 'Read explanation aloud'}
+                        >
+                          {speakingMessageId === message.id ? (
+                            <VolumeX className="h-3.5 w-3.5" />
+                          ) : (
+                            <Volume2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleCopyMessage(message.id, message.content)}
-                          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground p-1 rounded transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
                           title="Copy response"
                         >
                           {copiedMessageId === message.id ? (
-                            <>
-                              <Check className="h-3 w-3 text-emerald-600" />
-                              <span className="text-emerald-600 font-medium">Copied</span>
-                            </>
+                            <Check className="h-3.5 w-3.5 text-emerald-600" />
                           ) : (
-                            <>
-                              <Copy className="h-3 w-3" />
-                              <span>Copy</span>
-                            </>
+                            <Copy className="h-3.5 w-3.5" />
                           )}
                         </button>
+                        <span className="text-[11px] text-muted-foreground ml-1 font-mono">
+                          {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
                     </div>
-                  )}
-                </div>
+
+                    {/* Enriched Content Body */}
+                    <div className="p-4 md:p-6 text-xs md:text-sm leading-relaxed">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
+                        components={markdownComponents}
+                      >
+                        {formatContentWithSlideLinks(message.content, message.referencedDeck)}
+                      </ReactMarkdown>
+                    </div>
+
+                    {/* Referenced Slides Ribbon */}
+                    {message.citations && message.citations.length > 0 && message.referencedDeck && (
+                      <div className="px-4 md:px-6 py-3 border-t border-border/70 bg-[#FEF8E7]/40 dark:bg-white/[0.02] flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-bold text-muted-foreground flex items-center gap-1.5">
+                          <BookOpen className="h-3.5 w-3.5 text-[#D89A06]" />
+                          Referenced Lecture Slides:
+                        </span>
+                        {message.citations.map((slideNum) => (
+                          <Link
+                            key={slideNum}
+                            href={`/dashboard/courses/${message.referencedDeck?.courseId}/lectures/${message.referencedDeck?.lectureId}?slide=${slideNum}`}
+                            target="_blank"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FEF8E7] dark:bg-white/10 border border-[#D89A06]/50 text-[#00004E] dark:text-[#D89A06] text-xs font-bold hover:border-[#D89A06] hover:bg-[#FDF2D0] hover:scale-105 transition-all shadow-2xs"
+                            title={`Jump to Slide ${slideNum}`}
+                          >
+                            Slide {slideNum}
+                            <ExternalLink className="h-3 w-3" />
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })
@@ -663,26 +905,25 @@ export default function GeneralAiChatPage() {
 
         {/* Loading Indicator */}
         {isLoading && (
-          <div className="flex flex-col space-y-1.5 max-w-[80%] mr-auto items-start">
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground px-1">
-              <span className="font-bold text-[#00004E] dark:text-[#D89A06] flex items-center gap-1">
-                <BrainCircuit className="h-3 w-3 text-[#D89A06]" />
-                UniStudy AI Tutor
-              </span>
-              <span>·</span>
-              <span>Thinking...</span>
+          <div className="w-full max-w-4xl mr-auto rounded-2xl border border-border border-l-4 border-l-[#D89A06] bg-card p-4 md:p-5 flex items-center gap-3.5 shadow-2xs">
+            <div className="h-8 w-8 rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] flex items-center justify-center font-bold shadow-2xs shrink-0">
+              <GraduationCap className="h-4 w-4" />
             </div>
-            <div className="rounded-2xl p-4 bg-background border border-border border-l-4 border-l-[#D89A06] rounded-bl-xs flex items-center gap-3 shadow-2xs">
-              <div className="flex items-center gap-1">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs text-[#00004E] dark:text-white">UniStudy AI Tutor</span>
+                <span className="text-[10px] text-muted-foreground font-medium">· Analyzing material</span>
+              </div>
+              <div className="flex items-center gap-1.5">
                 <div className="h-2 w-2 rounded-full bg-[#00004E] dark:bg-[#D89A06] animate-bounce" />
                 <div className="h-2 w-2 rounded-full bg-[#00004E] dark:bg-[#D89A06] animate-bounce [animation-delay:0.15s]" />
                 <div className="h-2 w-2 rounded-full bg-[#00004E] dark:bg-[#D89A06] animate-bounce [animation-delay:0.3s]" />
+                <span className="text-xs text-muted-foreground ml-2 font-medium">
+                  {activeDeck
+                    ? `Retrieving slide knowledge for "${activeDeck.lectureTitle}"...`
+                    : 'Synthesizing academic explanation...'}
+                </span>
               </div>
-              <span className="text-xs text-muted-foreground font-medium">
-                {activeDeck
-                  ? `Retrieving slide knowledge for "${activeDeck.lectureTitle}"...`
-                  : 'Synthesizing academic explanation...'}
-              </span>
             </div>
           </div>
         )}

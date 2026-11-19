@@ -22,7 +22,6 @@ import {
   Activity,
   ChevronRight,
   Radio,
-  Sparkles,
   Search,
   ExternalLink,
   BookOpen,

@@ -24,7 +24,6 @@ import {
   CheckCircle2,
   Crown,
   Zap,
-  Sparkles,
   Download,
   Calendar,
   Filter,
@@ -788,7 +787,7 @@ export default function SubscriptionsClient({
           {/* Outcome Pill */}
           <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-500 shrink-0" />
+              <DollarSign className="w-4 h-4 text-emerald-500 shrink-0" />
               <span>
                 Adding <strong className="text-foreground">{simulatedProAdd} Pro</strong> and{' '}
                 <strong className="text-foreground">{simulatedUltraAdd} Ultra</strong> students expands Monthly Revenue by{' '}
