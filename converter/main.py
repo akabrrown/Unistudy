@@ -432,7 +432,91 @@ def render_pptx_with_pymupdf(file_path: str, temp_dir: str) -> List[dict]:
             sy = (gh / cch) if cch else 1.0
             return (gx + (x - cx0) * sx, gy + (y - cy0) * sy, w * sx, h * sy)
 
-        def build_html_from_txbody(tx_body, ph_style: dict, fill_rgb):
+        def draw_cust_geom(page, x: float, y: float, w: float, h: float, cust_geom, fill_rgb, stroke_rgb, stroke_w: float) -> bool:
+            path_lst = _find_child(cust_geom, "pathLst")
+            if path_lst is None:
+                return False
+            drew_any = False
+            for p_elem in path_lst:
+                if not p_elem.tag.endswith("}path"):
+                    continue
+                try:
+                    raw_pw = float(p_elem.attrib.get("w", "0"))
+                except ValueError:
+                    raw_pw = 0.0
+                try:
+                    raw_ph = float(p_elem.attrib.get("h", "0"))
+                except ValueError:
+                    raw_ph = 0.0
+
+                def map_pt(pt_elem):
+                    if pt_elem is None:
+                        return None
+                    try:
+                        px = float(pt_elem.attrib.get("x", "0"))
+                        py = float(pt_elem.attrib.get("y", "0"))
+                    except ValueError:
+                        return None
+                    sx = (px / raw_pw) * w if raw_pw > 0 else px / _EMU_PER_PT
+                    sy = (py / raw_ph) * h if raw_ph > 0 else py / _EMU_PER_PT
+                    return fitz.Point(x + sx, y + sy)
+
+                shape = page.new_shape()
+                cur_pt = None
+                has_segments = False
+                closed = False
+                for cmd in p_elem:
+                    ctag = cmd.tag.split("}")[-1]
+                    if ctag == "moveTo":
+                        if has_segments:
+                            shape.finish(
+                                color=stroke_rgb,
+                                fill=fill_rgb if closed else None,
+                                width=stroke_w,
+                                closePath=closed,
+                                lineCap=1,
+                                lineJoin=1,
+                            )
+                            has_segments = False
+                            closed = False
+                        cur_pt = map_pt(_find_child(cmd, "pt"))
+                    elif ctag == "lnTo":
+                        nxt = map_pt(_find_child(cmd, "pt"))
+                        if cur_pt is not None and nxt is not None:
+                            shape.draw_line(cur_pt, nxt)
+                            cur_pt = nxt
+                            has_segments = True
+                            drew_any = True
+                    elif ctag == "cubicBezTo":
+                        pts = [map_pt(c) for c in cmd if c.tag.endswith("}pt")]
+                        if cur_pt is not None and len(pts) == 3 and all(p is not None for p in pts):
+                            shape.draw_bezier(cur_pt, pts[0], pts[1], pts[2])
+                            cur_pt = pts[2]
+                            has_segments = True
+                            drew_any = True
+                    elif ctag == "quadBezTo":
+                        pts = [map_pt(c) for c in cmd if c.tag.endswith("}pt")]
+                        if cur_pt is not None and len(pts) == 2 and all(p is not None for p in pts):
+                            shape.draw_curve(cur_pt, pts[0], pts[1])
+                            cur_pt = pts[1]
+                            has_segments = True
+                            drew_any = True
+                    elif ctag == "close":
+                        closed = True
+
+                if has_segments:
+                    shape.finish(
+                        color=stroke_rgb,
+                        fill=fill_rgb if closed else None,
+                        width=stroke_w,
+                        closePath=closed,
+                        lineCap=1,
+                        lineJoin=1,
+                    )
+                shape.commit()
+            return drew_any
+
+        def build_html_from_txbody(tx_body, ph_style: dict, fill_rgb, slide_number: int = 1):
             is_dark_bg = fill_rgb is not None and _luminance(fill_rgb) < 0.45
             default_hex = "#FFFFFF" if is_dark_bg else _rgb_to_hex(ph_style.get("rgb"))
             base_pt = ph_style.get("font_size") or (
@@ -441,10 +525,12 @@ def render_pptx_with_pymupdf(file_path: str, temp_dir: str) -> List[dict]:
             default_bold = bool(ph_style.get("bold") or ph_style.get("type") in ("title", "ctrTitle"))
 
             lst_style = _find_child(tx_body, "lstStyle")
+            p_elems = [p for p in tx_body if p.tag.endswith("}p")]
             body_chunks = []
-            for p in tx_body:
-                if not p.tag.endswith("}p"):
-                    continue
+            max_font_pt = 0.0
+            dominant_align = "left"
+
+            for p_idx, p in enumerate(p_elems):
                 p_pr = _find_child(p, "pPr")
                 lvl = 0
                 algn = "left"
@@ -481,7 +567,10 @@ def render_pptx_with_pymupdf(file_path: str, temp_dir: str) -> List[dict]:
                     if ctag not in ("r", "fld"):
                         continue
                     t_el = _find_child(child, "t")
-                    txt = t_el.text if t_el is not None and t_el.text else ""
+                    if ctag == "fld" and child.attrib.get("type") == "slidenum":
+                        txt = str(slide_number)
+                    else:
+                        txt = t_el.text if t_el is not None and t_el.text else ""
                     if not txt:
                         continue
                     r_pr = _find_child(child, "rPr")
@@ -492,7 +581,7 @@ def render_pptx_with_pymupdf(file_path: str, temp_dir: str) -> List[dict]:
                     if r_pr is not None:
                         if "sz" in r_pr.attrib:
                             try:
-                                sz_pt = max(7.0, min(64.0, int(r_pr.attrib["sz"]) / 100.0))
+                                sz_pt = max(6.0, min(64.0, int(r_pr.attrib["sz"]) / 100.0))
                             except ValueError:
                                 pass
                         if "b" in r_pr.attrib:
@@ -505,6 +594,7 @@ def render_pptx_with_pymupdf(file_path: str, temp_dir: str) -> List[dict]:
                             if c is not None:
                                 hex_color = _rgb_to_hex(c)
 
+                    max_font_pt = max(max_font_pt, sz_pt)
                     style_parts = [
                         f"font-size:{sz_pt:.1f}pt",
                         f"color:{hex_color}",
@@ -517,13 +607,16 @@ def render_pptx_with_pymupdf(file_path: str, temp_dir: str) -> List[dict]:
                     spans.append(f'<span style="{";".join(style_parts)}">{escaped}</span>')
 
                 if spans:
+                    if not body_chunks:
+                        dominant_align = algn
                     pad_left = lvl * 12
-                    p_style = f"margin:0 0 3pt {pad_left}pt;line-height:1.22;text-align:{algn};font-family:sans-serif;"
+                    mb = "2pt" if p_idx < len(p_elems) - 1 else "0"
+                    p_style = f"margin:0 0 {mb} {pad_left}pt;line-height:1.18;text-align:{algn};font-family:sans-serif;"
                     body_chunks.append(f'<p style="{p_style}">{bullet}{"".join(spans)}</p>')
 
             if not body_chunks:
-                return ""
-            return f'<div style="font-family:sans-serif;">{"".join(body_chunks)}</div>'
+                return ("", 0.0, "left")
+            return (f'<div style="font-family:sans-serif;">{"".join(body_chunks)}</div>', max_font_pt or base_pt, dominant_align)
 
         def draw_table(page, rect: fitz.Rect, tbl_elem):
             grid = _find_child(tbl_elem, "tblGrid")
@@ -578,7 +671,7 @@ def render_pptx_with_pymupdf(file_path: str, temp_dir: str) -> List[dict]:
                     page.draw_rect(cell_rect, color=(0.78, 0.82, 0.88), fill=fill_rgb, width=0.6)
                     tx_body = _find_child(tc, "txBody")
                     if tx_body is not None:
-                        html_str = build_html_from_txbody(
+                        html_str, _, _ = build_html_from_txbody(
                             tx_body,
                             {"font_size": 10.5, "rgb": (0.12, 0.16, 0.23), "bold": r_idx == 0},
                             fill_rgb,
@@ -591,7 +684,7 @@ def render_pptx_with_pymupdf(file_path: str, temp_dir: str) -> List[dict]:
                     c_idx += span
                 cur_y += rh
 
-        def render_node(page, node, xml_path: str, ph_map: dict, grp_tx=None):
+        def render_node(page, node, xml_path: str, ph_map: dict, grp_tx=None, slide_number: int = 1):
             tag = node.tag.split("}")[-1]
             if tag == "grpSp":
                 grp_pr = _find_child(node, "grpSpPr")
@@ -619,7 +712,7 @@ def render_pptx_with_pymupdf(file_path: str, temp_dir: str) -> List[dict]:
                 for child in node:
                     ctag = child.tag.split("}")[-1]
                     if ctag in ("sp", "pic", "grpSp", "graphicFrame"):
-                        render_node(page, child, xml_path, ph_map, next_tx)
+                        render_node(page, child, xml_path, ph_map, next_tx, slide_number)
                 return
 
             if tag == "pic":
@@ -691,9 +784,9 @@ def render_pptx_with_pymupdf(file_path: str, temp_dir: str) -> List[dict]:
                 if box is None:
                     return
                 x, y, w, h = transform_box(box, grp_tx)
-                if w <= 1 or h <= 1:
+                if w + h <= 0.5:
                     return
-                rect = fitz.Rect(x, y, x + w, y + h)
+                rect = fitz.Rect(x, y, x + max(w, 0.5), y + max(h, 0.5))
 
                 fill_rgb = None
                 if sp_pr is not None and _find_child(sp_pr, "noFill") is None:
@@ -719,34 +812,83 @@ def render_pptx_with_pymupdf(file_path: str, temp_dir: str) -> List[dict]:
                         except ValueError:
                             pass
 
+                cust_geom = _find_child(sp_pr, "custGeom") if sp_pr is not None else None
                 prst_geom = _find_child(sp_pr, "prstGeom") if sp_pr is not None else None
                 prst = prst_geom.attrib.get("prst", "rect") if prst_geom is not None else "rect"
 
                 if fill_rgb is not None or stroke_rgb is not None:
-                    try:
-                        if prst == "ellipse":
-                            page.draw_oval(rect, color=stroke_rgb, fill=fill_rgb, width=stroke_w)
-                        elif prst == "roundRect":
-                            page.draw_rect(rect, color=stroke_rgb, fill=fill_rgb, width=stroke_w, radius=0.08)
-                        else:
+                    drew_custom = False
+                    if cust_geom is not None:
+                        try:
+                            drew_custom = draw_cust_geom(page, x, y, w, h, cust_geom, fill_rgb, stroke_rgb, stroke_w)
+                        except Exception:
+                            drew_custom = False
+                    if not drew_custom:
+                        try:
+                            if prst == "ellipse":
+                                page.draw_oval(rect, color=stroke_rgb, fill=fill_rgb, width=stroke_w)
+                            elif prst == "roundRect":
+                                page.draw_rect(rect, color=stroke_rgb, fill=fill_rgb, width=stroke_w, radius=0.08)
+                            elif prst == "line" or w <= 0.2 or h <= 0.2:
+                                page.draw_line(fitz.Point(x, y), fitz.Point(x + w, y + h), color=stroke_rgb or fill_rgb, width=stroke_w)
+                            else:
+                                page.draw_rect(rect, color=stroke_rgb, fill=fill_rgb, width=stroke_w)
+                        except Exception:
                             page.draw_rect(rect, color=stroke_rgb, fill=fill_rgb, width=stroke_w)
-                    except Exception:
-                        page.draw_rect(rect, color=stroke_rgb, fill=fill_rgb, width=stroke_w)
 
                 tx_body = _find_child(node, "txBody")
                 if tx_body is not None:
-                    html_str = build_html_from_txbody(tx_body, ph_style, fill_rgb)
+                    html_str, max_font_pt, dominant_align = build_html_from_txbody(tx_body, ph_style, fill_rgb, slide_number)
                     if html_str:
-                        inner = fitz.Rect(rect.x0 + 4, rect.y0 + 3, rect.x1 - 4, rect.y1 - 3)
-                        if inner.width > 8 and inner.height > 8:
-                            try:
-                                if hasattr(page, "insert_htmlbox"):
-                                    page.insert_htmlbox(inner, html_str, scale_low=0.5)
-                                else:
-                                    plain = re.sub(r"<[^>]+>", " ", html_str)
-                                    page.insert_textbox(inner, plain, fontsize=12)
-                            except Exception:
-                                pass
+                        body_pr = _find_child(tx_body, "bodyPr")
+                        try:
+                            ins_l = float(body_pr.attrib["lIns"]) / _EMU_PER_PT if body_pr is not None and "lIns" in body_pr.attrib else 3.0
+                        except ValueError:
+                            ins_l = 3.0
+                        try:
+                            ins_t = float(body_pr.attrib["tIns"]) / _EMU_PER_PT if body_pr is not None and "tIns" in body_pr.attrib else 1.5
+                        except ValueError:
+                            ins_t = 1.5
+                        try:
+                            ins_r = float(body_pr.attrib["rIns"]) / _EMU_PER_PT if body_pr is not None and "rIns" in body_pr.attrib else 3.0
+                        except ValueError:
+                            ins_r = 3.0
+                        try:
+                            ins_b = float(body_pr.attrib["bIns"]) / _EMU_PER_PT if body_pr is not None and "bIns" in body_pr.attrib else 1.5
+                        except ValueError:
+                            ins_b = 1.5
+
+                        ix0 = x + ins_l
+                        iy0 = y + ins_t
+                        iw = max(1.0, w - ins_l - ins_r)
+                        ih = max(1.0, h - ins_t - ins_b)
+
+                        if fill_rgb is None and stroke_rgb is None:
+                            min_w = max(iw + 6.0, 36.0)
+                            if dominant_align == "center":
+                                cx = ix0 + iw / 2.0
+                                ix0 = cx - min_w / 2.0
+                                ix1 = cx + min_w / 2.0
+                            elif dominant_align == "right":
+                                ix1 = ix0 + iw
+                                ix0 = ix1 - min_w
+                            else:
+                                ix1 = ix0 + min_w
+                            min_h = max(ih + 6.0, max_font_pt * 1.65)
+                            iy1 = iy0 + min_h
+                        else:
+                            ix1 = ix0 + iw
+                            iy1 = iy0 + max(ih, max_font_pt * 1.4)
+
+                        inner = fitz.Rect(ix0, iy0, ix1, iy1)
+                        try:
+                            if hasattr(page, "insert_htmlbox"):
+                                page.insert_htmlbox(inner, html_str, scale_low=0.5)
+                            else:
+                                plain = re.sub(r"<[^>]+>", " ", html_str)
+                                page.insert_textbox(inner, plain, fontsize=max_font_pt or 12)
+                        except Exception:
+                            pass
 
         rendered_slides = []
         for idx, sf in enumerate(slide_files):
@@ -795,21 +937,21 @@ def render_pptx_with_pymupdf(file_path: str, temp_dir: str) -> List[dict]:
                         if master_path:
                             render_background(page, master_bg, master_path)
 
+                slide_number = idx + 1
                 show_master = slide_root.attrib.get("showMasterSp", "1") != "0"
                 if show_master:
                     for st_node, st_path in master_statics:
-                        render_node(page, st_node, st_path, ph_map)
+                        render_node(page, st_node, st_path, ph_map, None, slide_number)
                 for st_node, st_path in layout_statics:
-                    render_node(page, st_node, st_path, ph_map)
+                    render_node(page, st_node, st_path, ph_map, None, slide_number)
 
                 sp_tree = _find_child(c_sld, "spTree") if c_sld is not None else None
                 if sp_tree is not None:
                     for child in sp_tree:
                         ctag = child.tag.split("}")[-1]
                         if ctag in ("sp", "pic", "grpSp", "graphicFrame"):
-                            render_node(page, child, sf, ph_map)
+                            render_node(page, child, sf, ph_map, None, slide_number)
 
-                slide_number = idx + 1
                 image_path = os.path.join(temp_dir, f"slide_{slide_number}.jpg")
                 pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                 pix.save(image_path)
