@@ -190,7 +190,6 @@ async function scrapeCourseContent(
       .from('lectures')
       .select('id, title, week')
       .eq('course_id', course.id)
-      .eq('user_id', userId)
       .order('week', { ascending: true }),
   ]);
 
