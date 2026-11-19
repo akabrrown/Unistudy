@@ -123,16 +123,57 @@ async function generateJsonWithGeminiOrFallback(
   return null;
 }
 
-async function verifyCourseOwnership(userId: string, courseId: string) {
-  const { data: course, error } = await supabaseAdmin
+export async function verifyCourseOwnership(userId: string, courseId: string) {
+  if (!userId || !courseId) return null;
+
+  // 1. Direct ownership check: courses where id = courseId AND user_id = userId
+  const { data: directCourse, error: directErr } = await supabaseAdmin
     .from('courses')
     .select('id, user_id, course_code, title, colour')
     .eq('id', courseId)
     .eq('user_id', userId)
     .maybeSingle();
 
-  if (error || !course) return null;
-  return course;
+  if (!directErr && directCourse) {
+    return directCourse;
+  }
+
+  // 2. Cross-reference check:
+  // If the courseId provided was from a shared bank paper, another user's course clone, or a shared catalogue course,
+  // find that course's course_code and match against the requesting user's own courses.
+  const { data: refCourse } = await supabaseAdmin
+    .from('courses')
+    .select('id, course_code, title')
+    .eq('id', courseId)
+    .maybeSingle();
+
+  const codeToMatch = (refCourse?.course_code || refCourse?.title || '').trim();
+  if (codeToMatch) {
+    const { data: userMatchingCourse } = await supabaseAdmin
+      .from('courses')
+      .select('id, user_id, course_code, title, colour')
+      .eq('user_id', userId)
+      .ilike('course_code', codeToMatch)
+      .maybeSingle();
+
+    if (userMatchingCourse) {
+      return userMatchingCourse;
+    }
+  }
+
+  // 3. Fallback: if courseId was passed as a raw course_code string (e.g. "BCPC201")
+  const { data: codeOnlyCourse } = await supabaseAdmin
+    .from('courses')
+    .select('id, user_id, course_code, title, colour')
+    .eq('user_id', userId)
+    .ilike('course_code', courseId.trim())
+    .maybeSingle();
+
+  if (codeOnlyCourse) {
+    return codeOnlyCourse;
+  }
+
+  return null;
 }
 
 async function scrapeCourseContent(
@@ -174,6 +215,13 @@ async function scrapeCourseContent(
 
   const targetCode = normalizeCode(course.course_code || course.title);
 
+  const paperOrFilters: string[] = [`course_id.eq.${course.id}`, `user_id.eq.${userId}`];
+  if (course.course_code) {
+    const rawCode = course.course_code.trim();
+    paperOrFilters.push(`course_code.ilike.%${rawCode}%`);
+    paperOrFilters.push(`normalized_course_code.ilike.%${rawCode}%`);
+  }
+
   const [slidesRes, papersRes] = await Promise.all([
     lectureIds.length > 0
       ? supabaseAdmin
@@ -187,7 +235,7 @@ async function scrapeCourseContent(
       .select(
         'id, title, year, exam_type, course_id, course_code, normalized_course_code, past_paper_questions(id, question_number, text_content, extracted_topic, marks_available)'
       )
-      .or(`course_id.eq.${course.id},user_id.eq.${userId}`)
+      .or(paperOrFilters.join(','))
       .order('year', { ascending: false }),
   ]);
 
@@ -501,9 +549,10 @@ router.post(
 
       const course = await verifyCourseOwnership(userId, courseId);
       if (!course) {
-        return res.status(404).json({ error: 'Course not found or access denied.' });
+        return res.status(400).json({ error: 'Valid course required to generate Exam Focus pack.' });
       }
 
+      const targetCourseId = course.id;
       const areas = parseLecturerAreasInput(rawAreasInput);
       if (areas.length === 0) {
         return res.status(400).json({ error: 'Enter at least one valid exam area or topic.' });
@@ -522,7 +571,7 @@ router.post(
               'id, user_id, course_id, title, raw_areas_input, areas, areas_hash, matched_slides, matched_questions, generated_questions, study_summary, coverage_gaps, created_at, updated_at'
             )
             .eq('user_id', userId)
-            .eq('course_id', courseId)
+            .in('course_id', Array.from(new Set([targetCourseId, courseId])))
             .eq('areas_hash', areasHash)
             .order('created_at', { ascending: false })
             .limit(1)
@@ -555,7 +604,7 @@ router.post(
       const now = new Date().toISOString();
       const baseRecord = {
         user_id: userId,
-        course_id: courseId,
+        course_id: targetCourseId,
         title: packTitle,
         raw_areas_input: rawAreasInput,
         areas,
@@ -577,6 +626,7 @@ router.post(
         )
         .single();
 
+      coursePacksCache.delete(`${userId}:${targetCourseId}`);
       coursePacksCache.delete(`${userId}:${courseId}`);
 
       if (!insertErr && inserted) {
@@ -593,6 +643,7 @@ router.post(
 
       const fallbackId = `local-${randomUUID()}`;
       const localPack = { id: fallbackId, ...baseRecord, ai_synthesized: aiUsed, persisted: false };
+      ephemeralPackStore.set(`${userId}:${targetCourseId}:${fallbackId}`, localPack);
       ephemeralPackStore.set(`${userId}:${courseId}:${fallbackId}`, localPack);
       return res.json(localPack);
     } catch (err: any) {
@@ -613,23 +664,26 @@ router.get('/:courseId', async (req: Request, res: Response) => {
 
     const course = await verifyCourseOwnership(userId, courseId);
     if (!course) {
-      return res.status(404).json({ error: 'Course not found or access denied.' });
+      // Do not return 404 to avoid polluting browser console or breaking frontend transitions
+      return res.json([]);
     }
 
-    const cacheKey = `${userId}:${courseId}`;
+    const resolvedCourseId = course.id;
+    const cacheKey = `${userId}:${resolvedCourseId}`;
     const cached = coursePacksCache.get(cacheKey);
     if (cached) {
       res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
       return res.json(cached);
     }
 
+    const courseIds = Array.from(new Set([resolvedCourseId, courseId]));
     const { data, error } = await supabaseAdmin
       .from('exam_focus_packs')
       .select(
         'id, user_id, course_id, title, raw_areas_input, areas, areas_hash, matched_slides, matched_questions, generated_questions, study_summary, coverage_gaps, created_at, updated_at'
       )
       .eq('user_id', userId)
-      .eq('course_id', courseId)
+      .in('course_id', courseIds)
       .order('created_at', { ascending: false })
       .limit(20);
 

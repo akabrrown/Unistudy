@@ -178,7 +178,18 @@ export function ExamFocusDialog({
       setActiveTab(defaultTab);
       if (initialCourseId && courses.some((c) => c.id === initialCourseId)) {
         setSelectedCourseId(initialCourseId);
-      } else if (!selectedCourseId && courses[0]?.id) {
+      } else if (initialCourseId) {
+        const initCode = initialCourseId.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const matchingByCode = courses.find((c) => {
+          const cCode = (c.course_code || c.title || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+          return cCode && initCode && (cCode === initCode || cCode.includes(initCode) || initCode.includes(cCode));
+        });
+        if (matchingByCode) {
+          setSelectedCourseId(matchingByCode.id);
+        } else if (!courses.some((c) => c.id === selectedCourseId) && courses[0]?.id) {
+          setSelectedCourseId(courses[0].id);
+        }
+      } else if (!courses.some((c) => c.id === selectedCourseId) && courses[0]?.id) {
         setSelectedCourseId(courses[0].id);
       }
     }
@@ -213,14 +224,16 @@ export function ExamFocusDialog({
         setActivePackId('');
         setShowBuilder(true);
       }
-    } catch (err: any) {
+    } catch {
       const offlineFallback = readOfflinePacks(courseId);
       if (offlineFallback.length > 0) {
         setPacks(offlineFallback);
         setActivePackId(offlineFallback[0].id);
         setShowBuilder(false);
       } else {
-        setErrorMsg(err?.message || 'Could not load saved exam focus packs.');
+        setPacks([]);
+        setActivePackId('');
+        setShowBuilder(true);
       }
     } finally {
       setLoadingPacks(false);
