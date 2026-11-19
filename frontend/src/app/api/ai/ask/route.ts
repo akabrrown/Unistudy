@@ -5,6 +5,7 @@ import Groq from 'groq-sdk';
 import { z } from 'zod';
 import {
   GEMINI_CANDIDATE_MODELS,
+  GROQ_FAST_MODELS,
   GROQ_SMART_MODELS,
   OPENROUTER_CANDIDATE_MODELS,
 } from '../../../../../../shared/constants/aiModels';
@@ -31,18 +32,140 @@ const AskRequestSchema = z.object({
     systemPrompt: z.string().optional(),
     stream: z.boolean().optional(),
     temperature: z.number().min(0).max(1).optional(),
+    model: z.string().optional(),
     grounding: z.unknown().optional(),
-    messages: z.array(z.object({
-      role: z.enum(['user', 'assistant', 'system']),
-      content: z.string()
-    })).optional()
-  })
+    messages: z
+      .array(
+        z.object({
+          role: z.enum(['user', 'assistant', 'system']),
+          content: z.string(),
+        })
+      )
+      .optional(),
+  }),
 });
+
+interface ProviderResult {
+  text: string;
+  provider: string;
+  model: string;
+}
+
+async function tryGroq(
+  systemPrompt: string,
+  rawMessages: Array<{ role: string; content: string }>,
+  temperature: number
+): Promise<ProviderResult | null> {
+  if (!process.env.GROQ_API_KEY) return null;
+  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  const groqMessages = [
+    { role: 'system' as const, content: systemPrompt },
+    ...rawMessages.map((m) => ({
+      role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+      content: String(m.content || ''),
+    })),
+  ];
+
+  const candidateModels = [...GROQ_SMART_MODELS, ...GROQ_FAST_MODELS];
+  for (const model of candidateModels) {
+    try {
+      const completion = await groq.chat.completions.create({
+        model,
+        messages: groqMessages,
+        temperature,
+      });
+      const text = completion.choices[0]?.message?.content?.trim();
+      if (text) {
+        return { text, provider: 'groq', model: `Groq (${model})` };
+      }
+    } catch (groqErr: unknown) {
+      const msg = groqErr instanceof Error ? groqErr.message : String(groqErr);
+      console.warn(`[API /ai/ask] Groq model ${model} failed:`, msg);
+    }
+  }
+  return null;
+}
+
+async function tryGemini(
+  systemPrompt: string,
+  rawMessages: Array<{ role: string; content: string }>,
+  temperature: number
+): Promise<ProviderResult | null> {
+  if (!process.env.GEMINI_API_KEY) return null;
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  for (const modelName of GEMINI_CANDIDATE_MODELS) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: systemPrompt,
+        generationConfig: { temperature },
+      });
+
+      const contents = rawMessages.map((m) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: String(m.content || '') }],
+      }));
+
+      const res = await model.generateContent({ contents });
+      const text = res.response.text()?.trim();
+      if (text) {
+        return { text, provider: 'gemini', model: `Google Gemini (${modelName})` };
+      }
+    } catch (mErr: unknown) {
+      const msg = mErr instanceof Error ? mErr.message : String(mErr);
+      console.warn(`[API /ai/ask] Gemini model ${modelName} failed:`, msg);
+    }
+  }
+  return null;
+}
+
+async function tryOpenRouter(
+  systemPrompt: string,
+  rawMessages: Array<{ role: string; content: string }>,
+  temperature: number
+): Promise<ProviderResult | null> {
+  if (!process.env.OPENROUTER_API_KEY) return null;
+  const orMessages = [
+    { role: 'system', content: systemPrompt },
+    ...rawMessages.map((m) => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: String(m.content || ''),
+    })),
+  ];
+
+  for (const model of OPENROUTER_CANDIDATE_MODELS) {
+    try {
+      const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model, messages: orMessages, temperature }),
+      });
+
+      if (orRes.ok) {
+        const data = await orRes.json();
+        const text = data.choices?.[0]?.message?.content?.trim();
+        if (text) {
+          return { text, provider: 'openrouter', model: `OpenRouter (${model})` };
+        }
+      }
+    } catch (orErr: unknown) {
+      const msg = orErr instanceof Error ? orErr.message : String(orErr);
+      console.warn(`[API /ai/ask] OpenRouter model ${model} failed:`, msg);
+    }
+  }
+  return null;
+}
 
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const { data: { user }, error: authErr } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authErr,
+    } = await supabase.auth.getUser();
 
     if (authErr || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -51,15 +174,19 @@ export async function POST(request: Request) {
     const rawBody = await request.json();
     const parsed = AskRequestSchema.safeParse(rawBody);
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid request payload', details: parsed.error.format() }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid request payload', details: parsed.error.format() },
+        { status: 400 }
+      );
     }
 
     const { payload } = parsed.data;
-    const rawMessages = payload.messages && payload.messages.length > 0
-      ? payload.messages
-      : payload.prompt
-        ? [{ role: 'user' as const, content: payload.prompt }]
-        : [];
+    const rawMessages =
+      payload.messages && payload.messages.length > 0
+        ? payload.messages
+        : payload.prompt
+          ? [{ role: 'user' as const, content: payload.prompt }]
+          : [];
 
     if (rawMessages.length === 0) {
       return NextResponse.json({ error: 'Prompt or messages required' }, { status: 400 });
@@ -125,7 +252,10 @@ export async function POST(request: Request) {
           text: `${s.raw_text || ''} ${s.explanation || ''}`.trim(),
         }))
         .filter((s) => s.text.length > 0);
-      if (grounding.currentSlideNumber && (grounding.currentSlideText || grounding.currentSlideExplanation)) {
+      if (
+        grounding.currentSlideNumber &&
+        (grounding.currentSlideText || grounding.currentSlideExplanation)
+      ) {
         groundingSources.push({
           slideNumber: grounding.currentSlideNumber,
           text: `${grounding.currentSlideText || ''} ${grounding.currentSlideExplanation || ''}`.trim(),
@@ -145,111 +275,42 @@ export async function POST(request: Request) {
     }
 
     const temperature = payload.temperature ?? 0.55;
-    let reply = '';
+    const requestedModel = (payload.model || 'auto').toLowerCase();
 
-    // 1. Try Groq first for low-latency chat responses
-    if (process.env.GROQ_API_KEY) {
-      const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-      const groqMessages = [
-        { role: 'system' as const, content: systemPrompt },
-        ...rawMessages.map((m) => ({
-          role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
-          content: String(m.content || '')
-        }))
-      ];
+    let providerResult: ProviderResult | null = null;
 
-      for (const model of GROQ_SMART_MODELS) {
-        try {
-          const completion = await groq.chat.completions.create({
-            model,
-            messages: groqMessages,
-            temperature,
-          });
-          const text = completion.choices[0]?.message?.content?.trim();
-          if (text) {
-            reply = text;
-            break;
-          }
-        } catch (groqErr: unknown) {
-          const msg = groqErr instanceof Error ? groqErr.message : String(groqErr);
-          console.warn(`[API /ai/ask] Groq model ${model} failed:`, msg);
-        }
-      }
+    // Route to user's explicitly requested model/provider first
+    if (requestedModel.includes('gemini')) {
+      providerResult =
+        (await tryGemini(systemPrompt, rawMessages, temperature)) ||
+        (await tryGroq(systemPrompt, rawMessages, temperature)) ||
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature));
+    } else if (requestedModel.includes('groq') || requestedModel === 'fast') {
+      providerResult =
+        (await tryGroq(systemPrompt, rawMessages, temperature)) ||
+        (await tryGemini(systemPrompt, rawMessages, temperature)) ||
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature));
+    } else if (requestedModel.includes('openrouter') || requestedModel.includes('qwen')) {
+      providerResult =
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature)) ||
+        (await tryGemini(systemPrompt, rawMessages, temperature)) ||
+        (await tryGroq(systemPrompt, rawMessages, temperature));
+    } else {
+      // Default / Smart Auto order: Groq (low latency) -> Gemini (deep reasoning) -> OpenRouter
+      providerResult =
+        (await tryGroq(systemPrompt, rawMessages, temperature)) ||
+        (await tryGemini(systemPrompt, rawMessages, temperature)) ||
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature));
     }
 
-    // 2. Fallback to Google Generative AI
-    if (!reply && process.env.GEMINI_API_KEY) {
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      for (const modelName of GEMINI_CANDIDATE_MODELS) {
-        try {
-          const model = genAI.getGenerativeModel({
-            model: modelName,
-            systemInstruction: systemPrompt,
-            generationConfig: { temperature },
-          });
-
-          const contents = rawMessages.map((m) => ({
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: String(m.content || '') }]
-          }));
-
-          const res = await model.generateContent({ contents });
-          const text = res.response.text()?.trim();
-          if (text) {
-            reply = text;
-            break;
-          }
-        } catch (mErr: unknown) {
-          const msg = mErr instanceof Error ? mErr.message : String(mErr);
-          console.warn(`[API /ai/ask] Gemini model ${modelName} failed:`, msg);
-        }
-      }
-    }
-
-    // 3. Fallback to OpenRouter
-    if (!reply && process.env.OPENROUTER_API_KEY) {
-      const orMessages = [
-        { role: 'system', content: systemPrompt },
-        ...rawMessages.map((m) => ({
-          role: m.role === 'assistant' ? 'assistant' : 'user',
-          content: String(m.content || '')
-        }))
-      ];
-
-      for (const model of OPENROUTER_CANDIDATE_MODELS) {
-        try {
-          const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ model, messages: orMessages, temperature })
-          });
-
-          if (orRes.ok) {
-            const data = await orRes.json();
-            const text = data.choices?.[0]?.message?.content?.trim();
-            if (text) {
-              reply = text;
-              break;
-            }
-          }
-        } catch (orErr: unknown) {
-          const msg = orErr instanceof Error ? orErr.message : String(orErr);
-          console.warn(`[API /ai/ask] OpenRouter model ${model} failed:`, msg);
-        }
-      }
-    }
-
-    if (!reply) {
+    if (!providerResult || !providerResult.text) {
       return NextResponse.json(
         { error: 'Unable to reach AI providers right now. Please retry shortly.' },
         { status: 502 }
       );
     }
 
-    let sanitizedReply = sanitizeTutorResponse(reply);
+    let sanitizedReply = sanitizeTutorResponse(providerResult.text);
     const validSlideNumbers = groundingSources
       .map((s) => s.slideNumber)
       .filter((n): n is number => typeof n === 'number');
@@ -267,13 +328,14 @@ export async function POST(request: Request) {
           {
             message: {
               role: 'assistant',
-              content: sanitizedReply
-            }
-          }
-        ]
+              content: sanitizedReply,
+            },
+          },
+        ],
       },
       grounding: groundingReport,
-      provider: 'assistant'
+      provider: providerResult.provider,
+      modelUsed: providerResult.model,
     });
   } catch (err: unknown) {
     console.error('API /ai/ask error:', err);
