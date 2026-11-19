@@ -60,6 +60,35 @@ export async function GET() {
         }
       });
 
+      // Fetch cover thumbnails: first slide image_url per lecture
+      const allLectureIds = data.flatMap((c: any) =>
+        (c.lectures as any[]).map((l: any) => l.id as string)
+      );
+      if (allLectureIds.length > 0) {
+        // Supabase doesn't support DISTINCT ON via PostgREST, so fetch
+        // slide_number=1 for all lectures in one query (one row per lecture).
+        const { data: covers } = await supabase
+          .from('slides')
+          .select('lecture_id, image_url, slide_number')
+          .in('lecture_id', allLectureIds)
+          .in('slide_number', [0, 1])
+          .order('slide_number', { ascending: true });
+
+        if (covers && covers.length > 0) {
+          const coverMap = new Map<string, string>();
+          for (const row of covers) {
+            if (row.lecture_id && row.image_url && !coverMap.has(row.lecture_id)) {
+              coverMap.set(row.lecture_id, row.image_url);
+            }
+          }
+          for (const c of data as any[]) {
+            for (const lec of c.lectures as any[]) {
+              lec.cover_image_url = coverMap.get(lec.id) || null;
+            }
+          }
+        }
+      }
+
       // Arrange courses in ascending alphanumeric order by course code and title
       data.sort((a: any, b: any) => {
         const codeA = (a.course_code || a.title || '').trim();

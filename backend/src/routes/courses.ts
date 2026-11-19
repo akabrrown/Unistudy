@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { authenticateUser } from '../middleware/auth';
 import { deduplicateInFlightRequests } from '../middleware/expensiveGuard';
-import { supabaseAsUser } from '../lib/supabase';
+import { supabaseAsUser, supabaseAdmin } from '../lib/supabase';
 import { TTLCache } from '../../../shared/lib/cpuOptimization';
 
 const router = Router();
@@ -96,6 +96,33 @@ router.get('/', async (req: Request, res: Response) => {
       const codeB = (b.course_code || b.title || '').trim();
       return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
     });
+
+    // Fetch cover thumbnails: first slide image_url per lecture
+    const allLectureIds = data.flatMap((c: any) =>
+      (c.lectures as any[]).map((l: any) => l.id as string)
+    );
+    if (allLectureIds.length > 0) {
+      const { data: covers } = await supabaseAdmin
+        .from('slides')
+        .select('lecture_id, image_url, slide_number')
+        .in('lecture_id', allLectureIds)
+        .in('slide_number', [0, 1])
+        .order('slide_number', { ascending: true });
+
+      if (covers && covers.length > 0) {
+        const coverMap = new Map<string, string>();
+        for (const row of covers) {
+          if (row.lecture_id && row.image_url && !coverMap.has(row.lecture_id)) {
+            coverMap.set(row.lecture_id, row.image_url);
+          }
+        }
+        for (const c of data as any[]) {
+          for (const lec of c.lectures as any[]) {
+            lec.cover_image_url = coverMap.get(lec.id) || null;
+          }
+        }
+      }
+    }
   }
   const result = data || [];
   const anyProcessing = result.some((c: any) => (c.lectures || []).some((l: any) => l.processing));

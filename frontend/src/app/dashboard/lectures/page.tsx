@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   BookOpen,
@@ -47,6 +48,7 @@ import { bulkDeleteLectures } from '@/app/actions/lectures';
 import { ExamFocusDialog } from '@/components/exam-focus/ExamFocusDialog';
 import { UploadLectureDialog } from '@/components/courses/UploadLectureDialog';
 import { DeleteLectureButton } from '@/components/courses/DeleteLectureButton';
+import { isPlaceholderSlideUrl, getSlideThumbnailUrl } from '@/lib/images';
 
 interface LectureItem {
   id: string;
@@ -55,6 +57,7 @@ interface LectureItem {
   slide_count?: number | null;
   created_at?: string | null;
   processing?: boolean | null;
+  cover_image_url?: string | null;
 }
 
 interface CourseItem {
@@ -85,6 +88,50 @@ function resolveWeekNumber(lec: LectureItem): number | null {
     }
   }
   return null;
+}
+
+function SlideDeckCover({
+  thumbnailSrc,
+  title,
+  processing,
+  slideCount,
+}: {
+  thumbnailSrc: string;
+  title: string;
+  processing?: boolean | null;
+  slideCount?: number | null;
+}) {
+  const [hasError, setHasError] = useState(false);
+  const showImage = Boolean(thumbnailSrc && !hasError);
+
+  return (
+    <div className="relative block w-full aspect-[16/9] bg-muted/40 overflow-hidden">
+      {showImage ? (
+        <Image
+          src={thumbnailSrc}
+          alt={`Cover slide – ${title || 'Untitled Lecture'}`}
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          className="object-cover group-hover:scale-[1.03] transition-transform duration-300"
+          unoptimized
+          onError={() => setHasError(true)}
+        />
+      ) : (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground/60 bg-muted/20">
+          <FileText className="w-10 h-10" strokeWidth={1.2} />
+          <span className="text-[10px] font-mono uppercase tracking-wider">
+            {processing ? 'Processing...' : 'No Preview'}
+          </span>
+        </div>
+      )}
+      {!processing && (slideCount ?? 0) > 0 && (
+        <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 bg-black/70 text-white text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md backdrop-blur-sm z-10">
+          <Layers className="w-3 h-3" />
+          {slideCount}
+        </span>
+      )}
+    </div>
+  );
 }
 
 export default function LecturesHubPage() {
@@ -740,23 +787,39 @@ export default function LecturesHubPage() {
                   })
                 : 'Recent';
               const isSelected = selectedLectureIds.has(lecture.id);
+              const hasCover = lecture.cover_image_url && !isPlaceholderSlideUrl(lecture.cover_image_url);
+              const thumbnailSrc = hasCover ? getSlideThumbnailUrl(lecture.cover_image_url) : '';
 
               return (
                 <article
                   key={lecture.id}
                   className={cn(
-                    "group relative flex flex-col justify-between rounded-2xl border bg-card p-5 transition-all overflow-hidden",
+                    "group relative flex flex-col justify-between rounded-2xl border bg-card transition-all overflow-hidden",
                     isSelected
                       ? "border-destructive/70 ring-2 ring-destructive/20 bg-destructive/[0.02]"
                       : "border-border/80 hover:border-primary/50 hover:shadow-md"
                   )}
                 >
                   <div
-                    className="absolute top-0 left-0 right-0 h-1.5"
+                    className="absolute top-0 left-0 right-0 h-1.5 z-10"
                     style={{ backgroundColor: accentColor }}
                   />
 
-                  <div className="space-y-3 pt-1">
+                  {/* Slide Cover Thumbnail */}
+                  <Link
+                    href={`/dashboard/courses/${course.id}/lectures/${lecture.id}`}
+                    className="relative block w-full cursor-pointer"
+                    aria-label={`Open ${lecture.title || 'Untitled Lecture'}`}
+                  >
+                    <SlideDeckCover
+                      thumbnailSrc={thumbnailSrc}
+                      title={lecture.title}
+                      processing={lecture.processing}
+                      slideCount={lecture.slide_count}
+                    />
+                  </Link>
+
+                  <div className="p-4 pt-3 space-y-2.5 flex-1 flex flex-col">
                     {/* Course Code, Checkbox & Metadata Top Row */}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
@@ -797,20 +860,20 @@ export default function LecturesHubPage() {
                     </div>
 
                     {/* Lecture Title */}
-                    <div>
+                    <div className="flex-1">
                       <Link
                         href={`/dashboard/courses/${course.id}/lectures/${lecture.id}`}
-                        className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 cursor-pointer"
+                        className="text-sm font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 cursor-pointer"
                       >
                         {lecture.title || 'Untitled Lecture'}
                       </Link>
-                      <div className="text-xs text-muted-foreground truncate mt-1">
+                      <div className="text-xs text-muted-foreground truncate mt-0.5">
                         {course.title}
                       </div>
                     </div>
 
                     {/* Stats */}
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums pt-1">
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
                       {lecture.processing ? (
                         <span className="inline-flex items-center gap-1.5 text-purple-600 dark:text-purple-400 font-semibold animate-pulse">
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
