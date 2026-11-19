@@ -1,4 +1,5 @@
 import { sanitizeMathResponse } from './mathSanitizer';
+import { normalizeLatexMarkdown } from './latexNormalizer';
 
 export { sanitizeMathResponse };
 
@@ -415,4 +416,73 @@ FORMAT & ACCURACY RULES (MANDATORY):
 3. Use standard Markdown (**bold**, bullet lists) — NEVER output raw HTML tags like <strong> or <br>.
 4. Wrap inline math strictly in $...$ and display equations strictly in $$...$$. Never use \\(...\\) or \\[...\\].
 5. Never use em-dashes ("—") or AI filler words ("delve", "pivotal", "paramount", "underscore", "testament", "seamless", "Moreover,").`;
+}
+
+
+export function normalizeVisionMime(rawMime?: string): string {
+  const lower = (rawMime || '').trim().toLowerCase();
+  if (lower === 'image/jpg' || lower === 'image/jpeg') return 'image/jpeg';
+  if (lower === 'image/png') return 'image/png';
+  if (lower === 'image/webp') return 'image/webp';
+  if (lower === 'image/gif') return 'image/gif';
+  return 'image/jpeg';
+}
+
+export function extractRawBase64AndMime(
+  input: string,
+  fallbackMime = 'image/jpeg'
+): { data: string; mimeType: string } {
+  const trimmed = (input || '').trim();
+  const marker = ';base64,';
+  const markerIdx = trimmed.indexOf(marker);
+  if (trimmed.startsWith('data:') && markerIdx !== -1) {
+    const rawMime = trimmed.slice(5, markerIdx);
+    const rawData = trimmed.slice(markerIdx + marker.length).replace(/\s+/g, '');
+    return {
+      data: rawData,
+      mimeType: normalizeVisionMime(rawMime),
+    };
+  }
+  return {
+    data: trimmed.replace(/\s+/g, ''),
+    mimeType: normalizeVisionMime(fallbackMime),
+  };
+}
+
+export function buildMathOcrPrompt(mode: 'math' | 'graph' = 'math'): string {
+  const modeRule =
+    mode === 'graph'
+      ? 'Prioritize coordinate geometry, polygon vertices (e.g. A(2, 4), B(2, 8)), transformation vectors, axes intervals, and plotting equations (e.g. y = x^2 - 4).'
+      : 'Prioritize mathematical equations, derivatives, integrals, matrices, simultaneous equations, numbers, and word problem statements.';
+
+  return `You are an expert STEM and mathematics handwriting and print transcription OCR engine.
+Transcribe the mathematical problem, question text, equations, formulas, coordinates, and instructions visible in the attached image EXACTLY as written.
+FOCUS: ${modeRule}
+
+TRANSCRIPTION RULES:
+1. Transcribe verbatim. Preserve every number, variable name, sign (+/-), fraction, superscript, subscript, and parenthesis without change.
+2. Format inline math using single dollar signs $...$ and standalone equations using double dollar signs $$...$$. Never use \\(...\\) or \\[...\\].
+3. If coordinates are visible (e.g. A(2, 4), B(2, 8)), transcribe them accurately.
+4. If multiple parts or sub-questions exist (e.g. (a), (b), (i), (ii)), keep their exact labels.
+5. Do NOT solve the problem. Do NOT add conversational intro like "Here is the transcription:". Return ONLY the transcribed question text.
+6. If a character or number is smudged or completely illegible, mark it as [?]. Never invent numbers or equations not present in the image.`;
+}
+
+export function cleanExtractedMathText(raw: string): string {
+  if (!raw || typeof raw !== 'string') return '';
+  const withoutIntro = raw
+    .trim()
+    .replace(
+      /^(?:here\s+is\s+the\s+(?:transcribed\s+|extracted\s+)?(?:mathematical\s+)?(?:text|transcription|question|problem)(?:\s+from\s+the\s+image)?\s*(?:of\s+the\s+image)?\s*:?\s*\n+)/i,
+      ''
+    )
+    .replace(
+      /^(?:the\s+image\s+(?:shows|contains)\s+the\s+following\s+(?:text|problem|question)\s*:?\s*\n*)/i,
+      ''
+    )
+    .replace(/^```(?:markdown|latex|tex|text)?\s*\n?/i, '')
+    .replace(/\n?```$/i, '')
+    .trim();
+
+  return normalizeLatexMarkdown(withoutIntro).trim();
 }

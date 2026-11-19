@@ -8,11 +8,65 @@ export interface SolveMathStreamParams {
   imageBase64?: string | null;
   mimeType?: string;
   onChunk: (fullText: string) => void;
+  onExtractedText?: (extractedText: string) => void;
+}
+
+export async function extractMathFromImage(params: {
+  imageBase64: string;
+  mimeType?: string;
+  mode?: 'math' | 'graph';
+}): Promise<string> {
+  const { imageBase64, mimeType = 'image/jpeg', mode = 'math' } = params;
+
+  // 1. Primary: Next.js /api/ai/ocr-math
+  let lastError = 'Could not extract mathematical text from image.';
+  try {
+    const res = await fetch('/api/ai/ocr-math', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64, mimeType, mode }),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      extractedText?: string;
+      error?: string;
+    };
+    if (res.ok && data?.extractedText?.trim()) {
+      return data.extractedText.trim();
+    }
+    if (data?.error) {
+      lastError = data.error;
+    }
+  } catch {
+    // Fall through to Express backend /ai/ocr-math
+  }
+
+  // 2. Fallback: Express backend /ai/ocr-math
+  try {
+    const backendRes = await apiFetchRaw('/ai/ocr-math', {
+      method: 'POST',
+      body: JSON.stringify({ imageBase64, mimeType, mode }),
+    });
+    const data = (await backendRes.json().catch(() => ({}))) as {
+      extractedText?: string;
+      error?: string;
+    };
+    if (backendRes.ok && data?.extractedText?.trim()) {
+      return data.extractedText.trim();
+    }
+    if (data?.error) {
+      lastError = data.error;
+    }
+  } catch {
+    // Both routes unreachable
+  }
+
+  throw new Error(lastError);
 }
 
 async function consumeMathSse(
   res: Response,
-  onChunk: (fullText: string) => void
+  onChunk: (fullText: string) => void,
+  onExtractedText?: (extractedText: string) => void
 ): Promise<string> {
   const reader = res.body?.getReader();
   if (!reader) {
@@ -43,9 +97,17 @@ async function consumeMathSse(
           accumulated += parsed;
           onChunk(accumulated);
         } else if (parsed && typeof parsed === 'object') {
-          const rec = parsed as { text?: unknown; finalText?: unknown; error?: unknown };
+          const rec = parsed as {
+            text?: unknown;
+            finalText?: unknown;
+            extractedText?: unknown;
+            error?: unknown;
+          };
           if (typeof rec.error === 'string' && rec.error) {
             throw new Error(rec.error);
+          }
+          if (typeof rec.extractedText === 'string' && rec.extractedText.trim()) {
+            onExtractedText?.(rec.extractedText.trim());
           }
           if (typeof rec.finalText === 'string' && rec.finalText) {
             accumulated = rec.finalText;
@@ -75,7 +137,7 @@ async function consumeMathSse(
 }
 
 export async function solveMathProblemStream(params: SolveMathStreamParams): Promise<string> {
-  const { problem, subject, level, imageBase64, mimeType, onChunk } = params;
+  const { problem, subject, level, imageBase64, mimeType, onChunk, onExtractedText } = params;
 
   // Use Next.js /api/calculator directly when an image is attached, or fall back to it from Express
   if (!imageBase64) {
@@ -85,7 +147,7 @@ export async function solveMathProblemStream(params: SolveMathStreamParams): Pro
         body: JSON.stringify({ problem, subject, level }),
       });
       if (backendRes.ok) {
-        const text = await consumeMathSse(backendRes, onChunk);
+        const text = await consumeMathSse(backendRes, onChunk, onExtractedText);
         if (text.trim()) return text;
       }
     } catch {
@@ -114,6 +176,6 @@ export async function solveMathProblemStream(params: SolveMathStreamParams): Pro
     );
   }
 
-  return consumeMathSse(localRes, onChunk);
+  return consumeMathSse(localRes, onChunk, onExtractedText);
 }
 

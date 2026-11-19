@@ -4,7 +4,14 @@ import {
   GOLDEN_ESSAY_CASES,
   GOLDEN_FLASHCARD_CASES,
   GOLDEN_TUTOR_CASES,
+  GOLDEN_EXAM_FOCUS_CASES,
 } from './goldenDataset';
+import {
+  parseLecturerAreasInput,
+  matchSlidesAndQuestionsToAreas,
+  buildExamFocusSynthesisPrompt,
+  parseExamFocusSynthesisJson,
+} from '../lib/examFocus';
 import {
   buildDeterministicEssayReport,
   humanizeEssayText,
@@ -20,10 +27,13 @@ import {
   sanitizeTutorResponse,
 } from '../lib/aiTutor';
 
-test('Golden Dataset coverage: at least 24 curated cases across Essay, Flashcard, and Tutor', () => {
+test('Golden Dataset coverage: at least 28 curated cases across Essay, Flashcard, Tutor, and Exam Focus', () => {
   const total =
-    GOLDEN_ESSAY_CASES.length + GOLDEN_FLASHCARD_CASES.length + GOLDEN_TUTOR_CASES.length;
-  assert.ok(total >= 24, `Expected >= 24 golden cases, got ${total}`);
+    GOLDEN_ESSAY_CASES.length +
+    GOLDEN_FLASHCARD_CASES.length +
+    GOLDEN_TUTOR_CASES.length +
+    GOLDEN_EXAM_FOCUS_CASES.length;
+  assert.ok(total >= 28, `Expected >= 28 golden cases, got ${total}`);
 });
 
 test('Essay Grader golden cases enforce bounded scores and zero AI footprints', () => {
@@ -135,6 +145,64 @@ test('AI Tutor golden cases enforce slide RAG ranking, unanswerable detection, d
           sanitized.toLowerCase().includes(bad.toLowerCase()),
           false,
           `${item.id}: sanitizer left forbidden substring "${bad}"`
+        );
+      }
+    }
+  }
+});
+
+test('Exam Focus golden cases enforce retrieval accuracy, coverage gap honesty, XML delimiters, and zero phantom/AI footprints', () => {
+  for (const item of GOLDEN_EXAM_FOCUS_CASES) {
+    const areas = parseLecturerAreasInput(item.rawAreasInput);
+    const matched = matchSlidesAndQuestionsToAreas({
+      areas,
+      slides: item.slides,
+      questions: item.questions,
+    });
+
+    assert.equal(
+      matched.matchedSlides.length,
+      item.expectedMatchedSlideCount,
+      `${item.id}: expected ${item.expectedMatchedSlideCount} slides, got ${matched.matchedSlides.length}`
+    );
+    assert.equal(
+      matched.matchedQuestions.length,
+      item.expectedMatchedQuestionCount,
+      `${item.id}: expected ${item.expectedMatchedQuestionCount} questions, got ${matched.matchedQuestions.length}`
+    );
+
+    if (item.expectedGapMissingQuestions) {
+      assert.ok(
+        matched.coverageGaps.some((g) => g.missing_questions),
+        `${item.id}: expected missing_questions gap flag`
+      );
+    }
+
+    const prompt = buildExamFocusSynthesisPrompt({
+      courseCode: item.courseCode,
+      courseTitle: item.courseTitle,
+      areas,
+      matchedSlides: matched.matchedSlides,
+      matchedQuestions: matched.matchedQuestions,
+      coverageGaps: matched.coverageGaps,
+    });
+    assert.ok(prompt.includes('<lecturer_areas>'), `${item.id}: missing <lecturer_areas>`);
+    assert.ok(prompt.includes('<matched_slides>'), `${item.id}: missing <matched_slides>`);
+    assert.ok(prompt.includes('<matched_past_questions>'), `${item.id}: missing <matched_past_questions>`);
+
+    if (item.mockSynthesisOutput) {
+      const summaries = parseExamFocusSynthesisJson(item.mockSynthesisOutput, {
+        areas,
+        matchedSlides: matched.matchedSlides,
+        matchedQuestions: matched.matchedQuestions,
+        coverageGaps: matched.coverageGaps,
+      });
+      const serialized = JSON.stringify(summaries);
+      for (const bad of item.forbiddenSubstrings || []) {
+        assert.equal(
+          serialized.toLowerCase().includes(bad.toLowerCase()),
+          false,
+          `${item.id}: leaked forbidden substring "${bad}"`
         );
       }
     }

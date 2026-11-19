@@ -8,10 +8,13 @@ import { enforceHighCostLimit } from '@/lib/ratelimit'
 import {
   GEMINI_CANDIDATE_MODELS,
   GROQ_SMART_MODELS,
+  MISTRAL_VISION_MODELS,
   OPENROUTER_CANDIDATE_MODELS,
 } from '../../../../../shared/constants/aiModels'
 import {
+  buildMathOcrPrompt,
   buildUniversalMathSolverPrompt,
+  cleanExtractedMathText,
   sanitizeMathResponse,
   tryDeterministicMathSolve,
 } from '../../../../../shared/lib/mathSolver'
@@ -91,22 +94,7 @@ async function handler(req: Request) {
   }
 
   const { problem = '', subject, level, imageBase64, mimeType } = parsed.data
-  const casCheck = problem.trim()
-    ? tryDeterministicMathSolve(problem, {
-        compile,
-        derivative,
-        evaluate,
-        format,
-        lusolve,
-        simplify,
-      })
-    : null
-  const promptText = buildUniversalMathSolverPrompt({
-    problem,
-    subject,
-    level,
-    verifiedComputation: casCheck,
-  })
+  let activeProblem = problem.trim()
 
   const encoder = new TextEncoder()
   const readable = new ReadableStream({
@@ -123,18 +111,228 @@ async function handler(req: Request) {
       }
 
       try {
-        if (imageBase64) {
+        // Step 1: If an image is attached and problem text is empty, extract the exact question text first
+        if (imageBase64 && !activeProblem) {
           const img = stripDataUrlPrefix(imageBase64)
           const effectiveMime = normalizeVisionMimeType(mimeType || img.mimeType)
+          const dataUrl = `data:${effectiveMime};base64,${img.data}`
+          const ocrPrompt = buildMathOcrPrompt('math')
 
-          // 1. Gemini Vision (stream first, non-stream fallback if stream fails)
+          if (!activeProblem && process.env.MISTRAL_API_KEY) {
+            for (const model of MISTRAL_VISION_MODELS) {
+              try {
+                const mRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
+                  method: 'POST',
+                  signal: AbortSignal.timeout(9000),
+                  headers: {
+                    Authorization: `Bearer ${process.env.MISTRAL_API_KEY}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    model,
+                    temperature: 0.1,
+                    max_tokens: 1500,
+                    messages: [
+                      {
+                        role: 'user',
+                        content: [
+                          { type: 'text', text: ocrPrompt },
+                          { type: 'image_url', image_url: dataUrl },
+                        ],
+                      },
+                    ],
+                  }),
+                })
+                if (mRes.ok) {
+                  const mData = await mRes.json()
+                  const content = mData.choices?.[0]?.message?.content?.trim()
+                  if (content) {
+                    activeProblem = cleanExtractedMathText(content)
+                    break
+                  }
+                }
+              } catch (err) {
+                console.warn(
+                  `[Calculator] Mistral OCR ${model} failed:`,
+                  err instanceof Error ? err.message : err
+                )
+              }
+            }
+          }
+
+          if (!activeProblem && process.env.OPENROUTER_API_KEY) {
+            const visionModels = [
+              ...OPENROUTER_CANDIDATE_MODELS.filter((m) => m.startsWith('google/')),
+              ...OPENROUTER_CANDIDATE_MODELS.filter((m) => !m.startsWith('google/')),
+            ]
+            for (const model of visionModels) {
+              try {
+                const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                  method: 'POST',
+                  signal: AbortSignal.timeout(9000),
+                  headers: {
+                    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    model,
+                    temperature: 0.1,
+                    max_tokens: 1500,
+                    messages: [
+                      {
+                        role: 'user',
+                        content: [
+                          { type: 'text', text: ocrPrompt },
+                          { type: 'image_url', image_url: { url: dataUrl } },
+                        ],
+                      },
+                    ],
+                  }),
+                })
+                if (orRes.ok) {
+                  const orData = await orRes.json()
+                  const content = orData.choices?.[0]?.message?.content?.trim()
+                  if (content) {
+                    activeProblem = cleanExtractedMathText(content)
+                    break
+                  }
+                }
+              } catch (err) {
+                console.warn(
+                  `[Calculator] OpenRouter OCR ${model} failed:`,
+                  err instanceof Error ? err.message : err
+                )
+              }
+            }
+          }
+
+          if (activeProblem) {
+            sendObj({ extractedText: activeProblem })
+          }
+        }
+
+        const casCheck = activeProblem
+          ? tryDeterministicMathSolve(activeProblem, {
+              compile,
+              derivative,
+              evaluate,
+              format,
+              lusolve,
+              simplify,
+            })
+          : null
+
+        const promptText = buildUniversalMathSolverPrompt({
+          problem: activeProblem,
+          subject,
+          level,
+          verifiedComputation: casCheck,
+        })
+
+        // Step 2: If we only have an image (and OCR didn't produce text), use Vision solver directly
+        if (imageBase64 && !activeProblem) {
+          const img = stripDataUrlPrefix(imageBase64)
+          const effectiveMime = normalizeVisionMimeType(mimeType || img.mimeType)
+          const dataUrl = `data:${effectiveMime};base64,${img.data}`
+
+          // 1. Mistral Vision Solver
+          if (!fullText && process.env.MISTRAL_API_KEY) {
+            for (const model of MISTRAL_VISION_MODELS) {
+              try {
+                const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${process.env.MISTRAL_API_KEY}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    model,
+                    temperature: 0.15,
+                    max_tokens: 2200,
+                    messages: [
+                      {
+                        role: 'user',
+                        content: [
+                          { type: 'text', text: promptText },
+                          { type: 'image_url', image_url: dataUrl },
+                        ],
+                      },
+                    ],
+                  }),
+                  signal: AbortSignal.timeout(14000),
+                })
+                if (res.ok) {
+                  const data = await res.json()
+                  const content = data.choices?.[0]?.message?.content?.trim()
+                  if (content) {
+                    emitDelta(content)
+                    break
+                  }
+                }
+              } catch (err) {
+                console.warn(
+                  `[Calculator] Mistral vision ${model} failed:`,
+                  err instanceof Error ? err.message : err
+                )
+              }
+            }
+          }
+
+          // 2. OpenRouter Vision fallback (vision-capable Gemini models with safe max_tokens)
+          if (!fullText && process.env.OPENROUTER_API_KEY) {
+            const visionModels = [
+              ...OPENROUTER_CANDIDATE_MODELS.filter((m) => m.startsWith('google/')),
+              ...OPENROUTER_CANDIDATE_MODELS.filter((m) => !m.startsWith('google/')),
+            ]
+            for (const model of visionModels) {
+              try {
+                const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    model,
+                    temperature: 0.15,
+                    max_tokens: 1800,
+                    messages: [
+                      {
+                        role: 'user',
+                        content: [
+                          { type: 'text', text: promptText },
+                          { type: 'image_url', image_url: { url: dataUrl } },
+                        ],
+                      },
+                    ],
+                  }),
+                  signal: AbortSignal.timeout(14000),
+                })
+                if (res.ok) {
+                  const data = await res.json()
+                  const content = data.choices?.[0]?.message?.content?.trim()
+                  if (content) {
+                    emitDelta(content)
+                    break
+                  }
+                }
+              } catch (err) {
+                console.warn(
+                  `[Calculator] OpenRouter vision ${model} failed:`,
+                  err instanceof Error ? err.message : err
+                )
+              }
+            }
+          }
+
+          // 3. Direct Gemini Vision fallback
           if (!fullText && process.env.GEMINI_API_KEY) {
             const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
             for (const modelName of GEMINI_CANDIDATE_MODELS) {
               try {
                 const model = genAI.getGenerativeModel({
                   model: modelName,
-                  generationConfig: { temperature: 0.15, maxOutputTokens: 3000 },
+                  generationConfig: { temperature: 0.15, maxOutputTokens: 2500 },
                 })
                 const parts = [
                   promptText,
@@ -158,88 +356,10 @@ async function handler(req: Request) {
               }
             }
           }
-
-          // 2. OpenRouter Vision fallback (vision-capable Gemini models first)
-          if (!fullText && process.env.OPENROUTER_API_KEY) {
-            const dataUrl = `data:${effectiveMime};base64,${img.data}`
-            const visionModels = [
-              ...OPENROUTER_CANDIDATE_MODELS.filter((m) => m.startsWith('google/')),
-              ...OPENROUTER_CANDIDATE_MODELS.filter((m) => !m.startsWith('google/')),
-            ]
-            for (const model of visionModels) {
-              try {
-                const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                  method: 'POST',
-                  headers: {
-                    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    model,
-                    temperature: 0.15,
-                    max_tokens: 3000,
-                    messages: [
-                      {
-                        role: 'user',
-                        content: [
-                          { type: 'text', text: promptText },
-                          { type: 'image_url', image_url: { url: dataUrl } },
-                        ],
-                      },
-                    ],
-                  }),
-                  signal: AbortSignal.timeout(15000),
-                })
-                if (res.ok) {
-                  const data = await res.json()
-                  const content = data.choices?.[0]?.message?.content?.trim()
-                  if (content) {
-                    emitDelta(content)
-                    break
-                  }
-                }
-              } catch (err) {
-                console.warn(
-                  `[Calculator] OpenRouter vision ${model} failed:`,
-                  err instanceof Error ? err.message : err
-                )
-              }
-            }
-          }
-
-          // 3. Groq Vision fallback
-          if (!fullText && process.env.GROQ_API_KEY) {
-            try {
-              const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
-              const groqVisionRes = await groq.chat.completions.create({
-                model: 'llama-3.2-11b-vision-preview',
-                temperature: 0.15,
-                max_tokens: 3000,
-                messages: [
-                  {
-                    role: 'user',
-                    content: [
-                      { type: 'text', text: promptText },
-                      {
-                        type: 'image_url',
-                        image_url: { url: `data:${effectiveMime};base64,${img.data}` },
-                      },
-                    ],
-                  },
-                ],
-              })
-              const visionContent = groqVisionRes.choices?.[0]?.message?.content?.trim()
-              if (visionContent) {
-                emitDelta(visionContent)
-              }
-            } catch (groqVisionErr) {
-              console.warn('[Calculator] Groq vision failed:', groqVisionErr)
-            }
-          }
         }
 
-        // Text-based solver (or fallback when problem text was also provided alongside an image)
-        if (!fullText.trim() && (!imageBase64 || problem.trim())) {
+        // Step 3: Text-based solver (now runs whenever activeProblem was typed OR extracted from image!)
+        if (!fullText.trim() && (!imageBase64 || activeProblem)) {
           // 1. Groq Streaming (low temperature for algebraic fidelity)
           if (process.env.GROQ_API_KEY) {
             const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
@@ -301,7 +421,7 @@ async function handler(req: Request) {
                   body: JSON.stringify({
                     model,
                     temperature: 0.15,
-                    max_tokens: 3000,
+                    max_tokens: 1800,
                     messages: [{ role: 'user', content: promptText }],
                   }),
                   signal: AbortSignal.timeout(12000),
@@ -329,9 +449,9 @@ async function handler(req: Request) {
           }
 
           // 5. Direct Math.js arithmetic and algebraic evaluation fallback
-          if (!fullText.trim() && problem.trim()) {
+          if (!fullText.trim() && activeProblem) {
             try {
-              const cleaned = problem
+              const cleaned = activeProblem
                 .replace(/^(?:calculate|evaluate|what\s+is|solve|find|compute)\s+/i, '')
                 .replace(/[?=]+$/, '')
                 .trim()
@@ -347,9 +467,9 @@ async function handler(req: Request) {
           }
 
           // 6. Helpful Problem Structure fallback
-          if (!fullText.trim() && problem.trim()) {
+          if (!fullText.trim() && activeProblem) {
             emitDelta(
-              `### Problem\n\n**Question:** ${problem.trim()}\n\nAI computation providers were unreachable or timed out. Please verify algebraic notation (e.g. \`2x + 5 = 15\` or \`derivative of x^2\`) to compute step-by-step.`
+              `### Problem\n\n**Question:** ${activeProblem}\n\nAI computation providers were unreachable or timed out. Please verify algebraic notation (e.g. \`2x + 5 = 15\` or \`derivative of x^2\`) to compute step-by-step.`
             )
           }
         }

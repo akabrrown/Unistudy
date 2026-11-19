@@ -9,7 +9,7 @@ export type Feature =
   | 'daily_brief' | 'motivational_quote' | 'break_suggestion'
   | 'slide_embedding' | 'search_embedding' | 'flashcard_embedding'
   | 'semantic_search_rerank' | 'youtube_search'
-  | 'revision_song' | 'study_poster' | 'cheat_sheet' | 'generate_mnemonics'
+  | 'revision_song' | 'study_poster' | 'cheat_sheet' | 'generate_mnemonics' | 'exam_focus'
 
 export type PoolType = 'credit_funded' | 'free_daily' | 'free_rate_limit'
 
@@ -61,7 +61,8 @@ export const FEATURE_PROVIDER_MAP: Record<Feature, ProviderName> = {
   revision_song: 'groq_70b',
   study_poster: 'gemini',
   cheat_sheet: 'gemini',
-  generate_mnemonics: 'gemini'
+  generate_mnemonics: 'gemini',
+  exam_focus: 'gemini'
 }
 
 export const FEATURE_COSTS: Record<Feature, number> = {
@@ -82,6 +83,7 @@ export const FEATURE_COSTS: Record<Feature, number> = {
   study_poster: 200,
   cheat_sheet: 200,
   generate_mnemonics: 200,
+  exam_focus: 200,
 
   calculator: 100,
   chat_message: 100,

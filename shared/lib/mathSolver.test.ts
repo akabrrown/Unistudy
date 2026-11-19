@@ -69,6 +69,32 @@ test('buildUniversalMathSolverPrompt delimits untrusted input, injects CAS check
   assert.equal(prompt.includes('Use HTML for bolding'), false);
 });
 
+test('extractRawBase64AndMime and buildMathOcrPrompt handle data URLs and enforce verbatim math transcription', async () => {
+  const mod = (await import('./mathSolver')) as Record<string, unknown>;
+  assert.equal(typeof mod.extractRawBase64AndMime, 'function');
+  assert.equal(typeof mod.buildMathOcrPrompt, 'function');
+  assert.equal(typeof mod.cleanExtractedMathText, 'function');
+
+  const extractFn = mod.extractRawBase64AndMime as (
+    input: string,
+    fallbackMime?: string
+  ) => { data: string; mimeType: string };
+  const parsed = extractFn('data:image/png;base64, aGVsbG8= ', 'image/jpeg');
+  assert.equal(parsed.mimeType, 'image/png');
+  assert.equal(parsed.data, 'aGVsbG8=');
+
+  const ocrPromptFn = mod.buildMathOcrPrompt as (mode?: 'math' | 'graph') => string;
+  const mathPrompt = ocrPromptFn('math');
+  const graphPrompt = ocrPromptFn('graph');
+  assert.ok(mathPrompt.includes('$...$') && mathPrompt.includes('$$...$$'));
+  assert.ok(graphPrompt.toLowerCase().includes('coordinates'));
+
+  const cleanFn = mod.cleanExtractedMathText as (raw: string) => string;
+  const cleaned = cleanFn('Here is the transcription of the image:\n\\(2x + 5 = 15\\)');
+  assert.equal(cleaned.includes('Here is the transcription'), false);
+  assert.ok(cleaned.includes('$2x + 5 = 15$'));
+});
+
 test('buildUniversalMathSolverPrompt for image-only request enforces verbatim transcription before solving', () => {
   const prompt = buildUniversalMathSolverPrompt({
     problem: '',

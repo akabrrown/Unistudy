@@ -4,6 +4,7 @@ import { enforceHighCostLimit } from '@/lib/ratelimit';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
   GEMINI_CANDIDATE_MODELS,
+  MISTRAL_VISION_MODELS,
   OPENROUTER_CANDIDATE_MODELS,
 } from '../../../../../../shared/constants/aiModels';
 import { normalizeLatexMarkdown } from '../../../../../../shared/lib/latexNormalizer';
@@ -70,29 +71,50 @@ RULES:
 
     let transcription = '';
 
-    if (process.env.GEMINI_API_KEY) {
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      for (const modelName of GEMINI_MODELS) {
+    // 1. Mistral Vision (ministral-14b-latest / ministral-8b-latest)
+    if (!transcription && process.env.MISTRAL_API_KEY) {
+      for (const model of MISTRAL_VISION_MODELS) {
         try {
-          const model = genAI.getGenerativeModel({
-            model: modelName,
-            generationConfig: { temperature: 0.1 },
+          const mRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${process.env.MISTRAL_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model,
+              temperature: 0.1,
+              max_tokens: 2200,
+              messages: [
+                {
+                  role: 'user',
+                  content: [
+                    { type: 'text', text: prompt },
+                    {
+                      type: 'image_url',
+                      image_url: `data:${mimeType};base64,${base64Image}`,
+                    },
+                  ],
+                },
+              ],
+            }),
+            signal: AbortSignal.timeout(12000),
           });
-          const result = await model.generateContent([
-            prompt,
-            { inlineData: { data: base64Image, mimeType } },
-          ]);
-          transcription = result.response.text();
-          if (transcription) break;
+          if (mRes.ok) {
+            const data = await mRes.json();
+            transcription = data.choices?.[0]?.message?.content || '';
+            if (transcription) break;
+          }
         } catch (err: unknown) {
           console.warn(
-            `Gemini scan notes model ${modelName} failed:`,
+            `Mistral scan notes model ${model} failed:`,
             err instanceof Error ? err.message : err
           );
         }
       }
     }
 
+    // 2. OpenRouter Vision (google/gemini-2.5-flash-lite & google/gemini-2.5-flash)
     if (!transcription && process.env.OPENROUTER_API_KEY) {
       const visionModels = [
         ...OPENROUTER_CANDIDATE_MODELS.filter((m) => m.startsWith('google/')),
@@ -109,6 +131,7 @@ RULES:
             body: JSON.stringify({
               model,
               temperature: 0.1,
+              max_tokens: 2000,
               messages: [
                 {
                   role: 'user',
@@ -122,7 +145,7 @@ RULES:
                 },
               ],
             }),
-            signal: AbortSignal.timeout(15000),
+            signal: AbortSignal.timeout(12000),
           });
           if (fallbackRes.ok) {
             const data = await fallbackRes.json();
@@ -132,6 +155,30 @@ RULES:
         } catch (err: unknown) {
           console.warn(
             `OpenRouter scan notes model ${model} failed:`,
+            err instanceof Error ? err.message : err
+          );
+        }
+      }
+    }
+
+    // 3. Direct Google Gemini Vision fallback
+    if (!transcription && process.env.GEMINI_API_KEY) {
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      for (const modelName of GEMINI_MODELS) {
+        try {
+          const model = genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: { temperature: 0.1, maxOutputTokens: 2000 },
+          });
+          const result = await model.generateContent([
+            prompt,
+            { inlineData: { data: base64Image, mimeType } },
+          ]);
+          transcription = result.response.text();
+          if (transcription) break;
+        } catch (err: unknown) {
+          console.warn(
+            `Gemini scan notes model ${modelName} failed:`,
             err instanceof Error ? err.message : err
           );
         }

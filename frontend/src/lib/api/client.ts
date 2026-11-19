@@ -22,7 +22,7 @@ const TOKEN_CACHE_TTL_MS = 30_000;
 const NEGATIVE_TOKEN_TTL_MS = 15_000;
 const GET_CACHE_TTL_MS = 10_000;
 
-const CACHEABLE_READ_PREFIXES = ['/courses', '/lectures/', '/settings/', '/quota/status'];
+const CACHEABLE_READ_PREFIXES = ['/courses', '/lectures/', '/settings/', '/quota/status', '/exam-focus/'];
 const DEDUPABLE_POST_PREFIXES = ['/ai/', '/translate'];
 
 let cachedToken: { token: string | null; expiresAt: number } | null = null;

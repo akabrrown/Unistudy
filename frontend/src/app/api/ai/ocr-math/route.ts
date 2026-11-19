@@ -1,55 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import Groq from 'groq-sdk';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/security/adminGuard';
 import { highCostRatelimit } from '@/lib/ratelimit';
 import {
   GEMINI_CANDIDATE_MODELS,
+  MISTRAL_VISION_MODELS,
   OPENROUTER_CANDIDATE_MODELS,
 } from '../../../../../../shared/constants/aiModels';
-import { normalizeLatexMarkdown } from '../../../../../../shared/lib/latexNormalizer';
+import {
+  buildMathOcrPrompt,
+  cleanExtractedMathText,
+  extractRawBase64AndMime,
+  normalizeVisionMime,
+} from '../../../../../../shared/lib/mathSolver';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const OCR_TIMEOUT_MS = 10000;
+const OCR_PROVIDER_TIMEOUT_MS = 10000;
 
 const OcrRequestSchema = z.object({
   imageBase64: z.string().max(12_000_000).optional(),
   mimeType: z.string().max(100).optional().default('image/jpeg'),
+  mode: z.enum(['math', 'graph']).optional().default('math'),
 });
-
-function normalizeMime(raw?: string): string {
-  const lower = (raw || '').trim().toLowerCase();
-  if (lower === 'image/jpg' || lower === 'image/jpeg') return 'image/jpeg';
-  if (lower === 'image/png') return 'image/png';
-  if (lower === 'image/webp') return 'image/webp';
-  return 'image/jpeg';
-}
-
-function extractRawBase64(input: string): { data: string; mimeType: string } {
-  const trimmed = input.trim();
-  const marker = ';base64,';
-  const markerIdx = trimmed.indexOf(marker);
-  if (trimmed.startsWith('data:') && markerIdx !== -1) {
-    const rawMime = trimmed.slice(5, markerIdx);
-    const rawData = trimmed.slice(markerIdx + marker.length).replace(/\s+/g, '');
-    return { data: rawData, mimeType: normalizeMime(rawMime) };
-  }
-  return { data: trimmed.replace(/\s+/g, ''), mimeType: 'image/jpeg' };
-}
-
-const OCR_MATH_PROMPT = `You are an expert STEM and mathematics handwriting/print transcription OCR engine.
-Transcribe the mathematical problem, question text, equations, formulas, coordinates, and instructions visible in the attached image EXACTLY as written.
-
-TRANSCRIPTION RULES:
-1. Transcribe verbatim. Preserve every number, variable name, sign (+/-), fraction, superscript, subscript, and parenthesis without change.
-2. Format inline math using single dollar signs $...$ and standalone equations using double dollar signs $$...$$. Never use \\(...\\) or \\[...\\].
-3. If coordinates are visible (e.g. A(2, 4), B(2, 8)), transcribe them accurately.
-4. If multiple parts or sub-questions exist (e.g. (a), (b), (i), (ii)), keep their exact labels.
-5. Do NOT solve the problem. Do NOT write solutions or answers. Return ONLY the transcribed question text.
-6. If a character or number is smudged or completely illegible, mark it as [?]. Never invent numbers or equations not present in the image.`;
 
 export async function POST(req: NextRequest) {
   try {
@@ -72,17 +47,20 @@ export async function POST(req: NextRequest) {
 
     let base64Data = '';
     let effectiveMime = 'image/jpeg';
+    let mode: 'math' | 'graph' = 'math';
 
     const contentType = req.headers.get('content-type') || '';
     if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData();
       const file = formData.get('file') as File | null;
+      const rawMode = String(formData.get('mode') || 'math').trim();
+      if (rawMode === 'graph') mode = 'graph';
       if (!file) {
         return NextResponse.json({ error: 'No image file provided' }, { status: 400 });
       }
       const buffer = Buffer.from(await file.arrayBuffer());
       base64Data = buffer.toString('base64');
-      effectiveMime = normalizeMime(file.type);
+      effectiveMime = normalizeVisionMime(file.type);
     } else {
       let rawJson: unknown;
       try {
@@ -94,49 +72,67 @@ export async function POST(req: NextRequest) {
       if (!parsed.success || !parsed.data.imageBase64) {
         return NextResponse.json({ error: 'Please provide an imageBase64 payload' }, { status: 400 });
       }
-      const extracted = extractRawBase64(parsed.data.imageBase64);
+      mode = parsed.data.mode;
+      const extracted = extractRawBase64AndMime(parsed.data.imageBase64, parsed.data.mimeType);
       base64Data = extracted.data;
-      effectiveMime = normalizeMime(parsed.data.mimeType || extracted.mimeType);
+      effectiveMime = extracted.mimeType;
     }
 
     if (!base64Data) {
       return NextResponse.json({ error: 'Empty image payload' }, { status: 400 });
     }
 
+    const ocrPrompt = buildMathOcrPrompt(mode);
+    const dataUrl = `data:${effectiveMime};base64,${base64Data}`;
     let extractedText = '';
+    let providerUsed = '';
 
-    // 1. Gemini Vision (Fastest and most accurate for STEM handwriting/diagrams)
-    if (process.env.GEMINI_API_KEY) {
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      for (const modelName of GEMINI_CANDIDATE_MODELS) {
+    // 1. Mistral Vision (ministral-14b-latest / ministral-8b-latest — fast 1-2s STEM OCR)
+    if (!extractedText && process.env.MISTRAL_API_KEY) {
+      for (const model of MISTRAL_VISION_MODELS) {
         try {
-          const model = genAI.getGenerativeModel({
-            model: modelName,
-            generationConfig: { temperature: 0.1, maxOutputTokens: 2000 },
+          const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+            method: 'POST',
+            signal: AbortSignal.timeout(OCR_PROVIDER_TIMEOUT_MS),
+            headers: {
+              Authorization: `Bearer ${process.env.MISTRAL_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model,
+              temperature: 0.1,
+              max_tokens: 1800,
+              messages: [
+                {
+                  role: 'user',
+                  content: [
+                    { type: 'text', text: ocrPrompt },
+                    { type: 'image_url', image_url: dataUrl },
+                  ],
+                },
+              ],
+            }),
           });
-          const res = await Promise.race([
-            model.generateContent([
-              OCR_MATH_PROMPT,
-              { inlineData: { data: base64Data, mimeType: effectiveMime } },
-            ]),
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('Gemini OCR timeout')), OCR_TIMEOUT_MS)
-            ),
-          ]);
-          const rawResult = res.response.text().trim();
-          if (rawResult) {
-            extractedText = normalizeLatexMarkdown(rawResult);
-            break;
+          if (res.ok) {
+            const data = await res.json();
+            const content = data.choices?.[0]?.message?.content?.trim();
+            if (content) {
+              extractedText = cleanExtractedMathText(content);
+              providerUsed = `mistral:${model}`;
+              break;
+            }
           }
-        } catch (gemErr) {
-          console.warn(`[OcrMath] Gemini ${modelName} failed:`, gemErr instanceof Error ? gemErr.message : gemErr);
+        } catch (mErr) {
+          console.warn(
+            `[OcrMath] Mistral ${model} failed:`,
+            mErr instanceof Error ? mErr.message : mErr
+          );
         }
       }
     }
 
-    // 2. OpenRouter Vision fallback
+    // 2. OpenRouter Vision (google/gemini-2.5-flash-lite & google/gemini-2.5-flash with explicit max_tokens)
     if (!extractedText && process.env.OPENROUTER_API_KEY) {
-      const dataUrl = `data:${effectiveMime};base64,${base64Data}`;
       const visionModels = [
         ...OPENROUTER_CANDIDATE_MODELS.filter((m) => m.startsWith('google/')),
         ...OPENROUTER_CANDIDATE_MODELS.filter((m) => !m.startsWith('google/')),
@@ -145,7 +141,7 @@ export async function POST(req: NextRequest) {
         try {
           const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
-            signal: AbortSignal.timeout(OCR_TIMEOUT_MS),
+            signal: AbortSignal.timeout(OCR_PROVIDER_TIMEOUT_MS),
             headers: {
               Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
               'Content-Type': 'application/json',
@@ -153,12 +149,12 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify({
               model,
               temperature: 0.1,
-              max_tokens: 2000,
+              max_tokens: 1500,
               messages: [
                 {
                   role: 'user',
                   content: [
-                    { type: 'text', text: OCR_MATH_PROMPT },
+                    { type: 'text', text: ocrPrompt },
                     { type: 'image_url', image_url: { url: dataUrl } },
                   ],
                 },
@@ -169,46 +165,59 @@ export async function POST(req: NextRequest) {
             const data = await res.json();
             const content = data.choices?.[0]?.message?.content?.trim();
             if (content) {
-              extractedText = normalizeLatexMarkdown(content);
+              extractedText = cleanExtractedMathText(content);
+              providerUsed = `openrouter:${model}`;
               break;
             }
           }
         } catch (orErr) {
-          console.warn(`[OcrMath] OpenRouter ${model} failed:`, orErr instanceof Error ? orErr.message : orErr);
+          console.warn(
+            `[OcrMath] OpenRouter ${model} failed:`,
+            orErr instanceof Error ? orErr.message : orErr
+          );
         }
       }
     }
 
-    // 3. Groq Vision fallback
-    if (!extractedText && process.env.GROQ_API_KEY) {
-      try {
-        const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-        const groqRes = await groq.chat.completions.create({
-          model: 'llama-3.2-11b-vision-preview',
-          temperature: 0.1,
-          max_tokens: 2000,
-          messages: [
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: OCR_MATH_PROMPT },
-                { type: 'image_url', image_url: { url: `data:${effectiveMime};base64,${base64Data}` } },
-              ],
-            },
-          ],
-        });
-        const content = groqRes.choices?.[0]?.message?.content?.trim();
-        if (content) {
-          extractedText = normalizeLatexMarkdown(content);
+    // 3. Direct Google Gemini Vision fallback (gemini-3.1-flash-lite, gemini-3.8-flash, etc.)
+    if (!extractedText && process.env.GEMINI_API_KEY) {
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      for (const modelName of GEMINI_CANDIDATE_MODELS) {
+        try {
+          const model = genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: { temperature: 0.1, maxOutputTokens: 1800 },
+          });
+          const res = await Promise.race([
+            model.generateContent([
+              ocrPrompt,
+              { inlineData: { data: base64Data, mimeType: effectiveMime } },
+            ]),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('Gemini OCR timeout')), OCR_PROVIDER_TIMEOUT_MS)
+            ),
+          ]);
+          const rawResult = res.response.text().trim();
+          if (rawResult) {
+            extractedText = cleanExtractedMathText(rawResult);
+            providerUsed = `gemini:${modelName}`;
+            break;
+          }
+        } catch (gemErr) {
+          console.warn(
+            `[OcrMath] Gemini ${modelName} failed:`,
+            gemErr instanceof Error ? gemErr.message : gemErr
+          );
         }
-      } catch (groqErr) {
-        console.warn('[OcrMath] Groq vision failed:', groqErr);
       }
     }
 
     if (!extractedText) {
       return NextResponse.json(
-        { error: 'Could not extract mathematical text from image. Please ensure the image is clear and well-lit.' },
+        {
+          error:
+            'Could not extract mathematical text from image. Please ensure the image is clear and well-lit.',
+        },
         { status: 422 }
       );
     }
@@ -216,6 +225,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       extractedText,
+      provider: providerUsed,
     });
   } catch (err: unknown) {
     console.error('[OcrMath] Route error:', err);

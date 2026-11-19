@@ -23,6 +23,7 @@ import {
   LayoutGrid,
   List,
   FolderOpen,
+  Target,
 } from 'lucide-react';
 import { COURSE_COLORS, resolveCourseColor } from '@/lib/constants/courses';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,7 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api/client';
 import { UploadLectureDialog } from '@/components/courses/UploadLectureDialog';
+import { ExamFocusDialog } from '@/components/exam-focus/ExamFocusDialog';
 import { cn } from '@/lib/utils';
 
 interface LectureSummary {
@@ -97,6 +99,8 @@ export default function CoursesPage() {
   const [isCourseDialogOpen, setIsCourseDialogOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
+  const [isExamFocusOpen, setIsExamFocusOpen] = useState(false);
+  const [examFocusCourseId, setExamFocusCourseId] = useState<string | null>(null);
 
   const [newCourseCode, setNewCourseCode] = useState('');
   const [newCourseName, setNewCourseName] = useState('');
@@ -549,6 +553,18 @@ export default function CoursesPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setExamFocusCourseId(activeCourses[0]?.id || null);
+                setIsExamFocusOpen(true);
+              }}
+              className="h-9 px-3 text-xs font-semibold gap-1.5 border-primary/35 hover:bg-primary/10 text-primary cursor-pointer"
+            >
+              <Target className="h-3.5 w-3.5" />
+              Exam Areas
+            </Button>
             <Link
               href="/dashboard/calculator?tab=solver"
               className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/35 hover:bg-muted/70 hover:border-primary/40 px-3 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer"
@@ -1204,6 +1220,17 @@ export default function CoursesPage() {
                     <Button
                       variant="outline"
                       size="sm"
+                      className="h-8 text-xs cursor-pointer gap-1"
+                      onClick={() => {
+                        setExamFocusCourseId(course.id);
+                        setIsExamFocusOpen(true);
+                      }}
+                    >
+                      <Target size={13} className="text-primary" /> Exam Areas
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="h-8 text-xs cursor-pointer"
                       onClick={() => router.push(`/dashboard/courses/${course.id}/quiz`)}
                     >
@@ -1370,45 +1397,56 @@ export default function CoursesPage() {
                   </div>
                 </div>
 
-                {/* Bottom-aligned 4-action quick strip */}
+                {/* Bottom-aligned action quick strip */}
                 <div
-                  className="mt-4 pt-3 border-t border-border/60 grid grid-cols-4 gap-1.5"
+                  className="mt-4 pt-3 border-t border-border/60 grid grid-cols-5 gap-1.5"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 text-[11px] px-1.5 gap-1 cursor-pointer"
+                    className="h-8 text-[11px] px-1 gap-1 cursor-pointer border-primary/30 text-primary hover:bg-primary/10"
+                    onClick={() => {
+                      setExamFocusCourseId(course.id);
+                      setIsExamFocusOpen(true);
+                    }}
+                  >
+                    <Target size={12} /> Focus
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-[11px] px-1 gap-1 cursor-pointer"
                     onClick={() => router.push(`/dashboard/courses/${course.id}/flashcards`)}
                   >
-                    <BrainCircuit size={13} /> Cards
+                    <BrainCircuit size={12} /> Cards
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 text-[11px] px-1.5 gap-1 cursor-pointer"
+                    className="h-8 text-[11px] px-1 gap-1 cursor-pointer"
                     onClick={() => router.push(`/dashboard/courses/${course.id}/quiz`)}
                   >
-                    <BookOpen size={13} /> Quiz
+                    <BookOpen size={12} /> Quiz
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 text-[11px] px-1.5 gap-1 cursor-pointer"
+                    className="h-8 text-[11px] px-1 gap-1 cursor-pointer"
                     onClick={() => router.push(`/dashboard/courses/${course.id}/past-papers`)}
                   >
-                    <FileCheck2 size={13} /> Papers
+                    <FileCheck2 size={12} /> Papers
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 text-[11px] px-1.5 gap-1 cursor-pointer"
+                    className="h-8 text-[11px] px-1 gap-1 cursor-pointer"
                     onClick={() => {
                       setActiveCourseId(course.id);
                       setIsUploadDialogOpen(true);
                     }}
                   >
-                    <UploadCloud size={13} /> Upload
+                    <UploadCloud size={12} /> Upload
                   </Button>
                 </div>
               </article>
@@ -1430,6 +1468,13 @@ export default function CoursesPage() {
           onSuccess={fetchCourses}
         />
       ) : null}
+
+      <ExamFocusDialog
+        open={isExamFocusOpen}
+        onOpenChange={setIsExamFocusOpen}
+        courses={activeCourses}
+        initialCourseId={examFocusCourseId}
+      />
     </div>
   );
 }

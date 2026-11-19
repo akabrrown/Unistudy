@@ -7,8 +7,13 @@ import { highCostRatelimit } from '@/lib/ratelimit';
 import {
   GEMINI_CANDIDATE_MODELS,
   GROQ_SMART_MODELS,
+  MISTRAL_VISION_MODELS,
   OPENROUTER_CANDIDATE_MODELS,
 } from '../../../../../../shared/constants/aiModels';
+import {
+  buildMathOcrPrompt,
+  cleanExtractedMathText,
+} from '../../../../../../shared/lib/mathSolver';
 import {
   buildGraphSolverPrompt,
   parseDeterministicGraphProblem,
@@ -118,54 +123,172 @@ export async function POST(req: NextRequest) {
       console.warn('[SolveGraph] Rate limiter warning (continuing):', rlErr);
     }
 
-    const promptText = buildGraphSolverPrompt(problem);
-
+    let activeProblem = problem.trim();
     let rawCandidate: Record<string, unknown> | null = null;
     let modelUsed: string | null = null;
 
-    if (imageBase64) {
+    // Step 1: If an image is attached and problem text is not yet extracted, extract the exact question text first
+    if (imageBase64 && !activeProblem) {
       const img = stripDataUrlPrefix(imageBase64);
       const effectiveMime = mimeType || img.mimeType;
+      const dataUrl = `data:${effectiveMime};base64,${img.data}`;
+      const ocrPrompt = buildMathOcrPrompt('graph');
 
-      // 1. Gemini Vision (first 2 fast models with strict timeout)
-      if (process.env.GEMINI_API_KEY) {
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const geminiModels = [GEMINI_CANDIDATE_MODELS[0], GEMINI_CANDIDATE_MODELS[GEMINI_CANDIDATE_MODELS.length - 1]];
-        for (const modelName of geminiModels) {
+      if (!activeProblem && process.env.MISTRAL_API_KEY) {
+        for (const model of MISTRAL_VISION_MODELS) {
           const budget = Math.min(PER_PROVIDER_TIMEOUT_MS, remainingBudget());
           if (budget < 1500) break;
           try {
-            const model = genAI.getGenerativeModel({
-              model: modelName,
-              generationConfig: {
-                responseMimeType: 'application/json',
-                temperature: 0.1,
-                maxOutputTokens: 2500,
+            const mRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
+              method: 'POST',
+              signal: AbortSignal.timeout(budget),
+              headers: {
+                Authorization: `Bearer ${process.env.MISTRAL_API_KEY}`,
+                'Content-Type': 'application/json',
               },
+              body: JSON.stringify({
+                model,
+                temperature: 0.1,
+                max_tokens: 1500,
+                messages: [
+                  {
+                    role: 'user',
+                    content: [
+                      { type: 'text', text: ocrPrompt },
+                      { type: 'image_url', image_url: dataUrl },
+                    ],
+                  },
+                ],
+              }),
             });
-            const res = await withTimeout(
-              model.generateContent([
-                promptText,
-                { inlineData: { data: img.data, mimeType: effectiveMime } },
-              ]),
-              budget,
-              `Gemini vision (${modelName})`
-            );
-            const candidate = parseGraphSpecJson(res.response.text());
-            if (candidate) {
-              rawCandidate = candidate;
-              modelUsed = modelName;
-              break;
+            if (mRes.ok) {
+              const mData = await mRes.json();
+              const content = mData.choices?.[0]?.message?.content?.trim();
+              if (content) {
+                activeProblem = cleanExtractedMathText(content);
+                break;
+              }
             }
           } catch (err) {
-            console.warn(`[SolveGraph] Gemini vision ${modelName} failed:`, err instanceof Error ? err.message : err);
+            console.warn(`[SolveGraph] Mistral OCR ${model} failed:`, err instanceof Error ? err.message : err);
           }
         }
       }
 
-      // 2. OpenRouter Vision fallback (vision-capable Gemini models only)
+      if (!activeProblem && process.env.OPENROUTER_API_KEY) {
+        const openRouterVisionModels = OPENROUTER_CANDIDATE_MODELS.filter((m) => m.includes('gemini'));
+        for (const model of openRouterVisionModels) {
+          const budget = Math.min(PER_PROVIDER_TIMEOUT_MS, remainingBudget());
+          if (budget < 1500) break;
+          try {
+            const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+              method: 'POST',
+              signal: AbortSignal.timeout(budget),
+              headers: {
+                Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model,
+                temperature: 0.1,
+                max_tokens: 1500,
+                messages: [
+                  {
+                    role: 'user',
+                    content: [
+                      { type: 'text', text: ocrPrompt },
+                      { type: 'image_url', image_url: { url: dataUrl } },
+                    ],
+                  },
+                ],
+              }),
+            });
+            if (orRes.ok) {
+              const orData = await orRes.json();
+              const content = orData.choices?.[0]?.message?.content?.trim();
+              if (content) {
+                activeProblem = cleanExtractedMathText(content);
+                break;
+              }
+            }
+          } catch (err) {
+            console.warn(`[SolveGraph] OpenRouter OCR ${model} failed:`, err instanceof Error ? err.message : err);
+          }
+        }
+      }
+
+      // If the extracted problem from the image can be solved deterministically by CAS & coordinate geometry, return immediately!
+      if (activeProblem) {
+        const deterministicFromOcr = parseDeterministicGraphProblem(activeProblem);
+        if (
+          deterministicFromOcr &&
+          (deterministicFromOcr.functions.length > 0 ||
+            deterministicFromOcr.shapes.length > 0 ||
+            deterministicFromOcr.points.length > 0)
+        ) {
+          deterministicFromOcr.extractedProblemText = activeProblem;
+          return NextResponse.json({
+            spec: deterministicFromOcr,
+            extractedProblemText: activeProblem,
+            modelUsed: 'vision-ocr-deterministic-cas',
+          });
+        }
+      }
+    }
+
+    const promptText = buildGraphSolverPrompt(activeProblem);
+
+    if (imageBase64 && !activeProblem) {
+      const img = stripDataUrlPrefix(imageBase64);
+      const effectiveMime = mimeType || img.mimeType;
+      const dataUrl = `data:${effectiveMime};base64,${img.data}`;
+
+      // 1. Mistral Vision JSON GraphSpec
+      if (!rawCandidate && process.env.MISTRAL_API_KEY) {
+        for (const model of MISTRAL_VISION_MODELS) {
+          const budget = Math.min(PER_PROVIDER_TIMEOUT_MS, remainingBudget());
+          if (budget < 1500) break;
+          try {
+            const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+              method: 'POST',
+              signal: AbortSignal.timeout(budget),
+              headers: {
+                Authorization: `Bearer ${process.env.MISTRAL_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model,
+                temperature: 0.1,
+                max_tokens: 1800,
+                response_format: { type: 'json_object' },
+                messages: [
+                  {
+                    role: 'user',
+                    content: [
+                      { type: 'text', text: promptText },
+                      { type: 'image_url', image_url: dataUrl },
+                    ],
+                  },
+                ],
+              }),
+            });
+            if (res.ok) {
+              const json = await res.json();
+              const candidate = parseGraphSpecJson(json.choices?.[0]?.message?.content || '');
+              if (candidate) {
+                rawCandidate = candidate;
+                modelUsed = `mistral:${model}`;
+                break;
+              }
+            }
+          } catch (err) {
+            console.warn(`[SolveGraph] Mistral vision ${model} failed:`, err instanceof Error ? err.message : err);
+          }
+        }
+      }
+
+      // 2. OpenRouter Vision fallback (vision-capable Gemini models with safe max_tokens)
       if (!rawCandidate && process.env.OPENROUTER_API_KEY && remainingBudget() >= 2000) {
-        const dataUrl = `data:${effectiveMime};base64,${img.data}`;
         const openRouterVisionModels = OPENROUTER_CANDIDATE_MODELS.filter((m) => m.includes('gemini'));
         for (const model of openRouterVisionModels) {
           const budget = Math.min(PER_PROVIDER_TIMEOUT_MS, remainingBudget());
@@ -181,7 +304,7 @@ export async function POST(req: NextRequest) {
               body: JSON.stringify({
                 model,
                 temperature: 0.1,
-                max_tokens: 2500,
+                max_tokens: 1500,
                 messages: [
                   {
                     role: 'user',
@@ -204,6 +327,42 @@ export async function POST(req: NextRequest) {
             }
           } catch (err) {
             console.warn(`[SolveGraph] OpenRouter vision ${model} failed:`, err instanceof Error ? err.message : err);
+          }
+        }
+      }
+
+      // 3. Direct Gemini Vision fallback
+      if (!rawCandidate && process.env.GEMINI_API_KEY) {
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const geminiModels = [GEMINI_CANDIDATE_MODELS[0], GEMINI_CANDIDATE_MODELS[GEMINI_CANDIDATE_MODELS.length - 1]];
+        for (const modelName of geminiModels) {
+          const budget = Math.min(PER_PROVIDER_TIMEOUT_MS, remainingBudget());
+          if (budget < 1500) break;
+          try {
+            const model = genAI.getGenerativeModel({
+              model: modelName,
+              generationConfig: {
+                responseMimeType: 'application/json',
+                temperature: 0.1,
+                maxOutputTokens: 1800,
+              },
+            });
+            const res = await withTimeout(
+              model.generateContent([
+                promptText,
+                { inlineData: { data: img.data, mimeType: effectiveMime } },
+              ]),
+              budget,
+              `Gemini vision (${modelName})`
+            );
+            const candidate = parseGraphSpecJson(res.response.text());
+            if (candidate) {
+              rawCandidate = candidate;
+              modelUsed = modelName;
+              break;
+            }
+          } catch (err) {
+            console.warn(`[SolveGraph] Gemini vision ${modelName} failed:`, err instanceof Error ? err.message : err);
           }
         }
       }
@@ -314,7 +473,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const effectiveProblemText = problem.trim() || (typeof rawCandidate?.extractedProblemText === 'string' ? rawCandidate.extractedProblemText.trim() : '');
+    const effectiveProblemText =
+      activeProblem ||
+      (typeof rawCandidate?.extractedProblemText === 'string'
+        ? rawCandidate.extractedProblemText.trim()
+        : '');
 
     if (!resolvedSpec && effectiveProblemText) {
       resolvedSpec = parseDeterministicGraphProblem(effectiveProblemText);
@@ -330,7 +493,7 @@ export async function POST(req: NextRequest) {
     // Graceful fallback coordinate grid with interactive guidance so the route never fails with 422
     if (!resolvedSpec) {
       resolvedSpec = resolveGraphSpec({
-        title: problem.trim() ? 'Coordinate Geometry & Graph' : 'Uploaded Graph Analysis',
+        title: effectiveProblemText ? 'Coordinate Geometry & Graph' : 'Uploaded Graph Analysis',
         xAxis: { min: -10, max: 10, step: 2, label: 'x' },
         yAxis: { min: -10, max: 10, step: 2, label: 'y' },
         equalAspect: true,
@@ -338,8 +501,8 @@ export async function POST(req: NextRequest) {
         shapes: [],
         points: [],
         solutionSteps: [
-          problem.trim()
-            ? `**Problem:** ${problem.trim()}`
+          effectiveProblemText
+            ? `**Problem:** ${effectiveProblemText}`
             : 'Analyzing uploaded graph image.',
           'Type equations as $y = mx + c$ or coordinates as $(x, y)$ to plot them immediately on the grid.',
         ],
@@ -349,6 +512,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       spec: resolvedSpec,
+      extractedProblemText: resolvedSpec.extractedProblemText || effectiveProblemText || undefined,
       modelUsed,
     });
   } catch (err: unknown) {

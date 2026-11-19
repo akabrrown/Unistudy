@@ -23,6 +23,7 @@ import {
   CheckSquare,
   X,
   ArrowUpDown,
+  Target,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,7 @@ import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api/client';
 import { createClient } from '@/lib/supabase/client';
 import { bulkDeleteLectures } from '@/app/actions/lectures';
+import { ExamFocusDialog } from '@/components/exam-focus/ExamFocusDialog';
 import { UploadLectureDialog } from '@/components/courses/UploadLectureDialog';
 import { DeleteLectureButton } from '@/components/courses/DeleteLectureButton';
 
@@ -98,6 +100,7 @@ export default function LecturesHubPage() {
   const [selectedLectureIds, setSelectedLectureIds] = useState<Set<string>>(new Set());
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
+  const [isExamFocusOpen, setIsExamFocusOpen] = useState(false);
 
   const initialUrlCourseApplied = useRef(false);
   const lastUrlCourseIdRef = useRef(urlCourseId);
@@ -417,6 +420,16 @@ export default function LecturesHubPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsExamFocusOpen(true)}
+            className="h-9 px-3 text-xs font-semibold gap-1.5 border-primary/35 hover:bg-primary/10 text-primary cursor-pointer"
+          >
+            <Target className="w-3.5 h-3.5" />
+            Exam Areas
+          </Button>
           {activeCourse ? (
             <UploadLectureDialog
               courseId={activeCourse.id}
@@ -557,7 +570,17 @@ export default function LecturesHubPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsExamFocusOpen(true)}
+                className="h-7 px-2.5 text-xs font-medium gap-1 border-primary/35 text-primary hover:bg-primary/10 cursor-pointer"
+              >
+                <Target className="w-3.5 h-3.5" />
+                Exam Areas
+              </Button>
               <Link
                 href={`/dashboard/courses/${activeCourse.id}/flashcards`}
                 className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors"
@@ -942,6 +965,13 @@ export default function LecturesHubPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ExamFocusDialog
+        open={isExamFocusOpen}
+        onOpenChange={setIsExamFocusOpen}
+        courses={courses}
+        initialCourseId={selectedCourseId !== 'all' ? selectedCourseId : courses[0]?.id}
+      />
     </div>
   );
 }

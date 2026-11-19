@@ -32,6 +32,7 @@ import {
   parseDeterministicGraphProblem,
   type GraphSpec,
 } from '../../../../shared/lib/graphSolver'
+import { extractMathFromImage } from '@/lib/mathStreamClient'
 import { cn } from '@/lib/utils'
 
 // Dynamic import of Plotly to avoid SSR issues
@@ -243,6 +244,7 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
   const [problemText, setProblemText] = useState('')
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageMime, setImageMime] = useState<string>('image/png')
+  const [extractedForImage, setExtractedForImage] = useState<string | null>(null)
   const [isSolving, setIsSolving] = useState(false)
   const [isExtracting, setIsExtracting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -363,6 +365,7 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
       return
     }
     setError(null)
+    setExtractedForImage(null)
     const reader = new FileReader()
     reader.onload = () => {
       const rawDataUrl = typeof reader.result === 'string' ? reader.result : null
@@ -432,23 +435,20 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
     setIsExtracting(true)
     setError(null)
     try {
-      const res = await fetch('/api/ai/ocr-math', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: imagePreview,
-          mimeType: imageMime,
-        }),
+      const extractedText = await extractMathFromImage({
+        imageBase64: imagePreview,
+        mimeType: imageMime,
+        mode: 'graph',
       })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok && data?.extractedText) {
-        setProblemText(data.extractedText)
-        toast.success('Question extracted from image!')
-      } else {
-        setError(data?.error || 'Could not extract question from image.')
-      }
-    } catch {
-      setError('Network error extracting question from image.')
+      setProblemText(extractedText)
+      setExtractedForImage(imagePreview)
+      toast.success('Question extracted from image!')
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Could not extract mathematical text from image.'
+      )
     } finally {
       setIsExtracting(false)
     }
@@ -462,25 +462,29 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
     setError(null)
     setCanvasTab('plot')
 
-    // If an image is attached but problem text is empty, auto-extract the text first
-    if (!queryText && imagePreview) {
+    // When an image is attached (and no preset override was clicked), always extract the exact question text first before solving & plotting
+    if (
+      imagePreview &&
+      textOverride === undefined &&
+      (!queryText || extractedForImage !== imagePreview)
+    ) {
       setIsExtracting(true)
       try {
-        const ocrRes = await fetch('/api/ai/ocr-math', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageBase64: imagePreview,
-            mimeType: imageMime,
-          }),
+        const extractedText = await extractMathFromImage({
+          imageBase64: imagePreview,
+          mimeType: imageMime,
+          mode: 'graph',
         })
-        const ocrData = await ocrRes.json().catch(() => ({}))
-        if (ocrRes.ok && ocrData?.extractedText) {
-          queryText = ocrData.extractedText.trim()
-          setProblemText(queryText)
+        if (extractedText) {
+          queryText = extractedText
+          setProblemText(extractedText)
+          setExtractedForImage(imagePreview)
+          toast.success('Question extracted from image — solving & plotting...')
         }
-      } catch {
-        // Fall back to direct solve-graph
+      } catch (ocrErr: unknown) {
+        if (!queryText) {
+          console.warn('[GraphPlotter] Pre-extraction warning, falling back to inline vision graph solve:', ocrErr)
+        }
       } finally {
         setIsExtracting(false)
       }
@@ -523,8 +527,13 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
         const nextSpec = data.spec as GraphSpec
         setGraphSpec(nextSpec)
         syncBoundsFromSpec(nextSpec)
-        if (nextSpec.extractedProblemText && !problemText.trim()) {
-          setProblemText(nextSpec.extractedProblemText)
+        const extractedFromServer =
+          (typeof data.extractedProblemText === 'string' && data.extractedProblemText.trim()) ||
+          (typeof nextSpec.extractedProblemText === 'string' && nextSpec.extractedProblemText.trim()) ||
+          ''
+        if (extractedFromServer && !queryText) {
+          setProblemText(extractedFromServer)
+          if (imagePreview) setExtractedForImage(imagePreview)
         }
         return
       }
@@ -709,7 +718,16 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
                     {isExtracting ? <Loader2 className="w-3 h-3 animate-spin" /> : <ScanLine className="w-3 h-3 text-primary" />}
                     Extract Text
                   </Button>
-                  <Button type="button" variant="ghost" size="icon-sm" onClick={() => setImagePreview(null)} aria-label="Remove attached image">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => {
+                      setImagePreview(null)
+                      setExtractedForImage(null)
+                    }}
+                    aria-label="Remove attached image"
+                  >
                     <X className="w-3.5 h-3.5" />
                   </Button>
                 </div>
@@ -748,10 +766,14 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
                 type="button"
                 size="sm"
                 onClick={() => void runGraphSolve()}
-                disabled={isSolving || (!problemText.trim() && !imagePreview)}
+                disabled={isSolving || isExtracting || (!problemText.trim() && !imagePreview)}
                 className="h-7 px-3 text-xs bg-[#5B2D8E] hover:bg-[#492274] text-white cursor-pointer"
               >
-                {isSolving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Solve & Plot'}
+                {isExtracting
+                  ? 'Extracting...'
+                  : isSolving
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : 'Solve & Plot'}
               </Button>
             </div>
           </div>
@@ -858,7 +880,10 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => setImagePreview(null)}
+                      onClick={() => {
+                        setImagePreview(null)
+                        setExtractedForImage(null)
+                      }}
                       aria-label="Remove attached image"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -908,10 +933,15 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
                   type="button"
                   size="sm"
                   onClick={() => void runGraphSolve()}
-                  disabled={isSolving || (!problemText.trim() && !imagePreview)}
+                  disabled={isSolving || isExtracting || (!problemText.trim() && !imagePreview)}
                   className="h-8 px-4 text-xs bg-[#5B2D8E] dark:bg-primary hover:bg-[#492274] text-white cursor-pointer"
                 >
-                  {isSolving ? (
+                  {isExtracting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      Extracting Question...
+                    </>
+                  ) : isSolving ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                       Solving &amp; Plotting...

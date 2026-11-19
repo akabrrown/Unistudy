@@ -34,7 +34,7 @@ import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import { toast } from 'sonner'
 
-import { solveMathProblemStream } from '@/lib/mathStreamClient'
+import { extractMathFromImage, solveMathProblemStream } from '@/lib/mathStreamClient'
 import { GraphPlotter } from '@/components/study/GraphPlotter'
 import { FormulaLibrary } from '@/components/study/FormulaLibrary'
 import { ConstantsPanel } from '@/components/study/ConstantsPanel'
@@ -251,6 +251,7 @@ export default function CalculatorPage() {
   const [keypadCat, setKeypadCat] = useState<KeypadCategory>('calculus')
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageMime, setImageMime] = useState('image/png')
+  const [extractedForImage, setExtractedForImage] = useState<string | null>(null)
   const [isComputing, setIsComputing] = useState(false)
   const [isExtracting, setIsExtracting] = useState(false)
   const [result, setResult] = useState('')
@@ -294,6 +295,7 @@ export default function CalculatorPage() {
       return
     }
     setError(null)
+    setExtractedForImage(null)
     const reader = new FileReader()
     reader.onload = () => {
       const rawDataUrl = typeof reader.result === 'string' ? reader.result : null
@@ -364,23 +366,20 @@ export default function CalculatorPage() {
     setIsExtracting(true)
     setError(null)
     try {
-      const res = await fetch('/api/ai/ocr-math', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: imagePreview,
-          mimeType: imageMime,
-        }),
+      const extractedText = await extractMathFromImage({
+        imageBase64: imagePreview,
+        mimeType: imageMime,
+        mode: 'math',
       })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok && data?.extractedText) {
-        setProblem(data.extractedText)
-        toast.success('Question extracted from image!')
-      } else {
-        setError(data?.error || 'Could not extract question from image.')
-      }
-    } catch {
-      setError('Network error extracting question from image.')
+      setProblem(extractedText)
+      setExtractedForImage(imagePreview)
+      toast.success('Question extracted from image!')
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Could not extract mathematical text from image.'
+      )
     } finally {
       setIsExtracting(false)
     }
@@ -390,25 +389,32 @@ export default function CalculatorPage() {
     let activeProblem = (problemOverride ?? problem).trim()
     if (!activeProblem && !imagePreview) return
 
-    // If an image is attached but problem text is empty, auto-extract the text first
-    if (!activeProblem && imagePreview) {
+    setError(null)
+    setCopied(false)
+
+    // When an image is attached (and no preset override was clicked), always extract the exact question text first before solving
+    if (
+      imagePreview &&
+      problemOverride === undefined &&
+      (!activeProblem || extractedForImage !== imagePreview)
+    ) {
       setIsExtracting(true)
       try {
-        const ocrRes = await fetch('/api/ai/ocr-math', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageBase64: imagePreview,
-            mimeType: imageMime,
-          }),
+        const extractedText = await extractMathFromImage({
+          imageBase64: imagePreview,
+          mimeType: imageMime,
+          mode: 'math',
         })
-        const ocrData = await ocrRes.json().catch(() => ({}))
-        if (ocrRes.ok && ocrData?.extractedText) {
-          activeProblem = ocrData.extractedText.trim()
-          setProblem(activeProblem)
+        if (extractedText) {
+          activeProblem = extractedText
+          setProblem(extractedText)
+          setExtractedForImage(imagePreview)
+          toast.success('Question extracted from image — solving step-by-step...')
         }
-      } catch {
-        // Fall back to direct solve
+      } catch (ocrErr: unknown) {
+        if (!activeProblem) {
+          console.warn('[MathSolver] Pre-extraction warning, falling back to inline vision solve:', ocrErr)
+        }
       } finally {
         setIsExtracting(false)
       }
@@ -420,8 +426,6 @@ export default function CalculatorPage() {
 
     setIsComputing(true)
     setResult('')
-    setError(null)
-    setCopied(false)
 
     try {
       const finalOutput = await solveMathProblemStream({
@@ -431,6 +435,13 @@ export default function CalculatorPage() {
         imageBase64: imagePreview,
         mimeType: imageMime,
         onChunk: (fullText) => setResult(fullText),
+        onExtractedText: (extracted) => {
+          if (extracted && !activeProblem) {
+            activeProblem = extracted
+            setProblem(extracted)
+            if (imagePreview) setExtractedForImage(imagePreview)
+          }
+        },
       })
 
       if (finalOutput && finalOutput.trim()) {
@@ -468,6 +479,7 @@ export default function CalculatorPage() {
   const handleReset = () => {
     setProblem('')
     setImagePreview(null)
+    setExtractedForImage(null)
     setResult('')
     setError(null)
     setCopied(false)
@@ -901,7 +913,10 @@ export default function CalculatorPage() {
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => setImagePreview(null)}
+                      onClick={() => {
+                        setImagePreview(null)
+                        setExtractedForImage(null)
+                      }}
                       aria-label="Remove attached image"
                       className="cursor-pointer"
                     >
@@ -963,10 +978,15 @@ export default function CalculatorPage() {
                   type="button"
                   size="sm"
                   onClick={() => void runSolve()}
-                  disabled={isComputing || (!problem.trim() && !imagePreview)}
+                  disabled={isComputing || isExtracting || (!problem.trim() && !imagePreview)}
                   className="h-9 px-4 text-xs font-semibold bg-[#5B2D8E] dark:bg-primary hover:bg-[#492274] text-white gap-1.5 cursor-pointer"
                 >
-                  {isComputing ? (
+                  {isExtracting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Extracting Question...
+                    </>
+                  ) : isComputing ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       Solving...

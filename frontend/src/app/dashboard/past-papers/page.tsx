@@ -23,6 +23,7 @@ import {
   List,
   DownloadCloud,
   Loader2,
+  Target,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +33,7 @@ import { apiFetch } from '@/lib/api/client';
 import { resolveCourseColor } from '@/lib/constants/courses';
 import { UploadModal } from '@/components/past-papers/UploadModal';
 import { MoodleSyncModal } from '@/components/past-papers/MoodleSyncModal';
+import { ExamFocusDialog } from '@/components/exam-focus/ExamFocusDialog';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -122,6 +124,7 @@ export default function PastPapersDashboard() {
   const [selectedPapers, setSelectedPapers] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSyncingPortal, setIsSyncingPortal] = useState(false);
+  const [isExamFocusOpen, setIsExamFocusOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string | null>(null);
@@ -490,6 +493,16 @@ export default function PastPapersDashboard() {
               <FolderOpen className="w-3.5 h-3.5 text-primary" />
               Manage Courses
             </Link>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsExamFocusOpen(true)}
+              className="h-9 px-3 text-xs font-semibold gap-1.5 border-primary/35 hover:bg-primary/10 text-primary cursor-pointer"
+            >
+              <Target className="w-3.5 h-3.5" />
+              Exam Areas Focus
+            </Button>
 
             <Button
               onClick={handleDirectPortalSync}
@@ -1125,6 +1138,15 @@ export default function PastPapersDashboard() {
         isOpen={isMoodleModalOpen}
         onClose={() => setIsMoodleModalOpen(false)}
         onSuccess={() => void loadData()}
+      />
+
+      {/* Exam Areas of Concentration Workspace */}
+      <ExamFocusDialog
+        open={isExamFocusOpen}
+        onOpenChange={setIsExamFocusOpen}
+        courses={courses}
+        initialCourseId={selectedCourseFilter || courses[0]?.id}
+        defaultTab="questions"
       />
     </div>
   );
