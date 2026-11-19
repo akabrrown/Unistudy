@@ -14,6 +14,7 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/comp
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
+  BrainCircuit,
   BookOpen,
   CalendarDays,
   Camera,
@@ -68,6 +69,11 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'Dashboard',
         href: '/dashboard',
         icon: LayoutDashboard,
+      },
+      {
+        label: 'AI Study Tutor',
+        href: '/dashboard/chat',
+        icon: BrainCircuit,
       },
       {
         label: 'Courses',

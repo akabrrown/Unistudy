@@ -124,6 +124,12 @@ type CourseFilterTab = 'all' | 'due' | 'with_lectures';
 
 const TOOL_DOCK = [
   {
+    label: 'AI Study Tutor',
+    hint: 'Slide Chatbot',
+    href: '/dashboard/chat',
+    icon: BrainCircuit,
+  },
+  {
     label: 'Math & Graph',
     hint: 'CAS + Plotter',
     href: '/dashboard/calculator',
@@ -152,12 +158,6 @@ const TOOL_DOCK = [
     hint: 'Video Notes',
     href: '/dashboard/youtube',
     icon: PlaySquare,
-  },
-  {
-    label: 'Smart Search',
-    hint: 'Across Slides',
-    href: '/dashboard/search',
-    icon: Search,
   },
 ] as const;
 
