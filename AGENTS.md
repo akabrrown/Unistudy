@@ -46,3 +46,12 @@
   - `cd backend; npx tsc --noEmit`
   - `cd mobile; npx tsc --noEmit`
   - `cd frontend; npm run build`
+
+## 9. UPSA Brand UI & Styling Standard
+- Every feature, button, page, dialog, or UI component must strictly use the UPSA brand color system:
+  - **UPSA Deep Navy:** `#00004E` (Primary buttons, structural headers, active states, text authority)
+  - **UPSA Gold:** `#D89A06` (Accent badges, active tab borders, focus rings, highlights)
+  - **UPSA White:** `#FFFFFF` (Surface contrast, text on navy)
+- Both Light Theme and Dark Theme must be verified for high contrast and readability.
+- Zero generic purple/pink gradients; zero AI sparkle icons (`Sparkles`).
+- Follow the complete styling contract in `.agents/rules/04-upsa-brand-ui-styling-contract.md`.
