@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8005';
+const KLOK_BASE_URL = process.env.KLOK_BASE_URL || 'https://kloksearch.vercel.app';
+const KLOK_API_KEY = process.env.KLOK_API_KEY || 'klok_live_ddbeef2ccb5ed98dd45873c1d35060c4';
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,46 +15,42 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
     const paperId = req.nextUrl.searchParams.get('id') || req.nextUrl.searchParams.get('paperId');
 
     if (!paperId) {
       return NextResponse.json({ error: 'Missing past question paper id (?id=...)' }, { status: 400 });
     }
 
-    // 1. Try proxying to backend if available
-    if (token) {
+    // 1. Check if this is a KLOK paper ID (base64 encoded string from KLOK)
+    const isKlokId = paperId.startsWith('L0') || !paperId.includes('-') || paperId.length > 50;
+
+    if (isKlokId) {
       try {
-        const searchParams = req.nextUrl.searchParams.toString();
-        const targetUrl = `${BACKEND_URL}/api/v1/past-questions/download${searchParams ? `?${searchParams}` : ''}`;
-        const res = await fetch(targetUrl, {
+        const klokDownloadUrl = `${KLOK_BASE_URL}/api/v1/past-questions/download?id=${encodeURIComponent(paperId)}&download=1`;
+        const klokRes = await fetch(klokDownloadUrl, {
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'x-klok-api-key': KLOK_API_KEY,
           },
-          cache: 'no-store',
-          signal: AbortSignal.timeout(2000),
         });
 
-        if (res.ok) {
-          const contentType = res.headers.get('content-type') || 'application/json';
-          if (contentType.includes('application/pdf')) {
-            const arrayBuffer = await res.arrayBuffer();
-            const headers = new Headers();
-            headers.set('Content-Type', 'application/pdf');
-            const disposition = res.headers.get('content-disposition');
-            if (disposition) headers.set('Content-Disposition', disposition);
-            return new NextResponse(arrayBuffer, { status: 200, headers });
-          }
-          const data = await res.json();
-          return NextResponse.json(data);
+        if (klokRes.ok) {
+          const contentType = klokRes.headers.get('content-type') || 'application/pdf';
+          const arrayBuffer = await klokRes.arrayBuffer();
+          const headers = new Headers();
+          headers.set('Content-Type', contentType);
+          headers.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+
+          const disposition = klokRes.headers.get('content-disposition') || `inline; filename="past-question-${encodeURIComponent(paperId)}.pdf"`;
+          headers.set('Content-Disposition', disposition);
+
+          return new NextResponse(arrayBuffer, { status: 200, headers });
         }
-      } catch {
-        // Fallback to Supabase
+      } catch (klokErr: any) {
+        console.warn('[API /api/v1/past-questions/download] KLOK download notice:', klokErr.message);
       }
     }
 
-    // 2. Resilient Native Supabase fallback
+    // 2. Fallback to Supabase past_papers database
     const { data: paper, error } = await supabase
       .from('past_papers')
       .select(`
@@ -64,43 +61,45 @@ export async function GET(req: NextRequest) {
         year,
         exam_type,
         status,
-        file_url,
-        past_paper_questions(id, question_number, text_content, extracted_topic, marks_available)
+        file_url
       `)
       .eq('id', paperId)
       .maybeSingle();
 
-    if (error || !paper) {
-      return NextResponse.json({ error: 'Past question paper not found' }, { status: 404 });
+    if (paper?.file_url) {
+      const fileRes = await fetch(paper.file_url);
+      if (fileRes.ok) {
+        const buffer = await fileRes.arrayBuffer();
+        const headers = new Headers();
+        headers.set('Content-Type', 'application/pdf');
+        headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(paper.title || 'past-question')}.pdf"`);
+        return new NextResponse(buffer, { status: 200, headers });
+      }
     }
 
-    const questions = paper.past_paper_questions || [];
+    // 3. If still not found and not tried KLOK yet, attempt KLOK as fallback
+    if (!isKlokId) {
+      try {
+        const klokDownloadUrl = `${KLOK_BASE_URL}/api/v1/past-questions/download?id=${encodeURIComponent(paperId)}&download=1`;
+        const klokRes = await fetch(klokDownloadUrl, {
+          headers: {
+            'x-klok-api-key': KLOK_API_KEY,
+          },
+        });
 
-    // Return structured downloadable exam paper
-    return NextResponse.json({
-      id: paper.id,
-      title: paper.title,
-      course_code: paper.course_code,
-      year: paper.year,
-      exam_type: paper.exam_type,
-      file_url: paper.file_url,
-      total_questions: questions.length,
-      download_url: `/api/v1/past-questions/download?id=${paper.id}`,
-      questions: questions.map((q: any) => ({
-        question_number: q.question_number,
-        topic: q.extracted_topic,
-        marks: q.marks_available,
-        text: q.text_content,
-      })),
-      formatted_content: questions
-        .map((q: any) => `Question ${q.question_number} [${q.marks_available || 10} marks]\n${q.text_content}`)
-        .join('\n\n----------------------------------------\n\n'),
-    }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(paper.title || 'past-question')}.json"`,
-      },
-    });
+        if (klokRes.ok) {
+          const contentType = klokRes.headers.get('content-type') || 'application/pdf';
+          const arrayBuffer = await klokRes.arrayBuffer();
+          const headers = new Headers();
+          headers.set('Content-Type', contentType);
+          const disposition = klokRes.headers.get('content-disposition') || `inline; filename="past-question-${encodeURIComponent(paperId)}.pdf"`;
+          headers.set('Content-Disposition', disposition);
+          return new NextResponse(arrayBuffer, { status: 200, headers });
+        }
+      } catch (_) {}
+    }
+
+    return NextResponse.json({ error: 'Past question paper not found' }, { status: 404 });
   } catch (err: any) {
     console.error('[API /api/v1/past-questions/download] Error:', err);
     return NextResponse.json({ error: 'Internal Server Error', message: err.message }, { status: 500 });

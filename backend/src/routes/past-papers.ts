@@ -133,6 +133,28 @@ router.get('/download', async (req: any, res) => {
             return res.status(400).json({ error: 'Missing past question paper id (?id=...)' });
         }
 
+        // KLOK stream support for official campus past questions
+        const isKlokId = paperId.startsWith('L0') || paperId.length > 50 || !paperId.includes('-');
+        if (isKlokId) {
+            try {
+                const KLOK_BASE_URL = process.env.KLOK_BASE_URL || 'https://kloksearch.vercel.app';
+                const KLOK_API_KEY = process.env.KLOK_API_KEY || 'klok_live_ddbeef2ccb5ed98dd45873c1d35060c4';
+                const klokRes = await fetch(`${KLOK_BASE_URL}/api/v1/past-questions/download?id=${encodeURIComponent(paperId)}&download=1`, {
+                    headers: { 'x-klok-api-key': KLOK_API_KEY }
+                });
+
+                if (klokRes.ok) {
+                    const contentType = klokRes.headers.get('content-type') || 'application/pdf';
+                    const buffer = Buffer.from(await klokRes.arrayBuffer());
+                    res.setHeader('Content-Type', contentType);
+                    res.setHeader('Content-Disposition', `inline; filename="past-question-${encodeURIComponent(paperId)}.pdf"`);
+                    return res.send(buffer);
+                }
+            } catch (kErr: any) {
+                console.warn('[download] KLOK fetch error:', kErr.message);
+            }
+        }
+
         const { data: paper, error } = await supabaseAdmin
             .from('past_papers')
             .select('*, courses(id, course_code, title, colour), past_paper_questions(*)')
