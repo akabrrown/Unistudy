@@ -37,7 +37,7 @@ export default function TabsLayout() {
         options={{
           title: 'Study Desk',
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color as string} />
           ),
         }}
       />
@@ -46,7 +46,7 @@ export default function TabsLayout() {
         options={{
           title: 'Courses',
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'book' : 'book-outline'} size={size} color={color} />
+            <Ionicons name={focused ? 'book' : 'book-outline'} size={size} color={color as string} />
           ),
         }}
       />
@@ -55,7 +55,7 @@ export default function TabsLayout() {
         options={{
           title: 'Flashcards',
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'albums' : 'albums-outline'} size={size} color={color} />
+            <Ionicons name={focused ? 'albums' : 'albums-outline'} size={size} color={color as string} />
           ),
         }}
       />
@@ -64,7 +64,7 @@ export default function TabsLayout() {
         options={{
           title: 'Exams',
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'document-text' : 'document-text-outline'} size={size} color={color} />
+            <Ionicons name={focused ? 'document-text' : 'document-text-outline'} size={size} color={color as string} />
           ),
         }}
       />
@@ -73,7 +73,7 @@ export default function TabsLayout() {
         options={{
           title: 'Tools',
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'grid' : 'grid-outline'} size={size} color={color} />
+            <Ionicons name={focused ? 'grid' : 'grid-outline'} size={size} color={color as string} />
           ),
         }}
       />
@@ -82,7 +82,7 @@ export default function TabsLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'person' : 'person-outline'} size={size} color={color} />
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={size} color={color as string} />
           ),
         }}
       />

@@ -3,19 +3,50 @@ import { authenticateUser } from '../middleware/auth';
 import { withAIQuota } from '../middleware/quotaGuard';
 import { routeRequest, AIRequest } from '../lib/ai/router';
 import { consumeUserQuota } from '../lib/ai/quota';
-import { supabaseAsUser } from '../lib/supabase';
+import { supabaseAsUser, supabaseAdmin } from '../lib/supabase';
 
 const router = Router();
 router.use(authenticateUser);
 
 // Generate quiz using AI
 router.post('/generate', withAIQuota('quiz_generation'), async (req: Request, res: Response) => {
-  const { lectureId, imageBase64Array, questionCount, difficulty } = req.body;
+  const { lectureId, questionCount = 5, difficulty = 'medium' } = req.body;
+
+  if (!lectureId) {
+    return res.status(400).json({ error: 'lectureId is required' });
+  }
+
+  // Fetch slides from DB for the given lecture — use raw_text for text-based generation
+  const { data: slides, error: slidesErr } = await supabaseAdmin
+    .from('slides')
+    .select('slide_number, raw_text, image_url')
+    .eq('lecture_id', lectureId)
+    .order('slide_number');
+
+  if (slidesErr) {
+    console.error('Failed to fetch slides for quiz generation:', slidesErr);
+    return res.status(500).json({ error: 'Failed to retrieve lecture slides.' });
+  }
+
+  if (!slides || slides.length === 0) {
+    return res.status(400).json({ error: 'No slides found for this lecture. Please upload slides first.' });
+  }
+
+  // Build text content from slides for the AI prompt
+  const slideTexts = slides
+    .filter((s: any) => s.raw_text && s.raw_text.trim().length > 0)
+    .map((s: any) => `[Slide ${s.slide_number}]\n${s.raw_text.trim()}`);
+
+  if (slideTexts.length === 0) {
+    return res.status(400).json({ error: 'Slides have no text content. Cannot generate quiz without readable slide text.' });
+  }
+
+  const slidesPrompt = slideTexts.join('\n\n');
 
   const aiReq: AIRequest = {
     task: 'batch_text',
     feature: 'quiz_generation',
-    payload: { imageBase64Array, questionCount, difficulty },
+    payload: { prompt: slidesPrompt, questionCount, difficulty },
     userId: req.user!.id,
     priority: 'high',
     identifiers: [lectureId, String(questionCount), difficulty] 

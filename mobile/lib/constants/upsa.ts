@@ -12,11 +12,11 @@ export const UPSA_INSTITUTION = {
 } as const;
 
 export const UPSA_LEVELS = [
-  { level: 100, label: 'Level 100' },
-  { level: 200, label: 'Level 200' },
-  { level: 300, label: 'Level 300' },
-  { level: 400, label: 'Level 400' },
-  { level: 500, label: 'Level 500' },
+  { level: 100, value: 100, label: 'Level 100' },
+  { level: 200, value: 200, label: 'Level 200' },
+  { level: 300, value: 300, label: 'Level 300' },
+  { level: 400, value: 400, label: 'Level 400' },
+  { level: 500, value: 500, label: 'Level 500' },
 ] as const;
 
 export interface UPSAFaculty {

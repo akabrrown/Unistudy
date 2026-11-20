@@ -34,7 +34,7 @@ export default function LectureViewerScreen() {
   const [slides, setSlides] = useState<Slide[]>([]);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const filmstripRef = useRef<ScrollView>(null);
+  const filmstripRef = useRef<any>(null);
 
   useEffect(() => {
     if (filmstripRef.current && slides.length > 0) {
