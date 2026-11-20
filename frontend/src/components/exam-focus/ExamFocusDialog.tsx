@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   BookOpen,
   CheckCircle2,
+  ChevronDown,
   ExternalLink,
   FileText,
   GraduationCap,
@@ -161,6 +162,9 @@ export function ExamFocusDialog({
   const [mcqSelections, setMcqSelections] = useState<Record<string, string>>({});
   const [revealedTheory, setRevealedTheory] = useState<Record<string, boolean>>({});
 
+  const prevOpenRef = useRef(false);
+  const prevInitialCourseIdRef = useRef<string | null | undefined>(undefined);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const syncNetwork = () => setIsOffline(!window.navigator.onLine);
@@ -173,27 +177,75 @@ export function ExamFocusDialog({
     };
   }, []);
 
+  // When dialog opens or initialCourseId changes externally from parent, initialize course
   useEffect(() => {
     if (open) {
-      setActiveTab(defaultTab);
-      if (initialCourseId && courses.some((c) => c.id === initialCourseId)) {
-        setSelectedCourseId(initialCourseId);
-      } else if (initialCourseId) {
-        const initCode = initialCourseId.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        const matchingByCode = courses.find((c) => {
-          const cCode = (c.course_code || c.title || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-          return cCode && initCode && (cCode === initCode || cCode.includes(initCode) || initCode.includes(cCode));
-        });
-        if (matchingByCode) {
-          setSelectedCourseId(matchingByCode.id);
-        } else if (!courses.some((c) => c.id === selectedCourseId) && courses[0]?.id) {
-          setSelectedCourseId(courses[0].id);
+      const isJustOpened = !prevOpenRef.current;
+      const isInitialCourseChanged =
+        initialCourseId !== undefined &&
+        initialCourseId !== null &&
+        initialCourseId !== prevInitialCourseIdRef.current;
+
+      if (isJustOpened || isInitialCourseChanged) {
+        prevOpenRef.current = true;
+        prevInitialCourseIdRef.current = initialCourseId;
+        setActiveTab(defaultTab);
+
+        let targetId = '';
+        if (initialCourseId && courses.some((c) => c.id === initialCourseId)) {
+          targetId = initialCourseId;
+        } else if (initialCourseId) {
+          const initCode = initialCourseId.toUpperCase().replace(/[^A-Z0-9]/g, '');
+          const matchingByCode = courses.find((c) => {
+            const cCode = (c.course_code || c.title || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            return cCode && initCode && (cCode === initCode || cCode.includes(initCode) || initCode.includes(cCode));
+          });
+          if (matchingByCode) {
+            targetId = matchingByCode.id;
+          } else if (courses[0]?.id) {
+            targetId = courses[0].id;
+          }
+        } else if (courses[0]?.id) {
+          targetId = courses[0].id;
         }
-      } else if (!courses.some((c) => c.id === selectedCourseId) && courses[0]?.id) {
-        setSelectedCourseId(courses[0].id);
+
+        if (targetId) {
+          setSelectedCourseId(targetId);
+          setPacks([]);
+          setActivePackId('');
+          setShowBuilder(true);
+          setErrorMsg(null);
+          setPackTitleInput('');
+          setRawAreasInput('');
+          setMcqSelections({});
+          setRevealedTheory({});
+        }
       }
+    } else {
+      prevOpenRef.current = false;
     }
-  }, [open, initialCourseId, defaultTab, courses, selectedCourseId]);
+  }, [open, initialCourseId, defaultTab, courses]);
+
+  // Fallback: If selectedCourseId is not in courses list when courses finish loading, auto-select first available
+  useEffect(() => {
+    if (open && courses.length > 0 && (!selectedCourseId || !courses.some((c) => c.id === selectedCourseId))) {
+      setSelectedCourseId(courses[0].id);
+    }
+  }, [open, courses, selectedCourseId]);
+
+  // Clean course switcher handler: prevents state race conditions and immediately loads new course scope
+  const handleCourseChange = useCallback((newCourseId: string) => {
+    if (!newCourseId || newCourseId === selectedCourseId) return;
+    setSelectedCourseId(newCourseId);
+    setPacks([]);
+    setActivePackId('');
+    setShowBuilder(true);
+    setErrorMsg(null);
+    setPackTitleInput('');
+    setRawAreasInput('');
+    setMcqSelections({});
+    setRevealedTheory({});
+  }, [selectedCourseId]);
 
   const loadPacksForCourse = useCallback(async (courseId: string) => {
     if (!courseId) return;
@@ -437,36 +489,84 @@ export function ExamFocusDialog({
         <DialogHeader className="px-6 py-4 border-b border-border bg-card shrink-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pr-8">
             <div className="space-y-1">
-              <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <DialogTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
                 <Target className="w-5 h-5 text-primary" />
                 Exam Areas of Concentration
               </DialogTitle>
-              <DialogDescription className="text-xs">
+              <DialogDescription className="text-xs text-muted-foreground">
                 Enter or upload the lecturer&apos;s exam topics to scrape all matching slides, past questions, coverage gaps, and targeted practice drills.
               </DialogDescription>
             </div>
 
             {courses.length > 0 ? (
               <div className="flex items-center gap-2 shrink-0">
-                <Label htmlFor="exam-focus-course" className="text-xs text-muted-foreground whitespace-nowrap">
+                <Label htmlFor="exam-focus-course" className="text-xs text-muted-foreground whitespace-nowrap font-medium">
                   Course:
                 </Label>
-                <select
-                  id="exam-focus-course"
-                  value={selectedCourseId}
-                  onChange={(e) => setSelectedCourseId(e.target.value)}
-                  className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs font-semibold outline-none max-w-[220px] cursor-pointer"
-                >
-                  {courses.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.course_code ? `${c.course_code} — ${c.title}` : c.title}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    id="exam-focus-course"
+                    value={selectedCourseId}
+                    onChange={(e) => handleCourseChange(e.target.value)}
+                    className="h-8 rounded-lg border border-border bg-background pl-2.5 pr-8 text-xs font-semibold outline-none max-w-[240px] sm:max-w-[300px] cursor-pointer focus:ring-2 focus:ring-primary/20 appearance-none truncate transition-colors"
+                  >
+                    {courses.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.course_code ? `${c.course_code} — ${c.title}` : c.title}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
               </div>
             ) : null}
           </div>
         </DialogHeader>
+
+        {/* Course Pills Ribbon for Quick 1-Click Course Switching */}
+        {courses.length > 1 ? (
+          <div className="px-6 py-2.5 bg-muted/30 border-b border-border/70 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider shrink-0 flex items-center gap-1.5 mr-1">
+              <GraduationCap className="w-3.5 h-3.5 text-primary" />
+              Switch Course:
+            </span>
+            <div className="flex items-center gap-2">
+              {courses.map((c) => {
+                const isSelected = c.id === selectedCourseId;
+                const color = resolveCourseColor(c.colour || undefined);
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => handleCourseChange(c.id)}
+                    className={cn(
+                      'inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border shrink-0',
+                      isSelected
+                        ? 'bg-[#00004E] text-white border-[#D89A06] shadow-sm font-bold ring-1 ring-[#D89A06]/40'
+                        : 'bg-card text-foreground border-border hover:border-[#D89A06]/60 hover:bg-muted/50'
+                    )}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0 shadow-xs"
+                      style={{ backgroundColor: color }}
+                    />
+                    {c.course_code ? (
+                      <span
+                        className={cn(
+                          'font-mono font-bold text-[11px]',
+                          isSelected ? 'text-[#D89A06]' : 'text-primary'
+                        )}
+                      >
+                        {c.course_code}
+                      </span>
+                    ) : null}
+                    <span className="max-w-[180px] sm:max-w-[220px] truncate">{c.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           {isOffline ? (
@@ -506,6 +606,36 @@ export function ExamFocusDialog({
             </div>
           ) : (
             <>
+              {/* Active Course Context Bar */}
+              {activeCourse ? (
+                <div className="rounded-xl border border-border/80 bg-card px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      className="w-3 h-3 rounded-full shrink-0 shadow-xs"
+                      style={{ backgroundColor: resolveCourseColor(activeCourse.colour || undefined) }}
+                    />
+                    <div className="flex items-center gap-2 truncate">
+                      {activeCourse.course_code ? (
+                        <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded shrink-0">
+                          {activeCourse.course_code}
+                        </span>
+                      ) : null}
+                      <span className="text-xs font-bold text-foreground truncate">
+                        {activeCourse.title}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 text-[11px] text-muted-foreground font-medium">
+                    <span className="font-mono font-semibold text-foreground">
+                      {packs.length} {packs.length === 1 ? 'Exam Pack' : 'Exam Packs'}
+                    </span>
+                    <span>·</span>
+                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold">Active Course Context</span>
+                  </div>
+                </div>
+              ) : null}
+
               {/* Saved Packs Bar + New Pack Toggle */}
               <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -522,11 +652,11 @@ export function ExamFocusDialog({
                         className={cn(
                           'rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5',
                           selected
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-border bg-card text-foreground hover:border-primary/40'
+                            ? 'border-[#D89A06] bg-[#00004E] text-white shadow-xs font-bold'
+                            : 'border-border bg-card text-foreground hover:border-[#D89A06]/50'
                         )}
                       >
-                        <Target className="w-3.5 h-3.5" />
+                        <Target className={cn('w-3.5 h-3.5', selected ? 'text-[#D89A06]' : 'text-primary')} />
                         <span className="max-w-[200px] truncate">{pack.title}</span>
                       </button>
                     );
@@ -563,12 +693,15 @@ export function ExamFocusDialog({
 
                   <Button
                     type="button"
-                    variant={showBuilder ? 'secondary' : 'outline'}
+                    variant={showBuilder ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setShowBuilder((prev) => (packs.length > 0 ? !prev : true))}
-                    className="h-8 text-xs gap-1.5 cursor-pointer"
+                    className={cn(
+                      'h-8 text-xs gap-1.5 cursor-pointer font-semibold',
+                      showBuilder && 'bg-[#00004E] hover:bg-[#00004E]/90 text-white border border-[#D89A06]/60 shadow-xs'
+                    )}
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className={cn('w-3.5 h-3.5', showBuilder ? 'text-[#D89A06]' : 'text-primary')} />
                     {showBuilder && packs.length > 0 ? 'View Saved Pack' : 'New Exam Areas'}
                   </Button>
                 </div>
@@ -587,7 +720,7 @@ export function ExamFocusDialog({
                         style={{ backgroundColor: resolveCourseColor(activeCourse?.colour || undefined) }}
                       />
                       <h3 className="text-sm font-bold text-foreground">
-                        {activeCourse?.course_code || activeCourse?.title} Scope Input
+                        {activeCourse?.course_code ? `${activeCourse.course_code} — ` : ''}{activeCourse?.title || 'Course'} Scope Input
                       </h3>
                     </div>
 
@@ -646,16 +779,16 @@ export function ExamFocusDialog({
                     <Button
                       type="submit"
                       disabled={generatingPack || extractingFile || !rawAreasInput.trim() || isOffline}
-                      className="h-9 px-4 text-xs font-semibold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
+                      className="h-9 px-4 text-xs font-semibold gap-1.5 bg-[#00004E] text-white hover:bg-[#00004E]/90 cursor-pointer border border-[#D89A06]/50 shadow-xs"
                     >
                       {generatingPack ? (
                         <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-[#D89A06]" />
                           Scanning Slides &amp; Past Questions...
                         </>
                       ) : (
                         <>
-                          <Target className="w-3.5 h-3.5" />
+                          <Target className="w-3.5 h-3.5 text-[#D89A06]" />
                           Scrape Slides &amp; Past Questions
                         </>
                       )}
@@ -728,7 +861,7 @@ export function ExamFocusDialog({
                         className={cn(
                           'px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer',
                           activeTab === t.id
-                            ? 'bg-primary text-primary-foreground'
+                            ? 'bg-[#00004E] text-white border border-[#D89A06]'
                             : 'bg-muted/40 text-muted-foreground hover:text-foreground'
                         )}
                       >
@@ -853,7 +986,11 @@ export function ExamFocusDialog({
                                             className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform"
                                           />
                                         </div>
-                                      ) : null}
+                                      ) : (
+                                        <div className="aspect-video w-full bg-muted/40 flex items-center justify-center text-muted-foreground/30">
+                                          <Layers className="w-6 h-6" />
+                                        </div>
+                                      )}
                                       <div className="p-2 space-y-0.5">
                                         <div className="flex items-center justify-between text-[10px] font-mono font-semibold text-primary">
                                           <span>
@@ -927,7 +1064,11 @@ export function ExamFocusDialog({
                                     className="w-full h-full object-cover"
                                   />
                                 </div>
-                              ) : null}
+                              ) : (
+                                <div className="aspect-video w-full bg-muted/40 flex items-center justify-center text-muted-foreground/30">
+                                  <Layers className="w-8 h-8" />
+                                </div>
+                              )}
                               <div className="p-3 space-y-1.5 flex-1">
                                 <div className="text-[10px] font-mono font-semibold text-primary uppercase tracking-wider truncate">
                                   {sl.area}
