@@ -258,7 +258,7 @@ export function AcademicSettingsForm({
 
       {/* Row 2: University Institution Selector */}
       <div className="rounded-xl border border-border/70 bg-muted/15 p-3.5">
-        <InstitutionSelect initialInstitution={institutionName} />
+        <InstitutionSelect initialInstitution={institutionName} showLevel={false} />
       </div>
 
       {/* Row 3: Degree Programme & Year of Study */}

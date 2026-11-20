@@ -11,12 +11,14 @@ interface InstitutionSelectProps {
   initialInstitution?: string | null
   initialFaculty?: string | null
   initialLevel?: number | null
+  showLevel?: boolean
 }
 
 export function InstitutionSelect({
   initialInstitution,
   initialFaculty,
-  initialLevel
+  initialLevel,
+  showLevel = true
 }: InstitutionSelectProps = {}) {
   const [selectedFaculty, setSelectedFaculty] = useState<string>(
     initialFaculty || UPSA_FACULTIES[0].code
@@ -87,27 +89,29 @@ export function InstitutionSelect({
       </div>
 
       {/* ── UPSA Level of Study ── */}
-      <div className="space-y-1.5">
-        <Label htmlFor="level_select" className="text-xs font-semibold">
-          Level of Study
-        </Label>
-        <Select
-          value={String(selectedLevel)}
-          onValueChange={(val) => setSelectedLevel(Number(val) || 100)}
-        >
-          <SelectTrigger id="level_select" className="h-10 text-xs bg-background/50">
-            <SelectValue placeholder="Select Level" />
-          </SelectTrigger>
-          <SelectContent>
-            {UPSA_LEVELS.map((lvl) => (
-              <SelectItem key={lvl.value} value={String(lvl.value)} className="text-xs">
-                {lvl.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <input type="hidden" name="year_of_study" value={selectedLevel} />
-      </div>
+      {showLevel && (
+        <div className="space-y-1.5">
+          <Label htmlFor="level_select" className="text-xs font-semibold">
+            Level of Study
+          </Label>
+          <Select
+            value={String(selectedLevel)}
+            onValueChange={(val) => setSelectedLevel(Number(val) || 100)}
+          >
+            <SelectTrigger id="level_select" className="h-10 text-xs bg-background/50">
+              <SelectValue placeholder="Select Level" />
+            </SelectTrigger>
+            <SelectContent>
+              {UPSA_LEVELS.map((lvl) => (
+                <SelectItem key={lvl.value} value={String(lvl.value)} className="text-xs">
+                  {lvl.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <input type="hidden" name="year_of_study" value={selectedLevel} />
+        </div>
+      )}
     </div>
   )
 }

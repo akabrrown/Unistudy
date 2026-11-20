@@ -219,8 +219,17 @@ function applyDOMChanges(settings: UserSettings) {
   // Performance
   if (settings.low_bandwidth) {
     root.setAttribute('data-animations', 'off');
+    root.setAttribute('data-reduced-motion', 'true');
   } else {
     root.removeAttribute('data-animations');
+    root.removeAttribute('data-reduced-motion');
+  }
+
+  // Cognitive Simplified Layout Mode
+  if (settings.simplified_mode) {
+    root.setAttribute('data-simplified', 'true');
+  } else {
+    root.removeAttribute('data-simplified');
   }
 }
 

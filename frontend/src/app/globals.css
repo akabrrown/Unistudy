@@ -283,79 +283,105 @@
 
 /* Accessibility Attributes */
 
-/* Font Family */
-[data-font="opendyslexic"], [data-font="opendyslexic"] * {
-  font-family: 'OpenDyslexic', 'Comic Sans MS', sans-serif !important;
-  letter-spacing: 0.05em !important;
-  word-spacing: 0.1em !important;
+/* Font Family - OpenDyslexic for Dyslexia Reading Focus with Safe Monospace/SVG Exclusions */
+[data-font="opendyslexic"],
+[data-font="opendyslexic"] *:not(code):not(pre):not(kbd):not(svg):not(path):not([class*="lucide"]):not([class*="katex"]) {
+  font-family: 'OpenDyslexic', -apple-system, BlinkMacSystemFont, 'Comic Sans MS', sans-serif !important;
+  letter-spacing: 0.03em !important;
+  word-spacing: 0.08em !important;
 }
 
-/* High Contrast Mode */
+/* High Contrast Mode - Exceeds WCAG AAA 7:1 Contrast */
 [data-contrast="high"] {
   --background: 0 0% 0%;
   --foreground: 0 0% 100%;
-  --card: 0 0% 5%;
+  --card: 0 0% 4%;
   --card-foreground: 0 0% 100%;
-  --popover: 0 0% 5%;
+  --popover: 0 0% 4%;
   --popover-foreground: 0 0% 100%;
-  --primary: 60 100% 50%; /* High contrast yellow */
+  --primary: 43 95% 48%; /* High luminance UPSA Gold #E5A307 */
   --primary-foreground: 0 0% 0%;
-  --secondary: 0 0% 20%;
+  --secondary: 0 0% 16%;
   --secondary-foreground: 0 0% 100%;
-  --muted: 0 0% 20%;
-  --muted-foreground: 0 0% 80%;
-  --accent: 60 100% 50%;
+  --muted: 0 0% 16%;
+  --muted-foreground: 0 0% 88%;
+  --accent: 43 95% 48%;
   --accent-foreground: 0 0% 0%;
-  --destructive: 0 100% 50%;
+  --destructive: 0 100% 55%;
   --destructive-foreground: 0 0% 100%;
   --border: 0 0% 100%;
   --input: 0 0% 100%;
-  --ring: 60 100% 50%;
+  --ring: 43 95% 48%;
 }
 
-/* Color Blind Modes - Overrides primary color */
+/* Color Blind Modes - Overrides primary/accent palette */
 [data-color-blind="deuteranopia"] {
-  --primary: 210 100% 40%; /* Blue */
-  --secondary: 30 100% 50%; /* Orange */
+  --primary: 212 100% 38%; /* Clear Accessible Blue */
+  --secondary: 32 100% 50%; /* Distinct Amber/Orange */
   --color-plum-500: #0055ff;
 }
 
 [data-color-blind="protanopia"] {
-  --primary: 220 100% 50%; /* Blue */
-  --secondary: 60 100% 50%; /* Yellow */
+  --primary: 218 95% 48%; /* Distinct Cobalt Blue */
+  --secondary: 48 100% 50%; /* Distinct Yellow */
   --color-plum-500: #0088ff;
 }
 
 [data-color-blind="achromatopsia"] {
-  --primary: 0 0% 30%; /* Dark Gray */
-  --secondary: 0 0% 80%; /* Light Gray */
+  --primary: 0 0% 25%; /* Dark Charcoal */
+  --secondary: 0 0% 85%; /* Crisp Light Gray */
   --color-plum-500: #444444;
 }
 
-/* Text Scaling */
-[data-text-size="small"], [data-text-size="small"] * {
-  font-size: 0.875rem !important;
-  line-height: 1.25rem !important;
+/* Proportional Text Scaling - Scales Root REM Units Proportionally Without Distorting Icons or Headings */
+html[data-text-size="small"] {
+  font-size: 90%;
 }
-[data-text-size="large"], [data-text-size="large"] * {
-  font-size: 1.125rem !important;
-  line-height: 1.75rem !important;
+html[data-text-size="normal"] {
+  font-size: 100%;
 }
-[data-text-size="extra-large"], [data-text-size="extra-large"] * {
-  font-size: 1.25rem !important;
-  line-height: 2rem !important;
+html[data-text-size="large"] {
+  font-size: 112.5%;
 }
-
-/* Line Spacing */
-[data-spacing="double"], [data-spacing="double"] * {
-  line-height: 2 !important;
+html[data-text-size="extra-large"] {
+  font-size: 125%;
 }
 
-/* Performance / Low Bandwidth */
-[data-animations="off"], [data-animations="off"] * {
-  transition: none !important;
-  animation: none !important;
+/* Reading Line Spacing - Enforces Double Leading on Text Elements While Keeping Interactive Hitboxes Balanced */
+[data-spacing="double"] p,
+[data-spacing="double"] li,
+[data-spacing="double"] article,
+[data-spacing="double"] blockquote,
+[data-spacing="double"] .prose,
+[data-spacing="double"] .reading-content,
+[data-spacing="double"] [data-reading-target] {
+  line-height: 2.1 !important;
+  margin-bottom: 0.75rem;
+}
+
+/* Performance & Reduced Motion */
+[data-animations="off"],
+[data-animations="off"] *,
+[data-reduced-motion="true"],
+[data-reduced-motion="true"] * {
+  transition-duration: 0.001ms !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
   scroll-behavior: auto !important;
+}
+
+/* High-Visibility Focus Indicator */
+[data-focus-indicator="high-vis"] *:focus-visible {
+  outline: 3px solid #D89A06 !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 4px rgba(0, 0, 78, 0.3) !important;
+}
+
+/* Cognitive Simplified Layout Mode */
+[data-simplified="true"] .decorative-accent,
+[data-simplified="true"] .ambient-glow,
+[data-simplified="true"] .distraction-widget {
+  display: none !important;
 }
 
 
