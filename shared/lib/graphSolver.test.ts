@@ -190,3 +190,38 @@ test('GraphSpec resolves and preserves extractedProblemText for vision-based que
   assert.equal(spec.functions.length, 1);
 });
 
+test('parseDeterministicGraphProblem extracts multiple simultaneous curves and lines on the same coordinate sheet', () => {
+  // Test 1: Multiple functions joined by 'and' with interval bracket notation
+  const multi1 = 'Plot y = x^2 - 4 and y = 2*x - 1 on [-6, 6]';
+  const res1 = parseDeterministicGraphProblem(multi1);
+  assert.ok(res1);
+  assert.equal(res1.functions.length, 2);
+  assert.equal(res1.functions[0].expression, 'x^2 - 4');
+  assert.equal(res1.functions[1].expression, '2*x - 1');
+  assert.equal(res1.xAxis.min, -6);
+  assert.equal(res1.xAxis.max, 6);
+  assert.ok(res1.functions[0].color);
+  assert.ok(res1.functions[1].color);
+  assert.notEqual(res1.functions[0].color, res1.functions[1].color);
+
+  // Test 2: Simultaneous linear equations in standard form (e.g. 2x + y = 7 and x - y = 2)
+  const multi2 = 'Plot 2*x + y = 7 and x - y = 2 on [-4, 8]';
+  const res2 = parseDeterministicGraphProblem(multi2);
+  assert.ok(res2);
+  assert.equal(res2.functions.length, 2);
+  assert.equal(res2.functions[0].expression, '-2*x + 7');
+  assert.equal(res2.functions[1].expression, 'x - 2');
+  assert.equal(res2.xAxis.min, -4);
+  assert.equal(res2.xAxis.max, 8);
+
+  // Test 3: Three curves separated by commas and 'also'
+  const multi3 = 'Graph y = x^3 - 3*x, y = 2*x + 1, and also y = -x^2 + 4';
+  const res3 = parseDeterministicGraphProblem(multi3);
+  assert.ok(res3);
+  assert.equal(res3.functions.length, 3);
+  assert.equal(res3.functions[0].expression, 'x^3 - 3*x');
+  assert.equal(res3.functions[1].expression, '2*x + 1');
+  assert.equal(res3.functions[2].expression, '-x^2 + 4');
+});
+
+
