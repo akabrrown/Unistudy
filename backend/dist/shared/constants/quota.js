@@ -42,7 +42,8 @@ exports.FEATURE_PROVIDER_MAP = {
     revision_song: 'groq_70b',
     study_poster: 'gemini',
     cheat_sheet: 'gemini',
-    generate_mnemonics: 'gemini'
+    generate_mnemonics: 'gemini',
+    exam_focus: 'gemini'
 };
 exports.FEATURE_COSTS = {
     slide_explanation: 200,
@@ -62,6 +63,7 @@ exports.FEATURE_COSTS = {
     study_poster: 200,
     cheat_sheet: 200,
     generate_mnemonics: 200,
+    exam_focus: 200,
     calculator: 100,
     chat_message: 100,
     debate_mode: 100,

@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_1 = require("../middleware/auth");
 const rateLimit_1 = require("../middleware/rateLimit");
+const expensiveGuard_1 = require("../middleware/expensiveGuard");
 const quotaGuard_1 = require("../middleware/quotaGuard");
 const router_1 = require("../lib/ai/router");
 const quota_1 = require("../lib/ai/quota");
@@ -46,6 +47,8 @@ const supabase_1 = require("../lib/supabase");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateUser);
 router.use(rateLimit_1.rateLimit);
+router.use((0, expensiveGuard_1.protectExpensiveEndpoint)({ maxPerMinute: 12, maxConcurrent: 2 }));
+router.use((0, expensiveGuard_1.deduplicateInFlightRequests)({ methods: ['GET', 'POST'] }));
 const multer_1 = __importDefault(require("multer"));
 const generative_ai_1 = require("@google/generative-ai");
 const mathjs_1 = require("mathjs");
@@ -174,6 +177,151 @@ router.post('/scan-notes', upload.single('file'), (0, quotaGuard_1.withAIQuota)(
                 ? 'The AI service is currently experiencing high demand or rate limits. Please try again in a moment.'
                 : err.message,
         });
+    }
+});
+router.post('/ocr-math', upload.single('file'), async (req, res) => {
+    try {
+        let base64Data = '';
+        let effectiveMime = 'image/jpeg';
+        const rawMode = String(req.body?.mode || 'math').trim();
+        const mode = rawMode === 'graph' ? 'graph' : 'math';
+        if (req.file) {
+            base64Data = req.file.buffer.toString('base64');
+            effectiveMime = (0, mathSolver_1.normalizeVisionMime)(req.file.mimetype);
+        }
+        else if (typeof req.body?.imageBase64 === 'string' && req.body.imageBase64.trim()) {
+            const parsed = (0, mathSolver_1.extractRawBase64AndMime)(req.body.imageBase64, req.body?.mimeType);
+            base64Data = parsed.data;
+            effectiveMime = parsed.mimeType;
+        }
+        if (!base64Data) {
+            return res.status(400).json({ error: 'Please provide an image to extract mathematical text.' });
+        }
+        const ocrPrompt = (0, mathSolver_1.buildMathOcrPrompt)(mode);
+        const dataUrl = `data:${effectiveMime};base64,${base64Data}`;
+        let extractedText = '';
+        let providerUsed = '';
+        // 1. Mistral Vision (ministral-14b-latest / ministral-8b-latest)
+        if (!extractedText && process.env.MISTRAL_API_KEY) {
+            for (const model of aiModels_1.MISTRAL_VISION_MODELS) {
+                try {
+                    const mRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
+                        method: 'POST',
+                        signal: AbortSignal.timeout(10000),
+                        headers: {
+                            Authorization: `Bearer ${process.env.MISTRAL_API_KEY}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            model,
+                            temperature: 0.1,
+                            max_tokens: 1800,
+                            messages: [
+                                {
+                                    role: 'user',
+                                    content: [
+                                        { type: 'text', text: ocrPrompt },
+                                        { type: 'image_url', image_url: dataUrl },
+                                    ],
+                                },
+                            ],
+                        }),
+                    });
+                    if (mRes.ok) {
+                        const mData = await mRes.json();
+                        const content = mData.choices?.[0]?.message?.content?.trim();
+                        if (content) {
+                            extractedText = (0, mathSolver_1.cleanExtractedMathText)(content);
+                            providerUsed = `mistral:${model}`;
+                            break;
+                        }
+                    }
+                }
+                catch (err) {
+                    console.warn(`[Backend OcrMath] Mistral ${model} failed:`, err?.message || err);
+                }
+            }
+        }
+        // 2. OpenRouter Vision (google/gemini-2.5-flash-lite & google/gemini-2.5-flash)
+        if (!extractedText && process.env.OPENROUTER_API_KEY) {
+            for (const model of aiModels_1.OPENROUTER_CANDIDATE_MODELS) {
+                try {
+                    const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                        method: 'POST',
+                        signal: AbortSignal.timeout(10000),
+                        headers: {
+                            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            model,
+                            temperature: 0.1,
+                            max_tokens: 1500,
+                            messages: [
+                                {
+                                    role: 'user',
+                                    content: [
+                                        { type: 'text', text: ocrPrompt },
+                                        { type: 'image_url', image_url: { url: dataUrl } },
+                                    ],
+                                },
+                            ],
+                        }),
+                    });
+                    if (orRes.ok) {
+                        const orData = await orRes.json();
+                        const content = orData.choices?.[0]?.message?.content?.trim();
+                        if (content) {
+                            extractedText = (0, mathSolver_1.cleanExtractedMathText)(content);
+                            providerUsed = `openrouter:${model}`;
+                            break;
+                        }
+                    }
+                }
+                catch (err) {
+                    console.warn(`[Backend OcrMath] OpenRouter ${model} failed:`, err?.message || err);
+                }
+            }
+        }
+        // 3. Direct Google Gemini Vision fallback
+        if (!extractedText && process.env.GEMINI_API_KEY) {
+            const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+            for (const modelName of aiModels_1.GEMINI_CANDIDATE_MODELS) {
+                try {
+                    const model = genAI.getGenerativeModel({
+                        model: modelName,
+                        generationConfig: { temperature: 0.1, maxOutputTokens: 1800 },
+                    });
+                    const result = await model.generateContent([
+                        ocrPrompt,
+                        { inlineData: { data: base64Data, mimeType: effectiveMime } },
+                    ]);
+                    const text = result.response.text()?.trim();
+                    if (text) {
+                        extractedText = (0, mathSolver_1.cleanExtractedMathText)(text);
+                        providerUsed = `gemini:${modelName}`;
+                        break;
+                    }
+                }
+                catch (err) {
+                    console.warn(`[Backend OcrMath] Gemini ${modelName} failed:`, err?.message || err);
+                }
+            }
+        }
+        if (!extractedText) {
+            return res.status(422).json({
+                error: 'Could not extract mathematical text from image. Please ensure the image is clear and well-lit.',
+            });
+        }
+        return res.json({
+            success: true,
+            extractedText,
+            provider: providerUsed,
+        });
+    }
+    catch (err) {
+        console.error('[Backend OcrMath] Error:', err);
+        return res.status(500).json({ error: 'Failed to extract mathematical text from image' });
     }
 });
 router.post('/ask', async (req, res) => {

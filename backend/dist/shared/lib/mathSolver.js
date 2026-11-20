@@ -3,8 +3,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.sanitizeMathResponse = void 0;
 exports.tryDeterministicMathSolve = tryDeterministicMathSolve;
 exports.buildUniversalMathSolverPrompt = buildUniversalMathSolverPrompt;
+exports.normalizeVisionMime = normalizeVisionMime;
+exports.extractRawBase64AndMime = extractRawBase64AndMime;
+exports.buildMathOcrPrompt = buildMathOcrPrompt;
+exports.cleanExtractedMathText = cleanExtractedMathText;
 const mathSanitizer_1 = require("./mathSanitizer");
 Object.defineProperty(exports, "sanitizeMathResponse", { enumerable: true, get: function () { return mathSanitizer_1.sanitizeMathResponse; } });
+const latexNormalizer_1 = require("./latexNormalizer");
 function roundClean(num) {
     const rounded = Math.round(num * 1e8) / 1e8;
     return Object.is(rounded, -0) ? 0 : rounded;
@@ -347,14 +352,88 @@ ${casBlock}
 ${params.problem || 'Solve the mathematical problem shown in the attached image step-by-step.'}
 </math_problem>
 
+CRITICAL MULTI-QUESTION & ALL-PARTS INSTRUCTION (MANDATORY & STRICT):
+1. If <math_problem> or the attached image contains MULTIPLE questions (e.g. Question 1, Question 2, Question 3...) or MULTIPLE sub-questions/sub-parts (e.g. (a), (b), (c), (d), (i), (ii), (iii)...):
+   - You MUST solve and provide complete, unabridged working for EVERY SINGLE QUESTION AND SUB-PART IN ORDER.
+   - It is strictly forbidden to answer only the first part. NEVER skip, truncate, or leave any question/sub-part as "an exercise".
+   - Structure each question or part with a distinct Markdown heading:
+     ### Question 1 (or ### Part (a))
+     - **Question Statement:** The exact question text and formula for this part
+     - **Method & Given:** Relevant definitions, formulas, or theorems
+     - **Step-by-Step Derivation:** Show every algebraic, substitution, calculus, or arithmetic step
+     - **Final Answer:** Bolded with proper units (e.g. **Final Answer for Part (a):** $...$)
+2. After solving every question and sub-part, provide a closing summary:
+   ### Summary of All Final Answers
+   - **Part (a):** $...$
+   - **Part (b):** $...$
+   - ...
+
 FORMAT & ACCURACY RULES (MANDATORY):
 1. Structure cleanly with Markdown headings:
-   - ### Problem Restatement
+   - ### Problem Restatement (Transcribe the EXACT problem text, equations, and all sub-questions (a), (b), (c)... from the image or problem text verbatim first)
    - ### Given & Formula / Method
-   - ### Step-by-Step Solution (show every algebraic, calculus, or geometric step clearly without skipping)
+   - ### Step-by-Step Solution (show every algebraic, calculus, or geometric step clearly without skipping; solve all parts)
    - ### Verification Check (plug values back in, check units, or verify edge cases)
-   - ### Final Answer (highlighted in **bold**)
-2. Use standard Markdown (**bold**, bullet lists) — NEVER output raw HTML tags like <strong> or <br>.
-3. Wrap inline math strictly in $...$ and display equations strictly in $$...$$. Never use \\(...\\) or \\[...\\].
-4. Never use em-dashes ("—") or AI filler words ("delve", "pivotal", "paramount", "underscore", "testament", "seamless", "Moreover,").`;
+   - ### Final Answer (highlighted in **bold** for every question part)
+2. If an image is attached: Transcribe the EXACT question and numbers from the image under "### Problem Restatement" before doing any math. Do NOT substitute or invent any numbers, variables, or signs.
+3. Use standard Markdown (**bold**, bullet lists) — NEVER output raw HTML tags like <strong> or <br>.
+4. Wrap inline math strictly in $...$ and display equations strictly in $$...$$. Never use \\(...\\) or \\[...\\].
+5. Never use em-dashes ("—") or AI filler words ("delve", "pivotal", "paramount", "underscore", "testament", "seamless", "Moreover,").`;
+}
+function normalizeVisionMime(rawMime) {
+    const lower = (rawMime || '').trim().toLowerCase();
+    if (lower === 'image/jpg' || lower === 'image/jpeg')
+        return 'image/jpeg';
+    if (lower === 'image/png')
+        return 'image/png';
+    if (lower === 'image/webp')
+        return 'image/webp';
+    if (lower === 'image/gif')
+        return 'image/gif';
+    return 'image/jpeg';
+}
+function extractRawBase64AndMime(input, fallbackMime = 'image/jpeg') {
+    const trimmed = (input || '').trim();
+    const marker = ';base64,';
+    const markerIdx = trimmed.indexOf(marker);
+    if (trimmed.startsWith('data:') && markerIdx !== -1) {
+        const rawMime = trimmed.slice(5, markerIdx);
+        const rawData = trimmed.slice(markerIdx + marker.length).replace(/\s+/g, '');
+        return {
+            data: rawData,
+            mimeType: normalizeVisionMime(rawMime),
+        };
+    }
+    return {
+        data: trimmed.replace(/\s+/g, ''),
+        mimeType: normalizeVisionMime(fallbackMime),
+    };
+}
+function buildMathOcrPrompt(mode = 'math') {
+    const modeRule = mode === 'graph'
+        ? 'Prioritize coordinate geometry, polygon vertices (e.g. A(2, 4), B(2, 8)), transformation vectors, axes intervals, and plotting equations (e.g. y = x^2 - 4).'
+        : 'Prioritize mathematical equations, derivatives, integrals, matrices, simultaneous equations, numbers, and word problem statements.';
+    return `You are an expert STEM and mathematics handwriting and print transcription OCR engine.
+Transcribe the mathematical problem, question text, equations, formulas, coordinates, and instructions visible in the attached image EXACTLY as written.
+FOCUS: ${modeRule}
+
+TRANSCRIPTION RULES:
+1. Transcribe verbatim. Preserve every number, variable name, sign (+/-), fraction, superscript, subscript, and parenthesis without change.
+2. Format inline math using single dollar signs $...$ and standalone equations using double dollar signs $$...$$. Never use \\(...\\) or \\[...\\].
+3. If coordinates are visible (e.g. A(2, 4), B(2, 8)), transcribe them accurately.
+4. If multiple questions or sub-parts exist (e.g. (a), (b), (c), (d), (i), (ii), Question 1, Question 2...), you MUST transcribe EVERY SINGLE QUESTION AND SUB-PART from top to bottom. NEVER stop after the first question or omit any sub-question.
+5. Do NOT solve the problem. Do NOT add conversational intro like "Here is the transcription:". Return ONLY the transcribed question text.
+6. If a character or number is smudged or completely illegible, mark it as [?]. Never invent numbers or equations not present in the image.`;
+}
+function cleanExtractedMathText(raw) {
+    if (!raw || typeof raw !== 'string')
+        return '';
+    const withoutIntro = raw
+        .trim()
+        .replace(/^(?:here\s+is\s+the\s+(?:transcribed\s+|extracted\s+)?(?:mathematical\s+)?(?:text|transcription|question|problem)(?:\s+from\s+the\s+image)?\s*(?:of\s+the\s+image)?\s*:?\s*\n+)/i, '')
+        .replace(/^(?:the\s+image\s+(?:shows|contains)\s+the\s+following\s+(?:text|problem|question)\s*:?\s*\n*)/i, '')
+        .replace(/^```(?:markdown|latex|tex|text)?\s*\n?/i, '')
+        .replace(/\n?```$/i, '')
+        .trim();
+    return (0, latexNormalizer_1.normalizeLatexMarkdown)(withoutIntro).trim();
 }

@@ -22,17 +22,19 @@ router.use(auth_1.authenticateUser);
 router.get('/', async (req, res) => {
     try {
         const userId = req.user.id;
-        const { data: profile } = await supabase_1.supabaseAdmin
-            .from('profiles')
-            .select('institution_id')
-            .eq('id', userId)
-            .single();
-        const institutionId = profile?.institution_id || null;
-        // 1. Fetch user's own registered courses created on their system
-        const { data: userCourses } = await supabase_1.supabaseAdmin
-            .from('courses')
-            .select('id, course_code, title, colour')
-            .eq('user_id', userId);
+        const [profileRes, coursesRes] = await Promise.all([
+            supabase_1.supabaseAdmin
+                .from('profiles')
+                .select('institution_id')
+                .eq('id', userId)
+                .single(),
+            supabase_1.supabaseAdmin
+                .from('courses')
+                .select('id, course_code, title, colour')
+                .eq('user_id', userId),
+        ]);
+        const institutionId = profileRes.data?.institution_id || null;
+        const userCourses = coursesRes.data;
         // If student has no courses created on their system, return empty
         if (!userCourses || userCourses.length === 0) {
             return res.json([]);

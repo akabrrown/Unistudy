@@ -2,8 +2,12 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_1 = require("../middleware/auth");
+const expensiveGuard_1 = require("../middleware/expensiveGuard");
 const router = (0, express_1.Router)();
-router.post('/', auth_1.authenticateUser, async (req, res) => {
+router.use(auth_1.authenticateUser);
+router.use((0, expensiveGuard_1.protectExpensiveEndpoint)({ maxPerMinute: 20, maxConcurrent: 2 }));
+router.use((0, expensiveGuard_1.deduplicateInFlightRequests)({ methods: ['POST'] }));
+router.post('/', async (req, res) => {
     const { text, targetLanguage } = req.body;
     if (!text || !targetLanguage) {
         return res.status(400).json({ error: 'Missing text or targetLanguage' });

@@ -51,9 +51,10 @@ export function AcademicSettingsForm({
   onSaved,
 }: AcademicSettingsFormProps) {
   const [loading, setLoading] = useState(false);
+  const normalizedInitialYear = initialYear ? (initialYear <= 6 ? initialYear * 100 : initialYear) : 100;
   const [fullName, setFullName] = useState(initialFullName || '');
   const [username, setUsername] = useState(initialUsername || '');
-  const [yearOfStudy, setYearOfStudy] = useState<number>(initialYear || 1);
+  const [yearOfStudy, setYearOfStudy] = useState<number>(normalizedInitialYear);
   const [degreeProgramme, setDegreeProgramme] = useState(initialDegree || '');
   const [studyGoal, setStudyGoal] = useState(initialStudyGoal || '');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);

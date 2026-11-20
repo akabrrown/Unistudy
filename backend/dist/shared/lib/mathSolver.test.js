@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -55,8 +88,37 @@ const mathEngine = { compile: mathjs_1.compile, derivative: mathjs_1.derivative,
     });
     strict_1.default.ok(prompt.includes('<math_problem>'));
     strict_1.default.ok(prompt.includes('<verified_cas_check'));
+    strict_1.default.ok(prompt.includes('### Problem Restatement'));
     strict_1.default.match(prompt, /Markdown|\*\*|KaTeX/i);
     strict_1.default.equal(prompt.includes('Use HTML for bolding'), false);
+});
+(0, node_test_1.default)('extractRawBase64AndMime and buildMathOcrPrompt handle data URLs and enforce verbatim math transcription', async () => {
+    const mod = (await Promise.resolve().then(() => __importStar(require('./mathSolver'))));
+    strict_1.default.equal(typeof mod.extractRawBase64AndMime, 'function');
+    strict_1.default.equal(typeof mod.buildMathOcrPrompt, 'function');
+    strict_1.default.equal(typeof mod.cleanExtractedMathText, 'function');
+    const extractFn = mod.extractRawBase64AndMime;
+    const parsed = extractFn('data:image/png;base64, aGVsbG8= ', 'image/jpeg');
+    strict_1.default.equal(parsed.mimeType, 'image/png');
+    strict_1.default.equal(parsed.data, 'aGVsbG8=');
+    const ocrPromptFn = mod.buildMathOcrPrompt;
+    const mathPrompt = ocrPromptFn('math');
+    const graphPrompt = ocrPromptFn('graph');
+    strict_1.default.ok(mathPrompt.includes('$...$') && mathPrompt.includes('$$...$$'));
+    strict_1.default.ok(graphPrompt.toLowerCase().includes('coordinates'));
+    const cleanFn = mod.cleanExtractedMathText;
+    const cleaned = cleanFn('Here is the transcription of the image:\n\\(2x + 5 = 15\\)');
+    strict_1.default.equal(cleaned.includes('Here is the transcription'), false);
+    strict_1.default.ok(cleaned.includes('$2x + 5 = 15$'));
+});
+(0, node_test_1.default)('buildUniversalMathSolverPrompt for image-only request enforces verbatim transcription before solving', () => {
+    const prompt = (0, mathSolver_1.buildUniversalMathSolverPrompt)({
+        problem: '',
+        subject: 'Calculus',
+    });
+    strict_1.default.ok(prompt.includes('Solve the mathematical problem shown in the attached image step-by-step.'));
+    strict_1.default.ok(prompt.includes('If an image is attached: Transcribe the EXACT question and numbers'));
+    strict_1.default.ok(prompt.includes('### Problem Restatement'));
 });
 (0, node_test_1.default)('sanitizeMathResponse converts accidental HTML tags to Markdown, normalizes MixTeX LaTeX, and removes AI footprints', () => {
     const raw = '<strong>Final Answer</strong>\nMoreover, this is pivotal—we get \\(x = 3\\) and \\[\\int_0^3 x^2 dx = 9\\]';

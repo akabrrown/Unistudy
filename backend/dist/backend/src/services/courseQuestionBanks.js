@@ -3,6 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ensurePastPapersForUserCourses = ensurePastPapersForUserCourses;
 const supabase_1 = require("../lib/supabase");
 const moodleCrawler_1 = require("./moodleCrawler");
+const cpuOptimization_1 = require("../../../shared/lib/cpuOptimization");
+const seededUserCoursesCache = new cpuOptimization_1.TTLCache(10 * 60 * 1000, 500);
 const COURSE_EXAM_TEMPLATES = {
     BSIT315: {
         title: 'Web Development 2',
@@ -396,29 +398,30 @@ const COURSE_EXAM_TEMPLATES = {
 async function ensurePastPapersForUserCourses(userId, userCourses, institutionId) {
     if (!userCourses || userCourses.length === 0)
         return;
-    // Always trigger synchronization of authentic UPSA Moodle course papers strictly for user's created courses
+    const courseIds = userCourses.map((c) => c.id);
+    const cacheKey = `${userId}:${[...courseIds].sort().join(',')}`;
+    if (seededUserCoursesCache.get(cacheKey)) {
+        return;
+    }
+    // Trigger Moodle sync once per 10m TTL window for this user+courses set
     try {
         await (0, moodleCrawler_1.syncRealMoodlePastPapers)(userId, userCourses);
     }
     catch (moodleErr) {
         console.warn('[ensurePastPapersForUserCourses] Notice syncing Moodle portal:', moodleErr?.message);
     }
+    // Single batch lookup instead of one SELECT per course (eliminates N+1 query)
+    const { data: existingPapers } = await supabase_1.supabaseAdmin
+        .from('past_papers')
+        .select('course_id')
+        .eq('user_id', userId)
+        .in('course_id', courseIds);
+    const existingCourseIds = new Set((existingPapers || []).map((p) => p.course_id).filter(Boolean));
     for (const course of userCourses) {
         const rawCode = (course.course_code || course.title || '').trim();
         const normalizedCode = (0, moodleCrawler_1.normalizeCourseCode)(rawCode);
-        if (!normalizedCode)
+        if (!normalizedCode || existingCourseIds.has(course.id))
             continue;
-        // Check if past paper already exists for this user and course
-        const { data: existingPaper } = await supabase_1.supabaseAdmin
-            .from('past_papers')
-            .select('id')
-            .eq('user_id', userId)
-            .eq('course_id', course.id)
-            .limit(1)
-            .maybeSingle();
-        if (existingPaper) {
-            continue;
-        }
         // Resolve template if available for specific department course
         const template = COURSE_EXAM_TEMPLATES[normalizedCode];
         if (!template) {
@@ -453,4 +456,5 @@ async function ensurePastPapersForUserCourses(userId, userCourses, institutionId
             await supabase_1.supabaseAdmin.from('past_paper_questions').insert(qRows);
         }
     }
+    seededUserCoursesCache.set(cacheKey, true);
 }

@@ -19,17 +19,17 @@ exports.UPSA_INSTITUTION = {
     website: 'https://upsa.edu.gh',
 };
 exports.UPSA_LEVELS = [
-    { value: 100, label: 'Level 100 (Freshman / First Year)' },
-    { value: 200, label: 'Level 200 (Sophomore / Second Year)' },
-    { value: 300, label: 'Level 300 (Junior / Third Year)' },
-    { value: 400, label: 'Level 400 (Senior / Final Year)' },
-    { value: 500, label: 'Postgraduate / Graduate Studies (MSc / MBA)' },
+    { value: 100, label: 'Level 100' },
+    { value: 200, label: 'Level 200' },
+    { value: 300, label: 'Level 300' },
+    { value: 400, label: 'Level 400' },
+    { value: 500, label: 'Level 500' },
 ];
 exports.UPSA_FACULTIES = [
     {
         code: 'FITCS',
         name: 'Faculty of Information Technology and Communication Studies',
-        shortName: 'FITCS',
+        shortName: 'IT & Communication',
         description: 'Leading digital transformation, computing, software engineering, and corporate communications.',
         departments: [
             { code: 'IT', name: 'Department of Information Technology' },
@@ -38,11 +38,13 @@ exports.UPSA_FACULTIES = [
         programmes: [
             'BSc Information Technology Management',
             'BSc Computer Science',
+            'BSc Data Science and Analytics',
             'BSc Business Information Systems',
             'BA Communication Studies',
             'BA Public Relations Management',
+            'BA Applied French and Communication',
             'Diploma in Information Technology Management',
-            'Diploma in Public Relations Management',
+            'Diploma in Public Relations',
         ],
     },
     {
@@ -53,12 +55,16 @@ exports.UPSA_FACULTIES = [
         departments: [
             { code: 'ACC', name: 'Department of Accounting' },
             { code: 'BF', name: 'Department of Banking and Finance' },
+            { code: 'EAS', name: 'Department of Economics and Actuarial Science' },
         ],
         programmes: [
             'BSc Accounting',
-            'BSc Banking and Finance',
-            'BSc Actuarial Science',
             'BSc Accounting and Finance',
+            'BSc Banking and Finance',
+            'BSc Business Economics',
+            'BSc Actuarial Science',
+            'BSc Agribusiness and Finance',
+            'BSc Applied Statistics',
             'Diploma in Accounting',
         ],
     },
@@ -74,8 +80,11 @@ exports.UPSA_FACULTIES = [
         programmes: [
             'Bachelor of Business Administration (BBA)',
             'BSc Marketing',
+            'BSc Applied Marketing',
             'BSc Human Resource Management',
             'BSc Logistics and Supply Chain Management',
+            'BSc Logistics and Transport Management',
+            'BSc Real Estate Management and Finance',
             'Diploma in Marketing',
             'Diploma in Management Studies',
         ],
@@ -83,7 +92,7 @@ exports.UPSA_FACULTIES = [
     {
         code: 'LAW',
         name: 'UPSA Law School',
-        shortName: 'UPSA Law',
+        shortName: 'Law School',
         description: 'Premier legal education focusing on commercial, constitutional, and international law.',
         departments: [
             { code: 'PCL', name: 'Department of Private and Commercial Law' },
@@ -103,16 +112,61 @@ exports.UPSA_FACULTIES = [
         departments: [
             { code: 'PGB', name: 'Department of Postgraduate Business' },
             { code: 'PTL', name: 'Department of Postgraduate Technology & Leadership' },
+            { code: 'DOC', name: 'Office of Doctoral Programmes' },
         ],
         programmes: [
             'MBA Accounting and Finance',
+            'MBA Auditing',
             'MBA Corporate Governance',
             'MBA Marketing',
             'MBA Petroleum Accounting and Finance',
+            'MBA Internal Auditing',
             'MSc Information Technology Management',
             'MSc Leadership',
-            'MPhil Finance',
+            'MSc Procurement Management',
+            'MSc Insurance and Risk Management',
             'MPhil Accounting',
+            'MPhil Finance',
+            'MPhil Leadership',
+            'PhD in Marketing',
+            'PhD in Accounting',
+            'PhD in Management',
+        ],
+    },
+    {
+        code: 'IPS',
+        name: 'Institute of Professional Studies',
+        shortName: 'Professional Studies (IPS)',
+        description: 'Professional body qualifications and executive leadership credentials.',
+        departments: [
+            { code: 'PROF_ACC', name: 'Department of Professional Accounting & Finance' },
+            { code: 'PROF_MGT', name: 'Department of Professional Marketing & Logistics' },
+        ],
+        programmes: [
+            'Institute of Chartered Accountants, Ghana (ICAG)',
+            'Association of Chartered Certified Accountants (ACCA)',
+            'Chartered Institute of Management Accountants (CIMA)',
+            'Chartered Institute of Marketing (CIM - UK / Ghana)',
+            'Chartered Institute of Logistics and Transport (CILT)',
+            'Chartered Institute of Bankers (CIB)',
+            'Chartered Institute of Administrators and Management Consultants (CIAMC)',
+        ],
+    },
+    {
+        code: 'DLS',
+        name: 'Distance Learning School',
+        shortName: 'Distance Learning',
+        description: 'Accredited undergraduate and diploma distance education programmes.',
+        departments: [
+            { code: 'ELEARN', name: 'Department of E-Learning & Virtual Studies' },
+        ],
+        programmes: [
+            'BSc Accounting (Distance)',
+            'BSc Information Technology Management (Distance)',
+            'Bachelor of Business Administration (Distance)',
+            'BSc Marketing (Distance)',
+            'Diploma in Accounting (Distance)',
+            'Diploma in Management Studies (Distance)',
         ],
     },
 ];

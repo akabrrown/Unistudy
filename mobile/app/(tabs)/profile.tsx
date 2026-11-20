@@ -17,29 +17,24 @@ import { useAuth } from '../../lib/AuthContext';
 import { useSettings, ModelTier } from '../../lib/SettingsContext';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
-
-const ACADEMIC_LEVELS = [
-  { value: 1, label: 'Year 1 (100)' },
-  { value: 2, label: 'Year 2 (200)' },
-  { value: 3, label: 'Year 3 (300)' },
-  { value: 4, label: 'Year 4 (400)' },
-  { value: 5, label: 'Year 5' },
-  { value: 6, label: 'Year 6+' },
-] as const;
+import { UPSA_LEVELS } from '../../lib/constants/upsa';
 
 export default function ProfileScreen() {
   const { profile, logout, refreshProfile } = useAuth();
   const { settings, colors, updateSettings } = useSettings();
   const router = useRouter();
 
+  const rawYear = profile?.year_of_study || 100;
+  const normalizedYear = rawYear <= 6 ? rawYear * 100 : rawYear;
+
   // Academic Settings Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedYear, setSelectedYear] = useState<number>(profile?.year_of_study || 1);
+  const [selectedYear, setSelectedYear] = useState<number>(normalizedYear);
   const [degreeProgramme, setDegreeProgramme] = useState(profile?.degree_programme || '');
   const [isSavingAcademic, setIsSavingAcademic] = useState(false);
 
   const openAcademicModal = () => {
-    setSelectedYear(profile?.year_of_study || 1);
+    setSelectedYear(normalizedYear);
     setDegreeProgramme(profile?.degree_programme || '');
     setIsEditModalOpen(true);
   };
@@ -67,7 +62,8 @@ export default function ProfileScreen() {
     }
   };
 
-  const currentLevelLabel = ACADEMIC_LEVELS.find(l => l.value === (profile?.year_of_study || 1))?.label || `Year ${profile?.year_of_study || 1}`;
+  const currentLevelLabel =
+    UPSA_LEVELS.find((l) => l.value === normalizedYear)?.label || `Level ${normalizedYear}`;
 
   const handleLogout = () => {
     Alert.alert(
@@ -276,7 +272,7 @@ export default function ProfileScreen() {
             <ScrollView style={styles.modalBody}>
               <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>Academic Level</Text>
               <View style={styles.levelOptionsWrap}>
-                {ACADEMIC_LEVELS.map(lvl => {
+                {UPSA_LEVELS.map(lvl => {
                   const isSelected = selectedYear === lvl.value;
                   return (
                     <TouchableOpacity

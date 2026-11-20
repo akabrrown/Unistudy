@@ -3,8 +3,21 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const zod_1 = require("zod");
 const auth_1 = require("../middleware/auth");
+const expensiveGuard_1 = require("../middleware/expensiveGuard");
 const supabase_1 = require("../lib/supabase");
+const cpuOptimization_1 = require("../../../shared/lib/cpuOptimization");
 const router = (0, express_1.Router)();
+const coursesListCache = new cpuOptimization_1.TTLCache(15_000, 300);
+const courseDetailCache = new cpuOptimization_1.TTLCache(15_000, 300);
+function invalidateCourseCaches(userId, courseId) {
+    coursesListCache.delete(userId);
+    if (courseId) {
+        courseDetailCache.delete(`${userId}:${courseId}`);
+    }
+    else {
+        courseDetailCache.invalidatePrefix(`${userId}:`);
+    }
+}
 const CourseInsertSchema = zod_1.z.object({
     title: zod_1.z.string().min(1).max(255),
     course_code: zod_1.z.string().max(50).optional(),
@@ -24,8 +37,14 @@ const CourseUpdateSchema = zod_1.z.object({
     archived: zod_1.z.boolean().optional(),
 }).strict();
 router.use(auth_1.authenticateUser);
+router.use((0, expensiveGuard_1.deduplicateInFlightRequests)({ methods: ['GET'] }));
 router.get('/', async (req, res) => {
     const userId = req.user.id;
+    const cached = coursesListCache.get(userId);
+    if (cached) {
+        res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
+        return res.json(cached);
+    }
     const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
     let { data, error } = await supabase
         .from('courses')
@@ -70,8 +89,37 @@ router.get('/', async (req, res) => {
             const codeB = (b.course_code || b.title || '').trim();
             return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
         });
+        // Fetch cover thumbnails: first slide image_url per lecture
+        const allLectureIds = data.flatMap((c) => c.lectures.map((l) => l.id));
+        if (allLectureIds.length > 0) {
+            const { data: covers } = await supabase_1.supabaseAdmin
+                .from('slides')
+                .select('lecture_id, image_url, slide_number')
+                .in('lecture_id', allLectureIds)
+                .in('slide_number', [0, 1])
+                .order('slide_number', { ascending: true });
+            if (covers && covers.length > 0) {
+                const coverMap = new Map();
+                for (const row of covers) {
+                    if (row.lecture_id && row.image_url && !coverMap.has(row.lecture_id)) {
+                        coverMap.set(row.lecture_id, row.image_url);
+                    }
+                }
+                for (const c of data) {
+                    for (const lec of c.lectures) {
+                        lec.cover_image_url = coverMap.get(lec.id) || null;
+                    }
+                }
+            }
+        }
     }
-    res.json(data || []);
+    const result = data || [];
+    const anyProcessing = result.some((c) => (c.lectures || []).some((l) => l.processing));
+    if (!anyProcessing) {
+        coursesListCache.set(userId, result);
+        res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
+    }
+    res.json(result);
 });
 router.get('/calendar-events', auth_1.authenticateUser, async (req, res) => {
     const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
@@ -111,6 +159,7 @@ router.post('/', auth_1.authenticateUser, async (req, res) => {
     const { data, error } = await supabase.from('courses').insert({ ...parsed.data, user_id: req.user.id }).select('*, lectures(id)').single();
     if (error)
         return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+    invalidateCourseCaches(req.user.id, data?.id);
     res.json(data);
 });
 router.delete('/:id', auth_1.authenticateUser, async (req, res) => {
@@ -118,15 +167,24 @@ router.delete('/:id', auth_1.authenticateUser, async (req, res) => {
     const { error } = await supabase.from('courses').delete().eq('id', req.params.id).eq('user_id', req.user.id);
     if (error)
         return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+    invalidateCourseCaches(req.user.id, String(req.params.id));
     res.json({ success: true });
 });
 router.get('/:id', auth_1.authenticateUser, async (req, res) => {
+    const userId = req.user.id;
+    const courseId = String(req.params.id);
+    const cacheKey = `${userId}:${courseId}`;
+    const cached = courseDetailCache.get(cacheKey);
+    if (cached) {
+        res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
+        return res.json(cached);
+    }
     const supabase = (0, supabase_1.supabaseAsUser)(req.user.jwt);
     const { data, error } = await supabase
         .from('courses')
         .select('*, lectures(id, title, file_url, week, slide_count, created_at, processing)')
-        .eq('id', req.params.id)
-        .eq('user_id', req.user.id)
+        .eq('id', courseId)
+        .eq('user_id', userId)
         .maybeSingle();
     if (error)
         return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
@@ -142,6 +200,11 @@ router.get('/:id', auth_1.authenticateUser, async (req, res) => {
                 return wA - wB;
             return (a.title || '').localeCompare(b.title || '', undefined, { numeric: true });
         });
+    }
+    const anyProcessing = Array.isArray(data.lectures) && data.lectures.some((l) => l.processing);
+    if (!anyProcessing) {
+        courseDetailCache.set(cacheKey, data);
+        res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
     }
     res.json(data);
 });
@@ -169,6 +232,7 @@ router.patch('/:id', auth_1.authenticateUser, async (req, res) => {
         .single();
     if (error)
         return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+    invalidateCourseCaches(req.user.id, String(req.params.id));
     res.json(data);
 });
 exports.default = router;

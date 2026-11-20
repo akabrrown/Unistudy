@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_1 = require("../middleware/auth");
 const supabase_1 = require("../lib/supabase");
+const cpuOptimization_1 = require("../../../shared/lib/cpuOptimization");
 const router = (0, express_1.Router)();
 // 1. Role Guard Middleware
 router.use(auth_1.authenticateUser);
@@ -132,7 +133,8 @@ router.get('/overview', async (req, res) => {
             recentUsers: recentUsers || [],
             auditLogs: auditLogs || [],
             activityTrend: Object.values(trendMap),
-            systemHealth
+            systemHealth,
+            telemetry: cpuOptimization_1.globalTelemetry.getSnapshot(),
         });
     }
     catch (err) {
@@ -1007,5 +1009,8 @@ router.post('/subscriptions/override', async (req, res) => {
         console.error('[AdminSubscriptionOverride] Error:', err);
         res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
+});
+router.get('/telemetry', (_req, res) => {
+    res.json(cpuOptimization_1.globalTelemetry.getSnapshot());
 });
 exports.default = router;

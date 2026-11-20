@@ -144,3 +144,45 @@ const graphSolver_1 = require("./graphSolver");
     strict_1.default.equal(res3.shapes.length, 1);
     strict_1.default.equal(res3.shapes[0].vertices.length, 3);
 });
+(0, node_test_1.default)('GraphSpec resolves and preserves extractedProblemText for vision-based question extraction', () => {
+    const spec = (0, graphSolver_1.resolveGraphSpec)({
+        title: 'WASSCE Exam Problem',
+        extractedProblemText: 'Draw the graph of y = x^2 - 3x + 2 for -2 <= x <= 4',
+        xAxis: { min: -2, max: 4 },
+        yAxis: { min: -5, max: 15 },
+        functions: [{ expression: 'x^2 - 3*x + 2', label: 'y = x^2 - 3x + 2' }],
+    });
+    strict_1.default.equal(spec.extractedProblemText, 'Draw the graph of y = x^2 - 3x + 2 for -2 <= x <= 4');
+    strict_1.default.equal(spec.functions.length, 1);
+});
+(0, node_test_1.default)('parseDeterministicGraphProblem extracts multiple simultaneous curves and lines on the same coordinate sheet', () => {
+    // Test 1: Multiple functions joined by 'and' with interval bracket notation
+    const multi1 = 'Plot y = x^2 - 4 and y = 2*x - 1 on [-6, 6]';
+    const res1 = (0, graphSolver_1.parseDeterministicGraphProblem)(multi1);
+    strict_1.default.ok(res1);
+    strict_1.default.equal(res1.functions.length, 2);
+    strict_1.default.equal(res1.functions[0].expression, 'x^2 - 4');
+    strict_1.default.equal(res1.functions[1].expression, '2*x - 1');
+    strict_1.default.equal(res1.xAxis.min, -6);
+    strict_1.default.equal(res1.xAxis.max, 6);
+    strict_1.default.ok(res1.functions[0].color);
+    strict_1.default.ok(res1.functions[1].color);
+    strict_1.default.notEqual(res1.functions[0].color, res1.functions[1].color);
+    // Test 2: Simultaneous linear equations in standard form (e.g. 2x + y = 7 and x - y = 2)
+    const multi2 = 'Plot 2*x + y = 7 and x - y = 2 on [-4, 8]';
+    const res2 = (0, graphSolver_1.parseDeterministicGraphProblem)(multi2);
+    strict_1.default.ok(res2);
+    strict_1.default.equal(res2.functions.length, 2);
+    strict_1.default.equal(res2.functions[0].expression, '-2*x + 7');
+    strict_1.default.equal(res2.functions[1].expression, 'x - 2');
+    strict_1.default.equal(res2.xAxis.min, -4);
+    strict_1.default.equal(res2.xAxis.max, 8);
+    // Test 3: Three curves separated by commas and 'also'
+    const multi3 = 'Graph y = x^3 - 3*x, y = 2*x + 1, and also y = -x^2 + 4';
+    const res3 = (0, graphSolver_1.parseDeterministicGraphProblem)(multi3);
+    strict_1.default.ok(res3);
+    strict_1.default.equal(res3.functions.length, 3);
+    strict_1.default.equal(res3.functions[0].expression, 'x^3 - 3*x');
+    strict_1.default.equal(res3.functions[1].expression, '2*x + 1');
+    strict_1.default.equal(res3.functions[2].expression, '-x^2 + 4');
+});

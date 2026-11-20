@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const zod_1 = require("zod");
 const auth_1 = require("../middleware/auth");
+const expensiveGuard_1 = require("../middleware/expensiveGuard");
 const supabase_1 = require("../lib/supabase");
 const moodleCrawler_1 = require("../services/moodleCrawler");
 const past_papers_1 = require("./past-papers");
@@ -10,6 +11,8 @@ const quotaGuard_1 = require("../middleware/quotaGuard");
 const quota_1 = require("../lib/ai/quota");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateUser);
+router.use((0, expensiveGuard_1.protectExpensiveEndpoint)({ maxPerMinute: 10, maxConcurrent: 2 }));
+router.use((0, expensiveGuard_1.deduplicateInFlightRequests)({ methods: ['GET', 'POST'] }));
 const syncCredentialsSchema = zod_1.z.object({
     username: zod_1.z.string().min(1, 'Index number or username is required'),
     password: zod_1.z.string().min(1, 'Password is required'),

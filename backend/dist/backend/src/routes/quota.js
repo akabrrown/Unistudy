@@ -4,12 +4,22 @@ const express_1 = require("express");
 const auth_1 = require("../middleware/auth");
 const quota_1 = require("../lib/ai/quota");
 const quota_2 = require("@unistudy/shared/constants/quota");
+const cpuOptimization_1 = require("../../../shared/lib/cpuOptimization");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateUser);
+const quotaStatusCache = new cpuOptimization_1.TTLCache(10_000, 500);
 router.get('/status', async (req, res) => {
     try {
-        const quota = await (0, quota_1.getUserQuota)(req.user.id);
-        const walletBalance = await (0, quota_1.getCreditBalance)(req.user.id);
+        const userId = req.user.id;
+        const cached = quotaStatusCache.get(userId);
+        if (cached) {
+            res.setHeader('Cache-Control', 'private, max-age=10');
+            return res.json(cached);
+        }
+        const [quota, walletBalance] = await Promise.all([
+            (0, quota_1.getUserQuota)(userId),
+            (0, quota_1.getCreditBalance)(userId),
+        ]);
         // Feature status map
         const featuresStatus = {};
         Object.keys(quota_2.FEATURE_COSTS).forEach((key) => {
@@ -38,6 +48,8 @@ router.get('/status', async (req, res) => {
         }
         response.plan = 'credit_system';
         response.paid_expires_at = null;
+        quotaStatusCache.set(userId, response);
+        res.setHeader('Cache-Control', 'private, max-age=10');
         res.json(response);
     }
     catch (error) {

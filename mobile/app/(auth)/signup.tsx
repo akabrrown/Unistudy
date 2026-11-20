@@ -17,7 +17,7 @@ import { useAuth } from '../../lib/AuthContext';
 import { useSettings } from '../../lib/SettingsContext';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { UPSA_INSTITUTION, UPSA_FACULTIES, UPSAFaculty } from '../../lib/constants/upsa';
+import { UPSA_INSTITUTION, UPSA_FACULTIES, UPSAFaculty, UPSA_LEVELS } from '../../lib/constants/upsa';
 
 export default function SignupScreen() {
   const [fullName, setFullName] = useState('');
@@ -26,7 +26,7 @@ export default function SignupScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [selectedFaculty, setSelectedFaculty] = useState<UPSAFaculty | null>(UPSA_FACULTIES[0]);
   const [degreeProgramme, setDegreeProgramme] = useState('');
-  const [yearOfStudy, setYearOfStudy] = useState(1);
+  const [yearOfStudy, setYearOfStudy] = useState(100);
   const [isFacultyModalOpen, setIsFacultyModalOpen] = useState(false);
   const [isProgrammeModalOpen, setIsProgrammeModalOpen] = useState(false);
 
@@ -234,14 +234,13 @@ export default function SignupScreen() {
 
             {/* Year of Study */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textPrimary }]}>Level / Year of Study</Text>
+              <Text style={[styles.label, { color: colors.textPrimary }]}>Level of Study</Text>
               <View style={styles.yearRow}>
-                {[1, 2, 3, 4, 5].map((yr) => {
-                  const isSelected = yearOfStudy === yr;
-                  const label = yr === 5 ? 'L500+' : `L${yr * 100}`;
+                {UPSA_LEVELS.map((lvl) => {
+                  const isSelected = yearOfStudy === lvl.value;
                   return (
                     <TouchableOpacity
-                      key={yr}
+                      key={lvl.value}
                       style={[
                         styles.yearBtn,
                         {
@@ -249,7 +248,7 @@ export default function SignupScreen() {
                           borderColor: isSelected ? colors.primaryViolet : colors.border,
                         },
                       ]}
-                      onPress={() => setYearOfStudy(yr)}
+                      onPress={() => setYearOfStudy(lvl.value)}
                     >
                       <Text
                         style={[
@@ -257,7 +256,7 @@ export default function SignupScreen() {
                           { color: isSelected ? '#FFFFFF' : colors.textPrimary },
                         ]}
                       >
-                        {label}
+                        {lvl.label}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -503,8 +502,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   yearBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
   },
   submitBtn: {
     height: 50,

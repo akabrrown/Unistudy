@@ -6,12 +6,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const node_test_1 = __importDefault(require("node:test"));
 const strict_1 = __importDefault(require("node:assert/strict"));
 const goldenDataset_1 = require("./goldenDataset");
+const examFocus_1 = require("../lib/examFocus");
 const essayGrader_1 = require("../lib/essayGrader");
 const flashcardExtractor_1 = require("../lib/flashcardExtractor");
 const aiTutor_1 = require("../lib/aiTutor");
-(0, node_test_1.default)('Golden Dataset coverage: at least 24 curated cases across Essay, Flashcard, and Tutor', () => {
-    const total = goldenDataset_1.GOLDEN_ESSAY_CASES.length + goldenDataset_1.GOLDEN_FLASHCARD_CASES.length + goldenDataset_1.GOLDEN_TUTOR_CASES.length;
-    strict_1.default.ok(total >= 24, `Expected >= 24 golden cases, got ${total}`);
+(0, node_test_1.default)('Golden Dataset coverage: at least 28 curated cases across Essay, Flashcard, Tutor, and Exam Focus', () => {
+    const total = goldenDataset_1.GOLDEN_ESSAY_CASES.length +
+        goldenDataset_1.GOLDEN_FLASHCARD_CASES.length +
+        goldenDataset_1.GOLDEN_TUTOR_CASES.length +
+        goldenDataset_1.GOLDEN_EXAM_FOCUS_CASES.length;
+    strict_1.default.ok(total >= 28, `Expected >= 28 golden cases, got ${total}`);
 });
 (0, node_test_1.default)('Essay Grader golden cases enforce bounded scores and zero AI footprints', () => {
     for (const item of goldenDataset_1.GOLDEN_ESSAY_CASES) {
@@ -80,6 +84,44 @@ const aiTutor_1 = require("../lib/aiTutor");
             }
             for (const bad of item.forbiddenSubstrings || []) {
                 strict_1.default.equal(sanitized.toLowerCase().includes(bad.toLowerCase()), false, `${item.id}: sanitizer left forbidden substring "${bad}"`);
+            }
+        }
+    }
+});
+(0, node_test_1.default)('Exam Focus golden cases enforce retrieval accuracy, coverage gap honesty, XML delimiters, and zero phantom/AI footprints', () => {
+    for (const item of goldenDataset_1.GOLDEN_EXAM_FOCUS_CASES) {
+        const areas = (0, examFocus_1.parseLecturerAreasInput)(item.rawAreasInput);
+        const matched = (0, examFocus_1.matchSlidesAndQuestionsToAreas)({
+            areas,
+            slides: item.slides,
+            questions: item.questions,
+        });
+        strict_1.default.equal(matched.matchedSlides.length, item.expectedMatchedSlideCount, `${item.id}: expected ${item.expectedMatchedSlideCount} slides, got ${matched.matchedSlides.length}`);
+        strict_1.default.equal(matched.matchedQuestions.length, item.expectedMatchedQuestionCount, `${item.id}: expected ${item.expectedMatchedQuestionCount} questions, got ${matched.matchedQuestions.length}`);
+        if (item.expectedGapMissingQuestions) {
+            strict_1.default.ok(matched.coverageGaps.some((g) => g.missing_questions), `${item.id}: expected missing_questions gap flag`);
+        }
+        const prompt = (0, examFocus_1.buildExamFocusSynthesisPrompt)({
+            courseCode: item.courseCode,
+            courseTitle: item.courseTitle,
+            areas,
+            matchedSlides: matched.matchedSlides,
+            matchedQuestions: matched.matchedQuestions,
+            coverageGaps: matched.coverageGaps,
+        });
+        strict_1.default.ok(prompt.includes('<lecturer_areas>'), `${item.id}: missing <lecturer_areas>`);
+        strict_1.default.ok(prompt.includes('<matched_slides>'), `${item.id}: missing <matched_slides>`);
+        strict_1.default.ok(prompt.includes('<matched_past_questions>'), `${item.id}: missing <matched_past_questions>`);
+        if (item.mockSynthesisOutput) {
+            const summaries = (0, examFocus_1.parseExamFocusSynthesisJson)(item.mockSynthesisOutput, {
+                areas,
+                matchedSlides: matched.matchedSlides,
+                matchedQuestions: matched.matchedQuestions,
+                coverageGaps: matched.coverageGaps,
+            });
+            const serialized = JSON.stringify(summaries);
+            for (const bad of item.forbiddenSubstrings || []) {
+                strict_1.default.equal(serialized.toLowerCase().includes(bad.toLowerCase()), false, `${item.id}: leaked forbidden substring "${bad}"`);
             }
         }
     }

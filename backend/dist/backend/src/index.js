@@ -8,6 +8,8 @@ const env_1 = require("./config/env");
 const cors_1 = require("./middleware/cors");
 const requestLogger_1 = require("./middleware/requestLogger");
 const errorHandler_1 = require("./middleware/errorHandler");
+const botGuard_1 = require("./middleware/botGuard");
+const telemetry_1 = require("./middleware/telemetry");
 const helmet_1 = __importDefault(require("helmet"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 // Route imports
@@ -34,6 +36,7 @@ const billing_1 = __importDefault(require("./routes/billing"));
 const drills_1 = __importDefault(require("./routes/drills"));
 const calendar_1 = __importDefault(require("./routes/calendar"));
 const moodle_1 = __importDefault(require("./routes/moodle"));
+const exam_focus_1 = __importDefault(require("./routes/exam-focus"));
 const HEALTH_PATHS = new Set(['/ping', '/api/health']);
 const app = (0, express_1.default)();
 app.set('trust proxy', 1);
@@ -55,6 +58,7 @@ app.use((0, express_rate_limit_1.default)({
     legacyHeaders: false,
     skip: (req) => HEALTH_PATHS.has(req.path),
 }));
+app.use(botGuard_1.botGuard);
 // Defensive rewrite for client configurations that include duplicate /api prefixes
 app.use((req, _res, next) => {
     if (req.url.startsWith('/api/api/')) {
@@ -67,6 +71,7 @@ app.use(requestLogger_1.requestLogger);
 app.use('/api/webhooks/paystack', express_1.default.raw({ type: 'application/json' }), paystack_1.default);
 app.use('/api/webhooks/mux', express_1.default.raw({ type: 'application/json' }), mux_1.default);
 app.use(express_1.default.json());
+app.use(telemetry_1.telemetryMiddleware);
 // API Routes
 app.use('/api/ai', ai_1.default);
 app.use('/api/courses', courses_1.default);
@@ -84,6 +89,7 @@ app.use('/api/billing', billing_1.default);
 app.use('/api/cards', cards_1.default);
 app.use('/api/calendar', calendar_1.default);
 app.use('/api/moodle', moodle_1.default);
+app.use('/api/exam-focus', exam_focus_1.default);
 app.use('/api/users/me', avatar_1.default);
 // Admin API Routes
 app.use('/api/admin/providers', providers_1.default);
