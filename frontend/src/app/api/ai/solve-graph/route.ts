@@ -259,7 +259,7 @@ export async function POST(req: NextRequest) {
               body: JSON.stringify({
                 model,
                 temperature: 0.1,
-                max_tokens: 1800,
+                max_tokens: 3500,
                 response_format: { type: 'json_object' },
                 messages: [
                   {
@@ -304,7 +304,7 @@ export async function POST(req: NextRequest) {
               body: JSON.stringify({
                 model,
                 temperature: 0.1,
-                max_tokens: 1500,
+                max_tokens: 3500,
                 messages: [
                   {
                     role: 'user',
@@ -344,7 +344,7 @@ export async function POST(req: NextRequest) {
               generationConfig: {
                 responseMimeType: 'application/json',
                 temperature: 0.1,
-                maxOutputTokens: 1800,
+                maxOutputTokens: 3500,
               },
             });
             const res = await withTimeout(
@@ -380,7 +380,7 @@ export async function POST(req: NextRequest) {
                 messages: [{ role: 'user', content: promptText }],
                 response_format: { type: 'json_object' },
                 temperature: 0.1,
-                max_tokens: 2500,
+                max_tokens: 3500,
               }),
               budget,
               `Groq (${model})`
@@ -409,7 +409,7 @@ export async function POST(req: NextRequest) {
               generationConfig: {
                 responseMimeType: 'application/json',
                 temperature: 0.1,
-                maxOutputTokens: 2500,
+                maxOutputTokens: 3500,
               },
             });
             const res = await withTimeout(
@@ -444,7 +444,7 @@ export async function POST(req: NextRequest) {
               body: JSON.stringify({
                 model,
                 temperature: 0.1,
-                max_tokens: 2500,
+                max_tokens: 3500,
                 messages: [{ role: 'user', content: promptText }],
               }),
             });

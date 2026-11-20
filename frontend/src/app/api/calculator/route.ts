@@ -248,7 +248,7 @@ async function handler(req: Request) {
                   body: JSON.stringify({
                     model,
                     temperature: 0.15,
-                    max_tokens: 2200,
+                    max_tokens: 3800,
                     messages: [
                       {
                         role: 'user',
@@ -259,7 +259,7 @@ async function handler(req: Request) {
                       },
                     ],
                   }),
-                  signal: AbortSignal.timeout(14000),
+                  signal: AbortSignal.timeout(16000),
                 })
                 if (res.ok) {
                   const data = await res.json()
@@ -295,7 +295,7 @@ async function handler(req: Request) {
                   body: JSON.stringify({
                     model,
                     temperature: 0.15,
-                    max_tokens: 1800,
+                    max_tokens: 3800,
                     messages: [
                       {
                         role: 'user',
@@ -306,7 +306,7 @@ async function handler(req: Request) {
                       },
                     ],
                   }),
-                  signal: AbortSignal.timeout(14000),
+                  signal: AbortSignal.timeout(16000),
                 })
                 if (res.ok) {
                   const data = await res.json()
@@ -332,7 +332,7 @@ async function handler(req: Request) {
               try {
                 const model = genAI.getGenerativeModel({
                   model: modelName,
-                  generationConfig: { temperature: 0.15, maxOutputTokens: 2500 },
+                  generationConfig: { temperature: 0.15, maxOutputTokens: 4000 },
                 })
                 const parts = [
                   promptText,
@@ -369,7 +369,7 @@ async function handler(req: Request) {
                   model,
                   stream: true,
                   temperature: 0.15,
-                  max_tokens: 3000,
+                  max_tokens: 4000,
                   messages: [{ role: 'user', content: promptText }],
                 })
                 for await (const chunk of stream) {
@@ -392,7 +392,7 @@ async function handler(req: Request) {
               try {
                 const model = genAI.getGenerativeModel({
                   model: modelName,
-                  generationConfig: { temperature: 0.15, maxOutputTokens: 3000 },
+                  generationConfig: { temperature: 0.15, maxOutputTokens: 4000 },
                 })
                 const streamRes = await model.generateContentStream(promptText)
                 for await (const chunk of streamRes.stream) {
@@ -421,7 +421,7 @@ async function handler(req: Request) {
                   body: JSON.stringify({
                     model,
                     temperature: 0.15,
-                    max_tokens: 1800,
+                    max_tokens: 3800,
                     messages: [{ role: 'user', content: promptText }],
                   }),
                   signal: AbortSignal.timeout(12000),

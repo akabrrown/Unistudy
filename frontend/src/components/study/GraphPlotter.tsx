@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { compile, range } from 'mathjs'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
@@ -26,6 +27,10 @@ import {
   RotateCcw,
   Layers,
   SlidersHorizontal,
+  Copy,
+  Check,
+  Edit3,
+  BookOpen,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -242,6 +247,7 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
   const [equalAspect, setEqualAspect] = useState(false)
 
   const [problemText, setProblemText] = useState('')
+  const [graphTextViewMode, setGraphTextViewMode] = useState<'preview' | 'edit'>('preview')
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageMime, setImageMime] = useState<string>('image/png')
   const [extractedForImage, setExtractedForImage] = useState<string | null>(null)
@@ -442,6 +448,7 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
       })
       setProblemText(extractedText)
       setExtractedForImage(imagePreview)
+      setGraphTextViewMode('preview')
       toast.success('Question extracted from image!')
     } catch (err: unknown) {
       setError(
@@ -479,6 +486,7 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
           queryText = extractedText
           setProblemText(extractedText)
           setExtractedForImage(imagePreview)
+          setGraphTextViewMode('preview')
           toast.success('Question extracted from image — solving & plotting...')
         }
       } catch (ocrErr: unknown) {
@@ -533,6 +541,7 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
           ''
         if (extractedFromServer && !queryText) {
           setProblemText(extractedFromServer)
+          setGraphTextViewMode('preview')
           if (imagePreview) setExtractedForImage(imagePreview)
         }
         return
@@ -659,15 +668,23 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
           </div>
 
           {hasSteps ? (
-            <div className="bg-muted/25 border border-border rounded-xl p-3 overflow-y-auto max-h-[180px]">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground mb-2">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                Verified Step-by-Step Solution
+            <div className="bg-muted/25 border border-border rounded-xl p-3 overflow-y-auto max-h-[190px] space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  Verified Step-by-Step Solution
+                </div>
+                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-[#00004E]/10 dark:bg-[#D89A06]/15 text-[#00004E] dark:text-[#D89A06]">
+                  {graphSpec.solutionSteps.length} Step{graphSpec.solutionSteps.length === 1 ? '' : 's'}
+                </span>
               </div>
               <div className="space-y-2 text-xs text-muted-foreground prose prose-sm dark:prose-invert max-w-none prose-p:my-1">
                 {graphSpec.solutionSteps.map((step, i) => (
-                  <div key={i} className="rounded-lg bg-background/60 border border-border/60 px-2.5 py-1.5">
-                    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                  <div key={i} className="rounded-lg bg-background/80 border border-border/70 p-2.5">
+                    <div className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#00004E] dark:text-[#D89A06] mb-1">
+                      Step {i + 1}
+                    </div>
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
                       {step}
                     </ReactMarkdown>
                   </div>
@@ -712,10 +729,10 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
                     size="sm"
                     onClick={handleExtractFromImage}
                     disabled={isExtracting}
-                    className="h-7 text-[11px] px-2 gap-1"
+                    className="h-7 text-[11px] px-2 gap-1 text-[#00004E] dark:text-[#D89A06] border-[#00004E]/20 dark:border-[#D89A06]/30 cursor-pointer"
                     title="Extract math and question text from this image"
                   >
-                    {isExtracting ? <Loader2 className="w-3 h-3 animate-spin" /> : <ScanLine className="w-3 h-3 text-primary" />}
+                    {isExtracting ? <Loader2 className="w-3 h-3 animate-spin" /> : <ScanLine className="w-3 h-3 text-[#D89A06]" />}
                     Extract Text
                   </Button>
                   <Button
@@ -733,20 +750,79 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
                 </div>
               </div>
             ) : null}
-            <textarea
-              value={problemText}
-              onChange={(e) => setProblemText(e.target.value)}
-              onPaste={handlePaste}
-              placeholder="Paste a graph question or upload/paste a screenshot..."
-              rows={2}
-              className="w-full resize-none bg-transparent text-xs outline-none placeholder:text-muted-foreground/70"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  void runGraphSolve()
-                }
-              }}
-            />
+
+            {problemText.trim() ? (
+              <div className="flex items-center justify-between gap-2 px-0.5">
+                <span className="inline-flex items-center gap-1 font-semibold text-[10px] px-2 py-0.5 rounded-md bg-[#00004E]/10 dark:bg-[#D89A06]/15 text-[#00004E] dark:text-[#D89A06] border border-[#00004E]/20 dark:border-[#D89A06]/30">
+                  <ScanLine className="w-3 h-3 text-[#D89A06]" />
+                  Extracted Question &amp; Formulas
+                </span>
+                <div className="flex items-center gap-1">
+                  <div className="inline-flex rounded-md border border-border bg-background p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setGraphTextViewMode('preview')}
+                      className={cn(
+                        'px-1.5 py-0.5 text-[10px] font-medium rounded transition-colors cursor-pointer',
+                        graphTextViewMode === 'preview'
+                          ? 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      Math Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGraphTextViewMode('edit')}
+                      className={cn(
+                        'px-1.5 py-0.5 text-[10px] font-medium rounded transition-colors cursor-pointer',
+                        graphTextViewMode === 'edit'
+                          ? 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      Edit Raw
+                    </button>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(problemText)
+                      toast.success('Question text copied!')
+                    }}
+                    className="h-6 w-6 text-muted-foreground hover:text-foreground cursor-pointer"
+                    title="Copy question text"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+            {problemText.trim() && graphTextViewMode === 'preview' ? (
+              <div className="w-full max-h-36 overflow-y-auto rounded-lg bg-background border border-border/80 p-2.5 text-xs leading-relaxed prose prose-sm dark:prose-invert max-w-none prose-p:my-0.5 prose-headings:my-1 prose-strong:text-[#00004E] dark:prose-strong:text-[#D89A06]">
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                  {problemText}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <textarea
+                value={problemText}
+                onChange={(e) => setProblemText(e.target.value)}
+                onPaste={handlePaste}
+                placeholder="Paste a graph question or upload/paste a screenshot..."
+                rows={3}
+                className="w-full resize-y min-h-[64px] max-h-36 bg-background border border-border/80 rounded-lg p-2 text-xs font-mono outline-none focus:border-[#00004E] dark:focus:border-[#D89A06] placeholder:text-muted-foreground/70"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    void runGraphSolve()
+                  }
+                }}
+              />
+            )}
             <div className="flex items-center justify-between gap-2">
               <input
                 ref={fileInputRef}
@@ -840,10 +916,57 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
           <div className="flex flex-col gap-3 flex-1 min-h-0">
             <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-2.5">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-mono uppercase tracking-wider text-[11px] text-muted-foreground font-semibold">
-                  Coordinate &amp; Graph Input
+                <span className="inline-flex items-center gap-1.5 font-bold text-[11px] px-2.5 py-1 rounded-md bg-[#00004E]/10 dark:bg-[#D89A06]/15 text-[#00004E] dark:text-[#D89A06] border border-[#00004E]/20 dark:border-[#D89A06]/30">
+                  <ScanLine className="w-3.5 h-3.5 text-[#D89A06]" />
+                  Extracted Problem &amp; Coordinate Formulas
                 </span>
-                <span className="text-[11px] text-muted-foreground">Paste screenshot or question text</span>
+
+                {problemText.trim() ? (
+                  <div className="flex items-center gap-1.5">
+                    <div className="inline-flex rounded-lg border border-border bg-background p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setGraphTextViewMode('preview')}
+                        className={cn(
+                          'px-2 py-0.5 text-xs font-semibold rounded-md transition-colors cursor-pointer',
+                          graphTextViewMode === 'preview'
+                            ? 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        Math Preview
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setGraphTextViewMode('edit')}
+                        className={cn(
+                          'px-2 py-0.5 text-xs font-semibold rounded-md transition-colors cursor-pointer',
+                          graphTextViewMode === 'edit'
+                            ? 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        Edit Raw
+                      </button>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(problemText)
+                        toast.success('Question text copied to clipboard!')
+                      }}
+                      className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                      title="Copy extracted question"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      Copy
+                    </Button>
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-muted-foreground">Upload screenshot or enter question</span>
+                )}
               </div>
 
               {imagePreview ? (
@@ -866,13 +989,13 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
                       size="sm"
                       onClick={handleExtractFromImage}
                       disabled={isExtracting}
-                      className="h-7 text-[11px] px-2.5 gap-1.5"
+                      className="h-7 text-[11px] px-2.5 gap-1.5 text-[#00004E] dark:text-[#D89A06] border-[#00004E]/20 dark:border-[#D89A06]/30 cursor-pointer"
                       title="Extract math and question text from this image"
                     >
                       {isExtracting ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
                       ) : (
-                        <ScanLine className="w-3 h-3 text-primary" />
+                        <ScanLine className="w-3 h-3 text-[#D89A06]" />
                       )}
                       Extract Text
                     </Button>
@@ -892,20 +1015,28 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
                 </div>
               ) : null}
 
-              <textarea
-                value={problemText}
-                onChange={(e) => setProblemText(e.target.value)}
-                onPaste={handlePaste}
-                placeholder="Paste any coordinate geometry, transformation (translation, reflection, rotation), gradient, or function plotting question..."
-                rows={4}
-                className="w-full resize-none bg-background border border-border/80 rounded-lg p-2.5 text-sm outline-none focus:border-primary/60 placeholder:text-muted-foreground/70"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    void runGraphSolve()
-                  }
-                }}
-              />
+              {problemText.trim() && graphTextViewMode === 'preview' ? (
+                <div className="w-full max-h-56 overflow-y-auto rounded-lg bg-background border border-border/80 p-3 text-xs leading-relaxed prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-1.5 prose-strong:text-[#00004E] dark:prose-strong:text-[#D89A06]">
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                    {problemText}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <textarea
+                  value={problemText}
+                  onChange={(e) => setProblemText(e.target.value)}
+                  onPaste={handlePaste}
+                  placeholder="Paste any coordinate geometry, transformation (translation, reflection, rotation), gradient, or function plotting question..."
+                  rows={4}
+                  className="w-full resize-y min-h-[96px] max-h-56 bg-background border border-border/80 rounded-lg p-2.5 text-xs font-mono outline-none focus:border-[#00004E] dark:focus:border-[#D89A06] placeholder:text-muted-foreground/70"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      void runGraphSolve()
+                    }
+                  }}
+                />
+              )}
 
               <div className="flex items-center justify-between gap-2">
                 <input
@@ -973,20 +1104,42 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
             </div>
 
             {/* Worked Solution Inspector */}
-            <div className="flex-1 min-h-[200px] rounded-xl border border-border bg-muted/20 p-3.5 overflow-y-auto">
+            <div className="flex-1 min-h-[220px] rounded-xl border border-border bg-muted/20 p-3.5 overflow-y-auto">
               {hasSteps ? (
-                <div className="space-y-2.5">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    Verified Step-by-Step Solution
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      Verified Step-by-Step Solution &amp; Sub-Parts
+                    </div>
+                    <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-[#00004E]/10 dark:bg-[#D89A06]/15 text-[#00004E] dark:text-[#D89A06]">
+                      {graphSpec.solutionSteps.length} Step{graphSpec.solutionSteps.length === 1 ? '' : 's'} Solved
+                    </span>
                   </div>
+
+                  {problemText.trim() ? (
+                    <div className="rounded-lg bg-background/90 border border-border/80 p-2.5 text-xs space-y-1">
+                      <div className="text-[10px] font-mono font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                        <BookOpen className="w-3 h-3 text-[#D89A06]" />
+                        Original Problem Statement
+                      </div>
+                      <div className="text-muted-foreground prose prose-sm dark:prose-invert max-w-none text-xs line-clamp-3 hover:line-clamp-none transition-all">
+                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                          {problemText}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div className="space-y-2 text-xs text-muted-foreground prose prose-sm dark:prose-invert max-w-none prose-p:my-1">
                     {graphSpec.solutionSteps.map((step, i) => (
-                      <div key={i} className="rounded-lg bg-background border border-border/70 px-3 py-2">
-                        <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-primary mb-0.5">
-                          Step {i + 1}
+                      <div key={i} className="rounded-lg bg-background border border-border/80 px-3 py-2.5 shadow-xs">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="inline-flex items-center font-mono text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#00004E]/10 dark:bg-[#D89A06]/20 text-[#00004E] dark:text-[#D89A06] border border-[#00004E]/15 dark:border-[#D89A06]/30">
+                            Step {i + 1}
+                          </span>
                         </div>
-                        <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
                           {step}
                         </ReactMarkdown>
                       </div>

@@ -405,13 +405,29 @@ ${casBlock}
 ${params.problem || 'Solve the mathematical problem shown in the attached image step-by-step.'}
 </math_problem>
 
+CRITICAL MULTI-QUESTION & ALL-PARTS INSTRUCTION (MANDATORY & STRICT):
+1. If <math_problem> or the attached image contains MULTIPLE questions (e.g. Question 1, Question 2, Question 3...) or MULTIPLE sub-questions/sub-parts (e.g. (a), (b), (c), (d), (i), (ii), (iii)...):
+   - You MUST solve and provide complete, unabridged working for EVERY SINGLE QUESTION AND SUB-PART IN ORDER.
+   - It is strictly forbidden to answer only the first part. NEVER skip, truncate, or leave any question/sub-part as "an exercise".
+   - Structure each question or part with a distinct Markdown heading:
+     ### Question 1 (or ### Part (a))
+     - **Question Statement:** The exact question text and formula for this part
+     - **Method & Given:** Relevant definitions, formulas, or theorems
+     - **Step-by-Step Derivation:** Show every algebraic, substitution, calculus, or arithmetic step
+     - **Final Answer:** Bolded with proper units (e.g. **Final Answer for Part (a):** $...$)
+2. After solving every question and sub-part, provide a closing summary:
+   ### Summary of All Final Answers
+   - **Part (a):** $...$
+   - **Part (b):** $...$
+   - ...
+
 FORMAT & ACCURACY RULES (MANDATORY):
 1. Structure cleanly with Markdown headings:
-   - ### Problem Restatement (Transcribe the EXACT problem text, equations, and numbers from the image or problem text verbatim first)
+   - ### Problem Restatement (Transcribe the EXACT problem text, equations, and all sub-questions (a), (b), (c)... from the image or problem text verbatim first)
    - ### Given & Formula / Method
-   - ### Step-by-Step Solution (show every algebraic, calculus, or geometric step clearly without skipping)
+   - ### Step-by-Step Solution (show every algebraic, calculus, or geometric step clearly without skipping; solve all parts)
    - ### Verification Check (plug values back in, check units, or verify edge cases)
-   - ### Final Answer (highlighted in **bold**)
+   - ### Final Answer (highlighted in **bold** for every question part)
 2. If an image is attached: Transcribe the EXACT question and numbers from the image under "### Problem Restatement" before doing any math. Do NOT substitute or invent any numbers, variables, or signs.
 3. Use standard Markdown (**bold**, bullet lists) — NEVER output raw HTML tags like <strong> or <br>.
 4. Wrap inline math strictly in $...$ and display equations strictly in $$...$$. Never use \\(...\\) or \\[...\\].
@@ -463,7 +479,7 @@ TRANSCRIPTION RULES:
 1. Transcribe verbatim. Preserve every number, variable name, sign (+/-), fraction, superscript, subscript, and parenthesis without change.
 2. Format inline math using single dollar signs $...$ and standalone equations using double dollar signs $$...$$. Never use \\(...\\) or \\[...\\].
 3. If coordinates are visible (e.g. A(2, 4), B(2, 8)), transcribe them accurately.
-4. If multiple parts or sub-questions exist (e.g. (a), (b), (i), (ii)), keep their exact labels.
+4. If multiple questions or sub-parts exist (e.g. (a), (b), (c), (d), (i), (ii), Question 1, Question 2...), you MUST transcribe EVERY SINGLE QUESTION AND SUB-PART from top to bottom. NEVER stop after the first question or omit any sub-question.
 5. Do NOT solve the problem. Do NOT add conversational intro like "Here is the transcription:". Return ONLY the transcribed question text.
 6. If a character or number is smudged or completely illegible, mark it as [?]. Never invent numbers or equations not present in the image.`;
 }

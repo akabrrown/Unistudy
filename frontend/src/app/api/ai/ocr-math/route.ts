@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify({
               model,
               temperature: 0.1,
-              max_tokens: 1800,
+              max_tokens: 3000,
               messages: [
                 {
                   role: 'user',
@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify({
               model,
               temperature: 0.1,
-              max_tokens: 1500,
+              max_tokens: 3000,
               messages: [
                 {
                   role: 'user',
@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
         try {
           const model = genAI.getGenerativeModel({
             model: modelName,
-            generationConfig: { temperature: 0.1, maxOutputTokens: 1800 },
+            generationConfig: { temperature: 0.1, maxOutputTokens: 3000 },
           });
           const res = await Promise.race([
             model.generateContent([

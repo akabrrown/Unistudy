@@ -565,10 +565,20 @@ export function resolveGraphSpec(rawInput: unknown): GraphSpec {
     .map(sanitizeStep)
     .filter(Boolean);
 
-  const combinedSteps =
-    deterministicSteps.length > 0
-      ? deterministicSteps
-      : normalizedOriginalSteps;
+  // Retain all original steps so every sub-question (e.g. (a), (b), (c)) remains answered,
+  // and supplement with deterministic verified calculations without dropping parts.
+  const combinedSteps: string[] = [...normalizedOriginalSteps];
+  for (const detStep of deterministicSteps) {
+    const isAlreadyCovered = combinedSteps.some((s) =>
+      s.toLowerCase().includes(detStep.slice(0, 30).toLowerCase())
+    );
+    if (!isAlreadyCovered) {
+      combinedSteps.push(detStep);
+    }
+  }
+  if (combinedSteps.length === 0 && deterministicSteps.length > 0) {
+    combinedSteps.push(...deterministicSteps);
+  }
 
   const equalAspect =
     parsed.equalAspect ?? (shapes.length > 0 || parsed.functions.length === 0);
@@ -772,7 +782,7 @@ ${problemText || 'Carefully transcribe all questions, coordinates, and equations
 Return ONLY ONE valid JSON object (no markdown fences, no prose outside JSON) matching this schema:
 {
   "title": "Short descriptive graph title",
-  "extractedProblemText": "Verbatim transcript of the problem, question text, coordinates, and sub-questions from the question or image",
+  "extractedProblemText": "Verbatim transcript of ALL questions, coordinates, and sub-parts ((a), (b), (c), (i), (ii)...) from the image or text",
   "xAxis": { "min": -10, "max": 10, "step": 2, "label": "x" },
   "yAxis": { "min": -10, "max": 10, "step": 2, "label": "y" },
   "equalAspect": true,
@@ -803,16 +813,24 @@ Return ONLY ONE valid JSON object (no markdown fences, no prose outside JSON) ma
     { "type": "classify_quadrilateral | gradient | distance | midpoint | equation_of_line", "shapeName": "ShapeName", "fromPoint": "PointA", "toPoint": "PointB" }
   ],
   "solutionSteps": [
-    "Step-by-step mathematical reasoning for every question part using $...$ for inline math and $$...$$ for equations."
+    "Dedicated step-by-step mathematical reasoning for Part (a)",
+    "Dedicated step-by-step mathematical reasoning for Part (b)(i)",
+    "Dedicated step-by-step mathematical reasoning for Part (b)(ii)",
+    "Dedicated step-by-step mathematical reasoning for Part (c)..."
   ]
 }
 
 CRITICAL RULES:
-1. If an image is attached: FIRST transcribe the exact question text, equations, and coordinates verbatim into "extractedProblemText".
-2. Use ONLY the exact numbers, coordinates, functions, and points shown in the image or problem text. NEVER hallucinate or substitute sample coordinates.
-3. Set equalAspect = true for geometric shapes, transformations, or axes with equal scale (e.g. "2 cm to 2 units on both axes"); false for disparate calculus scales.
-4. Record all transformations in "transformations" and queries in "queries" so all calculations are verified deterministically.
-5. Never use em-dashes ("—") or AI filler phrases in solutionSteps.`;
+1. MUST SOLVE EVERY QUESTION & SUB-PART (STRICT & NON-NEGOTIABLE):
+   - If the problem or image contains multiple questions or sub-parts (e.g. (a), (b)(i), (b)(ii), (c), (d)...):
+     You MUST provide a clear, dedicated solution item in 'solutionSteps' for EVERY SINGLE PART.
+     Prefix each step with its exact sub-part label (e.g. '**Part (a) Vertices & Plotting:**', '**Part (b)(i) Translation:**', '**Part (c) Gradient:**').
+   - NEVER stop after solving only one part. All questions and sub-parts must be completely answered!
+2. If an image is attached: FIRST transcribe the exact question text, equations, and coordinates verbatim into 'extractedProblemText'.
+3. Use ONLY the exact numbers, coordinates, functions, and points shown in the image or problem text. NEVER hallucinate or substitute sample coordinates.
+4. Set equalAspect = true for geometric shapes, transformations, or axes with equal scale (e.g. '2 cm to 2 units on both axes'); false for disparate calculus scales.
+5. Record all transformations in 'transformations' and queries in 'queries' so all calculations are verified deterministically.
+6. Never use em-dashes ('—') or AI filler phrases in solutionSteps.`;
 }
 
 export function parseGraphSpecJson(rawText: string): Record<string, unknown> | null {
