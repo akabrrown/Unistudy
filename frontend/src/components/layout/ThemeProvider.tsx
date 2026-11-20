@@ -7,15 +7,8 @@ export function ThemeProvider({
   children,
   ...props
 }: React.ComponentProps<typeof NextThemesProvider>) {
-  // React 19 / Next.js 15 fix: suppress the <script> tag warning by
-  // using type="application/json" during client rendering.
-  const scriptProps =
-    typeof window === "undefined"
-      ? undefined
-      : ({ type: "application/json" } as const);
-
   return (
-    <NextThemesProvider {...props} scriptProps={scriptProps}>
+    <NextThemesProvider {...props}>
       {children}
     </NextThemesProvider>
   );

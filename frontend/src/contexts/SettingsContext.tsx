@@ -94,8 +94,18 @@ function writeCachedSettings(next: UserSettings): void {
   }
 }
 
+function getActiveTheme(): DisplayTheme {
+  if (typeof window === 'undefined') return 'light';
+  const stored = localStorage.getItem('theme');
+  if (stored === 'dark' || stored === 'light') return stored;
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+}
+
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<UserSettings>(defaultSettings);
+  const [settings, setSettings] = useState<UserSettings>(() => ({
+    ...defaultSettings,
+    theme: typeof window !== 'undefined' ? getActiveTheme() : 'light',
+  }));
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState<Record<string, string> | null>(null);
 
@@ -114,10 +124,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function loadSettings() {
       try {
+        const activeTheme = getActiveTheme();
         const cached = readCachedSettings();
         if (cached) {
-          setSettings(cached);
-          applyDOMChanges(cached);
+          const merged = { ...cached, theme: activeTheme };
+          setSettings(merged);
+          applyDOMChanges(merged);
           setLoading(false);
           return;
         }
@@ -125,23 +137,30 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          // No user session active; retain default settings without sending unauthenticated requests
+          // No user session active; retain active theme without sending unauthenticated requests
+          const merged = { ...defaultSettings, theme: activeTheme };
+          setSettings(merged);
           setLoading(false);
           return;
         }
 
         const data = await apiFetch('/settings/accessibility');
         if (data && data.settings) {
-          setSettings(data.settings);
-          applyDOMChanges(data.settings);
-          writeCachedSettings(data.settings);
+          const localStoredTheme = typeof window !== 'undefined' ? (localStorage.getItem('theme') as DisplayTheme) : null;
+          const resolvedTheme = localStoredTheme || data.settings.theme || activeTheme;
+          const merged = { ...data.settings, theme: resolvedTheme };
+          setSettings(merged);
+          applyDOMChanges(merged);
+          writeCachedSettings(merged);
           return;
         }
       } catch (err) {
         // Fall back to defaults on any error: network failure, FK constraint, missing profile, etc.
         console.warn('Settings unavailable, using defaults:', err instanceof Error ? err.message : err);
-        setSettings(defaultSettings);
-        applyDOMChanges(defaultSettings);
+        const activeTheme = getActiveTheme();
+        const merged = { ...defaultSettings, theme: activeTheme };
+        setSettings(merged);
+        applyDOMChanges(merged);
       } finally {
         setLoading(false);
       }
@@ -150,6 +169,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateSettings = async (updates: Partial<UserSettings>) => {
+    // If theme is updated, synchronize with localStorage for next-themes immediately
+    if (updates.theme && typeof window !== 'undefined') {
+      localStorage.setItem('theme', updates.theme);
+      if (updates.theme === 'dark') {
+        document.documentElement.classList.add('dark');
+        document.documentElement.style.colorScheme = 'dark';
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.style.colorScheme = 'light';
+      }
+    }
+
     // Optimistic update
     const newSettings = { ...settings, ...updates };
     setSettings(newSettings);
@@ -193,8 +224,10 @@ function applyDOMChanges(settings: UserSettings) {
   // Theme
   if (settings.theme === 'dark') {
     root.classList.add('dark');
-  } else {
+    root.style.colorScheme = 'dark';
+  } else if (settings.theme === 'light') {
     root.classList.remove('dark');
+    root.style.colorScheme = 'light';
   }
 
   // High Contrast
