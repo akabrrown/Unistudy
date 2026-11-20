@@ -184,34 +184,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Collegiate Stats Ribbon in Deep Navy with Gold Typography */}
-      <section className="bg-[#00004E] text-white py-10 border-y-2 border-[#D89A06]">
-        <div className="max-w-7xl mx-auto px-6 sm:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center divide-y md:divide-y-0 md:divide-x divide-[#D89A06]/30">
-            <div className="pt-4 md:pt-0">
-              <div className="text-3xl lg:text-4xl font-black font-mono text-[#D89A06]">100%</div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-white/90 mt-1">UPSA Course Aligned</div>
-              <p className="text-[11px] text-white/70 mt-0.5">Faculty syllabi &amp; slide decks</p>
-            </div>
-            <div className="pt-4 md:pt-0">
-              <div className="text-3xl lg:text-4xl font-black font-mono text-white">&lt; 3s</div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-[#D89A06] mt-1">Slide-to-Recall AI</div>
-              <p className="text-[11px] text-white/70 mt-0.5">Instant grounded explanations</p>
-            </div>
-            <div className="pt-4 md:pt-0">
-              <div className="text-3xl lg:text-4xl font-black font-mono text-[#D89A06]">1,200+</div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-white/90 mt-1">Past Paper Questions</div>
-              <p className="text-[11px] text-white/70 mt-0.5">With full step-by-step marking</p>
-            </div>
-            <div className="pt-4 md:pt-0">
-              <div className="text-3xl lg:text-4xl font-black font-mono text-white">4.9 / 5.0</div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-[#D89A06] mt-1">Student Satisfaction</div>
-              <p className="text-[11px] text-white/70 mt-0.5">Across all UPSA faculties</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* 4 Academic Pillars (Bento Grid) with Rich Gold & Navy Card Styling */}
       <section className="py-20 md:py-28 max-w-7xl mx-auto px-6 sm:px-8">
         <div className="text-center max-w-3xl mx-auto mb-16 space-y-3">
@@ -340,47 +312,6 @@ export default function LandingPage() {
               </Link>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* Final Grand Call To Action */}
-      <section className="py-20 md:py-28 bg-[#00004E] text-white relative overflow-hidden">
-        {/* Subtle Gold Flare Background */}
-        <div className="absolute top-0 right-1/4 w-[400px] h-[400px] bg-[#D89A06]/15 rounded-full blur-[100px] pointer-events-none" />
-
-        <div className="max-w-4xl mx-auto px-6 text-center space-y-6 relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#D89A06] text-[#00004E] text-xs font-extrabold uppercase tracking-wider">
-            <GraduationCap className="w-4 h-4" /> Join Top-Performing UPSA Scholars
-          </div>
-
-          <h2 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight">
-            Stop Studying Harder. <br />
-            <span className="text-[#D89A06]">Start Revising Smarter.</span>
-          </h2>
-
-          <p className="text-base sm:text-lg text-white/80 max-w-xl mx-auto font-normal leading-relaxed">
-            Create your free account in under 30 seconds. Ingest your first slide deck and get instant study summaries right now.
-          </p>
-
-          <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              href="/signup"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-[#D89A06] hover:bg-[#C28905] text-[#00004E] font-black text-sm px-8 py-4 rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
-            >
-              <span>Get Started Free Today</span>
-              <ArrowRight className="w-4 h-4 text-[#00004E]" />
-            </Link>
-            <Link
-              href="/pricing"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold text-sm px-7 py-4 rounded-xl border border-white/20 transition-colors cursor-pointer"
-            >
-              <span>View Free &amp; Pro Tiers</span>
-            </Link>
-          </div>
-
-          <p className="text-xs text-white/60 pt-2">
-            No credit card required · Instant access with your university email
-          </p>
         </div>
       </section>
 
