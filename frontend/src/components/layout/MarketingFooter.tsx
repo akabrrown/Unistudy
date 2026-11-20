@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { ShieldCheck, Mail } from "lucide-react";
+import { UniStudyLogo } from "@/components/brand/UniStudyLogo";
 
 export function MarketingFooter() {
   return (
@@ -9,8 +10,7 @@ export function MarketingFooter() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-12 pb-12 border-b border-[#D89A06]/15 dark:border-white/5">
           <div className="lg:col-span-2 space-y-4">
             <Link href="/" className="flex items-center gap-2">
-              <img src="/logo.jpeg" alt="UniStudy AI" className="h-8 w-auto object-contain dark:hidden" />
-              <img src="/logo-dark.jpeg" alt="UniStudy AI" className="h-8 w-auto object-contain hidden dark:block" />
+              <UniStudyLogo height={32} />
             </Link>
             <p className="text-[14px] text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed max-w-sm">
               Study companion designed for university students. Turn lecture slides, syllabi, and past questions into personalized quizzes, flashcards, and revision notes.
@@ -73,6 +73,12 @@ export function MarketingFooter() {
               <li>
                 <Link href="/academic-integrity" className="hover:text-[#00004E] dark:hover:text-[#D89A06] transition-colors">
                   Academic integrity
+                </Link>
+              </li>
+              <li>
+                <Link href="/brand" className="hover:text-[#00004E] dark:hover:text-[#D89A06] transition-colors flex items-center gap-1.5">
+                  <span>Brand assets &amp; logos</span>
+                  <span className="text-[10px] bg-[#D89A06]/20 text-[#00004E] dark:text-[#D89A06] px-1.5 py-0.2 rounded font-semibold">SVG</span>
                 </Link>
               </li>
             </ul>

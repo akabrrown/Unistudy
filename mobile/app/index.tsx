@@ -22,9 +22,11 @@ export default function IndexScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.bgPage }]}>
       <View style={styles.brandContainer}>
-        <View style={[styles.logoBadge, { backgroundColor: colors.primary }]}>
-          <Text style={styles.logoBadgeText}>📚</Text>
-        </View>
+        <Image
+          source={require('../assets/icon.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
         <Text style={[styles.brandTitle, { color: colors.textPrimary }]}>
           UniStudy <Text style={{ color: colors.primaryViolet }}>AI</Text>
         </Text>
@@ -47,6 +49,16 @@ const styles = StyleSheet.create({
   brandContainer: {
     alignItems: 'center',
     marginBottom: 32,
+  },
+  logoImage: {
+    width: 76,
+    height: 76,
+    borderRadius: 20,
+    marginBottom: 16,
+    shadowColor: '#00004E',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
   logoBadge: {
     width: 68,

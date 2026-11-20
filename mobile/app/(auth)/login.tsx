@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { useAuth } from '../../lib/AuthContext';
@@ -61,9 +62,11 @@ export default function LoginScreen() {
         >
           {/* Brand Header */}
           <View style={styles.header}>
-            <View style={[styles.iconWrapper, { backgroundColor: colors.primary }]}>
-              <Text style={styles.iconText}>🎓</Text>
-            </View>
+            <Image
+              source={require('../../assets/icon.png')}
+              style={{ width: 56, height: 56, borderRadius: 14, marginBottom: 12 }}
+              resizeMode="contain"
+            />
             <Text style={[styles.title, { color: colors.textPrimary }]}>
               Welcome back to <Text style={{ color: colors.primaryViolet }}>UniStudy AI</Text>
             </Text>

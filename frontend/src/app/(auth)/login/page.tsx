@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from 'lucide-react'
+import { UniStudyLogo } from '@/components/brand/UniStudyLogo'
 
 export default async function LoginPage(props: { searchParams: Promise<{ error?: string }> }) {
   const searchParams = await props.searchParams
@@ -19,8 +20,7 @@ export default async function LoginPage(props: { searchParams: Promise<{ error?:
       <Card className="w-full max-w-md shadow-xl shadow-primary/5 border-primary/20 bg-card/80 backdrop-blur-sm mt-12 md:mt-0">
         <CardHeader className="space-y-4 text-center pb-6">
           <div className="flex justify-center mb-2">
-            <img src="/logo.jpeg" alt="UniStudy AI" className="h-12 w-auto object-contain dark:hidden" />
-            <img src="/logo-dark.jpeg" alt="UniStudy AI" className="h-12 w-auto object-contain hidden dark:block" />
+            <UniStudyLogo height={44} />
           </div>
           <CardTitle className="text-3xl font-bold tracking-tight text-foreground">Welcome Back</CardTitle>
           <CardDescription className="text-muted-foreground">

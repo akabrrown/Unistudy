@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'; import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { ArrowLeft } from 'lucide-react'
+import { UniStudyLogo } from '@/components/brand/UniStudyLogo'
 
 import { EmailField } from './components/EmailField'
 import { UsernameField } from './components/UsernameField'
@@ -24,8 +25,7 @@ export default async function SignupPage(props: { searchParams: Promise<{ error?
       <Card className="w-full max-w-xl shadow-2xl shadow-primary/10 border-primary/20 bg-card/80 backdrop-blur-sm mt-12 md:mt-0">
         <CardHeader className="space-y-4 text-center pb-6">
           <div className="flex justify-center mb-2">
-            <img src="/logo.jpeg" alt="UniStudy AI" className="h-12 w-auto object-contain dark:hidden" />
-            <img src="/logo-dark.jpeg" alt="UniStudy AI" className="h-12 w-auto object-contain hidden dark:block" />
+            <UniStudyLogo height={44} />
           </div>
           <CardTitle className="text-3xl font-bold tracking-tight text-foreground">Create an Account</CardTitle>
           <CardDescription className="text-muted-foreground">

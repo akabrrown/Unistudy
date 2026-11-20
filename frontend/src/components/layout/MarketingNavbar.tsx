@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { ThemeToggle } from "./ThemeToggle";
+import { UniStudyLogo } from "@/components/brand/UniStudyLogo";
 
 export function MarketingNavbar() {
   const links = [
@@ -17,8 +18,7 @@ export function MarketingNavbar() {
   return (
     <nav className="sticky top-0 z-40 bg-[#FFFFFF]/90 dark:bg-[#040416]/90 backdrop-blur border-b-2 border-[#D89A06]/30 dark:border-white/10 px-8 h-16 flex items-center justify-between transition-colors shadow-2xs">
       <Link href="/" className="flex items-center gap-2">
-        <img src="/logo.jpeg" alt="UniStudy AI" className="h-8 w-auto object-contain dark:hidden" />
-        <img src="/logo-dark.jpeg" alt="UniStudy AI" className="h-8 w-auto object-contain hidden dark:block" />
+        <UniStudyLogo height={32} />
       </Link>
       {/* Desktop links */}
       <div className="hidden md:flex items-center gap-7 text-[14px] text-[#4B526B] dark:text-[#A3A8C2]">

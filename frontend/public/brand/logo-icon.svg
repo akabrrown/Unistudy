@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="100%" height="100%" fill="none">
+  <!-- UniStudy Academic Crest Mark -->
+  <g id="unistudy-icon">
+    <!-- Graduation Cap / Mortarboard Apex -->
+    <g id="mortarboard">
+      <!-- Cap Top Diamond Plane -->
+      <polygon points="100,26 170,58 100,90 30,58" fill="#D89A06" />
+      <!-- Top Plane Highlight / Facet -->
+      <polygon points="100,26 170,58 100,90 100,26" fill="#F5B82E" opacity="0.3" />
+      
+      <!-- Skullcap Under-Arch -->
+      <path d="M 58,70 Q 100,94 142,70 L 142,82 Q 100,106 58,82 Z" fill="#B88204" />
+      
+      <!-- Cap Center Button -->
+      <ellipse cx="100" cy="58" rx="4.5" ry="3.5" fill="#00004E" />
+      
+      <!-- Tassel Ribbon & Bob -->
+      <path d="M 100,58 Q 140,58 168,68 L 172,98" stroke="#B88204" stroke-width="3" stroke-linecap="round" fill="none" />
+      <polygon points="168,96 176,96 174,110 170,110" fill="#B88204" />
+    </g>
+
+    <!-- Monumental 'U' Columns / Open Book Laurels -->
+    <g id="u-monolith">
+      <!-- Left Pillar -->
+      <path d="M 44,92 
+               L 72,104 
+               L 72,138 
+               C 72,154 84,164 100,164 
+               L 100,188 
+               C 66,188 44,168 44,136 
+               Z" 
+            fill="#00004E" />
+
+      <!-- Right Pillar -->
+      <path d="M 156,92 
+               L 128,104 
+               L 128,138 
+               C 128,154 116,164 100,164 
+               L 100,188 
+               C 134,188 156,168 156,136 
+               Z" 
+            fill="#00004E" />
+
+      <!-- Upper Bevel Highlights on Pillars -->
+      <polygon points="44,92 72,104 72,98 44,86" fill="#F5B82E" opacity="0.45" />
+      <polygon points="156,92 128,104 128,98 156,86" fill="#D89A06" opacity="0.45" />
+    </g>
+
+    <!-- Central Beacon / Academic Starburst -->
+    <g id="academic-beacon">
+      <!-- Left Diamond Facet -->
+      <polygon points="100,104 86,126 100,148 100,104" fill="#D89A06" />
+      <!-- Right Diamond Facet -->
+      <polygon points="100,104 114,126 100,148 100,104" fill="#F5B82E" />
+      <!-- Star Spark Core -->
+      <circle cx="100" cy="126" r="2.5" fill="#FFFFFF" />
+    </g>
+  </g>
+</svg>

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
+import { UniStudyLogo } from "@/components/brand/UniStudyLogo";
 
 export function MobileSidebar({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -17,8 +18,7 @@ export function MobileSidebar({ children }: { children: React.ReactNode }) {
   return (
     <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card sticky top-0 z-40">
       <div className="flex items-center gap-2">
-        <img src="/logo.jpeg" alt="UniStudy AI" className="h-8 w-auto object-contain dark:hidden" />
-        <img src="/logo-dark.jpeg" alt="UniStudy AI" className="h-8 w-auto object-contain hidden dark:block" />
+        <UniStudyLogo height={32} />
       </div>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger className="p-2 text-foreground focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary rounded-md">

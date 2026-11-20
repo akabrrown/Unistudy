@@ -11,6 +11,7 @@ import SmartSearchBar from '@/components/layout/SmartSearchBar';
 import { AnnouncementBanner } from '@/components/layout/AnnouncementBanner';
 import { MobileSidebar } from '@/components/layout/MobileSidebar';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import { UniStudyLogo } from '@/components/brand/UniStudyLogo';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -628,8 +629,7 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
           ) : (
             <div className="flex items-center justify-between h-11 mb-5 px-1">
               <Link href="/dashboard" className="flex items-center gap-2 overflow-hidden">
-                <img src="/logo.jpeg" alt="UniStudy AI" className="h-9 w-auto object-contain dark:hidden" />
-                <img src="/logo-dark.jpeg" alt="UniStudy AI" className="h-9 w-auto object-contain hidden dark:block" />
+                <UniStudyLogo height={34} />
               </Link>
               <Tooltip>
                 <TooltipTrigger
