@@ -16,14 +16,27 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .eq('id', user.id)
     .single()
 
-  const profile = rawProfile
-    ? {
-        ...rawProfile,
-        institutions: Array.isArray(rawProfile.institutions)
-          ? rawProfile.institutions[0] ?? null
-          : rawProfile.institutions ?? null,
-      }
-    : null
+  const userFullName = rawProfile?.full_name || (user?.user_metadata?.full_name as string) || (user?.user_metadata?.name as string) || null
+  const userEmailName = user?.email ? user.email.split('@')[0] : 'UPSA Scholar'
+  const userDisplayName = userFullName || rawProfile?.username || userEmailName
+
+  const resolvedInstitutions =
+    (Array.isArray(rawProfile?.institutions) ? rawProfile.institutions[0] : rawProfile?.institutions) || {
+      abbreviation: 'UPSA',
+      name: 'University of Professional Studies, Accra',
+    }
+
+  const profile = {
+    id: user.id,
+    role: rawProfile?.role || 'student',
+    avatar_url: rawProfile?.avatar_url || (user?.user_metadata?.avatar_url as string) || null,
+    full_name: userDisplayName,
+    username: rawProfile?.username || userDisplayName,
+    subscription_tier: rawProfile?.subscription_tier || 'free',
+    faculty: rawProfile?.faculty || null,
+    year_of_study: rawProfile?.year_of_study || null,
+    institutions: resolvedInstitutions,
+  }
 
   // Fetch the single most recent announcement targeted to all or matching student's tier/faculty/level
   const userTier = profile?.subscription_tier === 'pro' || profile?.subscription_tier === 'ultra' ? 'tier:pro' : 'tier:free'

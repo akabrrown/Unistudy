@@ -157,6 +157,8 @@ interface DashboardProfile {
   avatar_url?: string | null;
   full_name?: string | null;
   username?: string | null;
+  faculty?: string | null;
+  year_of_study?: string | number | null;
   institutions?: {
     name?: string | null;
     abbreviation?: string | null;
@@ -479,35 +481,36 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
               }
             />
             <TooltipContent side="right" sideOffset={12}>
-              <div className="text-xs font-semibold">{profile?.full_name || profile?.username || 'Student'}</div>
-              {profile?.institutions?.name && (
-                <div className="text-[10px] text-muted-foreground">{profile.institutions.name}</div>
-              )}
+              <div className="text-xs font-semibold">{profile?.full_name || profile?.username || 'UPSA Scholar'}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {profile?.institutions?.name || 'University of Professional Studies, Accra'}
+                {profile?.year_of_study ? ` • Level ${profile.year_of_study}` : ''}
+              </div>
             </TooltipContent>
           </Tooltip>
         </div>
       ) : (
-        <div className="flex items-center gap-3 mb-3 px-2">
+        <Link
+          href="/dashboard/settings/profile"
+          className="flex items-center gap-3 mb-3 px-2 py-1.5 rounded-xl hover:bg-muted/60 transition-colors group"
+        >
           {profile?.avatar_url ? (
             <img src={profile.avatar_url} alt="Avatar" className="w-10 h-10 rounded-full object-cover shrink-0" />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-primary/20 shrink-0 flex items-center justify-center text-primary font-bold">
+            <div className="w-10 h-10 rounded-full bg-primary/20 shrink-0 flex items-center justify-center text-primary font-bold group-hover:scale-105 transition-transform">
               {profile?.full_name?.charAt(0) || profile?.username?.charAt(0) || 'U'}
             </div>
           )}
           <div className="text-sm min-w-0 flex-1">
-            <div className="font-medium text-foreground truncate">
-              {profile?.username || profile?.full_name?.split(' ')[0] || 'Student'}
+            <div className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+              {profile?.username || profile?.full_name?.split(' ')[0] || 'UPSA Scholar'}
             </div>
             <div className="text-muted-foreground text-xs truncate">
-              {profile?.institutions?.abbreviation || profile?.institutions?.name || (
-                <Link href="/dashboard/settings/profile" className="text-primary hover:underline">
-                  Setup needed
-                </Link>
-              )}
+              {profile?.institutions?.abbreviation || 'UPSA'}
+              {profile?.year_of_study ? ` • Level ${profile.year_of_study}` : profile?.faculty ? ` • ${profile.faculty}` : ' • Scholar'}
             </div>
           </div>
-        </div>
+        </Link>
       )}
 
       {/* Model Selector */}
