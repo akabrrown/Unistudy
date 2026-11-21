@@ -1,4 +1,4 @@
-export type ProviderName = 'gemini' | 'groq_70b' | 'groq_8b' | 'huggingface' | 'mistral' | 'cohere' | 'openrouter' | 'cloudflare' | 'youtube'
+export type ProviderName = 'gemini' | 'groq_70b' | 'groq_8b' | 'huggingface' | 'mistral' | 'cohere' | 'openrouter' | 'cloudflare' | 'youtube' | 'agentrouter'
 
 export type Feature = 
   | 'slide_explanation' | 'flashcard_generation' | 'quiz_generation' | 'past_paper_grading'
@@ -28,7 +28,8 @@ export const PROVIDER_CONFIG: Record<ProviderName, ProviderConfig> = {
   cohere:      { pool_type: 'credit_funded',    has_user_quota: true,  user_quota_column: 'cohere' },
   openrouter:  { pool_type: 'free_rate_limit',  has_user_quota: false }, // fallback
   cloudflare:  { pool_type: 'free_daily',       has_user_quota: false }, // fallback
-  youtube:     { pool_type: 'credit_funded',    has_user_quota: true,  user_quota_column: 'youtube' }
+  youtube:     { pool_type: 'credit_funded',    has_user_quota: true,  user_quota_column: 'youtube' },
+  agentrouter: { pool_type: 'credit_funded',    has_user_quota: false }
 }
 
 export const FEATURE_PROVIDER_MAP: Record<Feature, ProviderName> = {

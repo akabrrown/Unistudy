@@ -28,3 +28,12 @@ export const OPENROUTER_CANDIDATE_MODELS = [
   'google/gemini-2.5-flash',
   'qwen/qwen-2.5-72b-instruct',
 ] as const;
+
+export const AGENTROUTER_CANDIDATE_MODELS = [
+  'claude-3-5-sonnet',
+  'deepseek-r1',
+  'gpt-4o',
+  'gpt-4o-mini',
+  'meta-llama/llama-3.3-70b-instruct',
+  'auto',
+] as const;

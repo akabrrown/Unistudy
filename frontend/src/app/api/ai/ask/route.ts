@@ -8,6 +8,7 @@ import {
   GROQ_FAST_MODELS,
   GROQ_SMART_MODELS,
   OPENROUTER_CANDIDATE_MODELS,
+  AGENTROUTER_CANDIDATE_MODELS,
 } from '../../../../../../shared/constants/aiModels';
 import {
   TutorGroundingSchema,
@@ -159,6 +160,50 @@ async function tryOpenRouter(
   return null;
 }
 
+async function tryAgentRouter(
+  systemPrompt: string,
+  rawMessages: any[],
+  temperature: number
+): Promise<ProviderResult | null> {
+  const apiKey = process.env.AGENTROUTER_API_KEY;
+  if (!apiKey) return null;
+  const baseUrl = (process.env.AGENTROUTER_BASE_URL || 'https://api.agentrouter.to/v1').replace(/\/+$/, '');
+  const endpoint = baseUrl.endsWith('/v1') ? `${baseUrl}/chat/completions` : `${baseUrl}/v1/chat/completions`;
+
+  const arMessages = [
+    { role: 'system', content: systemPrompt },
+    ...rawMessages.map((m) => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: String(m.content || ''),
+    })),
+  ];
+
+  for (const model of AGENTROUTER_CANDIDATE_MODELS) {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model, messages: arMessages, temperature }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.choices?.[0]?.message?.content?.trim();
+        if (text) {
+          return { text, provider: 'agentrouter', model: `AgentRouter (${model})` };
+        }
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[API /ai/ask] AgentRouter model ${model} notice:`, msg);
+    }
+  }
+  return null;
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -280,26 +325,36 @@ export async function POST(request: Request) {
     let providerResult: ProviderResult | null = null;
 
     // Route to user's explicitly requested model/provider first
-    if (requestedModel.includes('gemini')) {
+    if (requestedModel.includes('agent') || requestedModel.includes('router')) {
+      providerResult =
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature)) ||
+        (await tryGroq(systemPrompt, rawMessages, temperature)) ||
+        (await tryGemini(systemPrompt, rawMessages, temperature)) ||
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature));
+    } else if (requestedModel.includes('gemini')) {
       providerResult =
         (await tryGemini(systemPrompt, rawMessages, temperature)) ||
         (await tryGroq(systemPrompt, rawMessages, temperature)) ||
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature)) ||
         (await tryOpenRouter(systemPrompt, rawMessages, temperature));
     } else if (requestedModel.includes('groq') || requestedModel === 'fast') {
       providerResult =
         (await tryGroq(systemPrompt, rawMessages, temperature)) ||
         (await tryGemini(systemPrompt, rawMessages, temperature)) ||
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature)) ||
         (await tryOpenRouter(systemPrompt, rawMessages, temperature));
     } else if (requestedModel.includes('openrouter') || requestedModel.includes('qwen')) {
       providerResult =
         (await tryOpenRouter(systemPrompt, rawMessages, temperature)) ||
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature)) ||
         (await tryGemini(systemPrompt, rawMessages, temperature)) ||
         (await tryGroq(systemPrompt, rawMessages, temperature));
     } else {
-      // Default / Smart Auto order: Groq (low latency) -> Gemini (deep reasoning) -> OpenRouter
+      // Default / Smart Auto order: Groq (low latency) -> Gemini (deep reasoning) -> AgentRouter -> OpenRouter
       providerResult =
         (await tryGroq(systemPrompt, rawMessages, temperature)) ||
         (await tryGemini(systemPrompt, rawMessages, temperature)) ||
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature)) ||
         (await tryOpenRouter(systemPrompt, rawMessages, temperature));
     }
 
