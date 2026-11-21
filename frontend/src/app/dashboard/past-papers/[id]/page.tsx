@@ -74,10 +74,11 @@ export default function PastPaperDetails() {
   const [revealedSolutions, setRevealedSolutions] = useState<Record<string, boolean>>({})
   const supabase = createClient()
 
-  const extractQuestions = async (silent = false) => {
+  const extractQuestions = async (silent = false, force = false) => {
     setIsExtracting(true);
     try {
-      const res = await fetch(`/api/v1/past-questions/${params.id}/extract`, {
+      const url = `/api/v1/past-questions/${params.id}/extract${force ? '?force=true' : ''}`;
+      const res = await fetch(url, {
         method: 'POST',
       });
       if (res.ok) {
@@ -88,7 +89,7 @@ export default function PastPaperDetails() {
           );
           setQuestions(sorted);
           if (!silent) {
-            toast.success(`Extracted ${sorted.length} examination questions ready for trial practice!`);
+            toast.success(`Extracted ${sorted.length} examination questions verbatim from PDF!`);
           }
           setActiveTab('trial');
           return sorted;
@@ -344,12 +345,12 @@ export default function PastPaperDetails() {
 
         <div className="flex flex-wrap items-center gap-2.5">
           <Button
-            onClick={() => extractQuestions(false)}
+            onClick={() => extractQuestions(false, true)}
             variant="outline"
             size="sm"
             disabled={isExtracting}
             className="h-9 gap-1.5 cursor-pointer font-medium border-border hover:border-primary/50"
-            title="Re-extract questions from PDF with AI"
+            title="Re-extract authentic questions verbatim from PDF with AI"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-[#00004E] dark:text-[#D89A06] ${isExtracting ? 'animate-spin' : ''}`} />
             {isExtracting ? 'Extracting...' : 'Re-extract AI'}
@@ -445,12 +446,12 @@ export default function PastPaperDetails() {
                       </p>
                     </div>
                     <Button
-                      onClick={() => extractQuestions(false)}
+                      onClick={() => extractQuestions(false, true)}
                       size="sm"
                       className="gap-2 bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] text-white cursor-pointer font-semibold"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      Extract Questions for Trial
+                      Extract Authentic Questions for Trial
                     </Button>
                   </div>
                 ) : (

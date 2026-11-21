@@ -6,6 +6,9 @@ import { GEMINI_CANDIDATE_MODELS } from '../../../../../../../../shared/constant
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // 60 seconds max duration for PDF OCR analysis
 
+const KLOK_BASE_URL = process.env.KLOK_BASE_URL || 'https://kloksearch.vercel.app';
+const KLOK_API_KEY = process.env.KLOK_API_KEY || 'klok_live_ddbeef2ccb5ed98dd45873c1d35060c4';
+
 function extractCourseCode(name: string): string {
   if (!name) return 'EXAM';
   const m = name.match(/([A-Z]{3,4}\s*\d{3})/i);
@@ -19,58 +22,6 @@ function parseYear(val: any): number {
   return m ? parseInt(m[1], 10) : new Date().getFullYear();
 }
 
-/**
- * Fallback standard academic examination questions for typical university course patterns
- * in case PDF scanning times out or has extreme image degradation.
- */
-function getSyllabusFallbackQuestions(courseCode: string, title: string): any[] {
-  const code = courseCode.toUpperCase().replace(/\s+/g, '');
-  return [
-    {
-      question_number: '1',
-      question_type: 'mcq',
-      text_content: `In the study of ${courseCode} (${title}), which of the following best defines the primary architectural principle of modern computing and information systems?\nA) Centralized batch processing\nB) Layered abstraction and modular interface design\nC) Unconstrained linear execution\nD) Direct physical memory coupling`,
-      extracted_topic: 'MCQ|System Architecture',
-      marks_available: 1,
-    },
-    {
-      question_number: '2',
-      question_type: 'mcq',
-      text_content: `Which of the following database normal forms eliminates transitive functional dependencies on candidate keys?\nA) First Normal Form (1NF)\nB) Second Normal Form (2NF)\nC) Third Normal Form (3NF)\nD) Unnormalized Form (UNF)`,
-      extracted_topic: 'MCQ|Database Normalization',
-      marks_available: 1,
-    },
-    {
-      question_number: '3',
-      question_type: 'mcq',
-      text_content: `In computer networks and distributed data transmission, what is the primary role of the Transport Layer (OSI Layer 4)?\nA) Physical signal modulation\nB) End-to-end host communication, flow control, and error recovery\nC) Domain Name Resolution\nD) Frame synchronization`,
-      extracted_topic: 'MCQ|Network Protocols',
-      marks_available: 1,
-    },
-    {
-      question_number: '4',
-      question_type: 'mcq',
-      text_content: `Which algorithmic complexity class represents logarithmic search efficiency across sorted data structures?\nA) O(1)\nB) O(n)\nC) O(log n)\nD) O(n^2)`,
-      extracted_topic: 'MCQ|Algorithmic Efficiency',
-      marks_available: 1,
-    },
-    {
-      question_number: '5',
-      question_type: 'theory',
-      text_content: `### Question 5 (Structured Theory)\n\n(a) Explain the fundamental distinction between **Data**, **Information**, and **Business Intelligence** in enterprise computing systems. [6 marks]\n\n(b) Discuss the importance of **Transaction ACID properties** (Atomicity, Consistency, Isolation, Durability) in ensuring relational database integrity. Provide a concrete financial scenario. [8 marks]\n\n(c) Outline three security vulnerabilities common to web applications (such as SQL Injection and Cross-Site Scripting) and describe mitigation strategies. [6 marks]`,
-      extracted_topic: 'THEORY|Enterprise Information Systems',
-      marks_available: 20,
-    },
-    {
-      question_number: '6',
-      question_type: 'theory',
-      text_content: `### Question 6 (System Analysis & Design)\n\n(a) Differentiate between the **Waterfall Software Development Lifecycle (SDLC)** and **Agile/Scrum methodologies**. When is each model most appropriate for an institutional deployment? [10 marks]\n\n(b) Draw or specify the entity-relationship schema components for a university course registration and grade auditing portal, identifying primary keys, foreign keys, and cardinalities. [10 marks]`,
-      extracted_topic: 'THEORY|System Analysis & SDLC',
-      marks_available: 20,
-    },
-  ];
-}
-
 export async function POST(
   req: NextRequest,
   props: { params: Promise<{ id: string }> }
@@ -78,6 +29,7 @@ export async function POST(
   try {
     const params = await props.params;
     const paperId = params.id;
+    const force = req.nextUrl.searchParams.get('force') === 'true';
 
     if (!paperId) {
       return NextResponse.json({ error: 'Missing past question paper ID' }, { status: 400 });
@@ -86,51 +38,48 @@ export async function POST(
     const supabase = await createClient();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(paperId);
 
-    // 1. If valid UUID, check if questions are already in Supabase
-    if (isUuid) {
+    // 1. If valid UUID and not forced, check if authentic questions are already in Supabase
+    if (isUuid && !force) {
       const { data: existingQs } = await supabase
         .from('past_paper_questions')
         .select('*')
         .eq('past_paper_id', paperId)
         .order('question_number', { ascending: true });
 
-      if (existingQs && existingQs.length > 0) {
+      // Reject synthetic placeholders
+      const isSynthetic = existingQs?.some((q: any) => 
+        q.extracted_topic === 'MCQ|System Architecture' || 
+        q.text_content?.includes('In the study of BCPC201 (BCPC201_INFORMATION SYSTEMS _WKD)')
+      );
+
+      if (existingQs && existingQs.length > 0 && !isSynthetic) {
         return NextResponse.json({
           success: true,
           cached: true,
           questions: existingQs,
         });
       }
+
+      if (isSynthetic) {
+        // Delete stale synthetic questions
+        await supabase
+          .from('past_paper_questions')
+          .delete()
+          .eq('past_paper_id', paperId);
+      }
+    } else if (isUuid && force) {
+      await supabase
+        .from('past_paper_questions')
+        .delete()
+        .eq('past_paper_id', paperId);
     }
 
-    // 2. Fetch the PDF buffer from our internal download route
-    const host = req.headers.get('host') || 'localhost:3000';
-    const protocol = req.headers.get('x-forwarded-proto') || 'http';
-    const downloadUrl = `${protocol}://${host}/api/v1/past-questions/download?id=${encodeURIComponent(paperId)}`;
-
+    // 2. Resolve paper details & direct PDF buffer
     let pdfBuffer: Buffer | null = null;
     let paperTitle = 'Past Examination Paper';
     let courseCode = extractCourseCode(paperId);
-
-    try {
-      const dlRes = await fetch(downloadUrl, {
-        headers: {
-          cookie: req.headers.get('cookie') || '',
-        },
-      });
-
-      if (dlRes.ok) {
-        const arrayBuf = await dlRes.arrayBuffer();
-        if (arrayBuf.byteLength > 100) {
-          pdfBuffer = Buffer.from(arrayBuf);
-        }
-      }
-    } catch (dlErr: any) {
-      console.warn('[extract] Download PDF buffer notice:', dlErr.message);
-    }
-
-    // Resolve paper details if UUID
     let resolvedPaperRecord: any = null;
+
     if (isUuid) {
       const { data: pRec } = await supabase
         .from('past_papers')
@@ -142,46 +91,110 @@ export async function POST(
         resolvedPaperRecord = pRec;
         paperTitle = pRec.title || paperTitle;
         courseCode = pRec.courses?.course_code || pRec.course_code || extractCourseCode(paperTitle);
+
+        // Check if past_paper_pages has image_url
+        const { data: pageRows } = await supabase
+          .from('past_paper_pages')
+          .select('image_url')
+          .eq('past_paper_id', pRec.id)
+          .limit(1);
+
+        if (pageRows && pageRows.length > 0 && pageRows[0].image_url) {
+          try {
+            const pRes = await fetch(pageRows[0].image_url);
+            if (pRes.ok) {
+              const buf = await pRes.arrayBuffer();
+              if (buf.byteLength > 100) pdfBuffer = Buffer.from(buf);
+            }
+          } catch (_) {}
+        }
       }
+    }
+
+    // 2b. Direct fetch from KLOK if not resolved from Storage
+    if (!pdfBuffer) {
+      try {
+        const klokDownloadUrl = `${KLOK_BASE_URL}/api/v1/past-questions/download?id=${encodeURIComponent(paperId)}&download=1`;
+        const kRes = await fetch(klokDownloadUrl, {
+          headers: { 'x-klok-api-key': KLOK_API_KEY },
+        });
+        if (kRes.ok) {
+          const buf = await kRes.arrayBuffer();
+          if (buf.byteLength > 100) pdfBuffer = Buffer.from(buf);
+        }
+      } catch (_) {}
+    }
+
+    // 2c. Fallback search on KLOK by course code
+    if (!pdfBuffer && courseCode && courseCode !== 'EXAM') {
+      try {
+        const sRes = await fetch(`${KLOK_BASE_URL}/api/v1/past-questions?q=${encodeURIComponent(courseCode.replace(/\s+/g, ''))}`, {
+          headers: { 'x-klok-api-key': KLOK_API_KEY },
+        });
+        if (sRes.ok) {
+          const sData = await sRes.json();
+          const items: any[] = sData.items || (Array.isArray(sData) ? sData : []);
+          if (items.length > 0 && items[0]?.id) {
+            const dRes = await fetch(`${KLOK_BASE_URL}/api/v1/past-questions/download?id=${encodeURIComponent(items[0].id)}&download=1`, {
+              headers: { 'x-klok-api-key': KLOK_API_KEY },
+            });
+            if (dRes.ok) {
+              const buf = await dRes.arrayBuffer();
+              if (buf.byteLength > 100) pdfBuffer = Buffer.from(buf);
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2d. Fallback internal proxy call
+    if (!pdfBuffer) {
+      try {
+        const host = req.headers.get('host') || 'localhost:3000';
+        const protocol = req.headers.get('x-forwarded-proto') || 'http';
+        const internalUrl = `${protocol}://${host}/api/v1/past-questions/download?id=${encodeURIComponent(paperId)}`;
+        const dlRes = await fetch(internalUrl, {
+          headers: { cookie: req.headers.get('cookie') || '' },
+        });
+        if (dlRes.ok) {
+          const arrayBuf = await dlRes.arrayBuffer();
+          if (arrayBuf.byteLength > 100) pdfBuffer = Buffer.from(arrayBuf);
+        }
+      } catch (_) {}
     }
 
     let extractedQuestions: any[] = [];
 
-    // 3. Extract questions using Gemini Multimodal Vision on the PDF
+    // 3. Extract authentic questions using Gemini Multimodal Vision on the PDF
     if (pdfBuffer && process.env.GEMINI_API_KEY) {
       try {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const base64Pdf = pdfBuffer.toString('base64');
         const visionPrompt = `
-You are a university exam analyzer. I am providing you with the full PDF of an authentic university examination past paper: ${paperTitle} (${courseCode}).
-Carefully analyze all pages, question sections, tables, and instructions.
+You are an expert university exam analyzer. I am providing you with the authentic university examination past paper PDF: ${paperTitle} (${courseCode}).
+Read every page carefully from page 1 to the end.
+Transcribe and extract the EXACT questions as printed on the PDF paper verbatim.
+Do NOT invent, summarize, or alter questions. Include the authentic question numbers, text, instructions, and multiple choice options (A, B, C, D) verbatim.
 
-Extract ALL questions in the EXACT sequential order they appear:
-1. Identify Multiple Choice Questions (MCQs):
-   - Include stem and options [A, B, C, D] in "text_content".
-   - Set "question_type": "mcq"
-   - Set "marks_available": 1 (or as indicated).
-2. Identify Theory and Essay Questions:
-   - Include all sub-questions (e.g. a, b, c) inside the main question's "text_content".
-   - Convert tables into clean markdown tables.
-   - Set "question_type": "theory"
-   - Set "marks_available": allocated marks (e.g. 20, 25) or 0.
-
-Output MUST be a single valid JSON object with the exact key "questions", containing an array of objects:
+Return a valid JSON object with the exact root key "questions", containing an array of objects:
 - "question_number": (string, e.g. "1", "2", "3")
 - "question_type": ("mcq" or "theory")
-- "text_content": (string, full question text and options)
-- "extracted_topic": (string, 1-3 word topic identifying the syllabus concept)
-- "marks_available": (integer)
+- "text_content": (the exact verbatim text, options, or instructions as printed on the exam paper)
+- "extracted_topic": (short 1-3 word topic identifying the concept from the question)
+- "marks_available": (number of marks, e.g. 1 for MCQ, or explicit marks indicated for theory)
 `;
 
         const modelsToTry = [
-          'gemini-2.5-flash',
-          'gemini-1.5-flash',
+          'gemini-3.5-flash',
+          'gemini-3.8-flash',
+          'gemini-flash-latest',
+          'gemini-2.5-pro',
           ...GEMINI_CANDIDATE_MODELS,
         ];
 
-        for (const modelName of modelsToTry) {
+        const uniqueModels = Array.from(new Set(modelsToTry));
+
+        for (const modelName of uniqueModels) {
           try {
             const model = genAI.getGenerativeModel({
               model: modelName,
@@ -217,20 +230,21 @@ Output MUST be a single valid JSON object with the exact key "questions", contai
       }
     }
 
-    // 4. If AI extraction could not parse questions (e.g. heavily corrupted scan or timeout), use syllabus standard trial questions
     if (!extractedQuestions || extractedQuestions.length === 0) {
-      console.log(`[extract] Applying standard curriculum trial set for ${courseCode}`);
-      extractedQuestions = getSyllabusFallbackQuestions(courseCode, paperTitle);
+      return NextResponse.json(
+        { error: 'Unable to extract questions from this document. Please view or download the authentic PDF.' },
+        { status: 422 }
+      );
     }
 
-    // 5. Persist extracted questions into Supabase if this paper belongs to a past_papers record
+    // 4. Persist authentic extracted questions into Supabase
     if (isUuid && resolvedPaperRecord) {
       try {
         const rowsToInsert = extractedQuestions.map((q, idx) => ({
           past_paper_id: resolvedPaperRecord.id,
           question_number: String(q.question_number || idx + 1),
           text_content: String(q.text_content || ''),
-          extracted_topic: String(q.extracted_topic || 'General Examination Concept'),
+          extracted_topic: String(q.extracted_topic || 'Examination Problem'),
           marks_available: Number(q.marks_available || (q.question_type === 'mcq' ? 1 : 20)),
         }));
 
