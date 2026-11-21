@@ -4,7 +4,9 @@ import { useState } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { BrainCircuit, CheckCircle2, XCircle, ArrowRight } from 'lucide-react'
+import { BrainCircuit, CheckCircle2, XCircle, ArrowRight, Loader2, Flame, GraduationCap } from 'lucide-react'
+import Link from 'next/link'
+import { EmptyState } from '@/components/ui/empty-state'
 
 // Mock Data
 const MOCK_DRILL = {
@@ -29,15 +31,13 @@ export default function WeaknessDrillPage() {
 
   const handleCheck = async () => {
     setIsGrading(true)
-    // Simulate AI grading
-    await new Promise(r => setTimeout(r, 1500))
+    await new Promise((r) => setTimeout(r, 1200))
     setIsGrading(false)
-    
-    // Mock basic check for demo purposes
-    const correct = answer.length > 5 // Very dummy mock check
+
+    const correct = answer.trim().length > 5
     if (correct) {
       setResult('correct')
-      setConsecutive(c => c + 1)
+      setConsecutive((c) => c + 1)
     } else {
       setResult('incorrect')
       setConsecutive(0)
@@ -48,22 +48,43 @@ export default function WeaknessDrillPage() {
     setResult(null)
     setAnswer('')
     if (currentIndex < MOCK_DRILL.problems.length - 1) {
-      setCurrentIndex(c => c + 1)
+      setCurrentIndex((c) => c + 1)
     } else {
-      // Loop or fetch more if not mastered
       setCurrentIndex(0)
     }
+  }
+
+  if (!currentProblem) {
+    return (
+      <div className="max-w-2xl mx-auto py-12">
+        <EmptyState
+          icon={BrainCircuit}
+          title="No Drill Questions Found"
+          description="This academic topic currently has no active drill problems. Select another topic from your course past papers to practice."
+          action={{
+            label: "Return to Past Papers",
+            href: "/dashboard/past-papers"
+          }}
+        />
+      </div>
+    )
   }
 
   if (isMastered) {
     return (
       <div className="max-w-md mx-auto py-20 text-center space-y-6">
-        <div className="inline-flex items-center justify-center w-24 h-24 bg-green-500/10 rounded-full mb-4">
-          <CheckCircle2 className="w-12 h-12 text-green-500" />
+        <div className="inline-flex items-center justify-center w-24 h-24 bg-emerald-500/10 rounded-full mb-4 border border-emerald-500/20">
+          <CheckCircle2 className="w-12 h-12 text-emerald-500" />
         </div>
-        <h1 className="text-3xl font-bold">Topic Mastered!</h1>
-        <p className="text-muted-foreground">You got 3 consecutive correct answers in {MOCK_DRILL.topic}. This topic has been cleared from your weak areas.</p>
-        <Button className="w-full bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#000038] dark:hover:bg-[#C28905] text-white font-semibold">Back to Dashboard</Button>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Topic Mastered!</h1>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          You achieved 3 consecutive correct answers in <span className="font-semibold text-foreground">{MOCK_DRILL.topic}</span>. This topic has been cleared from your active weak areas.
+        </p>
+        <Link href="/dashboard" className="w-full block">
+          <Button size="default" className="w-full font-semibold shadow-xs">
+            Back to Academic Dashboard
+          </Button>
+        </Link>
       </div>
     )
   }

@@ -422,8 +422,8 @@ export function ReferralsClient({
     switch (status) {
       case 'rewarded':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-            <Crown className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+            <Crown className="w-3 h-3 text-[#D89A06]" />
             Rewarded (Pro)
           </span>
         )
@@ -824,9 +824,9 @@ export function ReferralsClient({
                 size="sm"
                 onClick={handleBatchReward}
                 disabled={isPending}
-                className="h-7 text-xs gap-1 bg-purple-600 hover:bg-purple-700 text-white"
+                className="h-7 text-xs gap-1 bg-primary hover:bg-primary/90 text-primary-foreground"
               >
-                <Gift className="w-3 h-3" /> Grant Pro Month to Selected
+                <Gift className="w-3 h-3 text-[#D89A06]" /> Grant Pro Month to Selected
               </Button>
             </div>
           </div>
@@ -881,7 +881,7 @@ export function ReferralsClient({
                     <tr
                       key={item.id}
                       className={`hover:bg-muted/20 transition-colors ${
-                        selectedIds.includes(item.id) ? 'bg-purple-500/5' : ''
+                        selectedIds.includes(item.id) ? 'bg-primary/5' : ''
                       }`}
                     >
                       <td className="px-4 py-3">
@@ -935,7 +935,7 @@ export function ReferralsClient({
                           </span>
                           <button
                             onClick={() => handleGrantRewardMonth(item.id)}
-                            className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold hover:underline"
+                            className="text-[10px] text-primary font-semibold hover:underline"
                             title="Grant +1 month Pro reward"
                           >
                             +1 mo
@@ -976,7 +976,7 @@ export function ReferralsClient({
                                 Copy Invite Link
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleGrantRewardMonth(item.id)}>
-                                <Gift className="w-4 h-4 mr-2 text-purple-500" />
+                                <Gift className="w-4 h-4 mr-2 text-primary" />
                                 Grant +1 Pro Month
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
@@ -1056,7 +1056,7 @@ export function ReferralsClient({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-xs text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40"
+                    className="h-7 px-2 text-xs text-primary hover:bg-primary/10"
                     onClick={() => handleGrantRewardMonth(item.id)}
                   >
                     +1 Mo

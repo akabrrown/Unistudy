@@ -1,0 +1,932 @@
+[
+  {
+    "path": "dashboard/lectures/[lectureId]/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 33,
+    "ai_pct": 67,
+    "ai_tells": [
+      "Missing dedicated loading/skeleton state",
+      "Silent or basic error banner"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens"
+    ]
+  },
+  {
+    "path": "(auth)/signup/page.tsx",
+    "cluster": "Auth & Onboarding",
+    "human_pct": 60,
+    "ai_pct": 40,
+    "ai_tells": [
+      "Missing dedicated loading/skeleton state",
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Explicit error feedback / toast",
+      "Hardware-accelerated Framer Motion transitions"
+    ]
+  },
+  {
+    "path": "admin/audit/page.tsx",
+    "cluster": "Admin Command Center",
+    "human_pct": 60,
+    "ai_pct": 40,
+    "ai_tells": [
+      "Missing dedicated loading/skeleton state",
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "(auth)/login/page.tsx",
+    "cluster": "Auth & Onboarding",
+    "human_pct": 66,
+    "ai_pct": 34,
+    "ai_tells": [
+      "Missing dedicated loading/skeleton state"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "(auth)/onboarding/page.tsx",
+    "cluster": "Auth & Onboarding",
+    "human_pct": 66,
+    "ai_pct": 34,
+    "ai_tells": [
+      "Missing dedicated loading/skeleton state",
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Domain-deep UPSA academic terminology",
+      "Explicit error feedback / toast",
+      "Hardware-accelerated Framer Motion transitions"
+    ]
+  },
+  {
+    "path": "admin/referrals/page.tsx",
+    "cluster": "Admin Command Center",
+    "human_pct": 66,
+    "ai_pct": 34,
+    "ai_tells": [
+      "Missing dedicated loading/skeleton state",
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "brand/page.tsx",
+    "cluster": "Public & Marketing",
+    "human_pct": 66,
+    "ai_pct": 34,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Handled loading / async state"
+    ]
+  },
+  {
+    "path": "contact/page.tsx",
+    "cluster": "Public & Marketing",
+    "human_pct": 66,
+    "ai_pct": 34,
+    "ai_tells": [
+      "Missing dedicated loading/skeleton state"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "dashboard/courses/[courseId]/past-papers/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 66,
+    "ai_pct": 34,
+    "ai_tells": [
+      "Boilerplate 3-column card grid",
+      "Missing dedicated loading/skeleton state"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Domain-deep UPSA academic terminology",
+      "Handled empty-state zero data",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "dashboard/past-papers/[id]/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 66,
+    "ai_pct": 34,
+    "ai_tells": [
+      "Boilerplate 3-column card grid",
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "dashboard/calculator/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 71,
+    "ai_pct": 29,
+    "ai_tells": [
+      "Missing dedicated loading/skeleton state",
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Explicit error feedback / toast",
+      "Hardware-accelerated Framer Motion transitions",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "dashboard/settings/profile/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 71,
+    "ai_pct": 29,
+    "ai_tells": [
+      "Boilerplate 3-column card grid",
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "dashboard/youtube/watch/[videoId]/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 71,
+    "ai_pct": 29,
+    "ai_tells": [
+      "Missing dedicated loading/skeleton state",
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Explicit error feedback / toast",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "(auth)/forgot-password/page.tsx",
+    "cluster": "Auth & Onboarding",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "(auth)/verify/page.tsx",
+    "cluster": "Auth & Onboarding",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "admin/ai-infrastructure/page.tsx",
+    "cluster": "Admin Command Center",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Boilerplate 3-column card grid",
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Explicit error feedback / toast",
+      "Hardware-accelerated Framer Motion transitions"
+    ]
+  },
+  {
+    "path": "cookies/page.tsx",
+    "cluster": "Public & Marketing",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state"
+    ]
+  },
+  {
+    "path": "dashboard/analytics/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Generic AI marketing buzzwords",
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Explicit error feedback / toast",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "dashboard/courses/[courseId]/discussion/[threadId]/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "dashboard/courses/[courseId]/discussion/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "dashboard/courses/[courseId]/drills/[drillId]/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Missing dedicated loading/skeleton state"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Domain-deep UPSA academic terminology",
+      "Handled empty-state zero data"
+    ]
+  },
+  {
+    "path": "dashboard/courses/[courseId]/flashcards/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "dashboard/courses/[courseId]/lectures/[lectureId]/poster/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "dashboard/courses/[courseId]/quiz/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "dashboard/past-papers/[id]/attempt/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "dashboard/past-papers/drills/[id]/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "dashboard/past-papers/results/[attemptId]/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "dashboard/settings/accessibility/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Generic AI marketing buzzwords",
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Explicit error feedback / toast",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "how-it-works/page.tsx",
+    "cluster": "Public & Marketing",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state"
+    ]
+  },
+  {
+    "path": "pricing/page.tsx",
+    "cluster": "Public & Marketing",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "privacy/page.tsx",
+    "cluster": "Public & Marketing",
+    "human_pct": 75,
+    "ai_pct": 25,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state"
+    ]
+  },
+  {
+    "path": "academic-integrity/page.tsx",
+    "cluster": "Public & Marketing",
+    "human_pct": 80,
+    "ai_pct": 20,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "admin/page.tsx",
+    "cluster": "Admin Command Center",
+    "human_pct": 80,
+    "ai_pct": 20,
+    "ai_tells": [
+      "Generic purple/indigo/pink AI gradient",
+      "Boilerplate 3-column card grid"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Handled empty-state zero data",
+      "Explicit error feedback / toast",
+      "Hardware-accelerated Framer Motion transitions",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "dashboard/courses/[courseId]/lectures/[lectureId]/cheat-sheet/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 80,
+    "ai_pct": 20,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "page.tsx",
+    "cluster": "Public & Marketing",
+    "human_pct": 80,
+    "ai_pct": 20,
+    "ai_tells": [
+      "Generic purple/indigo/pink AI gradient",
+      "Boilerplate 3-column card grid"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Handled empty-state zero data",
+      "Explicit error feedback / toast",
+      "Hardware-accelerated Framer Motion transitions",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "terms/page.tsx",
+    "cluster": "Public & Marketing",
+    "human_pct": 80,
+    "ai_pct": 20,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "admin/institution-counts/page.tsx",
+    "cluster": "Admin Command Center",
+    "human_pct": 83,
+    "ai_pct": 17,
+    "ai_tells": [
+      "Missing dedicated loading/skeleton state"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled empty-state zero data",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "dashboard/scanner/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 83,
+    "ai_pct": 17,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Handled loading / async state",
+      "Explicit error feedback / toast",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "dashboard/search/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 83,
+    "ai_pct": 17,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Explicit error feedback / toast",
+      "Hardware-accelerated Framer Motion transitions"
+    ]
+  },
+  {
+    "path": "dashboard/settings/billing/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 83,
+    "ai_pct": 17,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Explicit error feedback / toast"
+    ]
+  },
+  {
+    "path": "features/page.tsx",
+    "cluster": "Public & Marketing",
+    "human_pct": 83,
+    "ai_pct": 17,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Hardware-accelerated Framer Motion transitions"
+    ]
+  },
+  {
+    "path": "admin/announcements/page.tsx",
+    "cluster": "Admin Command Center",
+    "human_pct": 85,
+    "ai_pct": 15,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Explicit error feedback / toast",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "admin/settings/page.tsx",
+    "cluster": "Admin Command Center",
+    "human_pct": 85,
+    "ai_pct": 15,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Explicit error feedback / toast",
+      "Hardware-accelerated Framer Motion transitions"
+    ]
+  },
+  {
+    "path": "dashboard/essay-grader/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 85,
+    "ai_pct": 15,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Explicit error feedback / toast",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "dashboard/past-papers/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 85,
+    "ai_pct": 15,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Explicit error feedback / toast",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "dashboard/youtube/pinned/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 85,
+    "ai_pct": 15,
+    "ai_tells": [
+      "Missing dedicated loading/skeleton state"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled empty-state zero data",
+      "Explicit error feedback / toast",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "admin/content/page.tsx",
+    "cluster": "Admin Command Center",
+    "human_pct": 87,
+    "ai_pct": 13,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Explicit error feedback / toast",
+      "Hardware-accelerated Framer Motion transitions",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "admin/subscriptions/page.tsx",
+    "cluster": "Admin Command Center",
+    "human_pct": 87,
+    "ai_pct": 13,
+    "ai_tells": [
+      "Boilerplate 3-column card grid"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Handled empty-state zero data",
+      "Explicit error feedback / toast",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "admin/users/page.tsx",
+    "cluster": "Admin Command Center",
+    "human_pct": 87,
+    "ai_pct": 13,
+    "ai_tells": [
+      "Missing explicit empty-state view"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Explicit error feedback / toast",
+      "Hardware-accelerated Framer Motion transitions",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "dashboard/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 87,
+    "ai_pct": 13,
+    "ai_tells": [
+      "Boilerplate 3-column card grid"
+    ],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Handled empty-state zero data",
+      "Explicit error feedback / toast",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "dashboard/calendar/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 96,
+    "ai_pct": 4,
+    "ai_tells": [],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Handled empty-state zero data",
+      "Explicit error feedback / toast",
+      "Hardware-accelerated Framer Motion transitions",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "dashboard/chat/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 96,
+    "ai_pct": 4,
+    "ai_tells": [],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Handled loading / async state",
+      "Handled empty-state zero data",
+      "Explicit error feedback / toast",
+      "Hardware-accelerated Framer Motion transitions"
+    ]
+  },
+  {
+    "path": "dashboard/courses/[courseId]/lectures/[lectureId]/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 96,
+    "ai_pct": 4,
+    "ai_tells": [],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Handled loading / async state",
+      "Handled empty-state zero data",
+      "Explicit error feedback / toast",
+      "Hardware-accelerated Framer Motion transitions",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "dashboard/courses/[courseId]/past-papers/[paperId]/attempt/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 96,
+    "ai_pct": 4,
+    "ai_tells": [],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state"
+    ]
+  },
+  {
+    "path": "dashboard/courses/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 96,
+    "ai_pct": 4,
+    "ai_tells": [],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Handled empty-state zero data",
+      "Explicit error feedback / toast",
+      "Hardware-accelerated Framer Motion transitions",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "dashboard/lectures/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 96,
+    "ai_pct": 4,
+    "ai_tells": [],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Handled empty-state zero data",
+      "Explicit error feedback / toast",
+      "Hardware-accelerated Framer Motion transitions",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "dashboard/youtube/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 96,
+    "ai_pct": 4,
+    "ai_tells": [],
+    "human_craft": [
+      "Authentic UPSA Navy (#00004E) & Gold tokens",
+      "Complex asymmetric / tabbed ergonomic layout",
+      "Domain-deep UPSA academic terminology",
+      "Handled loading / async state",
+      "Handled empty-state zero data",
+      "Explicit error feedback / toast",
+      "Accessible semantic ARIA roles"
+    ]
+  },
+  {
+    "path": "(auth)/profile/page.tsx",
+    "cluster": "Auth & Onboarding",
+    "human_pct": 100,
+    "ai_pct": 0,
+    "is_redirect": true,
+    "ai_tells": [
+      "N/A (Server-side redirect route)"
+    ],
+    "human_craft": [
+      "Server-side route orchestration"
+    ]
+  },
+  {
+    "path": "dashboard/courses/[courseId]/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 100,
+    "ai_pct": 0,
+    "is_redirect": true,
+    "ai_tells": [
+      "N/A (Server-side redirect route)"
+    ],
+    "human_craft": [
+      "Server-side route orchestration"
+    ]
+  },
+  {
+    "path": "dashboard/focus/page.tsx",
+    "cluster": "Student Dashboard & Tools",
+    "human_pct": 100,
+    "ai_pct": 0,
+    "is_redirect": true,
+    "ai_tells": [
+      "N/A (Server-side redirect route)"
+    ],
+    "human_craft": [
+      "Server-side route orchestration"
+    ]
+  }
+]

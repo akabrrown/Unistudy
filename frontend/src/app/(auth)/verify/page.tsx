@@ -181,7 +181,23 @@ function VerifyContent() {
 
 export default function VerifyPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center p-4">
+          <div className="w-full max-w-md p-8 rounded-2xl border border-primary/20 bg-card/60 backdrop-blur-sm shadow-xl space-y-6 animate-pulse">
+            <div className="h-12 w-12 rounded-full bg-primary/10 mx-auto" />
+            <div className="h-6 w-48 bg-muted rounded mx-auto" />
+            <div className="h-4 w-64 bg-muted/60 rounded mx-auto" />
+            <div className="flex justify-center gap-2 py-4">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="w-11 h-13 rounded-lg bg-muted/40 border border-border" />
+              ))}
+            </div>
+            <div className="h-10 w-full bg-primary/20 rounded-lg" />
+          </div>
+        </div>
+      }
+    >
       <VerifyContent />
     </Suspense>
   )

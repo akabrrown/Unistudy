@@ -6,6 +6,7 @@ import Link from 'next/link';
 
 import { CourseUploadPastPaperButton } from '@/components/past-papers/CourseUploadPastPaperButton';
 import { DeletePastPaperButton } from '@/components/past-papers/DeletePastPaperButton';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default async function PastPapersPage(props: { params: Promise<{ courseId: string }> }) {
   const params = await props.params;
@@ -97,25 +98,47 @@ export default async function PastPapersPage(props: { params: Promise<{ courseId
             Available Papers
           </h2>
           {papers.length === 0 ? (
-            <div className="text-center p-8 border border-dashed rounded-xl bg-muted/20">
-              <p className="text-muted-foreground">No past papers uploaded yet.</p>
-            </div>
+            <EmptyState
+              title={`No past questions found for ${course?.course_code || 'this course'}`}
+              description="Be the first to upload this semester's examination paper or mid-semester test to unlock AI grading and targeted revision drills."
+              badge="Course Repository"
+              icon={FileText}
+            />
           ) : (
-            <div className="grid gap-3">
-              {papers.map(paper => (
-                <div key={paper.id} className="flex items-center justify-between p-4 bg-card border border-border rounded-xl shadow-sm hover:border-primary/50 transition-colors">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-base">{paper.title || `${paper.year} ${paper.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm'}`}</h3>
+            <div className="grid gap-3.5">
+              {papers.map((paper) => (
+                <div
+                  key={paper.id}
+                  className="group relative flex flex-col sm:flex-row sm:items-center justify-between p-4.5 bg-card border border-border/80 hover:border-primary/50 rounded-xl shadow-xs hover:shadow-md transition-all gap-4"
+                >
+                  <div className="space-y-1.5 min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                        {paper.course_code || course?.course_code || 'EXAM'}
+                      </span>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                        {paper.exam_type === 'end-semester' ? 'Final Examination' : 'Mid-Semester Exam'}
+                      </span>
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {paper.year}
+                      </span>
                       {paper.course_id !== params.courseId && (
-                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                          University Bank
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#D89A06]/10 text-[#D89A06] border border-[#D89A06]/30">
+                          UPSA Central Bank
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground">{paper.course_code ? `${paper.course_code} · ` : ''}Uploaded {new Date(paper.created_at).toLocaleDateString()}</p>
+                    <h3 className="font-bold text-base text-foreground leading-snug group-hover:text-primary transition-colors">
+                      {paper.title || `${paper.year} ${paper.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm'}`}
+                    </h3>
+                    <p className="text-xs text-muted-foreground flex items-center gap-2">
+                      <span>Uploaded {new Date(paper.created_at).toLocaleDateString()}</span>
+                      <span>•</span>
+                      <span>100 Marks Available</span>
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2">
+
+                  <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
                     {paper.user_id === session.user.id && (
                       <DeletePastPaperButton paperId={paper.id} paperTitle={paper.title || `${paper.year} Exam`} />
                     )}
@@ -126,16 +149,16 @@ export default async function PastPapersPage(props: { params: Promise<{ courseId
                         rel="noopener noreferrer"
                         download
                       >
-                        <Button variant="secondary" size="sm" className="gap-1.5 cursor-pointer">
+                        <Button variant="secondary" size="sm" className="gap-1.5 cursor-pointer border border-primary/20">
                           <DownloadCloud className="w-3.5 h-3.5 text-primary" />
-                          PDF
+                          <span>PDF</span>
                         </Button>
                       </a>
                     )}
                     <Link href={paper.isKlok ? (paper.download_url || `/api/v1/past-questions/download?id=${encodeURIComponent(paper.id)}`) : `/dashboard/past-papers/${paper.id}`}>
-                      <Button variant="outline" size="sm" className="gap-2 cursor-pointer">
-                        {paper.isKlok ? 'View Exam' : 'Attempt'}
-                        <ArrowRight className="w-3 h-3" />
+                      <Button size="sm" className="gap-2 cursor-pointer shadow-xs font-semibold">
+                        <span>{paper.isKlok ? 'Read Paper' : 'Start Mock'}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
                       </Button>
                     </Link>
                   </div>

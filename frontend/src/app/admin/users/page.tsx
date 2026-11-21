@@ -493,15 +493,15 @@ export default function AdminUsersPage() {
         <Card
           onClick={() => setCohortTab('admins')}
           className={cn(
-            "p-4 cursor-pointer transition-all hover:border-violet-500/50 relative overflow-hidden",
-            cohortTab === 'admins' ? "border-violet-500 bg-violet-500/10 ring-1 ring-violet-500/20" : "bg-card"
+            "p-4 cursor-pointer transition-all hover:border-[#D89A06]/50 relative overflow-hidden",
+            cohortTab === 'admins' ? "border-[#D89A06] bg-[#D89A06]/10 ring-1 ring-[#D89A06]/20" : "bg-card"
           )}
         >
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Admins</span>
-            <Shield className="w-4 h-4 text-violet-500" />
+            <Shield className="w-4 h-4 text-[#D89A06]" />
           </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-violet-600 dark:text-violet-400">
+          <div className="text-2xl font-bold font-mono tracking-tight text-[#D89A06]">
             {stats.admins}
           </div>
           <p className="text-[11px] text-muted-foreground mt-1">Full privileged access</p>
@@ -797,7 +797,7 @@ export default function AdminUsersPage() {
                               {user.full_name || 'Unnamed User'}
                             </span>
                             {user.role === 'admin' && (
-                              <Shield className="w-3 h-3 text-violet-500 shrink-0" />
+                              <Shield className="w-3 h-3 text-[#D89A06] shrink-0" />
                             )}
                           </div>
                           <div className="text-muted-foreground text-[11px] truncate flex items-center gap-1">
@@ -810,7 +810,7 @@ export default function AdminUsersPage() {
                     {/* Role */}
                     <td className="px-4 py-3.5">
                       {user.role === 'admin' ? (
-                        <Badge variant="outline" className="text-[10px] uppercase font-mono tracking-wider font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30">
+                        <Badge variant="outline" className="text-[10px] uppercase font-mono tracking-wider font-semibold bg-[#D89A06]/10 text-[#D89A06] border-[#D89A06]/30">
                           Admin
                         </Badge>
                       ) : user.role === 'suspended' ? (
@@ -999,7 +999,7 @@ export default function AdminUsersPage() {
 
                     <div className="flex flex-col items-end gap-1.5">
                       {selectedUser.role === 'admin' ? (
-                        <Badge variant="outline" className="text-[10px] font-mono uppercase bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30">
+                        <Badge variant="outline" className="text-[10px] font-mono uppercase bg-[#D89A06]/10 text-[#D89A06] border-[#D89A06]/30">
                           Admin
                         </Badge>
                       ) : selectedUser.role === 'suspended' ? (

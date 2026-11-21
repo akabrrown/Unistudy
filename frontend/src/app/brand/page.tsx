@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { MarketingNavbar } from '@/components/layout/MarketingNavbar';
 import { MarketingFooter } from '@/components/layout/MarketingFooter';
-import { Download, Copy, CheckCircle2, Shield, Sparkles, Layers, Palette } from 'lucide-react';
+import { Download, Copy, CheckCircle2, Shield, GraduationCap, Layers, Palette } from 'lucide-react';
 import { UniStudyLogo } from '@/components/brand/UniStudyLogo';
 
 export const metadata = {

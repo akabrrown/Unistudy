@@ -63,13 +63,13 @@ function SearchResultsContent() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Search Results</h1>
         {isEnhanced && (
-          <div className="flex items-center gap-2 px-3 py-1 bg-brand-purple/10 text-brand-purple rounded-full text-sm font-medium border border-brand-purple/20">
-            <Zap className="w-4 h-4" /> Enhanced Ranking Active
+          <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium border border-primary/20">
+            <Zap className="w-4 h-4 text-[#D89A06]" /> Enhanced Academic Ranking
           </div>
         )}
       </div>
 
-      <p className="text-muted-foreground text-lg">Showing matches for: <span className="text-foreground font-semibold">"{query}"</span></p>
+      <p className="text-muted-foreground text-lg">Showing matches for: <span className="text-foreground font-semibold">&ldquo;{query}&rdquo;</span></p>
 
       {loading ? (
         <div className="space-y-6">
@@ -89,14 +89,14 @@ function SearchResultsContent() {
           {results.slides?.length > 0 && (
             <section className="space-y-4">
               <h2 className="text-xl font-semibold flex items-center gap-2">
-                <Layers className="w-5 h-5 text-brand-purple" /> Lecture Slides
+                <Layers className="w-5 h-5 text-primary" /> Lecture Slides
               </h2>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {results.slides.map((s: any) => (
                   <Link href={`/dashboard/lectures/${s.lecture_id}?slide=${s.slide_number}`} key={s.id}>
-                    <div className="group bg-card border border-border hover:border-brand-purple/50 rounded-xl p-4 transition-all h-full flex flex-col cursor-pointer hover:shadow-lg hover:shadow-brand-purple/5">
+                    <div className="group bg-card border border-border hover:border-primary/50 rounded-xl p-4 transition-all h-full flex flex-col cursor-pointer hover:shadow-lg hover:shadow-primary/5">
                       <div className="flex items-center justify-between mb-3">
-                        <div className="text-xs font-medium text-brand-purple bg-brand-purple/10 px-2 py-1 rounded">Slide {s.slide_number}</div>
+                        <div className="text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">Slide {s.slide_number}</div>
                       </div>
                       <div className="text-sm text-foreground line-clamp-3 mb-2 font-medium">
                         {s.text_content}

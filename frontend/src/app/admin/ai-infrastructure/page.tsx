@@ -399,9 +399,9 @@ Even if an AI inference engine achieves infinite speedup ($s \\to \\infty$), max
         <Card className="p-4 bg-card relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Active Keys</span>
-            <Key className="w-4 h-4 text-violet-500" />
+            <Key className="w-4 h-4 text-[#D89A06]" />
           </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-violet-600 dark:text-violet-400">
+          <div className="text-2xl font-bold font-mono tracking-tight text-[#D89A06]">
             {keys.filter((k) => k.status === 'active').length} <span className="text-xs font-normal text-muted-foreground font-sans">/ {keys.length}</span>
           </div>
           <p className="text-[11px] text-muted-foreground mt-1">Multi-provider pool</p>

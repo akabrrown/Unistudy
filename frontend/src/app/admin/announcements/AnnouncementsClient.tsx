@@ -444,8 +444,8 @@ export function AnnouncementsClient({
         )
       case 'modal':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-400 border border-purple-200 dark:border-purple-900/50">
-            <Radio className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+            <Radio className="w-3 h-3 text-primary" />
             Modal Dialog
           </span>
         )
@@ -618,7 +618,7 @@ export function AnnouncementsClient({
         <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Email Blasts</span>
-            <Mail className="w-4 h-4 text-purple-500" />
+            <Mail className="w-4 h-4 text-primary" />
           </div>
           <div className="text-2xl font-bold tracking-tight text-foreground">{stats.emailCount}</div>
           <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
@@ -1242,11 +1242,11 @@ export function AnnouncementsClient({
                     onClick={() => setComposerType('modal')}
                     className={`p-3 rounded-lg border text-left transition-all flex items-start gap-2.5 ${
                       composerType === 'modal'
-                        ? 'border-purple-500 bg-purple-500/10 text-foreground'
+                        ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary/20'
                         : 'border-border hover:bg-muted/30 text-muted-foreground'
                     }`}
                   >
-                    <Radio className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
+                    <Radio className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                     <div>
                       <div className="text-xs font-semibold text-foreground">Modal Dialog</div>
                       <div className="text-[11px] text-muted-foreground leading-tight">Overlay popup on login</div>
@@ -1366,7 +1366,7 @@ export function AnnouncementsClient({
                     </SelectItem>
                     <SelectItem value="faculty:FMS">
                       <div className="flex items-center gap-2">
-                        <GraduationCap className="w-3.5 h-3.5 text-purple-500" />
+                        <GraduationCap className="w-3.5 h-3.5 text-[#D89A06]" />
                         <span>Faculty of Management Studies (FMS)</span>
                       </div>
                     </SelectItem>

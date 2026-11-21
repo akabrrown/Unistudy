@@ -439,15 +439,15 @@ export default function ContentModerationPage() {
         <Card
           onClick={() => { setActiveTab('past_papers'); setStatusFilter('all'); }}
           className={cn(
-            "p-4 cursor-pointer transition-all hover:border-purple-500/50 relative overflow-hidden",
-            activeTab === 'past_papers' ? "border-purple-500 bg-purple-500/10 ring-1 ring-purple-500/20" : "bg-card"
+            "p-4 cursor-pointer transition-all hover:border-primary/50 relative overflow-hidden",
+            activeTab === 'past_papers' ? "border-primary bg-primary/10 ring-1 ring-primary/20" : "bg-card"
           )}
         >
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Past Papers</span>
-            <FileText className="w-4 h-4 text-purple-500" />
+            <FileText className="w-4 h-4 text-primary" />
           </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-purple-600 dark:text-purple-400">
+          <div className="text-2xl font-bold font-mono tracking-tight text-primary">
             {stats.pastPapers}
           </div>
           <p className="text-[11px] text-muted-foreground mt-1">Exams & question banks</p>
@@ -679,7 +679,7 @@ export default function ContentModerationPage() {
                           "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border mt-0.5",
                           item.type === 'lecture'
                             ? "bg-blue-500/10 text-blue-500 border-blue-500/20"
-                            : "bg-purple-500/10 text-purple-500 border-purple-500/20"
+                            : "bg-primary/10 text-primary border-primary/20"
                         )}>
                           {item.type === 'lecture' ? (
                             <BookOpen className="w-4 h-4" />
@@ -884,7 +884,7 @@ export default function ContentModerationPage() {
                         "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border",
                         selectedItem.type === 'lecture'
                           ? "bg-blue-500/10 text-blue-500 border-blue-500/20"
-                          : "bg-purple-500/10 text-purple-500 border-purple-500/20"
+                          : "bg-primary/10 text-primary border-primary/20"
                       )}>
                         {selectedItem.type === 'lecture' ? (
                           <BookOpen className="w-6 h-6" />
