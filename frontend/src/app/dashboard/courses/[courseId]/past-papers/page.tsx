@@ -142,19 +142,17 @@ export default async function PastPapersPage(props: { params: Promise<{ courseId
                     {paper.user_id === session.user.id && (
                       <DeletePastPaperButton paperId={paper.id} paperTitle={paper.title || `${paper.year} Exam`} />
                     )}
-                    {paper.download_url && (
-                      <a
-                        href={paper.download_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        download
-                      >
-                        <Button variant="secondary" size="sm" className="gap-1.5 cursor-pointer border border-primary/20">
-                          <DownloadCloud className="w-3.5 h-3.5 text-primary" />
-                          <span>PDF</span>
-                        </Button>
-                      </a>
-                    )}
+                    <a
+                      href={paper.download_url || `/api/v1/past-questions/download?id=${encodeURIComponent(paper.id)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download
+                    >
+                      <Button variant="secondary" size="sm" className="gap-1.5 cursor-pointer border border-primary/20">
+                        <DownloadCloud className="w-3.5 h-3.5 text-primary" />
+                        <span>PDF</span>
+                      </Button>
+                    </a>
                     <Link href={paper.isKlok ? (paper.download_url || `/api/v1/past-questions/download?id=${encodeURIComponent(paper.id)}`) : `/dashboard/past-papers/${paper.id}`}>
                       <Button size="sm" className="gap-2 cursor-pointer shadow-xs font-semibold">
                         <span>{paper.isKlok ? 'Read Paper' : 'Start Mock'}</span>
