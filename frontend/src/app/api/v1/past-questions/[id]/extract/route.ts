@@ -108,6 +108,11 @@ export async function POST(
             }
           } catch (_) {}
         }
+      } else {
+        return NextResponse.json(
+          { error: 'Past examination paper not found. This paper may have been updated or merged. Please return to your past paper bank.' },
+          { status: 404 }
+        );
       }
     }
 

@@ -94,6 +94,11 @@ export default function PastPaperDetails() {
           setActiveTab('trial');
           return sorted;
         }
+      } else {
+        const errData = await res.json().catch(() => null);
+        if (!silent) {
+          toast.error(errData?.error || 'Unable to extract questions from this paper.');
+        }
       }
     } catch (e: any) {
       console.warn('Extraction notice:', e.message);
@@ -231,7 +236,22 @@ export default function PastPaperDetails() {
   }
 
   if (!paper) {
-    return <div className="text-center py-12 text-muted-foreground">Past examination paper not found.</div>;
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-4 text-center space-y-4 max-w-md mx-auto">
+        <FileText className="w-12 h-12 text-muted-foreground/60" />
+        <div className="space-y-1.5">
+          <h2 className="text-lg font-bold text-foreground">Past Examination Paper Not Found</h2>
+          <p className="text-sm text-muted-foreground">
+            This past examination paper may have been updated, merged, or moved in your course bank.
+          </p>
+        </div>
+        <Link href="/dashboard/past-papers">
+          <Button className="bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] text-white font-semibold cursor-pointer">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Return to Past Question Bank
+          </Button>
+        </Link>
+      </div>
+    );
   }
 
   const startAttempt = async () => {
