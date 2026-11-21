@@ -25,6 +25,8 @@ export function InstitutionSelect({
   )
   const [selectedLevel, setSelectedLevel] = useState<number>(initialLevel || 100)
 
+  const currentFaculty = UPSA_FACULTIES.find((f) => f.code === selectedFaculty) || UPSA_FACULTIES[0]
+
   return (
     <div className="space-y-4">
       {/* ── Verified UPSA Institutional Anchor ── */}
@@ -73,17 +75,39 @@ export function InstitutionSelect({
           value={selectedFaculty}
           onValueChange={(val: any) => setSelectedFaculty(val || UPSA_FACULTIES[0].code)}
         >
-          <SelectTrigger id="faculty_select" className="w-full h-11 text-xs bg-background/50">
-            <SelectValue placeholder="Select Faculty" />
+          <SelectTrigger id="faculty_select" className="w-full h-12 text-xs bg-background/60 hover:bg-background border-primary/20 px-3.5">
+            <div className="flex items-center gap-2 min-w-0 text-left">
+              <span className="font-bold text-foreground text-xs shrink-0">
+                {currentFaculty.shortName}
+              </span>
+              <span className="text-[11px] text-muted-foreground truncate hidden sm:inline">
+                • {currentFaculty.name}
+              </span>
+            </div>
           </SelectTrigger>
-          <SelectContent className="max-w-[calc(100vw-2rem)] sm:max-w-md w-(--anchor-width) min-w-[280px]">
+          <SelectContent
+            alignItemWithTrigger={false}
+            side="bottom"
+            sideOffset={6}
+            align="start"
+            className="w-[var(--anchor-width)] min-w-[340px] sm:min-w-[460px] max-w-[calc(100vw-2rem)] p-1.5 rounded-xl border border-primary/20 shadow-2xl bg-popover/98 backdrop-blur-md z-50 max-h-[320px] overflow-y-auto"
+          >
             {UPSA_FACULTIES.map((fac) => (
-              <SelectItem key={fac.code} value={fac.code} className="text-xs py-2 px-2.5">
-                <div className="flex flex-col min-w-0 pr-4">
-                  <span className="font-semibold text-foreground text-xs leading-snug">
-                    {fac.shortName}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground truncate leading-normal">
+              <SelectItem
+                key={fac.code}
+                value={fac.code}
+                className="text-xs py-2 px-3 rounded-lg cursor-pointer my-0.5 focus:bg-primary/10 focus:text-foreground data-[state=checked]:bg-primary/10 transition-colors"
+              >
+                <div className="flex flex-col min-w-0 gap-0.5 pr-6 w-full text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-foreground text-xs leading-snug">
+                      {fac.shortName}
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-semibold">
+                      {fac.code}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground leading-normal whitespace-normal line-clamp-1">
                     {fac.name}
                   </span>
                 </div>
@@ -104,12 +128,24 @@ export function InstitutionSelect({
             value={String(selectedLevel)}
             onValueChange={(val) => setSelectedLevel(Number(val) || 100)}
           >
-            <SelectTrigger id="level_select" className="w-full h-11 text-xs bg-background/50">
-              <SelectValue placeholder="Select Level" />
+            <SelectTrigger id="level_select" className="w-full h-11 text-xs bg-background/60 hover:bg-background border-primary/20 px-3.5">
+              <span className="font-semibold text-foreground text-xs">
+                Level {selectedLevel}
+              </span>
             </SelectTrigger>
-            <SelectContent className="w-(--anchor-width) min-w-[200px]">
+            <SelectContent
+              alignItemWithTrigger={false}
+              side="bottom"
+              sideOffset={6}
+              align="start"
+              className="w-[var(--anchor-width)] min-w-[220px] p-1.5 rounded-xl border border-primary/20 shadow-xl bg-popover/98 backdrop-blur-md z-50"
+            >
               {UPSA_LEVELS.map((lvl) => (
-                <SelectItem key={lvl.value} value={String(lvl.value)} className="text-xs py-2 px-2.5">
+                <SelectItem
+                  key={lvl.value}
+                  value={String(lvl.value)}
+                  className="text-xs py-2 px-3 rounded-lg cursor-pointer my-0.5 focus:bg-primary/10"
+                >
                   <span className="font-medium text-foreground">{lvl.label}</span>
                 </SelectItem>
               ))}

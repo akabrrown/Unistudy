@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { ensurePaperIngested } from '@/lib/past-papers/ingestion';
 
 export const dynamic = 'force-dynamic';
 
@@ -116,7 +117,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 4. Map KLOK papers and strictly filter to those matching user's course codes
+    // 4. Map external papers, ingest to Cloudinary + DB, and filter to matching course codes
     const klokPapers: any[] = [];
     for (const item of allKlokItems) {
       const rawName = item.name || item.filename || 'Past Examination Paper';
@@ -134,11 +135,24 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
+      // Hybrid Ingestion: save to Cloudinary and database so it becomes a native permanent record
+      let effectiveId = item.id;
+      let effectiveFileUrl: string | null = null;
+      if (matchingCourse) {
+        try {
+          const ingested = await ensurePaperIngested(item, matchingCourse, user.id);
+          effectiveId = ingested.id;
+          effectiveFileUrl = ingested.file_url;
+        } catch (ingestErr) {
+          console.warn('[ensurePaperIngested] Notice:', ingestErr);
+        }
+      }
+
       const courseCode = matchingCourse?.course_code || extractCourseCode(cleanTitle);
       const isMidterm = cleanTitle.toLowerCase().includes('mid') || cleanTitle.toLowerCase().includes('interim');
 
       klokPapers.push({
-        id: item.id,
+        id: effectiveId,
         course_id: matchingCourse ? matchingCourse.id : null,
         course_code: courseCode,
         normalized_course_code: courseCode.replace(/[^A-Z0-9]/g, ''),
@@ -147,9 +161,9 @@ export async function GET(req: NextRequest) {
         exam_type: isMidterm ? 'mid-semester' : 'end-semester',
         status: 'ready',
         created_at: new Date(item.timemodified ? item.timemodified * 1000 : Date.now()).toISOString(),
-        download_url: `/api/v1/past-questions/download?id=${encodeURIComponent(item.id)}`,
+        download_url: effectiveFileUrl || `/api/v1/past-questions/download?id=${encodeURIComponent(item.id)}`,
         filesize: item.filesize,
-        source: 'klok',
+        source: 'native',
         courses: matchingCourse ? {
           id: matchingCourse.id,
           course_code: matchingCourse.course_code,
@@ -229,8 +243,15 @@ export async function GET(req: NextRequest) {
       console.warn('[API /api/v1/past-questions] Supabase local fetch warning:', dbErr.message);
     }
 
-    // 6. Merge local custom papers + KLOK papers matched to user's courses
-    const combined = [...localPapers, ...klokPapers];
+    // 6. Merge local custom papers + KLOK papers matched to user's courses (deduplicate by id and title)
+    const paperMap = new Map<string, any>();
+    for (const p of [...localPapers, ...klokPapers]) {
+      const key = p.id || p.title;
+      if (!paperMap.has(key)) {
+        paperMap.set(key, p);
+      }
+    }
+    const combined = Array.from(paperMap.values());
 
     return NextResponse.json(combined, {
       headers: {
