@@ -10,11 +10,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   const supabase = await createClient()
-  const { data: rawProfile } = await supabase
+  const { data: rawProfile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, role, avatar_url, full_name, username, subscription_tier, faculty, year_of_study, institutions(abbreviation, name)')
+    .select('id, role, avatar_url, full_name, username, plan, faculty, year_of_study, institutions(abbreviation, name)')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
+
+  if (profileError) {
+    console.warn('[DashboardLayout] Profile fetch notice:', profileError.message)
+  }
 
   const userFullName = rawProfile?.full_name || (user?.user_metadata?.full_name as string) || (user?.user_metadata?.name as string) || null
   const userEmailName = user?.email ? user.email.split('@')[0] : 'UPSA Scholar'
@@ -32,7 +36,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     avatar_url: rawProfile?.avatar_url || (user?.user_metadata?.avatar_url as string) || null,
     full_name: userDisplayName,
     username: rawProfile?.username || userDisplayName,
-    subscription_tier: rawProfile?.subscription_tier || 'free',
+    subscription_tier: rawProfile?.plan || 'free',
     faculty: rawProfile?.faculty || null,
     year_of_study: rawProfile?.year_of_study || null,
     institutions: resolvedInstitutions,

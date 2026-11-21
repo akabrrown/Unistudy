@@ -295,10 +295,10 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
                 render={
                   <Link
                     href="/admin"
-                    className="flex items-center justify-center w-10 h-10 border border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500 hover:text-white rounded-xl transition-all shadow-xs"
+                    className="flex items-center justify-center w-10 h-10 border-2 border-[#D89A06] bg-[#D89A06]/15 text-[#00004E] dark:text-[#D89A06] hover:bg-[#D89A06] hover:text-[#00004E] rounded-xl transition-all shadow-xs"
                     aria-label="Admin Control Panel"
                   >
-                    <Shield className="w-5 h-5" />
+                    <Shield className="w-5 h-5 text-[#D89A06]" />
                   </Link>
                 }
               />
@@ -309,14 +309,14 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
           ) : (
             <Link
               href="/admin"
-              className="flex items-center justify-between px-3.5 py-2.5 border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded-xl transition-colors font-semibold text-xs shadow-xs group"
+              className="flex items-center justify-between px-3.5 py-2.5 border-2 border-[#D89A06] bg-[#D89A06]/15 hover:bg-[#D89A06]/25 text-[#00004E] dark:text-[#D89A06] rounded-xl transition-all font-bold text-xs shadow-xs group"
             >
               <div className="flex items-center gap-2.5">
-                <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform" />
-                <span>Admin Command Center</span>
+                <Shield className="w-4 h-4 text-[#D89A06] group-hover:scale-110 transition-transform" />
+                <span className="font-bold text-[#00004E] dark:text-[#D89A06]">Admin Control Panel</span>
               </div>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300">
-                PRO
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded font-extrabold bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E]">
+                ADMIN
               </span>
             </Link>
           )}
@@ -334,7 +334,13 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
           )}
 
           <div className="space-y-1">
-            {section.items.map((item) => {
+            {(section.title === 'Settings' && profile?.role === 'admin'
+              ? [
+                  ...section.items,
+                  { label: 'Admin Control Panel', href: '/admin', icon: Shield, color: 'text-[#D89A06]', subItems: [] } as NavItem,
+                ]
+              : section.items
+            ).map((item: NavItem) => {
               const active = isNavGroupActive(item);
               const Icon = item.icon;
               const hasSubItems = Boolean(item.subItems && item.subItems.length > 0);
@@ -539,8 +545,13 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
             </div>
           )}
           <div className="text-sm min-w-0 flex-1">
-            <div className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-              {profile?.username || profile?.full_name?.split(' ')[0] || 'UPSA Scholar'}
+            <div className="flex items-center gap-1.5 font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+              <span className="truncate">{profile?.username || profile?.full_name?.split(' ')[0] || 'UPSA Scholar'}</span>
+              {profile?.role === 'admin' && (
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#D89A06] text-[#00004E] shrink-0">
+                  ADMIN
+                </span>
+              )}
             </div>
             <div className="text-muted-foreground text-xs truncate">
               {profile?.institutions?.abbreviation || 'UPSA'}
@@ -610,7 +621,7 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
     <TooltipProvider delay={100}>
       <div className="min-h-screen bg-background flex flex-col md:flex-row">
         {/* Mobile Sidebar (always full layout inside sheet drawer) */}
-        <MobileSidebar>
+        <MobileSidebar profile={profile}>
           <div className="mb-4 px-2 pt-2 md:pt-0">
             <SmartSearchBar />
           </div>
