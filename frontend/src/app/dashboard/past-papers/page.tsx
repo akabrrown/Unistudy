@@ -553,197 +553,172 @@ export default function PastPapersDashboard() {
           </div>
         </div>
 
-        {/* 4-Tile Exam Readiness Strip */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-          <div className="rounded-xl border border-border/70 bg-muted/25 px-3.5 py-2.5 flex items-center justify-between">
-            <div>
-              <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-                Course Banks
+        {/* Consolidated Examination Telemetry Ribbon & Multi-Filter Header */}
+        <div className="rounded-2xl border border-border/70 bg-card/60 backdrop-blur-xs p-3 space-y-2.5">
+          {/* Top Live Telemetry Ribbon */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2 border-b border-border/60">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border/60 bg-muted/30 text-xs font-mono text-muted-foreground">
+                <Layers className="h-3.5 w-3.5 text-primary" />
+                <span className="font-bold text-foreground tabular-nums">{courses.length}</span> Course Banks
               </div>
-              <div className="font-mono text-xl font-bold text-foreground tabular-nums mt-0.5">
-                {courses.length}
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border/60 bg-muted/30 text-xs font-mono text-muted-foreground">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="font-bold text-foreground tabular-nums">{readyCount}</span>
+                <span>/ {papers.length} Ready</span>
               </div>
-            </div>
-            <Layers className="h-4 w-4 text-primary" />
-          </div>
-
-          <div className="rounded-xl border border-border/70 bg-muted/25 px-3.5 py-2.5 flex items-center justify-between">
-            <div>
-              <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-                Practice Ready
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border/60 bg-muted/30 text-xs font-mono text-muted-foreground">
+                <Award className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                <span className="font-bold text-foreground tabular-nums">{attempts.length}</span> Mocks
               </div>
-              <div className="font-mono text-xl font-bold text-foreground tabular-nums mt-0.5">
-                {readyCount}
-                <span className="text-xs font-normal text-muted-foreground"> / {papers.length}</span>
-              </div>
-            </div>
-            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-          </div>
-
-          <div className="rounded-xl border border-border/70 bg-muted/25 px-3.5 py-2.5 flex items-center justify-between">
-            <div>
-              <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-                Mock Attempts
-              </div>
-              <div className="font-mono text-xl font-bold text-foreground tabular-nums mt-0.5">
-                {attempts.length}
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border/60 bg-muted/30 text-xs font-mono text-muted-foreground">
+                <TrendingUp className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                <span>Avg:</span>
+                <span className="font-bold text-foreground tabular-nums">{avgScore !== null ? `${avgScore}%` : '--'}</span>
               </div>
             </div>
-            <Award className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-          </div>
 
-          <div className="rounded-xl border border-border/70 bg-muted/25 px-3.5 py-2.5 flex items-center justify-between">
-            <div>
-              <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-                Avg Exam Score
-              </div>
-              <div className="font-mono text-xl font-bold text-foreground tabular-nums mt-0.5">
-                {avgScore !== null ? `${avgScore}%` : '--'}
-              </div>
-            </div>
-            <TrendingUp className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-          </div>
-        </div>
-
-        {/* Course Bank Selector Chips */}
-        {courses.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/60">
-            <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground font-semibold mr-1">
-              Course Bank:
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedCourseFilter(null)}
-              className={cn(
-                'rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer tabular-nums',
-                selectedCourseFilter === null
-                  ? 'bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] text-white border-transparent'
-                  : 'bg-background border-border text-muted-foreground hover:text-foreground'
-              )}
-            >
-              All ({papers.length})
-            </button>
-            {courses.map((c) => {
-              const count = papers.filter((p) => matchesCourse(p, c)).length;
-              const isSelected = selectedCourseFilter === c.id;
-              return (
+            {/* View Mode & Reset Controls */}
+            <div className="flex items-center gap-2 ml-auto">
+              <div className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5">
                 <button
-                  key={c.id}
                   type="button"
-                  onClick={() => setSelectedCourseFilter(isSelected ? null : c.id)}
+                  onClick={() => setViewMode('grid')}
+                  aria-label="Grid view"
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer tabular-nums',
-                    isSelected
-                      ? 'border-primary bg-primary/10 text-primary font-semibold'
-                      : 'bg-background border-border text-foreground hover:border-primary/40'
+                    'p-1.5 rounded-md transition-colors cursor-pointer',
+                    viewMode === 'grid'
+                      ? 'bg-background text-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
-                  <span
-                    className="h-2 w-2 rounded-full shrink-0"
-                    style={{ backgroundColor: resolveCourseColor(c.colour || undefined) }}
-                  />
-                  <span>{c.course_code || c.title}</span>
-                  <span className="text-[11px] text-muted-foreground">({count})</span>
+                  <LayoutGrid className="w-3.5 h-3.5" />
                 </button>
-              );
-            })}
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  aria-label="List view"
+                  className={cn(
+                    'p-1.5 rounded-md transition-colors cursor-pointer',
+                    viewMode === 'list'
+                      ? 'bg-background text-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <List className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {hasActiveFilters ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  Reset
+                </Button>
+              ) : null}
+            </div>
           </div>
-        ) : null}
 
-        {/* Multi-Criteria Filter & Search Controls */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Search paper title, course code, or year..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 h-8 text-xs bg-background"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={examTypeFilter}
-              onChange={(e) => setExamTypeFilter(e.target.value as ExamTypeFilter)}
-              aria-label="Filter by exam type"
-              className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs font-medium outline-none cursor-pointer"
-            >
-              <option value="all">All Exam Types</option>
-              <option value="final">Final Exam</option>
-              <option value="mid-semester">Midterm Exam</option>
-              <option value="resit">Resit Exam</option>
-            </select>
-
-            {yearOptions.length > 0 ? (
-              <select
-                value={yearFilter}
-                onChange={(e) => setYearFilter(e.target.value)}
-                aria-label="Filter by year"
-                className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs font-medium outline-none cursor-pointer"
-              >
-                <option value="all">All Years</option>
-                {yearOptions.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            ) : null}
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as AttemptStatusFilter)}
-              aria-label="Filter by attempt status"
-              className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs font-medium outline-none cursor-pointer"
-            >
-              <option value="all">All Status</option>
-              <option value="attempted">Attempted</option>
-              <option value="unattempted">Unattempted</option>
-              <option value="processing">Processing OCR</option>
-            </select>
-
-            <div className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5">
-              <button
-                type="button"
-                onClick={() => setViewMode('grid')}
-                aria-label="Grid view"
-                className={cn(
-                  'p-1.5 rounded-md transition-colors cursor-pointer',
-                  viewMode === 'grid'
-                    ? 'bg-background text-foreground shadow-xs'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
-                aria-label="List view"
-                className={cn(
-                  'p-1.5 rounded-md transition-colors cursor-pointer',
-                  viewMode === 'list'
-                    ? 'bg-background text-foreground shadow-xs'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <List className="w-3.5 h-3.5" />
-              </button>
+          {/* Search & Filter Row */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search paper title, course code, or year..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 h-8 text-xs bg-background"
+              />
             </div>
 
-            {hasActiveFilters ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={clearAllFilters}
-                className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={examTypeFilter}
+                onChange={(e) => setExamTypeFilter(e.target.value as ExamTypeFilter)}
+                aria-label="Filter by exam type"
+                className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs font-medium outline-none cursor-pointer"
               >
-                Reset
-              </Button>
-            ) : null}
+                <option value="all">All Exam Types</option>
+                <option value="final">Final Exam</option>
+                <option value="mid-semester">Midterm Exam</option>
+                <option value="resit">Resit Exam</option>
+              </select>
+
+              {yearOptions.length > 0 ? (
+                <select
+                  value={yearFilter}
+                  onChange={(e) => setYearFilter(e.target.value)}
+                  aria-label="Filter by year"
+                  className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs font-medium outline-none cursor-pointer"
+                >
+                  <option value="all">All Years</option>
+                  {yearOptions.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as AttemptStatusFilter)}
+                aria-label="Filter by attempt status"
+                className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs font-medium outline-none cursor-pointer"
+              >
+                <option value="all">All Status</option>
+                <option value="attempted">Attempted</option>
+                <option value="unattempted">Unattempted</option>
+                <option value="processing">Processing OCR</option>
+              </select>
+            </div>
           </div>
+
+          {/* Course Bank Selector Chips (Horizontal Scrollable Strip) */}
+          {courses.length > 0 ? (
+            <div className="flex items-center gap-1.5 overflow-x-auto pt-1 no-scrollbar">
+              <button
+                type="button"
+                onClick={() => setSelectedCourseFilter(null)}
+                className={cn(
+                  'shrink-0 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer tabular-nums',
+                  selectedCourseFilter === null
+                    ? 'bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] text-white border-transparent'
+                    : 'bg-background border-border text-muted-foreground hover:text-foreground'
+                )}
+              >
+                All Banks ({papers.length})
+              </button>
+              {courses.map((c) => {
+                const count = papers.filter((p) => matchesCourse(p, c)).length;
+                const isSelected = selectedCourseFilter === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setSelectedCourseFilter(isSelected ? null : c.id)}
+                    className={cn(
+                      'shrink-0 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer tabular-nums',
+                      isSelected
+                        ? 'border-primary bg-primary/10 text-primary font-semibold'
+                        : 'bg-background border-border text-foreground hover:border-primary/40'
+                    )}
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full shrink-0"
+                      style={{ backgroundColor: resolveCourseColor(c.colour || undefined) }}
+                    />
+                    <span>{c.course_code || c.title}</span>
+                    <span className="text-[11px] text-muted-foreground">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       </header>
 

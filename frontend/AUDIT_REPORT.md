@@ -46,7 +46,7 @@
 | `dashboard/chat/page.tsx` | **96%** | 4% | None (Clean Human UI) | ✓ Authentic UPSA Navy (#00004E) & Gold tokens<br>✓ Complex asymmetric / tabbed ergonomic layout<br>✓ Handled loading / async state |
 | `dashboard/courses/[courseId]/lectures/[lectureId]/page.tsx` | **96%** | 4% | None (Clean Human UI) | ✓ Authentic UPSA Navy (#00004E) & Gold tokens<br>✓ Complex asymmetric / tabbed ergonomic layout<br>✓ Handled loading / async state |
 | `dashboard/courses/[courseId]/past-papers/[paperId]/attempt/page.tsx` | **96%** | 4% | None (Clean Human UI) | ✓ Authentic UPSA Navy (#00004E) & Gold tokens<br>✓ Domain-deep UPSA academic terminology<br>✓ Handled loading / async state |
-| `dashboard/courses/page.tsx` | **96%** | 4% | None (Clean Human UI) | ✓ Authentic UPSA Navy (#00004E) & Gold tokens<br>✓ Domain-deep UPSA academic terminology<br>✓ Handled loading / async state |
+| `dashboard/courses/page.tsx` | **96%** | 4% | None (Clean Human UI) | ✓ Authentic UPSA Navy (#00004E) & Gold tokens<br>✓ Complex asymmetric / tabbed ergonomic layout<br>✓ Domain-deep UPSA academic terminology |
 | `dashboard/lectures/page.tsx` | **96%** | 4% | None (Clean Human UI) | ✓ Authentic UPSA Navy (#00004E) & Gold tokens<br>✓ Domain-deep UPSA academic terminology<br>✓ Handled loading / async state |
 | `dashboard/youtube/page.tsx` | **96%** | 4% | None (Clean Human UI) | ✓ Authentic UPSA Navy (#00004E) & Gold tokens<br>✓ Complex asymmetric / tabbed ergonomic layout<br>✓ Domain-deep UPSA academic terminology |
 | `dashboard/courses/[courseId]/page.tsx` | **100%** | 0% | • N/A (Server-side redirect route) | ✓ Server-side route orchestration |

@@ -695,80 +695,60 @@ export default function CoursesPage() {
           </div>
         </div>
 
-        {/* 4-Metric Course Telemetry Bar */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-          <div className="rounded-xl border border-border/70 bg-muted/25 px-3.5 py-2.5 flex items-center justify-between">
-            <div>
-              <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">Active Modules</div>
-              <div className="font-mono text-xl font-bold text-foreground tabular-nums mt-0.5">{activeCourses.length}</div>
+        {/* Consolidated Workspace Toolbar & Live Academic Telemetry */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-2 rounded-2xl border border-border/70 bg-card/60 backdrop-blur-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* View Switcher Tabs */}
+            <div className="inline-flex rounded-xl border border-border bg-muted/40 p-1">
+              <button
+                type="button"
+                onClick={() => switchView('active')}
+                className={cn(
+                  'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer',
+                  activeView === 'active'
+                    ? 'bg-background text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <BookOpen className="w-3.5 h-3.5 text-primary" />
+                Active Modules ({activeCourses.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => switchView('archived')}
+                className={cn(
+                  'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer',
+                  activeView === 'archived'
+                    ? 'bg-background text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <Archive className="w-3.5 h-3.5 text-amber-500" />
+                Archived Vault ({archivedCourses.length})
+              </button>
             </div>
-            <BookOpen className="h-4 w-4 text-primary" />
-          </div>
-          <div className="rounded-xl border border-border/70 bg-muted/25 px-3.5 py-2.5 flex items-center justify-between">
-            <div>
-              <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">Lecture Decks</div>
-              <div className="font-mono text-xl font-bold text-foreground tabular-nums mt-0.5">{totalActiveLectures}</div>
-            </div>
-            <Layers className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-          </div>
-          <div className="rounded-xl border border-border/70 bg-muted/25 px-3.5 py-2.5 flex items-center justify-between">
-            <div>
-              <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">Past Paper Banks</div>
-              <div className="font-mono text-xl font-bold text-foreground tabular-nums mt-0.5">{totalActivePapers}</div>
-            </div>
-            <FileCheck2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <button
-            type="button"
-            onClick={() => switchView(activeView === 'archived' ? 'active' : 'archived')}
-            className="text-left rounded-xl border border-border/70 bg-muted/25 hover:border-primary/40 px-3.5 py-2.5 flex items-center justify-between transition-colors cursor-pointer"
-          >
-            <div>
-              <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">Archived Vault</div>
-              <div className="font-mono text-xl font-bold text-foreground tabular-nums mt-0.5">{archivedCourses.length}</div>
-            </div>
-            <Archive className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-          </button>
-        </div>
 
-        {/* Workspace Tab Switcher + Search/Filter Toolbar */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2 border-t border-border/60">
-          <div className="inline-flex rounded-xl border border-border bg-muted/40 p-1 self-start">
-            <button
-              type="button"
-              onClick={() => switchView('active')}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer',
-                activeView === 'active'
-                  ? 'bg-background text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <BookOpen className="w-3.5 h-3.5 text-primary" />
-              Active Courses ({activeCourses.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => switchView('archived')}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer',
-                activeView === 'archived'
-                  ? 'bg-background text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <Archive className="w-3.5 h-3.5 text-amber-500" />
-              Archived Vault ({archivedCourses.length})
-            </button>
+            {/* Quick Live Academic Telemetry Badges */}
+            <div className="hidden sm:flex items-center gap-2 pl-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border/60 bg-muted/30 text-xs font-mono text-muted-foreground">
+                <Layers className="h-3.5 w-3.5 text-primary" />
+                <span className="font-bold text-foreground tabular-nums">{totalActiveLectures}</span> Decks
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border/60 bg-muted/30 text-xs font-mono text-muted-foreground">
+                <FileCheck2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="font-bold text-foreground tabular-nums">{totalActivePapers}</span> Past Papers
+              </div>
+            </div>
           </div>
 
+          {/* Search & Filter Toolbar */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[200px] flex-1 sm:flex-initial">
               <Search className="h-3.5 w-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search code or course title..."
+                placeholder="Search code or title..."
                 className="h-8 pl-8 text-xs bg-background"
               />
             </div>
