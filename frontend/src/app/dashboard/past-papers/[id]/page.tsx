@@ -86,37 +86,41 @@ export default function PastPaperDetails() {
         console.warn('[PastPaperDetails] Proxy fetch failed, falling back to direct query:', proxyErr)
       }
 
-      const { data: pData } = await supabase
-        .from('past_papers')
-        .select('*, courses(course_code, title)')
-        .eq('id', params.id)
-        .single()
-        
-      if (pData) {
-        setPaper(pData)
-        
-        const { data: qData } = await supabase
-          .from('past_paper_questions')
-          .select('*')
-          .eq('past_paper_id', pData.id)
-          .order('question_number', { ascending: true })
+      const isKlokId = typeof params.id === 'string' && (params.id.startsWith('L0') || params.id.length > 50 || !params.id.includes('-'));
+
+      if (!isKlokId) {
+        const { data: pData } = await supabase
+          .from('past_papers')
+          .select('*, courses(course_code, title)')
+          .eq('id', params.id)
+          .single()
           
-        if (qData) {
-          let sortedQs = [...qData].sort((a, b) => 
-            a.question_number.localeCompare(b.question_number, undefined, { numeric: true })
-          )
+        if (pData) {
+          setPaper(pData)
           
-          // Detect MCQs using the AI classification stored in extracted_topic, fallback to regex
-          sortedQs = sortedQs.map(q => {
-            const hasPrefix = q.extracted_topic && q.extracted_topic.includes('|')
-            const isMcq = hasPrefix 
-              ? q.extracted_topic.startsWith('MCQ|')
-              : /(?:^|\n)[ \t]*[A-Ea-e][.)][ \t]+\S/m.test(q.text_content)
-              
-            return isMcq ? { ...q, marks_available: 1, isMcq: true } : { ...q, isMcq: false }
-          })
-          
-          setQuestions(sortedQs)
+          const { data: qData } = await supabase
+            .from('past_paper_questions')
+            .select('*')
+            .eq('past_paper_id', pData.id)
+            .order('question_number', { ascending: true })
+            
+          if (qData) {
+            let sortedQs = [...qData].sort((a, b) => 
+              a.question_number.localeCompare(b.question_number, undefined, { numeric: true })
+            )
+            
+            // Detect MCQs using the AI classification stored in extracted_topic, fallback to regex
+            sortedQs = sortedQs.map(q => {
+              const hasPrefix = q.extracted_topic && q.extracted_topic.includes('|')
+              const isMcq = hasPrefix 
+                ? q.extracted_topic.startsWith('MCQ|')
+                : /(?:^|\n)[ \t]*[A-Ea-e][.)][ \t]+\S/m.test(q.text_content)
+                
+              return isMcq ? { ...q, marks_available: 1, isMcq: true } : { ...q, isMcq: false }
+            })
+            
+            setQuestions(sortedQs)
+          }
         }
       }
       

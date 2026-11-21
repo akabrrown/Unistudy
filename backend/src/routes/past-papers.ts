@@ -225,11 +225,87 @@ router.get('/download', async (req: any, res) => {
     }
 });
 
+function extractCourseCodeFromName(name: string): string {
+    if (!name) return 'EXAM';
+    const m = name.match(/([A-Z]{3,4}\s*\d{3})/i);
+    return m ? m[1].toUpperCase().replace(/\s+/, ' ') : 'EXAM';
+}
+
+function parseYearFromName(val: any): number {
+    if (typeof val === 'number') return val;
+    if (!val) return new Date().getFullYear();
+    const m = String(val).match(/(\d{4})/);
+    return m ? parseInt(m[1], 10) : new Date().getFullYear();
+}
+
 router.get('/:id', async (req: any, res) => {
     try {
         const paperId = req.params.id;
         const userId = req.user!.id;
 
+        // 1. If paperId is a base64 encoded KLOK paper ID
+        const isKlokId = paperId.startsWith('L0') || paperId.length > 50 || !paperId.includes('-');
+        if (isKlokId) {
+            try {
+                let decodedPath = '';
+                try {
+                    decodedPath = Buffer.from(paperId, 'base64').toString('utf-8');
+                } catch (_) {
+                    decodedPath = paperId;
+                }
+
+                const pathParts = decodedPath.split(/[\/\\]/);
+                const filename = pathParts[pathParts.length - 1] || 'Past Examination Paper';
+                const cleanTitle = filename.replace(/\.pdf$/i, '').trim();
+                const detectedCode = extractCourseCodeFromName(cleanTitle);
+
+                // Fetch user courses to find match
+                const { data: userCourses } = await supabaseAdmin
+                    .from('courses')
+                    .select('id, course_code, title, colour')
+                    .eq('user_id', userId);
+
+                const cleanCodeOnly = detectedCode.replace(/\s+/g, '').toUpperCase();
+                const matchingCourse = (userCourses || []).find((c: any) => {
+                    const cCodeClean = (c.course_code || '').replace(/\s+/g, '').toUpperCase();
+                    return cCodeClean && (cCodeClean === cleanCodeOnly || cleanTitle.toUpperCase().includes(cCodeClean));
+                });
+
+                const isMidterm = cleanTitle.toLowerCase().includes('mid') || cleanTitle.toLowerCase().includes('interim');
+                const courseCode = matchingCourse?.course_code || detectedCode;
+
+                return res.json({
+                    id: paperId,
+                    course_id: matchingCourse ? matchingCourse.id : null,
+                    course_code: courseCode,
+                    normalized_course_code: courseCode.replace(/[^A-Z0-9]/g, ''),
+                    title: cleanTitle,
+                    year: parseYearFromName(cleanTitle),
+                    exam_type: isMidterm ? 'mid-semester' : 'end-semester',
+                    status: 'ready',
+                    created_at: new Date().toISOString(),
+                    download_url: `/api/v1/past-questions/download?id=${encodeURIComponent(paperId)}`,
+                    source: 'klok',
+                    courses: matchingCourse ? {
+                        id: matchingCourse.id,
+                        course_code: matchingCourse.course_code,
+                        title: matchingCourse.title,
+                        colour: matchingCourse.colour || '#00004E',
+                    } : {
+                        id: 'official',
+                        course_code: courseCode,
+                        title: cleanTitle,
+                        colour: '#00004E',
+                    },
+                    past_paper_questions: [],
+                    questions: [],
+                });
+            } catch (kErr: any) {
+                console.warn('[Past Papers GET /:id] KLOK resolution error:', kErr.message);
+            }
+        }
+
+        // 2. Query Supabase for custom uploaded past papers
         const { data: paper, error } = await supabaseAdmin
             .from('past_papers')
             .select('*, courses(id, course_code, title, colour), past_paper_questions(*)')
