@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Clock, FileText, Bot, FileQuestion, ArrowRight, Trash2, Loader2 } from 'lucide-react'
+import { ArrowLeft, Clock, FileText, Bot, FileQuestion, ArrowRight, Trash2, Loader2, DownloadCloud, ExternalLink } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { apiFetch } from '@/lib/api/client'
 import { toast } from 'sonner'
@@ -221,19 +221,36 @@ export default function PastPaperDetails() {
           <p className="text-muted-foreground">{paper.courses?.course_name}</p>
         </div>
         <div className="flex items-center gap-2.5">
-          <Button
-            onClick={handleDeletePaper}
-            variant="outline"
-            size="lg"
-            disabled={isDeleting}
-            className="text-destructive hover:bg-destructive/10 hover:border-destructive/30"
-          >
-            {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-            Delete Paper
-          </Button>
-          <Button onClick={startAttempt} size="lg" className="gap-2 shadow-lg shadow-primary/20">
-            Start Attempt <ArrowRight className="w-4 h-4" />
-          </Button>
+          {paper.download_url && (
+            <a
+              href={paper.download_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              download
+            >
+              <Button variant="outline" size="lg" className="gap-2 cursor-pointer">
+                <DownloadCloud className="w-4 h-4 text-primary" />
+                Download PDF
+              </Button>
+            </a>
+          )}
+          {paper.source !== 'klok' && (
+            <Button
+              onClick={handleDeletePaper}
+              variant="outline"
+              size="lg"
+              disabled={isDeleting}
+              className="text-destructive hover:bg-destructive/10 hover:border-destructive/30"
+            >
+              {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Delete Paper
+            </Button>
+          )}
+          {questions.length > 0 && (
+            <Button onClick={startAttempt} size="lg" className="gap-2 shadow-lg shadow-primary/20">
+              Start Attempt <ArrowRight className="w-4 h-4" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -252,9 +269,40 @@ export default function PastPaperDetails() {
                 <p className="text-sm mt-1 opacity-70">This usually takes about 30-60 seconds.</p>
               </div>
             ) : questions.length === 0 ? (
-              <p className="text-muted-foreground py-8 text-center bg-muted/20 rounded-lg border border-dashed border-border">
-                No questions found. The AI might have failed to parse this paper.
-              </p>
+              <div className="flex flex-col items-center justify-center py-10 px-4 text-center bg-muted/20 rounded-xl border border-dashed border-border space-y-4">
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <FileText className="w-6 h-6 text-primary" />
+                </div>
+                <div className="space-y-1 max-w-md">
+                  <h3 className="text-base font-semibold text-foreground">Official Examination Paper</h3>
+                  <p className="text-sm text-muted-foreground">
+                    This authentic past examination paper is available directly in your course bank for immediate viewing or offline PDF download.
+                  </p>
+                </div>
+                {paper.download_url && (
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                    <a
+                      href={paper.download_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white px-4 py-2 text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      View Full Exam PDF
+                    </a>
+                    <a
+                      href={paper.download_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download
+                      className="inline-flex items-center gap-2 rounded-lg border border-border bg-background hover:bg-muted px-4 py-2 text-xs font-medium text-foreground transition-colors cursor-pointer"
+                    >
+                      <DownloadCloud className="w-3.5 h-3.5 text-primary" />
+                      Download PDF
+                    </a>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="space-y-8">
                 {mcqQuestions.length > 0 && (

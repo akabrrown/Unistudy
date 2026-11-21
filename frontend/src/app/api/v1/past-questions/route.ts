@@ -65,14 +65,19 @@ export async function GET(req: NextRequest) {
       console.warn('[API /api/v1/past-questions] courses fetch warning:', err.message);
     }
 
-    // 2. Build search terms tailored to the user's courses
+    // 2. Build search terms tailored strictly to the user's course codes
     const searchTerms: string[] = [];
     if (queryParam) {
       searchTerms.push(queryParam);
     } else if (courseIdParam) {
       const targetCourse = userCourses.find((c) => c.id === courseIdParam);
-      if (targetCourse?.course_code) searchTerms.push(targetCourse.course_code);
-      if (targetCourse?.title) searchTerms.push(targetCourse.title);
+      if (targetCourse?.course_code) {
+        searchTerms.push(targetCourse.course_code.trim());
+        const noSpace = targetCourse.course_code.replace(/\s+/g, '').trim();
+        if (noSpace !== targetCourse.course_code.trim()) {
+          searchTerms.push(noSpace);
+        }
+      }
     } else if (userCourses.length > 0) {
       for (const c of userCourses) {
         if (c.course_code) {
@@ -83,25 +88,20 @@ export async function GET(req: NextRequest) {
             searchTerms.push(noSpace);
           }
         }
-        // Add subject keyword if course code didn't yield enough
-        if (c.title) {
-          const words = c.title
-            .split(/[^a-zA-Z0-9]+/)
-            .filter((w: string) => w.length > 4 && !['principles', 'introduction', 'studies', 'management', 'system'].includes(w.toLowerCase()));
-          if (words.length > 0) {
-            searchTerms.push(words[0]);
-          }
-        }
       }
     }
 
-    // If no courses exist yet and no query, fetch default catalog
+    // If no courses exist yet and no query, return empty list (strict filtering)
     if (searchTerms.length === 0) {
-      searchTerms.push('');
+      return NextResponse.json([], {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+        },
+      });
     }
 
-    // 3. Fetch from KLOK for user course terms in parallel (capped to max 6 terms)
-    const uniqueTerms = Array.from(new Set(searchTerms)).slice(0, 6);
+    // 3. Fetch from KLOK for user course terms in parallel (capped to max 12 terms)
+    const uniqueTerms = Array.from(new Set(searchTerms)).slice(0, 12);
     const klokResults = await Promise.all(uniqueTerms.map((t) => fetchKlokPapers(t)));
 
     // Deduplicate KLOK items by ID
@@ -116,31 +116,28 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 4. Map KLOK papers and associate them with matching user courses
-    const klokPapers = allKlokItems.map((item: any) => {
+    // 4. Map KLOK papers and strictly filter to those matching user's course codes
+    const klokPapers: any[] = [];
+    for (const item of allKlokItems) {
       const rawName = item.name || item.filename || 'Past Examination Paper';
       const cleanTitle = rawName.replace(/\.pdf$/i, '');
       const paperCleanText = cleanTitle.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-      // Find matching user course by course_code or title keywords
+      // Strict matching: paper must contain the user's normalized course code (e.g. BCPC201, BITM309)
       const matchingCourse = userCourses.find((c) => {
-        const cCode = (c.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-        if (cCode && (paperCleanText.includes(cCode) || cCode.includes(paperCleanText))) {
-          return true;
-        }
-        // Keyword match on course title (e.g. "Database", "Programming", "Leadership")
-        const titleKeywords = (c.title || '')
-          .toLowerCase()
-          .split(/[^a-z0-9]+/)
-          .filter((w: string) => w.length > 4);
-        const lowerName = cleanTitle.toLowerCase();
-        return titleKeywords.some((kw: string) => lowerName.includes(kw));
+        const cCodeClean = (c.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        return cCodeClean && paperCleanText.includes(cCodeClean);
       });
+
+      // Strictly ignore papers that do not match the user's courses
+      if (!matchingCourse && userCourses.length > 0) {
+        continue;
+      }
 
       const courseCode = matchingCourse?.course_code || extractCourseCode(cleanTitle);
       const isMidterm = cleanTitle.toLowerCase().includes('mid') || cleanTitle.toLowerCase().includes('interim');
 
-      return {
+      klokPapers.push({
         id: item.id,
         course_id: matchingCourse ? matchingCourse.id : null,
         course_code: courseCode,
@@ -159,15 +156,15 @@ export async function GET(req: NextRequest) {
           title: matchingCourse.title,
           colour: matchingCourse.colour || '#00004E',
         } : {
-          id: 'klok-official',
+          id: 'official',
           course_code: courseCode,
           title: cleanTitle,
           colour: '#00004E',
         },
         question_count: 0,
         questions: [],
-      };
-    });
+      });
+    }
 
     // 5. Fetch custom uploaded papers from Supabase (if any)
     let localPapers: any[] = [];

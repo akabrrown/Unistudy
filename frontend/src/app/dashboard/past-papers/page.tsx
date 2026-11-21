@@ -198,7 +198,7 @@ export default function PastPapersDashboard() {
         ? ((papersRes.value as any).data as PastPaperRecord[])
         : [];
 
-    // Display papers related to courses created on the user's system
+    // Display papers strictly related to courses created on the user's system
     const userCourseIdSet = new Set(nextCourses.map((c) => c.id));
     const userCourseCodes = nextCourses
       .map((c) => (c.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''))
@@ -210,16 +210,15 @@ export default function PastPapersDashboard() {
       const cId = Array.isArray(p.courses) ? p.courses[0]?.id : p.courses?.id;
       if (cId && userCourseIdSet.has(cId)) return true;
 
-      // 2. Match by course code containment (e.g. BCPC201 matches BCPC 201)
+      // 2. Strict match by course code (normalized course code must match user's course code)
       const pCode = (p.normalized_course_code || p.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (pCode && userCourseCodes.some((cCode) => pCode.includes(cCode) || cCode.includes(pCode))) return true;
+      if (pCode && userCourseCodes.some((cCode) => pCode === cCode || pCode.startsWith(cCode) || cCode.startsWith(pCode))) return true;
 
-      // 3. Match by title containing user's course code
+      // 3. Match by paper title containing user's exact course code
       const pTitle = (p.title || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (pTitle && userCourseCodes.some((cCode) => pTitle.includes(cCode))) return true;
 
-      // If user has no courses yet, show all available papers
-      return nextCourses.length === 0;
+      return false;
     });
     const nextAttempts =
       attemptsRes.status === 'fulfilled' && Array.isArray(attemptsRes.value.data)
@@ -883,11 +882,6 @@ export default function PastPapersDashboard() {
                             <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold bg-primary/10 text-primary">
                               {courseMeta?.course_code || paper.course_code || 'EXAM'}
                             </span>
-                            {paper.source === 'klok' && (
-                              <span className="rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 text-[10px] font-semibold">
-                                KLOK Official
-                              </span>
-                            )}
                             <span className="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                               {examLabel}
                             </span>
