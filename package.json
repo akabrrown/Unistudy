@@ -15,19 +15,5 @@
   "devDependencies": {
     "concurrently": "^9.1.2"
   },
-  "pnpm": {
-    "overrides": {
-      "shell-quote": ">=1.11.0"
-    },
-    "onlyBuiltDependencies": [
-      "@google/genai",
-      "@parcel/watcher",
-      "@swc/core",
-      "es5-ext",
-      "esbuild",
-      "protobufjs",
-      "sharp",
-      "unrs-resolver"
-    ]
-  }
+  "packageManager": "pnpm@11.21.0"
 }
