@@ -18,16 +18,16 @@
   "pnpm": {
     "overrides": {
       "shell-quote": ">=1.11.0"
-    }
-  },
-  "allowScripts": {
-    "@google/genai@2.13.0": true,
-    "@parcel/watcher@2.6.0": true,
-    "es5-ext@0.10.64": true,
-    "esbuild@0.28.1": true,
-    "@swc/core@1.15.46": true,
-    "protobufjs@7.6.5": true,
-    "sharp@0.34.5": true,
-    "unrs-resolver@1.12.2": true
+    },
+    "onlyBuiltDependencies": [
+      "@google/genai",
+      "@parcel/watcher",
+      "@swc/core",
+      "es5-ext",
+      "esbuild",
+      "protobufjs",
+      "sharp",
+      "unrs-resolver"
+    ]
   }
 }

@@ -24,6 +24,7 @@
     "canvas-confetti": "^1.9.4",
     "chart.js": "^4.5.1",
     "class-variance-authority": "^0.7.1",
+    "cloudinary": "^2.11.0",
     "clsx": "^2.1.1",
     "cohere-ai": "^8.0.0",
     "d3": "^7.9.0",
@@ -90,4 +91,3 @@
     ]
   }
 }
-

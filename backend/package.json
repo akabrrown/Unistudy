@@ -14,7 +14,7 @@
     "@huggingface/inference": "^4.13.23",
     "@mistralai/mistralai": "^2.5.0",
     "@supabase/supabase-js": "^2.110.2",
-    "@unistudy/shared": "*",
+    "@unistudy/shared": "workspace:*",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
     "axios": "^1.18.1",
