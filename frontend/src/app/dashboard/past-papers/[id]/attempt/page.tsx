@@ -53,13 +53,28 @@ export default function ExamAttempt() {
         console.warn('Proxy fetch failed, using supabase fallback:', proxyErr)
       }
 
-      if (!qData) {
+      if (!qData || qData.length === 0) {
         const { data: supaQ } = await supabase
           .from('past_paper_questions')
           .select('*')
           .eq('past_paper_id', params.id)
           .order('question_number', { ascending: true })
         qData = supaQ
+      }
+
+      // If still empty (e.g. newly opened official exam paper), auto-extract on demand
+      if (!qData || qData.length === 0) {
+        try {
+          const extRes = await fetch(`/api/v1/past-questions/${params.id}/extract`, { method: 'POST' });
+          if (extRes.ok) {
+            const extData = await extRes.json();
+            if (Array.isArray(extData.questions) && extData.questions.length > 0) {
+              qData = extData.questions;
+            }
+          }
+        } catch (extErr) {
+          console.warn('[Attempt] Auto-extract notice:', extErr);
+        }
       }
         
       if (qData) {

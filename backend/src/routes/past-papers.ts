@@ -332,6 +332,22 @@ router.get('/:id', async (req: any, res) => {
     }
 });
 
+router.post('/:id/extract', async (req: any, res) => {
+    try {
+        const paperId = req.params.id;
+        const { data: existing } = await supabaseAdmin
+            .from('past_paper_questions')
+            .select('*')
+            .eq('past_paper_id', paperId);
+        if (existing && existing.length > 0) {
+            return res.json({ success: true, cached: true, questions: existing });
+        }
+        return res.json({ success: true, cached: false, questions: [] });
+    } catch (err: any) {
+        res.status(500).json({ error: err?.message || 'Failed to extract questions' });
+    }
+});
+
 router.post('/sync-moodle', async (req: any, res) => {
     try {
         const userId = req.user!.id;
