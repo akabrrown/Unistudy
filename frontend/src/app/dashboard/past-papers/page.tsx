@@ -126,7 +126,6 @@ export default function PastPapersDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedPapers, setSelectedPapers] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isSyncingPortal, setIsSyncingPortal] = useState(false);
   const [isExamFocusOpen, setIsExamFocusOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -335,28 +334,6 @@ export default function PastPapersDashboard() {
     }
   };
 
-  const handleDirectPortalSync = async () => {
-    setIsSyncingPortal(true);
-    try {
-      const res: any = await apiFetch('/past-papers/sync-moodle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: '10297545',
-          password: '40Baller#1',
-          baseUrl: 'https://join.upsavirtual.site',
-        }),
-      });
-      toast.success(res?.message || 'UPSA Virtual Portal synchronized! Enrolled courses and authentic exam papers loaded.');
-      await loadData();
-    } catch (err: any) {
-      console.warn('Direct sync notice, opening credential modal:', err?.message);
-      setIsMoodleModalOpen(true);
-    } finally {
-      setIsSyncingPortal(false);
-    }
-  };
-
   // Map best & latest attempt per paper_id
   const attemptsByPaper = useMemo(() => {
     const map = new Map<
@@ -527,20 +504,6 @@ export default function PastPapersDashboard() {
             >
               <Target className="w-3.5 h-3.5" />
               Exam Areas Focus
-            </Button>
-
-            <Button
-              onClick={handleDirectPortalSync}
-              disabled={isSyncingPortal}
-              variant="outline"
-              className="h-9 px-3.5 text-xs font-semibold gap-1.5 border-primary/30 hover:bg-primary/10 text-primary cursor-pointer"
-            >
-              {isSyncingPortal ? (
-                <Loader2 className="w-4 h-4 animate-spin text-primary" />
-              ) : (
-                <DownloadCloud className="w-4 h-4 text-primary" />
-              )}
-              {isSyncingPortal ? 'Syncing UPSA Portal...' : 'Sync University Portal'}
             </Button>
 
             <Button
