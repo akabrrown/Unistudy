@@ -66,6 +66,9 @@ interface PastPaperRecord {
   status: string | null;
   created_at: string;
   courses?: PastPaperCourseJoin | PastPaperCourseJoin[] | null;
+  source?: string | null;
+  download_url?: string | null;
+  question_count?: number;
 }
 
 interface AttemptPaperJoin {
@@ -195,18 +198,28 @@ export default function PastPapersDashboard() {
         ? ((papersRes.value as any).data as PastPaperRecord[])
         : [];
 
-    // Strictly ensure only papers belonging to courses created on the user's system are displayed
+    // Display papers related to courses created on the user's system
     const userCourseIdSet = new Set(nextCourses.map((c) => c.id));
-    const userCourseCodeSet = new Set(
-      nextCourses
-        .map((c) => (c.course_code || c.title || '').toUpperCase().replace(/[^A-Z0-9]/g, ''))
-        .filter(Boolean)
-    );
+    const userCourseCodes = nextCourses
+      .map((c) => (c.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''))
+      .filter(Boolean);
 
     const nextPapers = rawPapers.filter((p) => {
+      // 1. Direct course ID match
       if (p.course_id && userCourseIdSet.has(p.course_id)) return true;
+      const cId = Array.isArray(p.courses) ? p.courses[0]?.id : p.courses?.id;
+      if (cId && userCourseIdSet.has(cId)) return true;
+
+      // 2. Match by course code containment (e.g. BCPC201 matches BCPC 201)
       const pCode = (p.normalized_course_code || p.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-      return pCode && userCourseCodeSet.has(pCode);
+      if (pCode && userCourseCodes.some((cCode) => pCode.includes(cCode) || cCode.includes(pCode))) return true;
+
+      // 3. Match by title containing user's course code
+      const pTitle = (p.title || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (pTitle && userCourseCodes.some((cCode) => pTitle.includes(cCode))) return true;
+
+      // If user has no courses yet, show all available papers
+      return nextCourses.length === 0;
     });
     const nextAttempts =
       attemptsRes.status === 'fulfilled' && Array.isArray(attemptsRes.value.data)
@@ -868,8 +881,13 @@ export default function PastPapersDashboard() {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold bg-primary/10 text-primary">
-                              {courseMeta?.course_code || 'EXAM'}
+                              {courseMeta?.course_code || paper.course_code || 'EXAM'}
                             </span>
+                            {paper.source === 'klok' && (
+                              <span className="rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 text-[10px] font-semibold">
+                                KLOK Official
+                              </span>
+                            )}
                             <span className="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                               {examLabel}
                             </span>
@@ -950,19 +968,44 @@ export default function PastPapersDashboard() {
                       className="mt-4 pt-3 border-t border-border/60 flex flex-wrap items-center gap-2"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <Link
-                        href={`/dashboard/past-papers/${paper.id}/attempt`}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
-                      >
-                        <Play className="w-3 h-3" />
-                        Start Attempt
-                      </Link>
-                      <Link
-                        href={`/dashboard/past-papers/${paper.id}`}
-                        className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted px-3 py-1.5 text-xs font-medium text-foreground transition-colors cursor-pointer"
-                      >
-                        Questions
-                      </Link>
+                      {paper.source === 'klok' ? (
+                        <a
+                          href={paper.download_url || `/api/v1/past-questions/download?id=${encodeURIComponent(paper.id)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
+                        >
+                          <DownloadCloud className="w-3 h-3" />
+                          Download PDF
+                        </a>
+                      ) : (
+                        <>
+                          <Link
+                            href={`/dashboard/past-papers/${paper.id}/attempt`}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
+                          >
+                            <Play className="w-3 h-3" />
+                            Start Attempt
+                          </Link>
+                          <Link
+                            href={`/dashboard/past-papers/${paper.id}`}
+                            className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted px-3 py-1.5 text-xs font-medium text-foreground transition-colors cursor-pointer"
+                          >
+                            Questions
+                          </Link>
+                        </>
+                      )}
+                      {paper.source === 'klok' ? (
+                        <a
+                          href={paper.download_url || `/api/v1/past-questions/download?id=${encodeURIComponent(paper.id)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted px-3 py-1.5 text-xs font-medium text-foreground transition-colors cursor-pointer"
+                        >
+                          View Exam
+                        </a>
+                      ) : null}
                       {attInfo ? (
                         <Link
                           href={`/dashboard/past-papers/results/${attInfo.latestAttemptId}`}
@@ -1083,7 +1126,7 @@ export default function PastPapersDashboard() {
             ) : (
               <ul className="space-y-2">
                 {courses.map((course) => {
-                  const count = papers.filter((p) => p.course_id === course.id).length;
+                  const count = papers.filter((p) => matchesCourse(p, course)).length;
                   return (
                     <li
                       key={course.id}
