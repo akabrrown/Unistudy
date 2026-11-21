@@ -73,14 +73,20 @@ export function InstitutionSelect({
           value={selectedFaculty}
           onValueChange={(val: any) => setSelectedFaculty(val || UPSA_FACULTIES[0].code)}
         >
-          <SelectTrigger id="faculty_select" className="h-10 text-xs bg-background/50">
+          <SelectTrigger id="faculty_select" className="w-full h-11 text-xs bg-background/50">
             <SelectValue placeholder="Select Faculty" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-w-[calc(100vw-2rem)] sm:max-w-md w-(--anchor-width) min-w-[280px]">
             {UPSA_FACULTIES.map((fac) => (
-              <SelectItem key={fac.code} value={fac.code} className="text-xs">
-                <span className="font-semibold text-foreground mr-1.5">[{fac.shortName}]</span>
-                {fac.name}
+              <SelectItem key={fac.code} value={fac.code} className="text-xs py-2 px-2.5">
+                <div className="flex flex-col min-w-0 pr-4">
+                  <span className="font-semibold text-foreground text-xs leading-snug">
+                    {fac.shortName}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground truncate leading-normal">
+                    {fac.name}
+                  </span>
+                </div>
               </SelectItem>
             ))}
           </SelectContent>
@@ -98,13 +104,13 @@ export function InstitutionSelect({
             value={String(selectedLevel)}
             onValueChange={(val) => setSelectedLevel(Number(val) || 100)}
           >
-            <SelectTrigger id="level_select" className="h-10 text-xs bg-background/50">
+            <SelectTrigger id="level_select" className="w-full h-11 text-xs bg-background/50">
               <SelectValue placeholder="Select Level" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="w-(--anchor-width) min-w-[200px]">
               {UPSA_LEVELS.map((lvl) => (
-                <SelectItem key={lvl.value} value={String(lvl.value)} className="text-xs">
-                  {lvl.label}
+                <SelectItem key={lvl.value} value={String(lvl.value)} className="text-xs py-2 px-2.5">
+                  <span className="font-medium text-foreground">{lvl.label}</span>
                 </SelectItem>
               ))}
             </SelectContent>

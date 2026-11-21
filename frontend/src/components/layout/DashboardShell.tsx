@@ -286,6 +286,43 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
   // Render navigation list
   const renderNav = (collapsed: boolean) => (
     <nav className="space-y-4 flex-1 overflow-y-auto overflow-x-hidden pr-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      {/* Prominent Admin Panel Button for Administrators */}
+      {profile?.role === 'admin' && (
+        <div className={cn("pb-2 mb-2 border-b border-border/70", collapsed ? "flex justify-center" : "px-1")}>
+          {collapsed ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Link
+                    href="/admin"
+                    className="flex items-center justify-center w-10 h-10 border border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500 hover:text-white rounded-xl transition-all shadow-xs"
+                    aria-label="Admin Control Panel"
+                  >
+                    <Shield className="w-5 h-5" />
+                  </Link>
+                }
+              />
+              <TooltipContent side="right" sideOffset={12}>
+                <span className="font-semibold text-xs">Admin Control Panel</span>
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <Link
+              href="/admin"
+              className="flex items-center justify-between px-3.5 py-2.5 border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded-xl transition-colors font-semibold text-xs shadow-xs group"
+            >
+              <div className="flex items-center gap-2.5">
+                <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform" />
+                <span>Admin Command Center</span>
+              </div>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                PRO
+              </span>
+            </Link>
+          )}
+        </div>
+      )}
+
       {NAV_SECTIONS.map((section, sectionIdx) => (
         <div key={section.title} className={cn(sectionIdx > 0 && "pt-2")}>
           {!collapsed ? (
