@@ -913,11 +913,6 @@ export default function PastPapersDashboard() {
                                 {paper.year}
                               </span>
                             ) : null}
-                            {courseMeta?.isCentral ? (
-                              <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-[#D89A06]/15 text-[#D89A06] border border-[#D89A06]/30">
-                                Central Bank
-                              </span>
-                            ) : null}
                           </div>
 
                           <h3 className="mt-1.5 text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">

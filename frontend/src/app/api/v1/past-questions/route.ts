@@ -265,7 +265,7 @@ export async function GET(req: NextRequest) {
             } : {
               id: null,
               course_code: p.course_code || 'EXAM',
-              title: p.title || 'Central Bank Paper',
+              title: p.title || 'Past Examination Paper',
               colour: '#00004E',
               isCentral: true,
             },

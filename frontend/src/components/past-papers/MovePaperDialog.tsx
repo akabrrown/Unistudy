@@ -67,8 +67,8 @@ export function MovePaperDialog({
     currentCourseMeta && !currentCourseMeta.isCentral
       ? `${currentCourseMeta.course_code || ''} — ${currentCourseMeta.title || ''}`
       : paper.course_code
-      ? `${paper.course_code} (Unassigned / Central Repository)`
-      : 'Unassigned / Central Bank';
+      ? `${paper.course_code} (Unassigned)`
+      : 'Unassigned';
 
   const handleMove = async (e: React.FormEvent) => {
     e.preventDefault();

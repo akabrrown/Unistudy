@@ -157,11 +157,6 @@ export default async function PastPapersPage(props: { params: Promise<{ courseId
                       <span className="text-xs text-muted-foreground font-mono">
                         {paper.year}
                       </span>
-                      {paper.course_id !== params.courseId && (
-                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#D89A06]/10 text-[#D89A06] border border-[#D89A06]/30">
-                          UPSA Central Bank
-                        </span>
-                      )}
                     </div>
                     <h3 className="font-bold text-base text-foreground leading-snug group-hover:text-primary transition-colors">
                       {paper.title || `${paper.year} ${paper.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm'}`}
