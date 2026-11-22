@@ -1,5 +1,6 @@
 import { createClient, getServerUser } from '@/lib/supabase/server';
 import { AnxietyCheckIn } from '@/components/AnxietyCheckIn';
+import { formatAcademicLevel } from '@/lib/utils';
 import {
   DashboardCommandCenter,
   type DashboardAssessmentItem,
@@ -502,7 +503,7 @@ export default async function DashboardPage() {
 
   const subtitleParts = [
     profile?.degree,
-    profile?.year_of_study ? `Year ${profile.year_of_study}` : null,
+    profile?.year_of_study ? formatAcademicLevel(profile.year_of_study) : null,
     profile?.university,
   ].filter(Boolean);
 

@@ -12,7 +12,7 @@ import { AnnouncementBanner } from '@/components/layout/AnnouncementBanner';
 import { MobileSidebar } from '@/components/layout/MobileSidebar';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { UniStudyLogo } from '@/components/brand/UniStudyLogo';
-import { cn } from '@/lib/utils';
+import { cn, formatAcademicLevel } from '@/lib/utils';
 import {
   LayoutDashboard,
   BrainCircuit,
@@ -519,7 +519,7 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
               <div className="text-xs font-bold">{profile?.full_name || profile?.username || 'UPSA Scholar'}</div>
               <div className="text-[10px] text-muted-foreground">
                 {profile?.institutions?.name || 'University of Professional Studies, Accra'}
-                {profile?.year_of_study ? ` • Level ${profile.year_of_study}` : ''}
+                {profile?.year_of_study ? ` • ${formatAcademicLevel(profile.year_of_study)}` : ''}
               </div>
             </TooltipContent>
           </Tooltip>
@@ -552,8 +552,7 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
             <div className="text-muted-foreground text-[11px] truncate flex items-center gap-1">
               <GraduationCap className="w-3 h-3 text-[#D89A06]" />
               <span>
-                {profile?.institutions?.abbreviation || 'UPSA'}
-                {profile?.year_of_study ? ` · Level ${profile.year_of_study}` : ' · Scholar'}
+                {profile?.institutions?.abbreviation || 'UPSA'} · {formatAcademicLevel(profile?.year_of_study)}
               </span>
             </div>
           </div>

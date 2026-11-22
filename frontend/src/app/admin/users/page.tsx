@@ -49,7 +49,7 @@ import {
 import { apiFetch } from '@/lib/api/client';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, formatAcademicLevel } from '@/lib/utils';
 import { UPSA_FACULTIES, UPSA_INSTITUTION } from '@/lib/constants/upsa';
 
 export default function AdminUsersPage() {
@@ -850,7 +850,7 @@ export default function AdminUsersPage() {
                         </span>
                       </div>
                       <div className="text-muted-foreground text-[11px] truncate max-w-[280px]">
-                        UPSA • {user.year_of_study ? `Level ${user.year_of_study}` : 'Level 100'}
+                        UPSA • {formatAcademicLevel(user.year_of_study)}
                       </div>
                     </td>
 

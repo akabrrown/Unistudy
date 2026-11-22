@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { Menu, X, GraduationCap } from "lucide-react";
 import { UniStudyLogo } from "@/components/brand/UniStudyLogo";
+import { formatAcademicLevel } from "@/lib/utils";
 
 export function MobileSidebar({ children, profile }: { children: React.ReactNode; profile?: any }) {
   const [open, setOpen] = useState(false);
@@ -44,7 +45,7 @@ export function MobileSidebar({ children, profile }: { children: React.ReactNode
                   Student Portal
                 </span>
                 <span className="text-[11px] text-muted-foreground font-medium">
-                  {profile?.institutions?.abbreviation || 'UPSA'} · {profile?.year_of_study ? `Level ${profile.year_of_study}` : 'Scholar'}
+                  {profile?.institutions?.abbreviation || 'UPSA'} · {formatAcademicLevel(profile?.year_of_study)}
                 </span>
               </div>
             </div>

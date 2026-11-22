@@ -35,7 +35,7 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, formatAcademicLevel } from '@/lib/utils';
 import { AvatarEditor } from './AvatarEditor';
 import { AcademicSettingsForm } from './AcademicSettingsForm';
 
@@ -710,10 +710,10 @@ export function ProfileStudioClient({
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-muted-foreground flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5" />
-                      Academic Year
+                      Academic Level
                     </span>
                     <span className="font-mono font-semibold text-foreground">
-                      Year {profile.year_of_study || 1}
+                      {formatAcademicLevel(profile.year_of_study)}
                     </span>
                   </div>
 
