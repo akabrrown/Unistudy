@@ -219,12 +219,26 @@ export default function PastPapersDashboard() {
 
       return false;
     });
+
+    // Enforce strict deduplication per course across title, academic year, and exam type
+    const dedupedPapersMap = new Map<string, PastPaperRecord>();
+    for (const p of nextPapers) {
+      const pCode = (p.normalized_course_code || p.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const cleanTitle = (p.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const dedupKey = `${pCode}_${p.year}_${p.exam_type || 'end-semester'}_${cleanTitle}`;
+      if (!dedupedPapersMap.has(dedupKey) && !dedupedPapersMap.has(p.id)) {
+        dedupedPapersMap.set(dedupKey, p);
+        dedupedPapersMap.set(p.id, p);
+      }
+    }
+    const finalPapers = Array.from(new Set(dedupedPapersMap.values()));
+
     const nextAttempts =
       attemptsRes.status === 'fulfilled' && Array.isArray(attemptsRes.value.data)
         ? (attemptsRes.value.data as PastPaperAttemptRecord[])
         : [];
 
-    return { nextCourses, nextPapers, nextAttempts };
+    return { nextCourses, nextPapers: finalPapers, nextAttempts };
   };
 
   const loadData = async () => {

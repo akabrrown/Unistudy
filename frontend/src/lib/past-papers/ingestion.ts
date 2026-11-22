@@ -89,19 +89,26 @@ export async function ensurePaperIngested(
 
   try {
     // 1. Check if paper already exists in database for this course and year
-    const { data: existing } = await supabase
+    const cleanSearchTitle = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const { data: existingList } = await supabase
       .from('past_papers')
       .select('id, title, past_paper_pages(id, image_url)')
-      .eq('course_id', course.id)
-      .eq('normalized_course_code', normalizedCode)
+      .or(`course_id.eq.${course.id},normalized_course_code.eq.${normalizedCode}`)
       .eq('year', year)
-      .eq('exam_type', isMidterm ? 'mid-semester' : 'end-semester')
-      .maybeSingle();
+      .eq('exam_type', isMidterm ? 'mid-semester' : 'end-semester');
 
-    if (existing?.id) {
-      const existingPages = (existing as any).past_paper_pages;
-      const existingUrl = Array.isArray(existingPages) && existingPages.length > 0 ? existingPages[0]?.image_url : null;
-      return { id: existing.id, file_url: existingUrl };
+    if (Array.isArray(existingList) && existingList.length > 0) {
+      // Find closest match or reuse first existing paper
+      const exact = existingList.find((p) => {
+        const pClean = (p.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        return pClean === cleanSearchTitle || pClean.includes(cleanSearchTitle) || cleanSearchTitle.includes(pClean);
+      }) || existingList[0];
+
+      if (exact?.id) {
+        const existingPages = (exact as any).past_paper_pages;
+        const existingUrl = Array.isArray(existingPages) && existingPages.length > 0 ? existingPages[0]?.image_url : null;
+        return { id: exact.id, file_url: existingUrl };
+      }
     }
 
     // 2. Upload PDF to Cloudinary bucket

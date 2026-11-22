@@ -243,15 +243,38 @@ export async function GET(req: NextRequest) {
       console.warn('[API /api/v1/past-questions] Supabase local fetch warning:', dbErr.message);
     }
 
-    // 6. Merge local custom papers + KLOK papers matched to user's courses (deduplicate by id and title)
+    // 6. Merge local custom papers + KLOK papers with strict deduplication per course
     const paperMap = new Map<string, any>();
-    for (const p of [...localPapers, ...klokPapers]) {
-      const key = p.id || p.title;
-      if (!paperMap.has(key)) {
-        paperMap.set(key, p);
+    // Process local Supabase papers first (so native papers with extracted questions take precedence)
+    for (const p of localPapers) {
+      const courseKey = (p.normalized_course_code || p.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const cleanTitle = (p.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const dedupKey = `${courseKey}_${p.year}_${p.exam_type || 'end-semester'}_${cleanTitle}`;
+      if (!paperMap.has(dedupKey) && !paperMap.has(p.id)) {
+        paperMap.set(dedupKey, p);
+        paperMap.set(p.id, p);
       }
     }
-    const combined = Array.from(paperMap.values());
+
+    for (const p of klokPapers) {
+      const courseKey = (p.normalized_course_code || p.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const cleanTitle = (p.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const dedupKey = `${courseKey}_${p.year}_${p.exam_type || 'end-semester'}_${cleanTitle}`;
+      if (!paperMap.has(dedupKey) && !paperMap.has(p.id)) {
+        paperMap.set(dedupKey, p);
+        paperMap.set(p.id, p);
+      }
+    }
+
+    // Get unique paper objects
+    const seenPaperIds = new Set<string>();
+    const combined: any[] = [];
+    for (const p of paperMap.values()) {
+      if (p.id && !seenPaperIds.has(p.id)) {
+        seenPaperIds.add(p.id);
+        combined.push(p);
+      }
+    }
 
     return NextResponse.json(combined, {
       headers: {

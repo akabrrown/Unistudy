@@ -560,6 +560,22 @@ router.post('/upload', upload.single('file'), withAIQuota('handwriting_scan'), a
         const paperYear = parseInt(year) || new Date().getFullYear();
         const paperTitle = `${resolvedCourseCode} - ${paperYear} ${examTypeLabel} Exam`;
 
+        // 0. Deduplication check: prevent creating duplicate past papers per course
+        const normalizedCode = resolvedCourseCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const { data: existingPaper } = await supabaseAdmin
+            .from('past_papers')
+            .select('id, title')
+            .or(`course_id.eq.${courseId},normalized_course_code.eq.${normalizedCode}`)
+            .eq('year', paperYear)
+            .eq('exam_type', normalizedExamType)
+            .maybeSingle();
+
+        if (existingPaper) {
+            return res.status(409).json({
+                error: `A past paper for ${resolvedCourseCode} (${paperYear} ${examTypeLabel} Exam) already exists in your course bank.`
+            });
+        }
+
         // 1. Create the DB record.
         const { data: paper, error: pErr } = await supabaseAdmin
             .from('past_papers')
@@ -570,6 +586,8 @@ router.post('/upload', upload.single('file'), withAIQuota('handwriting_scan'), a
                 year: paperYear,
                 exam_type: normalizedExamType,
                 status: 'ready',
+                course_code: resolvedCourseCode,
+                normalized_course_code: normalizedCode,
                 shared_to_community: false
             })
             .select()

@@ -77,7 +77,32 @@ export default async function PastPapersPage(props: { params: Promise<{ courseId
     .eq('mastered', false)
     .order('updated_at', { ascending: false });
 
-  const papers = [...(pastPapers || []), ...klokPapers];
+  // Strictly deduplicate past papers per course (prioritize database papers with extracted questions)
+  const dedupMap = new Map<string, any>();
+  for (const p of (pastPapers || [])) {
+    const cleanTitle = (p.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const key = `${p.year}_${p.exam_type || 'end-semester'}_${cleanTitle}`;
+    if (!dedupMap.has(key) && !dedupMap.has(p.id)) {
+      dedupMap.set(key, p);
+      dedupMap.set(p.id, p);
+    }
+  }
+  for (const p of klokPapers) {
+    const cleanTitle = (p.title || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const key = `${p.year}_${p.exam_type || 'end-semester'}_${cleanTitle}`;
+    if (!dedupMap.has(key) && !dedupMap.has(p.id)) {
+      dedupMap.set(key, p);
+      dedupMap.set(p.id, p);
+    }
+  }
+  const seenIds = new Set<string>();
+  const papers: any[] = [];
+  for (const p of dedupMap.values()) {
+    if (p.id && !seenIds.has(p.id)) {
+      seenIds.add(p.id);
+      papers.push(p);
+    }
+  }
   const activeDrills = drills || [];
 
   return (
