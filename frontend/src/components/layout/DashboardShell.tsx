@@ -41,6 +41,8 @@ import {
   Pin,
   Compass,
   Target,
+  Sparkles,
+  GraduationCap,
 } from 'lucide-react';
 
 interface SubNavItem {
@@ -54,6 +56,7 @@ interface NavItem {
   href: string;
   icon: React.ElementType;
   color?: string;
+  badge?: string;
   subItems?: SubNavItem[];
 }
 
@@ -64,7 +67,7 @@ interface NavSection {
 
 const NAV_SECTIONS: NavSection[] = [
   {
-    title: 'Overview',
+    title: 'Core & AI',
     items: [
       {
         label: 'Dashboard',
@@ -75,9 +78,15 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'AI Study Tutor',
         href: '/dashboard/chat',
         icon: BrainCircuit,
+        badge: 'AI',
       },
+    ],
+  },
+  {
+    title: 'Academic Suite',
+    items: [
       {
-        label: 'Courses',
+        label: 'Courses & Slides',
         href: '/dashboard/courses',
         icon: BookOpen,
         subItems: [
@@ -91,7 +100,7 @@ const NAV_SECTIONS: NavSection[] = [
         ],
       },
       {
-        label: 'Past Papers',
+        label: 'Past Exam Papers',
         href: '/dashboard/past-papers',
         icon: Award,
         subItems: [
@@ -145,9 +154,9 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Settings',
     items: [
-      { label: 'Profile', href: '/dashboard/settings/profile', icon: UserIcon },
+      { label: 'Profile Studio', href: '/dashboard/settings/profile', icon: UserIcon },
       { label: 'Accessibility', href: '/dashboard/settings/accessibility', icon: Accessibility },
-      { label: 'Billing', href: '/dashboard/settings/billing', icon: CreditCard },
+      { label: 'Billing & Credits', href: '/dashboard/settings/billing', icon: CreditCard },
     ],
   },
 ];
@@ -159,6 +168,7 @@ interface DashboardProfile {
   username?: string | null;
   faculty?: string | null;
   year_of_study?: string | number | null;
+  subscription_tier?: string | null;
   institutions?: {
     name?: string | null;
     abbreviation?: string | null;
@@ -285,10 +295,10 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
 
   // Render navigation list
   const renderNav = (collapsed: boolean) => (
-    <nav className="space-y-4 flex-1 overflow-y-auto overflow-x-hidden pr-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+    <nav className="space-y-3.5 flex-1 overflow-y-auto overflow-x-hidden pr-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
       {/* Prominent Admin Panel Button for Administrators */}
       {profile?.role === 'admin' && (
-        <div className={cn("pb-2 mb-2 border-b border-border/70", collapsed ? "flex justify-center" : "px-1")}>
+        <div className={cn("pb-2 mb-2 border-b border-[#D89A06]/20", collapsed ? "flex justify-center" : "px-0.5")}>
           {collapsed ? (
             <Tooltip>
               <TooltipTrigger
@@ -298,7 +308,7 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
                     className="flex items-center justify-center w-10 h-10 border-2 border-[#D89A06] bg-[#D89A06]/15 text-[#00004E] dark:text-[#D89A06] hover:bg-[#D89A06] hover:text-[#00004E] rounded-xl transition-all shadow-xs"
                     aria-label="Admin Control Panel"
                   >
-                    <Shield className="w-5 h-5 text-[#D89A06]" />
+                    <Shield className="w-4 h-4 text-[#D89A06]" />
                   </Link>
                 }
               />
@@ -309,11 +319,11 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
           ) : (
             <Link
               href="/admin"
-              className="flex items-center justify-between px-3.5 py-2.5 border-2 border-[#D89A06] bg-[#D89A06]/15 hover:bg-[#D89A06]/25 text-[#00004E] dark:text-[#D89A06] rounded-xl transition-all font-bold text-xs shadow-xs group"
+              className="flex items-center justify-between px-3.5 py-2.5 border-2 border-[#D89A06] bg-[#FEF8E7] dark:bg-[#00004E]/60 hover:bg-[#FDF2D0] dark:hover:bg-[#00004E] text-[#00004E] dark:text-[#D89A06] rounded-xl transition-all font-bold text-xs shadow-xs group"
             >
               <div className="flex items-center gap-2.5">
                 <Shield className="w-4 h-4 text-[#D89A06] group-hover:scale-110 transition-transform" />
-                <span className="font-bold text-[#00004E] dark:text-[#D89A06]">Admin Control Panel</span>
+                <span className="font-bold text-[#00004E] dark:text-white">Admin Control Center</span>
               </div>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded font-extrabold bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E]">
                 ADMIN
@@ -324,13 +334,15 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
       )}
 
       {NAV_SECTIONS.map((section, sectionIdx) => (
-        <div key={section.title} className={cn(sectionIdx > 0 && "pt-2")}>
+        <div key={section.title} className={cn(sectionIdx > 0 && "pt-1")}>
           {!collapsed ? (
-            <p className="px-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 select-none">
-              {section.title}
-            </p>
+            <div className="flex items-center justify-between px-3 mb-1.5 select-none">
+              <span className="text-[10px] font-bold font-mono text-muted-foreground/80 uppercase tracking-widest">
+                {section.title}
+              </span>
+            </div>
           ) : (
-            sectionIdx > 0 && <div className="border-t border-border/60 my-2 mx-1" />
+            sectionIdx > 0 && <div className="border-t border-border/50 my-2 mx-1" />
           )}
 
           <div className="space-y-1">
@@ -351,17 +363,17 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
                             className={cn(
                               "flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200",
                               active
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                ? "bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] shadow-sm font-bold"
+                                : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
                             )}
                             aria-label={item.label}
                           >
-                            <Icon className={cn("w-5 h-5", item.color)} />
+                            <Icon className={cn("w-4 h-4", item.color)} />
                           </Link>
                         }
                       />
                       <TooltipContent side="right" sideOffset={12}>
-                        <div className="font-medium">{item.label}</div>
+                        <div className="font-medium text-xs">{item.label}</div>
                         {hasSubItems && (
                           <div className="text-[10px] text-muted-foreground mt-0.5">
                             {item.subItems!.map((s) => s.label).join(' · ')}
@@ -377,10 +389,10 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
                 <div key={item.href} className="space-y-0.5">
                   <div
                     className={cn(
-                      "flex items-center rounded-xl transition-all duration-200 group",
+                      "flex items-center rounded-xl transition-all duration-200 group relative overflow-hidden",
                       active
-                        ? "bg-[#FEF8E7] dark:bg-white/10 text-[#00004E] dark:text-[#D89A06] font-bold shadow-2xs border-l-[3px] border-[#D89A06]"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        ? "bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] font-bold shadow-xs"
+                        : "text-[#3A4363] dark:text-[#A3A8C2] hover:bg-[#F0F3F9] dark:hover:bg-white/5 hover:text-[#00004E] dark:hover:text-white font-medium"
                     )}
                   >
                     <Link
@@ -391,15 +403,31 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
                           setOpenGroups((prev) => ({ ...prev, [item.href]: true }));
                         }
                       }}
-                      className="flex-1 flex items-center min-w-0 px-3.5 py-2.5 text-sm font-medium"
+                      className="flex-1 flex items-center min-w-0 px-3 py-2 text-xs font-semibold"
                     >
                       <Icon
                         className={cn(
-                          "w-4 h-4 mr-3 transition-colors shrink-0",
-                          item.color ? item.color : active ? "text-[#D89A06]" : "text-muted-foreground group-hover:text-foreground"
+                          "w-4 h-4 mr-2.5 transition-colors shrink-0",
+                          item.color
+                            ? item.color
+                            : active
+                            ? "text-[#D89A06] dark:text-[#00004E]"
+                            : "text-muted-foreground group-hover:text-foreground"
                         )}
                       />
                       <span className="truncate">{item.label}</span>
+                      {item.badge && (
+                        <span
+                          className={cn(
+                            "ml-auto mr-1 text-[9px] font-mono px-1.5 py-0.2 rounded-md font-extrabold uppercase",
+                            active
+                              ? "bg-[#D89A06] text-[#00004E] dark:bg-[#00004E] dark:text-[#D89A06]"
+                              : "bg-[#D89A06]/20 text-[#D89A06]"
+                          )}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
                     </Link>
 
                     {hasSubItems && (
@@ -409,9 +437,9 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
                         aria-expanded={isOpen}
                         aria-label={`Toggle ${item.label} submenu`}
                         className={cn(
-                          "p-2 mr-1 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40",
+                          "p-2 mr-1 rounded-lg transition-colors focus:outline-hidden",
                           active
-                            ? "text-primary hover:bg-primary/15"
+                            ? "text-white/80 hover:text-white dark:text-[#00004E]/80 dark:hover:text-[#00004E]"
                             : "text-muted-foreground hover:text-foreground hover:bg-background/60"
                         )}
                       >
@@ -425,7 +453,7 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
                   </div>
 
                   {hasSubItems && isOpen && (
-                    <div className="ml-5 pl-3 border-l border-border/70 space-y-0.5 py-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                    <div className="ml-4 pl-2.5 border-l-2 border-[#D89A06]/40 dark:border-[#D89A06]/30 space-y-0.5 py-1 animate-in fade-in slide-in-from-top-1 duration-150">
                       {item.subItems!.map((sub) => {
                         const SubIcon = sub.icon;
                         const subActive = isSubItemActive(sub.href);
@@ -433,15 +461,17 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
                           <Link
                             key={sub.href}
                             href={sub.href}
-                            onClick={() => setClickedSub({ pathname: sub.href.split('#')[0].split('?')[0], href: sub.href })}
+                            onClick={() =>
+                              setClickedSub({ pathname: sub.href.split('#')[0].split('?')[0], href: sub.href })
+                            }
                             className={cn(
-                              "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                              "flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors",
                               subActive
-                                ? "bg-[#FEF8E7] dark:bg-white/10 text-[#00004E] dark:text-[#D89A06] font-bold border-l-2 border-[#D89A06]"
-                                : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                                ? "bg-[#FEF8E7] dark:bg-[#00004E]/40 text-[#00004E] dark:text-[#D89A06] font-bold border border-[#D89A06]/40 shadow-2xs"
+                                : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
                             )}
                           >
-                            <SubIcon className={cn("w-3.5 h-3.5 shrink-0", subActive ? "text-[#D89A06]" : "opacity-75")} />
+                            <SubIcon className={cn("w-3 h-3 shrink-0", subActive ? "text-[#D89A06]" : "opacity-75")} />
                             <span className="truncate">{sub.label}</span>
                           </Link>
                         );
@@ -454,63 +484,31 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
           </div>
         </div>
       ))}
-
-      {/* Admin Panel Link */}
-      {profile?.role === 'admin' && (
-        <div className={cn("pt-2", collapsed ? "flex justify-center" : "")}>
-          {collapsed ? (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Link
-                    href="/admin"
-                    className="flex items-center justify-center w-10 h-10 border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground rounded-xl transition-all"
-                    aria-label="Admin Panel"
-                  >
-                    <Shield className="w-4 h-4" />
-                  </Link>
-                }
-              />
-              <TooltipContent side="right" sideOffset={12}>
-                Admin Panel
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <Link
-              href="/admin"
-              className="flex items-center justify-center px-4 py-2.5 border border-destructive/50 bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground rounded-xl transition-colors font-medium text-sm text-center"
-            >
-              <Shield className="w-4 h-4 mr-2 shrink-0" />
-              <span>Admin Panel</span>
-            </Link>
-          )}
-        </div>
-      )}
     </nav>
   );
 
-  // Bottom section: Profile, ModelSelector, Sign Out, ThemeToggle
+  // Bottom section: Profile Card, ModelSelector, Sign Out, ThemeToggle
   const renderBottom = (collapsed: boolean) => (
-    <div className="mt-auto border-t border-border pt-3">
-      {/* User profile */}
+    <div className="mt-auto border-t border-[#D89A06]/20 dark:border-white/10 pt-3 space-y-2.5">
+      {/* Student Profile Collegiate Card */}
       {collapsed ? (
-        <div className="flex justify-center mb-3">
+        <div className="flex justify-center mb-1">
           <Tooltip>
             <TooltipTrigger
               render={
                 <Link
                   href="/dashboard/settings/profile"
-                  className="flex items-center justify-center group/avatar focus:outline-none focus:ring-2 focus:ring-primary/40 rounded-full"
+                  className="flex items-center justify-center group/avatar focus:outline-hidden rounded-full"
                   aria-label="User Profile"
                 >
                   {profile?.avatar_url ? (
                     <img
                       src={profile.avatar_url}
                       alt="Avatar"
-                      className="w-10 h-10 rounded-full object-cover ring-2 ring-transparent group-hover/avatar:ring-primary/40 transition-all"
+                      className="w-9 h-9 rounded-full object-cover ring-2 ring-[#D89A06]/50 group-hover/avatar:ring-[#D89A06] transition-all shadow-xs"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold ring-2 ring-transparent group-hover/avatar:ring-primary/40 transition-all">
+                    <div className="w-9 h-9 rounded-full bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] font-bold text-xs flex items-center justify-center ring-2 ring-[#D89A06]/40 shadow-xs">
                       {profile?.full_name?.charAt(0) || profile?.username?.charAt(0) || 'U'}
                     </div>
                   )}
@@ -518,7 +516,7 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
               }
             />
             <TooltipContent side="right" sideOffset={12}>
-              <div className="text-xs font-semibold">{profile?.full_name || profile?.username || 'UPSA Scholar'}</div>
+              <div className="text-xs font-bold">{profile?.full_name || profile?.username || 'UPSA Scholar'}</div>
               <div className="text-[10px] text-muted-foreground">
                 {profile?.institutions?.name || 'University of Professional Studies, Accra'}
                 {profile?.year_of_study ? ` • Level ${profile.year_of_study}` : ''}
@@ -529,40 +527,54 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
       ) : (
         <Link
           href="/dashboard/settings/profile"
-          className="flex items-center gap-3 mb-3 px-2 py-1.5 rounded-xl hover:bg-muted/60 transition-colors group"
+          className="flex items-center gap-2.5 p-2 rounded-xl bg-gradient-to-r from-[#F8F9FD] to-white dark:from-[#080824] dark:to-[#05051C] border border-border/80 hover:border-[#D89A06]/50 transition-all group shadow-2xs"
         >
           {profile?.avatar_url ? (
-            <img src={profile.avatar_url} alt="Avatar" className="w-10 h-10 rounded-full object-cover shrink-0" />
+            <img
+              src={profile.avatar_url}
+              alt="Avatar"
+              className="w-9 h-9 rounded-full object-cover shrink-0 ring-2 ring-[#D89A06]/50 shadow-2xs"
+            />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-primary/20 shrink-0 flex items-center justify-center text-primary font-bold group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-full bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] shrink-0 flex items-center justify-center font-bold text-xs ring-2 ring-[#D89A06]/40 shadow-2xs">
               {profile?.full_name?.charAt(0) || profile?.username?.charAt(0) || 'U'}
             </div>
           )}
-          <div className="text-sm min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-              <span className="truncate">{profile?.username || profile?.full_name?.split(' ')[0] || 'UPSA Scholar'}</span>
+          <div className="text-xs min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-1">
+              <span className="font-bold text-foreground truncate group-hover:text-[#00004E] dark:group-hover:text-[#D89A06] transition-colors">
+                {profile?.username || profile?.full_name?.split(' ')[0] || 'UPSA Scholar'}
+              </span>
+              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold shrink-0">
+                Active
+              </span>
             </div>
-            <div className="text-muted-foreground text-xs truncate">
-              {profile?.institutions?.abbreviation || 'UPSA'}
-              {profile?.year_of_study ? ` • Level ${profile.year_of_study}` : profile?.faculty ? ` • ${profile.faculty}` : ' • Scholar'}
+            <div className="text-muted-foreground text-[11px] truncate flex items-center gap-1">
+              <GraduationCap className="w-3 h-3 text-[#D89A06]" />
+              <span>
+                {profile?.institutions?.abbreviation || 'UPSA'}
+                {profile?.year_of_study ? ` · Level ${profile.year_of_study}` : ' · Scholar'}
+              </span>
             </div>
           </div>
         </Link>
       )}
 
       {/* Model Selector */}
-      <ModelSelector isCollapsed={collapsed} />
+      <div className="px-0.5">
+        <ModelSelector isCollapsed={collapsed} />
+      </div>
 
-      {/* Bottom controls */}
+      {/* Bottom Controls: Sign Out & Theme Toggle */}
       {collapsed ? (
-        <div className="flex flex-col items-center gap-2 mb-2">
+        <div className="flex flex-col items-center gap-2 mb-1">
           <Tooltip>
             <TooltipTrigger
               render={
                 <form action={signout}>
                   <button
                     type="submit"
-                    className="w-10 h-10 rounded-xl hover:bg-destructive/10 text-muted-foreground hover:text-destructive border border-border flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-destructive/40"
+                    className="w-10 h-10 rounded-xl hover:bg-destructive/10 text-muted-foreground hover:text-destructive border border-border flex items-center justify-center transition-colors focus:outline-hidden"
                     aria-label="Sign Out"
                   >
                     <LogOut className="w-4 h-4" />
@@ -589,11 +601,16 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
           </Tooltip>
         </div>
       ) : (
-        <div className="flex items-center gap-2 mb-2 md:mb-4 px-1">
+        <div className="flex items-center gap-2 px-0.5">
           <div className="flex-1">
             <form action={signout}>
-              <Button variant="outline" className="w-full text-sm font-medium" type="submit">
-                <LogOut className="w-4 h-4 mr-2" />
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-xs font-semibold h-8 border-border hover:border-destructive/40 hover:text-destructive cursor-pointer"
+                type="submit"
+              >
+                <LogOut className="w-3.5 h-3.5 mr-1.5" />
                 Sign Out
               </Button>
             </form>
@@ -609,34 +626,37 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
   return (
     <TooltipProvider delay={100}>
       <div className="min-h-screen bg-background flex flex-col md:flex-row">
-        {/* Mobile Sidebar (always full layout inside sheet drawer) */}
+        {/* Mobile Sidebar (Drawer) */}
         <MobileSidebar profile={profile}>
-          <div className="mb-4 px-2 pt-2 md:pt-0">
+          <div className="mb-3 px-1 pt-1">
             <SmartSearchBar />
           </div>
           {renderNav(false)}
           {renderBottom(false)}
         </MobileSidebar>
 
-        {/* Desktop Collapsible/Expandable Sidebar */}
+        {/* Desktop Sidebar */}
         <aside
           className={cn(
-            "hidden md:flex flex-col fixed inset-y-0 left-0 z-30 bg-card border-r border-border transition-all duration-300 ease-in-out select-none",
+            "hidden md:flex flex-col fixed inset-y-0 left-0 z-30 bg-[#FFFFFF] dark:bg-[#070720] border-r border-[#D89A06]/20 dark:border-white/10 transition-all duration-300 ease-in-out select-none shadow-xs",
             isCollapsed ? "w-20 p-3" : "w-64 p-4"
           )}
         >
+          {/* Subtle Top Gold Highlight Bar */}
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#00004E] via-[#D89A06] to-[#00004E]" />
+
           {/* Header & Collapse Toggle */}
           {isCollapsed ? (
-            <div className="flex flex-col items-center gap-3 mb-5">
+            <div className="flex flex-col items-center gap-3 mb-4 pt-1">
               <Tooltip>
                 <TooltipTrigger
                   render={
                     <Link
                       href="/dashboard"
-                      className="w-10 h-10 rounded-xl flex items-center justify-center hover:opacity-90 transition-all shadow-xs border border-border/40 bg-card focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="w-10 h-10 rounded-xl flex items-center justify-center hover:opacity-90 transition-all shadow-xs border border-[#D89A06]/30 bg-card focus:outline-hidden"
                       aria-label="UniStudy Home"
                     >
-                      <UniStudyLogo variant="icon" height={28} />
+                      <UniStudyLogo variant="icon" height={26} />
                     </Link>
                   }
                 />
@@ -650,10 +670,10 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
                   render={
                     <button
                       onClick={toggleCollapse}
-                      className="w-10 h-10 rounded-xl border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-xs"
+                      className="w-10 h-10 rounded-xl border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-hidden shadow-2xs cursor-pointer"
                       aria-label="Expand sidebar (Ctrl+B)"
                     >
-                      <PanelLeftOpen className="w-5 h-5" />
+                      <PanelLeftOpen className="w-4 h-4" />
                     </button>
                   }
                 />
@@ -663,19 +683,19 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
               </Tooltip>
             </div>
           ) : (
-            <div className="flex items-center justify-between h-11 mb-5 px-1">
+            <div className="flex items-center justify-between h-10 mb-4 px-1 pt-0.5">
               <Link href="/dashboard" className="flex items-center gap-2 overflow-hidden">
-                <UniStudyLogo height={34} />
+                <UniStudyLogo height={32} />
               </Link>
               <Tooltip>
                 <TooltipTrigger
                   render={
                     <button
                       onClick={toggleCollapse}
-                      className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors focus:outline-hidden cursor-pointer"
                       aria-label="Collapse sidebar (Ctrl+B)"
                     >
-                      <PanelLeftClose className="w-5 h-5" />
+                      <PanelLeftClose className="w-4 h-4" />
                     </button>
                   }
                 />
@@ -686,15 +706,15 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
             </div>
           )}
 
-          {/* Search bar */}
-          <div className={cn("mb-5", isCollapsed ? "flex justify-center" : "px-1")}>
+          {/* Search Bar */}
+          <div className={cn("mb-4", isCollapsed ? "flex justify-center" : "px-0.5")}>
             {isCollapsed ? (
               <Tooltip>
                 <TooltipTrigger
                   render={
                     <button
                       onClick={expandSidebar}
-                      className="w-10 h-10 rounded-xl bg-background border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/50 transition-all shadow-xs"
+                      className="w-10 h-10 rounded-xl bg-background border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/50 transition-all shadow-2xs cursor-pointer"
                       aria-label="Search slides, papers..."
                     >
                       <Search className="w-4 h-4" />
@@ -713,7 +733,7 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
           {/* Navigation Items */}
           {renderNav(isCollapsed)}
 
-          {/* Bottom section */}
+          {/* Bottom Profile & Actions */}
           {renderBottom(isCollapsed)}
         </aside>
 
