@@ -12,28 +12,36 @@ test('normalizeLatexMarkdown converts MixTeX/bracket delimiters to KaTeX $ and $
   assert.ok(normalized.includes('$$\n\\int_0^1 x^2 dx = \\frac{1}{3}\n$$'));
 });
 
-test('buildGroundedTutorPrompt integrates Mr. Ranedeer student personalization and /test or /plan modes cleanly', () => {
-  const prompt = buildGroundedTutorPrompt({
-    tutorName: 'Uni',
-    courseContext: 'Quantum Physics',
-    currentSlideNumber: 3,
-    currentSlideText: 'Photoelectric effect threshold frequency',
+test('buildGroundedTutorPrompt enforces strict tutor identity, chosen personality mandate and tone', () => {
+  const strictPrompt = buildGroundedTutorPrompt({
+    tutorName: 'Dr. Mensah',
+    tutorPersonality: 'strict',
+    courseContext: 'Corporate Financial Accounting',
+    currentSlideNumber: 5,
+    currentSlideText: 'Depreciation under IAS 16 vs Tax Capital Allowances',
     studentConfig: {
       readingLevel: 'Undergraduate',
-      learningStyle: 'Visual',
-      communicationStyle: 'Socratic',
-      tone: 'Encouraging',
-      reasoningFramework: 'Causal',
-      language: 'en',
+      tone: 'academic',
     },
-    commandMode: 'test',
   });
 
-  assert.ok(prompt.includes('Socratic'));
-  assert.ok(prompt.includes('Causal'));
-  assert.ok(prompt.includes('Visual'));
-  assert.match(prompt, /practice questions|assess/i);
-  // Ensure no spammy third-party Discord promotions leaked
-  assert.equal(/discord\.gg/i.test(prompt), false);
+  assert.ok(strictPrompt.includes('Dr. Mensah'));
+  assert.ok(strictPrompt.includes('<tutor_identity>'));
+  assert.ok(strictPrompt.includes('STRICT & RIGOROUS'));
+  assert.ok(strictPrompt.includes('ACADEMIC & SCHOLARLY'));
+  assert.match(strictPrompt, /distinction|precision/i);
+
+  const casualEmpatheticPrompt = buildGroundedTutorPrompt({
+    tutorName: 'Sophia',
+    tutorPersonality: 'empathetic',
+    courseContext: 'Macroeconomics',
+    studentConfig: {
+      tone: 'casual',
+    },
+  });
+
+  assert.ok(casualEmpatheticPrompt.includes('Sophia'));
+  assert.ok(casualEmpatheticPrompt.includes('EMPATHETIC & CALM'));
+  assert.ok(casualEmpatheticPrompt.includes('CASUAL & RELATABLE'));
 });
 

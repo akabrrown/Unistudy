@@ -41,7 +41,6 @@ import {
   Pin,
   Compass,
   Target,
-  Sparkles,
   GraduationCap,
 } from 'lucide-react';
 

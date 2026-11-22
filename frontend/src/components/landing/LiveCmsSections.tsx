@@ -12,7 +12,6 @@ import {
   BookOpen,
   Users,
   CheckCircle2,
-  Sparkles,
 } from 'lucide-react';
 
 interface BootstrapData {

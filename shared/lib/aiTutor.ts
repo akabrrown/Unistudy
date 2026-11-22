@@ -13,6 +13,7 @@ export interface StudentTutorConfig {
   learningStyle?: string;
   communicationStyle?: string;
   tone?: string;
+  personality?: string;
   reasoningFramework?: string;
   language?: string;
 }
@@ -48,6 +49,7 @@ export const TutorGroundingSchema = z.object({
       learningStyle: z.string().max(100).optional(),
       communicationStyle: z.string().max(100).optional(),
       tone: z.string().max(100).optional(),
+      personality: z.string().max(100).optional(),
       reasoningFramework: z.string().max(100).optional(),
       language: z.string().max(40).optional(),
     })
@@ -169,6 +171,7 @@ export function retrieveRelevantSlideChunks(
 
 export interface BuildGroundedTutorPromptParams {
   tutorName?: string;
+  tutorPersonality?: string;
   courseContext?: string;
   currentSlideNumber?: number;
   currentSlideText?: string;
@@ -178,8 +181,86 @@ export interface BuildGroundedTutorPromptParams {
   commandMode?: TutorCommandMode;
 }
 
+export function getPersonalityDirectives(personality: string): string {
+  const p = (personality || 'encouraging').toLowerCase().trim();
+  switch (p) {
+    case 'encouraging':
+      return `STRICT TUTOR PERSONALITY MANDATE (ENCOURAGING):
+- Embody warmth, patience, positive reinforcement, and genuine encouragement in every interaction.
+- Actively celebrate the student's curiosity and progress ("You are making excellent strides", "Mastering this concept step by step is huge progress!").
+- When correcting mistakes, frame them gently as natural, productive learning opportunities ("You are very close! Notice how...").
+- Conclude responses with an empowering, confidence-building note that affirms their academic potential.`;
+
+    case 'curious':
+    case 'socratic':
+      return `STRICT TUTOR PERSONALITY MANDATE (SOCRATIC & CURIOUS):
+- Embody an intellectually curious Socratic guide.
+- Do not merely state flat conclusions; guide the student through probing questions and deductive inquiry.
+- Highlight the underlying "why", intriguing paradoxes, and real-world tensions behind the topic.
+- Conclude explanations with a sharp, insightful reflection question that challenges the student to apply what they just learned.`;
+
+    case 'strict':
+    case 'rigorous':
+      return `STRICT TUTOR PERSONALITY MANDATE (STRICT & RIGOROUS):
+- Embody unwavering academic rigor, intellectual discipline, and university examination standards.
+- Challenge superficial statements, hand-waving approximations, and vague jargon.
+- Demand precise legal, financial, mathematical, or scientific definitions and statutory citations.
+- Explicitly emphasize what distinguishes a borderline passing answer from a first-class (Grade A) distinction under exam conditions.`;
+
+    case 'empathetic':
+    case 'calm':
+      return `STRICT TUTOR PERSONALITY MANDATE (EMPATHETIC & CALM):
+- Embody a patient, reassuring, and emotionally supportive study companion.
+- Actively mitigate exam anxiety and cognitive fatigue: break dense or intimidating topics into gentle, bite-sized steps.
+- Validate the student's feelings ("It is completely normal for this mechanism to feel tricky at first; let us take it one step at a time").
+- Use calm, clear, low-friction pacing without overwhelming technical rush.`;
+
+    case 'motivational':
+    case 'high energy':
+      return `STRICT TUTOR PERSONALITY MANDATE (HIGH ENERGY & MOTIVATIONAL):
+- Embody an energizing, ambitious, high-impact academic performance coach.
+- Bring vibrant momentum, drive, and intense focus toward conquering exams and boosting GPA.
+- Use dynamic, action-oriented rallying phrasing ("Let us conquer this topic!", "Lock this core concept in for finals!").
+- Urge the student to maintain study discipline, take active revision notes, and dominate the semester.`;
+
+    case 'funny':
+    case 'witty':
+      return `STRICT TUTOR PERSONALITY MANDATE (WITTY & ENGAGING):
+- Embody a witty, engaging, and memorable academic companion.
+- Use clever, humorous real-world analogies and engaging banter to make dry academic theory unforgettable.
+- Keep humor constructive and educational; never demean the student.`;
+
+    case 'neutral':
+    case 'objective':
+    default:
+      return `STRICT TUTOR PERSONALITY MANDATE (OBJECTIVE & CRISP):
+- Embody an objective, analytical, laser-focused academic specialist.
+- Eliminate conversational preamble, cheerleading, filler, and unsolicited small talk.
+- Deliver direct answers, structured bullet points, and exact logical mechanics with maximum information density.`;
+  }
+}
+
+export function getToneDirectives(tone: string): string {
+  const t = (tone || 'academic').toLowerCase().trim();
+  if (t === 'casual' || t === 'conversational') {
+    return `COMMUNICATION TONE MANDATE (CASUAL & RELATABLE):
+- Use conversational, approachable student-peer phrasing and natural sentence rhythm.
+- Ground explanations in relatable everyday examples and intuitive analogies.
+- Avoid stiff, archaic academic jargon unless explaining formal terms required for exams.`;
+  }
+  return `COMMUNICATION TONE MANDATE (ACADEMIC & SCHOLARLY):
+- Maintain collegiate, scholarly diction and formal syntax appropriate for university education.
+- Use authoritative disciplinary terminology, articulate sentence structure, and rigorous academic phrasing.`;
+}
+
 export function buildGroundedTutorPrompt(params: BuildGroundedTutorPromptParams): string {
   const tutorName = (params.tutorName || 'Uni').trim() || 'Uni';
+  const tutorPersonality = (
+    params.tutorPersonality ||
+    params.studentConfig?.personality ||
+    'encouraging'
+  ).trim();
+  const tone = (params.studentConfig?.tone || 'academic').trim();
   const courseContext = (params.courseContext || 'University Course').trim();
   const slideLabel = params.currentSlideNumber ? `Slide ${params.currentSlideNumber}` : 'Current Slide';
   const cleanSlideText = cleanSlidePlaceholder(params.currentSlideText);
@@ -189,6 +270,9 @@ export function buildGroundedTutorPrompt(params: BuildGroundedTutorPromptParams)
 
   const cfg = params.studentConfig || {};
   const profileBlock = [
+    `Tutor Name: ${tutorName}`,
+    `Tutor Personality: ${tutorPersonality}`,
+    `Communication Tone: ${tone}`,
     `Depth / Reading Level: ${cfg.readingLevel || 'Undergraduate'}`,
     `Learning Style: ${cfg.learningStyle || 'Active & Intuitive'}`,
     `Communication Style: ${cfg.communicationStyle || 'Clear & Socratic'}`,
@@ -217,6 +301,17 @@ export function buildGroundedTutorPrompt(params: BuildGroundedTutorPromptParams)
       : 'No strong lecture matches found for this question.';
 
   return `You are ${tutorName}, an expert university AI tutor helping a student master this course material.
+You MUST strictly remain in character as ${tutorName} at all times. When addressing the student, speak from your distinct identity as ${tutorName}. Never refer to yourself as ChatGPT, Claude, Gemini, or a generic AI assistant.
+
+<tutor_identity>
+Name: ${tutorName}
+Personality: ${tutorPersonality}
+Tone: ${tone}
+</tutor_identity>
+
+${getPersonalityDirectives(tutorPersonality)}
+
+${getToneDirectives(tone)}
 
 <student_configuration>
 ${profileBlock}

@@ -267,15 +267,18 @@ export async function POST(request: Request) {
 
       let studentConfig = grounding.studentConfig;
       let tutorName: string | undefined;
+      let tutorPersonality: string | undefined;
       if (!studentConfig) {
         const { data: settingsRow } = await supabase
           .from('user_settings')
-          .select('ai_tutor_name, ai_tone, ai_reading_level, learning_style, language')
+          .select('ai_tutor_name, ai_personality, ai_tone, ai_reading_level, learning_style, language')
           .eq('user_id', user.id)
           .maybeSingle();
         if (settingsRow) {
           tutorName = settingsRow.ai_tutor_name || undefined;
+          tutorPersonality = settingsRow.ai_personality || undefined;
           studentConfig = {
+            personality: settingsRow.ai_personality || undefined,
             readingLevel: settingsRow.ai_reading_level || undefined,
             tone: settingsRow.ai_tone || undefined,
             learningStyle: settingsRow.learning_style || undefined,
@@ -309,6 +312,7 @@ export async function POST(request: Request) {
 
       systemPrompt = buildGroundedTutorPrompt({
         tutorName,
+        tutorPersonality: tutorPersonality || studentConfig?.personality,
         courseContext: grounding.courseContext,
         currentSlideNumber: grounding.currentSlideNumber,
         currentSlideText: grounding.currentSlideText,

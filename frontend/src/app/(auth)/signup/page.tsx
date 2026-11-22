@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { signup } from '../actions';
 import { Button } from '@/components/ui/button';
 import { AuthSplitLayout } from '../components/AuthSplitLayout';
-import { AlertCircle, ArrowRight, Sparkles } from 'lucide-react';
+import { AlertCircle, ArrowRight, Award } from 'lucide-react';
 
 import { EmailField } from './components/EmailField';
 import { UsernameField } from './components/UsernameField';
@@ -22,7 +22,7 @@ export default async function SignupPage(props: { searchParams: Promise<{ error?
         {/* Header */}
         <div className="space-y-2 text-left">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#D89A06]/15 text-[#D89A06] dark:text-[#D89A06] text-[11px] font-bold">
-            <Sparkles className="w-3 h-3" />
+            <Award className="w-3 h-3" />
             <span>Includes 20 Free AI Study Credits</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">

@@ -16,7 +16,7 @@ import {
   DownloadCloud,
   ExternalLink,
   ShieldCheck,
-  Sparkles,
+  Layers,
   CheckCircle2,
   HelpCircle,
   Eye,
@@ -438,7 +438,7 @@ export default function PastPaperDetails() {
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
           }`}
         >
-          <Sparkles className="w-3.5 h-3.5" />
+          <Layers className="w-3.5 h-3.5" />
           Extracted Trial Questions ({questions.length})
         </button>
         <button
@@ -492,7 +492,7 @@ export default function PastPaperDetails() {
                       size="sm"
                       className="gap-2 bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] text-white cursor-pointer font-semibold"
                     >
-                      <Sparkles className="w-3.5 h-3.5" />
+                      <Layers className="w-3.5 h-3.5" />
                       Extract Authentic Questions for Trial
                     </Button>
                   </div>

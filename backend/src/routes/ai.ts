@@ -389,12 +389,14 @@ router.post('/ask', async (req: Request, res: Response) => {
       ...enrichedPayload,
       systemPrompt: buildGroundedTutorPrompt({
         tutorName: userSettings?.ai_tutor_name || undefined,
+        tutorPersonality: userSettings?.ai_personality || undefined,
         courseContext: g.courseContext,
         currentSlideNumber: g.currentSlideNumber,
         currentSlideText: g.currentSlideText,
         currentSlideExplanation: g.currentSlideExplanation,
         retrievedChunks: chunks,
         studentConfig: g.studentConfig ?? {
+          personality: userSettings?.ai_personality || undefined,
           readingLevel: userSettings?.ai_reading_level || undefined,
           tone: userSettings?.ai_tone || undefined,
           learningStyle: userSettings?.learning_style || undefined,

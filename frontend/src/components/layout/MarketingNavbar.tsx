@@ -17,7 +17,6 @@ import {
   ArrowRight,
   GraduationCap,
   LogIn,
-  Sparkles,
 } from "lucide-react";
 
 export function MarketingNavbar() {

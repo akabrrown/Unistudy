@@ -25,7 +25,6 @@ import {
   Loader2,
   Target,
   FolderInput,
-  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

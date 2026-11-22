@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, CheckCircle2, ShieldCheck, Sparkles, BookOpen, GraduationCap } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ShieldCheck, BookOpen, GraduationCap } from 'lucide-react';
 import { UniStudyLogo } from '@/components/brand/UniStudyLogo';
 
 interface AuthSplitLayoutProps {

@@ -20,6 +20,7 @@ export async function completeOnboarding(formData: FormData) {
   const learning_style = (formData.get('learning_style') as string) || 'adaptive'
   const tutor_name = (formData.get('tutor_name') as string) || 'Alex'
   const tutor_personality = (formData.get('tutor_personality') as string) || 'encouraging'
+  const tutor_tone = (formData.get('tutor_tone') as string) || 'academic'
 
   // Fetch canonical UPSA institution record
   let upsaInstitutionId: string = UPSA_INSTITUTION.id
@@ -46,7 +47,9 @@ export async function completeOnboarding(formData: FormData) {
       faculty,
       department,
       degree_programme,
-      year_of_study
+      year_of_study,
+      tutor_name,
+      tutor_personality,
     })
     .eq('id', user.id)
 
@@ -62,6 +65,7 @@ export async function completeOnboarding(formData: FormData) {
       user_id: user.id,
       ai_tutor_name: tutor_name,
       ai_personality: tutor_personality,
+      ai_tone: tutor_tone,
       learning_style: learning_style,
     })
 

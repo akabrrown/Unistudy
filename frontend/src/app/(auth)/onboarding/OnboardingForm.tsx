@@ -17,7 +17,7 @@ import {
   CheckCircle2, 
   ArrowRight, 
   ArrowLeft, 
-  Sparkles, 
+  MessageSquareQuote, 
   ShieldCheck, 
   Heart, 
   Compass, 
@@ -41,7 +41,8 @@ const PERSONALITY_TILES = [
     icon: Heart,
     color: 'text-rose-500',
     desc: 'Validates your hard work, builds confidence, and celebrates your study milestones.',
-    sample: 'Great start! Every concept you master brings you closer to an A. Let us break this down together.',
+    sampleAcademic: 'Excellent effort. Every concept you master brings you closer to distinction. Let us examine this mechanism systematically together.',
+    sampleCasual: "Great job! You're really getting the hang of this. Let's break this slide down together step by step!",
   },
   {
     id: 'curious',
@@ -49,7 +50,8 @@ const PERSONALITY_TILES = [
     icon: Compass,
     color: 'text-amber-500',
     desc: 'Asks guiding questions to stimulate deep thinking instead of spoon-feeding answers.',
-    sample: 'What do you think happens to consumer surplus when prices rise? Look at the demand curve in slide 4.',
+    sampleAcademic: 'Consider the underlying economic rationale: when prices rise, what happens to consumer surplus along the demand curve in Slide 4?',
+    sampleCasual: "Hold on, before I just give you the answer: look at Slide 4. What do you think happens to buyers when that price jumps up?",
   },
   {
     id: 'strict',
@@ -57,7 +59,8 @@ const PERSONALITY_TILES = [
     icon: Scale,
     color: 'text-blue-500',
     desc: 'Pushes for academic precision, exact legal/financial definitions, and exam standard.',
-    sample: 'Your definition misses key statutory elements. In UPSA exams, precision earns the distinction.',
+    sampleAcademic: 'Your definition lacks essential statutory elements. In UPSA examinations, precision in distinguishing legal entities is mandatory for full marks.',
+    sampleCasual: "Careful here: you cannot mix those two terms up. On the exam, that small slip costs you points. Here is the exact distinction.",
   },
   {
     id: 'empathetic',
@@ -65,7 +68,8 @@ const PERSONALITY_TILES = [
     icon: Smile,
     color: 'text-emerald-500',
     desc: 'Gentle and patient, designed to reduce exam anxiety and cognitive overload.',
-    sample: 'Take a breath. Exam stress is normal. Let us take this topic one small paragraph at a time.',
+    sampleAcademic: 'Take a calm breath. Exam stress is completely understandable. We will dissect this complex framework one clear paragraph at a time.',
+    sampleCasual: "Take a deep breath, you're doing fine! This topic looks scary at first, but let's take it one simple piece at a time.",
   },
   {
     id: 'motivational',
@@ -73,7 +77,8 @@ const PERSONALITY_TILES = [
     icon: Flame,
     color: 'text-orange-500',
     desc: 'Goal-driven and energizing, keeping your momentum sharp during late-night revisions.',
-    sample: 'Finals are coming up and you have the work ethic to dominate this course. Let us get to work!',
+    sampleAcademic: 'Finals season rewards relentless preparation. Master this core derivation today and consolidate your academic standing.',
+    sampleCasual: "Let's crush this! Semester exams are coming and you've got what it takes to get that A. Let's get to work!",
   },
   {
     id: 'neutral',
@@ -81,7 +86,8 @@ const PERSONALITY_TILES = [
     icon: Bot,
     color: 'text-cyan-500',
     desc: 'Concise, academic, direct bullet points without conversational fluff.',
-    sample: 'Direct answer: The key difference between GAAP and IFRS here lies in inventory impairment rules.',
+    sampleAcademic: 'Direct analysis: The core distinction between GAAP and IFRS here governs inventory impairment reversal under IAS 2.',
+    sampleCasual: 'Quick breakdown: Here are the two key differences between GAAP and IFRS on inventory without any extra fluff.',
   },
 ];
 
@@ -90,6 +96,7 @@ export function OnboardingForm({ studentName = 'UPSA Scholar', userEmail = '' }:
   const [currentProgramme, setCurrentProgramme] = useState('');
   const [tutorName, setTutorName] = useState('Alex');
   const [tutorPersonality, setTutorPersonality] = useState('encouraging');
+  const [tutorTone, setTutorTone] = useState<'academic' | 'casual'>('academic');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -212,6 +219,7 @@ export function OnboardingForm({ studentName = 'UPSA Scholar', userEmail = '' }:
           <input type="hidden" name="learning_style" value="adaptive" />
           <input type="hidden" name="tutor_name" value={tutorName} />
           <input type="hidden" name="tutor_personality" value={tutorPersonality} />
+          <input type="hidden" name="tutor_tone" value={tutorTone} />
 
           <div className="relative p-6 sm:p-8">
             <AnimatePresence mode="wait">
@@ -359,14 +367,62 @@ export function OnboardingForm({ studentName = 'UPSA Scholar', userEmail = '' }:
                     </div>
                   </div>
 
+                  {/* Communication Tone Selector */}
+                  <div className="space-y-2.5">
+                    <Label className="text-xs font-semibold text-foreground">
+                      Communication Tone
+                    </Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {[
+                        {
+                          id: 'academic',
+                          label: 'Academic & Scholarly',
+                          badge: 'Exam-Focused',
+                          desc: 'Collegiate diction, formal disciplinary terminology, and exam-grade rigor.',
+                        },
+                        {
+                          id: 'casual',
+                          label: 'Relatable & Casual',
+                          badge: 'Conversational',
+                          desc: 'Friendly student-peer pacing, approachable everyday analogies, and natural syntax.',
+                        },
+                      ].map((t) => {
+                        const isSelected = tutorTone === t.id;
+                        return (
+                          <div
+                            key={t.id}
+                            onClick={() => setTutorTone(t.id as 'academic' | 'casual')}
+                            className={`p-3.5 rounded-xl border text-left cursor-pointer transition-all ${
+                              isSelected
+                                ? 'bg-[#00004E]/5 dark:bg-[#D89A06]/10 border-[#D89A06] ring-1 ring-[#D89A06] shadow-xs'
+                                : 'bg-background hover:bg-muted/50 border-border/80'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold text-foreground">
+                                {t.label}
+                              </span>
+                              {isSelected && (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-[#D89A06]" />
+                              )}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed">
+                              {t.desc}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {/* Live Tutor Speech Preview */}
                   <div className="p-3.5 rounded-xl bg-muted/40 border border-border/60 space-y-1.5">
                     <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#00004E] dark:text-[#D89A06]">
-                      <Sparkles className="w-3 h-3" />
-                      <span>Live Dialogue Preview ({tutorName}):</span>
+                      <MessageSquareQuote className="w-3.5 h-3.5" />
+                      <span>Live Dialogue Preview ({tutorName} • {selectedPersonalityMeta.label} • {tutorTone === 'casual' ? 'Casual' : 'Academic'}):</span>
                     </div>
                     <p className="text-xs text-foreground/90 italic leading-relaxed">
-                      &ldquo;{selectedPersonalityMeta.sample}&rdquo;
+                      &ldquo;Hello! I am {tutorName}. {tutorTone === 'casual' ? selectedPersonalityMeta.sampleCasual : selectedPersonalityMeta.sampleAcademic}&rdquo;
                     </p>
                   </div>
 
@@ -477,7 +533,7 @@ export function OnboardingForm({ studentName = 'UPSA Scholar', userEmail = '' }:
                           AI Study Companion
                         </span>
                         <span className="text-xs font-bold text-white block">
-                          {tutorName} ({selectedPersonalityMeta.label})
+                          {tutorName} ({selectedPersonalityMeta.label} • {tutorTone === 'casual' ? 'Casual' : 'Academic'})
                         </span>
                       </div>
 

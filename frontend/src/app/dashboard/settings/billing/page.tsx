@@ -26,7 +26,6 @@ import {
   History,
   TrendingDown,
   Clock,
-  Sparkles,
   ArrowUpRight,
   Search,
 } from 'lucide-react';

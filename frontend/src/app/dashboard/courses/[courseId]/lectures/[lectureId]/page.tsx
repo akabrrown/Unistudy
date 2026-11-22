@@ -510,6 +510,7 @@ export default function LectureViewer() {
       );
       const commandMode = detectTutorCommandMode(messageToSend);
       const studentConfig = {
+        personality: settings?.ai_personality || undefined,
         readingLevel: settings?.ai_reading_level || undefined,
         tone: settings?.ai_tone || undefined,
         learningStyle: settings?.learning_style || undefined,
@@ -517,6 +518,7 @@ export default function LectureViewer() {
       };
       const systemPrompt = buildGroundedTutorPrompt({
         tutorName: activeTutor,
+        tutorPersonality: settings?.ai_personality || undefined,
         courseContext,
         currentSlideNumber: slideIndex + 1,
         currentSlideText: slideText,
