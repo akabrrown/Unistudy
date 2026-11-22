@@ -14,6 +14,7 @@ export async function completeOnboarding(formData: FormData) {
   }
 
   const faculty = (formData.get('faculty') as string) || 'FITCS'
+  const department = (formData.get('department') as string) || null
   const degree_programme = (formData.get('degree_programme') as string) || 'BSc Information Technology Management'
   const year_of_study = Number(formData.get('year_of_study')) || 100
   const learning_style = (formData.get('learning_style') as string) || 'adaptive'
@@ -43,6 +44,7 @@ export async function completeOnboarding(formData: FormData) {
       institution_id: upsaInstitutionId,
       university: UPSA_INSTITUTION.name,
       faculty,
+      department,
       degree_programme,
       year_of_study
     })

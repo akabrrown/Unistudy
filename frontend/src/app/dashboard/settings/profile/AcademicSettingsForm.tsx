@@ -59,7 +59,7 @@ export function AcademicSettingsForm({
   const [studyGoal, setStudyGoal] = useState(initialStudyGoal || '');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const [programmes, setProgrammes] = useState<{ id: string; name: string }[]>([]);
+  const [programmes, setProgrammes] = useState<{ id: string; name: string; field?: string; level?: string }[]>([]);
 
   // Username availability state
   const [checkingUsername, setCheckingUsername] = useState(false);
@@ -77,7 +77,7 @@ export function AcademicSettingsForm({
     async function fetchProgrammes() {
       const { createClient } = await import('@/lib/supabase/client');
       const supabase = createClient();
-      const { data } = await supabase.from('course_programmes').select('id, name').order('name');
+      const { data } = await supabase.from('course_programmes').select('id, name, field, level').order('name');
       if (active && data) {
         setProgrammes(data);
       }
@@ -293,21 +293,35 @@ export function AcademicSettingsForm({
           </div>
 
           {isDropdownOpen && degreeProgramme.length > 0 && (
-            <div className="absolute z-20 w-full mt-1 bg-card border border-border rounded-xl shadow-xl max-h-56 overflow-auto">
+            <div className="absolute z-20 w-full mt-1 bg-card border border-border rounded-xl shadow-xl max-h-64 overflow-auto divide-y divide-border/40">
               {filteredProgrammes.length > 0 ? (
                 <div className="py-1">
                   {filteredProgrammes.slice(0, 40).map((prog) => (
                     <button
                       type="button"
                       key={prog.id}
-                      className="w-full text-left px-3.5 py-2 hover:bg-muted cursor-pointer flex items-center gap-2 transition-colors"
+                      className="w-full text-left px-3.5 py-2.5 hover:bg-muted cursor-pointer flex items-center justify-between gap-2 transition-colors"
                       onClick={() => {
                         setDegreeProgramme(prog.name);
                         setIsDropdownOpen(false);
                       }}
                     >
-                      <GraduationCap className="h-3.5 w-3.5 text-primary shrink-0" />
-                      <span className="text-xs font-medium text-foreground">{prog.name}</span>
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <div className="flex items-center gap-2">
+                          <GraduationCap className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span className="text-xs font-semibold text-foreground">{prog.name}</span>
+                        </div>
+                        {prog.field && (
+                          <span className="text-[10px] text-muted-foreground pl-5.5 font-mono">
+                            {prog.field}
+                          </span>
+                        )}
+                      </div>
+                      {prog.level && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 shrink-0 font-bold">
+                          {prog.level}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>

@@ -18,6 +18,7 @@ export function OnboardingForm() {
   const [academicData, setAcademicData] = useState({
     institution_id: '',
     faculty: '',
+    department: '',
     degree_programme: '',
     year_of_study: '100'
   })
@@ -27,6 +28,7 @@ export function OnboardingForm() {
       const formData = new FormData(formRef.current)
       const inst = (formData.get('institution_id') as string) || ''
       const fac = (formData.get('faculty') as string) || 'FITCS'
+      const dept = (formData.get('department') as string) || ''
       const prog = (formData.get('degree_programme') as string) || ''
       const lvl = (formData.get('year_of_study') as string) || '100'
       
@@ -38,6 +40,7 @@ export function OnboardingForm() {
       setAcademicData({
         institution_id: inst,
         faculty: fac,
+        department: dept,
         degree_programme: prog,
         year_of_study: lvl
       })
@@ -93,6 +96,7 @@ export function OnboardingForm() {
                   {/* Hidden inputs to retain data from Step 1 when it unmounts */}
                   <input type="hidden" name="institution_id" value={academicData.institution_id} />
                   <input type="hidden" name="faculty" value={academicData.faculty} />
+                  <input type="hidden" name="department" value={academicData.department} />
                   <input type="hidden" name="degree_programme" value={academicData.degree_programme} />
                   <input type="hidden" name="year_of_study" value={academicData.year_of_study} />
                   <input type="hidden" name="university" value="University of Professional Studies, Accra" />

@@ -4,6 +4,7 @@ import { getPublicSupabaseClient } from '@/lib/supabase/anon';
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get('q');
+  const level = searchParams.get('level');
 
   const supabase = getPublicSupabaseClient();
 
@@ -15,9 +16,13 @@ export async function GET(req: NextRequest) {
     query.ilike('name', `%${q}%`);
   }
 
+  if (level && level !== 'all') {
+    query.ilike('level', `%${level}%`);
+  }
+
   const { data, error } = await query
     .order('name', { ascending: true })
-    .limit(20);
+    .limit(50);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
