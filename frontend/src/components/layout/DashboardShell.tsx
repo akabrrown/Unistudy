@@ -334,13 +334,7 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
           )}
 
           <div className="space-y-1">
-            {(section.title === 'Settings' && profile?.role === 'admin'
-              ? [
-                  ...section.items,
-                  { label: 'Admin Control Panel', href: '/admin', icon: Shield, color: 'text-[#D89A06]', subItems: [] } as NavItem,
-                ]
-              : section.items
-            ).map((item: NavItem) => {
+            {section.items.map((item: NavItem) => {
               const active = isNavGroupActive(item);
               const Icon = item.icon;
               const hasSubItems = Boolean(item.subItems && item.subItems.length > 0);
@@ -547,11 +541,6 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
           <div className="text-sm min-w-0 flex-1">
             <div className="flex items-center gap-1.5 font-semibold text-foreground truncate group-hover:text-primary transition-colors">
               <span className="truncate">{profile?.username || profile?.full_name?.split(' ')[0] || 'UPSA Scholar'}</span>
-              {profile?.role === 'admin' && (
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#D89A06] text-[#00004E] shrink-0">
-                  ADMIN
-                </span>
-              )}
             </div>
             <div className="text-muted-foreground text-xs truncate">
               {profile?.institutions?.abbreviation || 'UPSA'}
