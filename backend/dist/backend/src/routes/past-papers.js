@@ -115,6 +115,27 @@ router.get('/download', async (req, res) => {
         if (!paperId) {
             return res.status(400).json({ error: 'Missing past question paper id (?id=...)' });
         }
+        // KLOK stream support for official campus past questions
+        const isKlokId = paperId.startsWith('L0') || paperId.length > 50 || !paperId.includes('-');
+        if (isKlokId) {
+            try {
+                const KLOK_BASE_URL = process.env.KLOK_BASE_URL || 'https://kloksearch.vercel.app';
+                const KLOK_API_KEY = process.env.KLOK_API_KEY || 'klok_live_ddbeef2ccb5ed98dd45873c1d35060c4';
+                const klokRes = await fetch(`${KLOK_BASE_URL}/api/v1/past-questions/download?id=${encodeURIComponent(paperId)}&download=1`, {
+                    headers: { 'x-klok-api-key': KLOK_API_KEY }
+                });
+                if (klokRes.ok) {
+                    const contentType = klokRes.headers.get('content-type') || 'application/pdf';
+                    const buffer = Buffer.from(await klokRes.arrayBuffer());
+                    res.setHeader('Content-Type', contentType);
+                    res.setHeader('Content-Disposition', `inline; filename="past-question-${encodeURIComponent(paperId)}.pdf"`);
+                    return res.send(buffer);
+                }
+            }
+            catch (kErr) {
+                console.warn('[download] KLOK fetch error:', kErr.message);
+            }
+        }
         const { data: paper, error } = await supabase_1.supabaseAdmin
             .from('past_papers')
             .select('*, courses(id, course_code, title, colour), past_paper_questions(*)')
@@ -177,10 +198,83 @@ router.get('/download', async (req, res) => {
         res.status(500).json({ error: 'Failed to download past question' });
     }
 });
+function extractCourseCodeFromName(name) {
+    if (!name)
+        return 'EXAM';
+    const m = name.match(/([A-Z]{3,4}\s*\d{3})/i);
+    return m ? m[1].toUpperCase().replace(/\s+/, ' ') : 'EXAM';
+}
+function parseYearFromName(val) {
+    if (typeof val === 'number')
+        return val;
+    if (!val)
+        return new Date().getFullYear();
+    const m = String(val).match(/(\d{4})/);
+    return m ? parseInt(m[1], 10) : new Date().getFullYear();
+}
 router.get('/:id', async (req, res) => {
     try {
         const paperId = req.params.id;
         const userId = req.user.id;
+        // 1. If paperId is a base64 encoded KLOK paper ID
+        const isKlokId = paperId.startsWith('L0') || paperId.length > 50 || !paperId.includes('-');
+        if (isKlokId) {
+            try {
+                let decodedPath = '';
+                try {
+                    decodedPath = Buffer.from(paperId, 'base64').toString('utf-8');
+                }
+                catch (_) {
+                    decodedPath = paperId;
+                }
+                const pathParts = decodedPath.split(/[\/\\]/);
+                const filename = pathParts[pathParts.length - 1] || 'Past Examination Paper';
+                const cleanTitle = filename.replace(/\.pdf$/i, '').trim();
+                const detectedCode = extractCourseCodeFromName(cleanTitle);
+                // Fetch user courses to find match
+                const { data: userCourses } = await supabase_1.supabaseAdmin
+                    .from('courses')
+                    .select('id, course_code, title, colour')
+                    .eq('user_id', userId);
+                const cleanCodeOnly = detectedCode.replace(/\s+/g, '').toUpperCase();
+                const matchingCourse = (userCourses || []).find((c) => {
+                    const cCodeClean = (c.course_code || '').replace(/\s+/g, '').toUpperCase();
+                    return cCodeClean && (cCodeClean === cleanCodeOnly || cleanTitle.toUpperCase().includes(cCodeClean));
+                });
+                const isMidterm = cleanTitle.toLowerCase().includes('mid') || cleanTitle.toLowerCase().includes('interim');
+                const courseCode = matchingCourse?.course_code || detectedCode;
+                return res.json({
+                    id: paperId,
+                    course_id: matchingCourse ? matchingCourse.id : null,
+                    course_code: courseCode,
+                    normalized_course_code: courseCode.replace(/[^A-Z0-9]/g, ''),
+                    title: cleanTitle,
+                    year: parseYearFromName(cleanTitle),
+                    exam_type: isMidterm ? 'mid-semester' : 'end-semester',
+                    status: 'ready',
+                    created_at: new Date().toISOString(),
+                    download_url: `/api/v1/past-questions/download?id=${encodeURIComponent(paperId)}`,
+                    source: 'klok',
+                    courses: matchingCourse ? {
+                        id: matchingCourse.id,
+                        course_code: matchingCourse.course_code,
+                        title: matchingCourse.title,
+                        colour: matchingCourse.colour || '#00004E',
+                    } : {
+                        id: 'official',
+                        course_code: courseCode,
+                        title: cleanTitle,
+                        colour: '#00004E',
+                    },
+                    past_paper_questions: [],
+                    questions: [],
+                });
+            }
+            catch (kErr) {
+                console.warn('[Past Papers GET /:id] KLOK resolution error:', kErr.message);
+            }
+        }
+        // 2. Query Supabase for custom uploaded past papers
         const { data: paper, error } = await supabase_1.supabaseAdmin
             .from('past_papers')
             .select('*, courses(id, course_code, title, colour), past_paper_questions(*)')
@@ -201,6 +295,22 @@ router.get('/:id', async (req, res) => {
     catch (err) {
         console.error('[Past Papers GET /:id] Error:', err);
         res.status(500).json({ error: 'Failed to retrieve past paper details' });
+    }
+});
+router.post('/:id/extract', async (req, res) => {
+    try {
+        const paperId = req.params.id;
+        const { data: existing } = await supabase_1.supabaseAdmin
+            .from('past_paper_questions')
+            .select('*')
+            .eq('past_paper_id', paperId);
+        if (existing && existing.length > 0) {
+            return res.json({ success: true, cached: true, questions: existing });
+        }
+        return res.json({ success: true, cached: false, questions: [] });
+    }
+    catch (err) {
+        res.status(500).json({ error: err?.message || 'Failed to extract questions' });
     }
 });
 router.post('/sync-moodle', async (req, res) => {
@@ -403,6 +513,20 @@ router.post('/upload', upload.single('file'), (0, quotaGuard_1.withAIQuota)('han
             normalizedExamType === 'resit' ? 'Resit' : 'Final';
         const paperYear = parseInt(year) || new Date().getFullYear();
         const paperTitle = `${resolvedCourseCode} - ${paperYear} ${examTypeLabel} Exam`;
+        // 0. Deduplication check: prevent creating duplicate past papers per course
+        const normalizedCode = resolvedCourseCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const { data: existingPaper } = await supabase_1.supabaseAdmin
+            .from('past_papers')
+            .select('id, title')
+            .or(`course_id.eq.${courseId},normalized_course_code.eq.${normalizedCode}`)
+            .eq('year', paperYear)
+            .eq('exam_type', normalizedExamType)
+            .maybeSingle();
+        if (existingPaper) {
+            return res.status(409).json({
+                error: `A past paper for ${resolvedCourseCode} (${paperYear} ${examTypeLabel} Exam) already exists in your course bank.`
+            });
+        }
         // 1. Create the DB record.
         const { data: paper, error: pErr } = await supabase_1.supabaseAdmin
             .from('past_papers')
@@ -413,6 +537,8 @@ router.post('/upload', upload.single('file'), (0, quotaGuard_1.withAIQuota)('han
             year: paperYear,
             exam_type: normalizedExamType,
             status: 'ready',
+            course_code: resolvedCourseCode,
+            normalized_course_code: normalizedCode,
             shared_to_community: false
         })
             .select()

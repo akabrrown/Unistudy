@@ -10,7 +10,8 @@ exports.PROVIDER_CONFIG = {
     cohere: { pool_type: 'credit_funded', has_user_quota: true, user_quota_column: 'cohere' },
     openrouter: { pool_type: 'free_rate_limit', has_user_quota: false }, // fallback
     cloudflare: { pool_type: 'free_daily', has_user_quota: false }, // fallback
-    youtube: { pool_type: 'credit_funded', has_user_quota: true, user_quota_column: 'youtube' }
+    youtube: { pool_type: 'credit_funded', has_user_quota: true, user_quota_column: 'youtube' },
+    agentrouter: { pool_type: 'credit_funded', has_user_quota: false }
 };
 exports.FEATURE_PROVIDER_MAP = {
     slide_explanation: 'gemini',

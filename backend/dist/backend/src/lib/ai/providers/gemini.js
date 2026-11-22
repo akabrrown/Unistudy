@@ -84,29 +84,41 @@ async function handleGeminiRequest(req) {
             return explanation;
         }
         if (req.feature === 'quiz_generation') {
-            const parts = [
-                { text: `Generate exactly ${req.payload.questionCount || 5} questions from the provided slide images at a ${req.payload.difficulty || 'medium'} difficulty level.
-         You must generate a MIX of question types: "mcq" (Multiple Choice), "fill_in" (Fill in the blank), and "theory" (Essay/Short Answer).
-         Return ONLY a JSON array of objects with the structure:
-         { 
-           "question": string, 
-           "type": "mcq" | "fill_in" | "theory",
-           "options": [{ "text": string, "label": string }] | null (for mcq only, otherwise null. Use labels "A", "B", "C", etc.), 
-           "correct_option": string (for mcq, use label like "A", "B", etc. For fill_in, provide the exact word/phrase. For theory, provide a model ideal answer),
-           "explanation": string (brief explanation of the answer)
-         }` }
-            ];
-            for (const img of (req.payload.imageBase64Array || [])) {
-                parts.push({
-                    inlineData: {
-                        data: img.replace(/^data:image\/\w+;base64,/, ""),
-                        mimeType: "image/jpeg"
-                    }
-                });
+            const questionCount = req.payload.questionCount || 5;
+            const difficulty = req.payload.difficulty || 'medium';
+            const systemInstruction = `Generate exactly ${questionCount} questions at a ${difficulty} difficulty level.
+You must generate a MIX of question types: "mcq" (Multiple Choice), "fill_in" (Fill in the blank), and "theory" (Essay/Short Answer).
+Return ONLY a JSON array of objects with the structure:
+{ 
+  "question": string, 
+  "type": "mcq" | "fill_in" | "theory",
+  "options": [{ "text": string, "label": string }] | null (for mcq only, otherwise null. Use labels "A", "B", "C", etc.), 
+  "correct_option": string (for mcq, use label like "A", "B", etc. For fill_in, provide the exact word/phrase. For theory, provide a model ideal answer),
+  "explanation": string (brief explanation of the answer)
+}`;
+            const parts = [];
+            // Text-based path: use slide text content from the backend
+            if (req.payload.prompt) {
+                parts.push({ text: `${systemInstruction}\n\nLecture content:\n${req.payload.prompt}` });
+            }
+            // Image-based fallback path (if images are explicitly provided)
+            else if (req.payload.imageBase64Array && req.payload.imageBase64Array.length > 0) {
+                parts.push({ text: `${systemInstruction}\n\nGenerate questions from the provided slide images.` });
+                for (const img of req.payload.imageBase64Array) {
+                    parts.push({
+                        inlineData: {
+                            data: img.replace(/^data:image\/\w+;base64,/, ""),
+                            mimeType: "image/jpeg"
+                        }
+                    });
+                }
+            }
+            else {
+                throw new Error('No slide content or images provided for quiz generation.');
             }
             const result = await model.generateContent({
                 contents: [{ role: 'user', parts }],
-                generationConfig: { responseMimeType: "application/json" }
+                generationConfig: { responseMimeType: "application/json", temperature: 0.3 }
             });
             return JSON.parse(result.response.text());
         }

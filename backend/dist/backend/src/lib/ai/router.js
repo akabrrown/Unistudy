@@ -87,6 +87,11 @@ async function routeRequest(request) {
                 result = await handleCohereRequest(request);
                 break;
             }
+            case 'agentrouter': {
+                const { handleAgentRouterRequest } = await Promise.resolve().then(() => __importStar(require('./providers/agentrouter')));
+                result = await handleAgentRouterRequest(request);
+                break;
+            }
             case 'openrouter':
             default: {
                 const { handleOpenRouterRequest } = await Promise.resolve().then(() => __importStar(require('./providers/openrouter')));
@@ -116,25 +121,39 @@ async function routeRequest(request) {
                 responseMs: Date.now() - start
             };
         }
-        // Try Groq first since it has feature-specific prompt handling
-        if (provider !== 'groq_70b' && provider !== 'groq_8b' && process.env.GROQ_API_KEY) {
+        // Try AgentRouter fallback if configured, or Groq
+        if (provider !== 'agentrouter' && process.env.AGENTROUTER_API_KEY) {
             try {
-                console.log(`[AI Router] Attempting Groq fallback for ${request.feature}`);
-                provider = 'groq_70b';
-                const { handleGroqRequest } = await Promise.resolve().then(() => __importStar(require('./providers/groq')));
-                result = await handleGroqRequest(request);
+                console.log(`[AI Router] Attempting AgentRouter fallback for ${request.feature}`);
+                provider = 'agentrouter';
+                const { handleAgentRouterRequest } = await Promise.resolve().then(() => __importStar(require('./providers/agentrouter')));
+                result = await handleAgentRouterRequest(request);
             }
-            catch (groqErr) {
-                console.error('[AI Router] Groq fallback also failed, trying OpenRouter:', groqErr);
+            catch (arErr) {
+                console.warn('[AI Router] AgentRouter fallback failed, trying secondary fallback:', arErr);
+            }
+        }
+        if (!result) {
+            // Try Groq next since it has feature-specific prompt handling
+            if (provider !== 'groq_70b' && provider !== 'groq_8b' && process.env.GROQ_API_KEY) {
+                try {
+                    console.log(`[AI Router] Attempting Groq fallback for ${request.feature}`);
+                    provider = 'groq_70b';
+                    const { handleGroqRequest } = await Promise.resolve().then(() => __importStar(require('./providers/groq')));
+                    result = await handleGroqRequest(request);
+                }
+                catch (groqErr) {
+                    console.error('[AI Router] Groq fallback also failed, trying OpenRouter:', groqErr);
+                    provider = 'openrouter';
+                    const { handleOpenRouterRequest } = await Promise.resolve().then(() => __importStar(require('./providers/openrouter')));
+                    result = await handleOpenRouterRequest(request);
+                }
+            }
+            else {
                 provider = 'openrouter';
                 const { handleOpenRouterRequest } = await Promise.resolve().then(() => __importStar(require('./providers/openrouter')));
                 result = await handleOpenRouterRequest(request);
             }
-        }
-        else {
-            provider = 'openrouter';
-            const { handleOpenRouterRequest } = await Promise.resolve().then(() => __importStar(require('./providers/openrouter')));
-            result = await handleOpenRouterRequest(request);
         }
     }
     return {

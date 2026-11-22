@@ -146,7 +146,7 @@ const COURSE_EXAM_TEMPLATES = {
             },
         ],
     },
-    BCPC201: {
+    BCPC207: {
         title: 'Principles of Leadership',
         questions: [
             {
@@ -172,6 +172,35 @@ const COURSE_EXAM_TEMPLATES = {
                 text_content: 'Discuss the role of emotional intelligence (EQ) in conflict resolution and strategic change management within Ghanaian tertiary institutions and enterprises.',
                 extracted_topic: 'THEORY|Emotional Intelligence & Conflict Resolution',
                 marks_available: 12,
+            },
+        ],
+    },
+    BCPC201: {
+        title: 'Information Systems',
+        questions: [
+            {
+                question_number: '1',
+                text_content: 'Which of the following represents an Enterprise Resource Planning (ERP) system\'s primary functional objective within an organization?\nA. Standalone departmental spreadsheet management\nB. Cross-functional integration of business processes and real-time unified data\nC. Isolated local database backup storage\nD. Managing static marketing web pages',
+                extracted_topic: 'MCQ|Enterprise Systems & ERP Architecture',
+                marks_available: 1,
+            },
+            {
+                question_number: '2',
+                text_content: 'In management information systems, which system level is specifically designed to support senior executive long-term strategic decision-making with aggregate external and internal intelligence?\nA. Transaction Processing System (TPS)\nB. Executive Support System (ESS)\nC. Management Information System (MIS)\nD. Decision Support System (DSS)',
+                extracted_topic: 'MCQ|Information Systems Hierarchies',
+                marks_available: 1,
+            },
+            {
+                question_number: '3',
+                text_content: 'Explain the role of Information Systems in gaining competitive advantage according to Porter\'s Five Forces and Value Chain models. Give two practical Ghanaian enterprise examples.',
+                extracted_topic: 'THEORY|Strategic Information Systems & Competitive Advantage',
+                marks_available: 10,
+            },
+            {
+                question_number: '4',
+                text_content: 'Discuss the security and privacy implications of cloud-based enterprise systems in African financial and telecommunication institutions. Recommend three risk mitigation strategies.',
+                extracted_topic: 'THEORY|Enterprise Cloud Security & Governance',
+                marks_available: 15,
             },
         ],
     },
