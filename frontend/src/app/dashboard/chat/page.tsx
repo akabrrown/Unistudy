@@ -39,6 +39,7 @@ import {
   HelpCircle,
   Cloud,
   CheckCircle,
+  Bot,
 } from 'lucide-react';
 import {
   requestPersistentStorage,
@@ -120,6 +121,14 @@ const AI_MODELS = [
     tagline: 'Best available model with automatic fallback',
     icon: BrainCircuit,
     color: 'text-[#D89A06]',
+  },
+  {
+    id: 'agentrouter',
+    name: 'AgentRouter Pro',
+    badge: 'Claude & DeepSeek',
+    tagline: 'Claude 3.5 Sonnet, DeepSeek R1 & GPT-4o intelligence',
+    icon: Bot,
+    color: 'text-emerald-500',
   },
   {
     id: 'groq',
