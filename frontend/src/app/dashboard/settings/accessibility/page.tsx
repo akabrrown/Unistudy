@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   User as UserIcon,
   CreditCard,
+  History,
   RotateCcw,
   Sliders,
   Sun,
@@ -487,6 +488,13 @@ export default function AccessibilitySettingsPage() {
             >
               <CreditCard className="w-3.5 h-3.5" />
               Billing
+            </Link>
+            <Link
+              href="/dashboard/settings/billing/audit"
+              className="inline-flex items-center gap-1.5 rounded-lg text-muted-foreground hover:text-foreground px-3 py-1.5 text-xs font-semibold transition-colors"
+            >
+              <History className="w-3.5 h-3.5" />
+              Audit Log
             </Link>
           </div>
 
