@@ -9,7 +9,7 @@ import { UPSA_PROGRAMMES_CATALOG, UPSAStudyLevelTier } from '@/lib/constants/ups
 import { Badge } from '@/components/ui/badge'
 
 interface ProgrammeOfStudyInputProps {
-  onProgrammeChange?: (name: string, department?: string) => void
+  onProgrammeChange?: (name: string, department?: string, facultyCode?: string) => void
   initialValue?: string
 }
 
@@ -104,7 +104,7 @@ export function ProgrammeOfStudyInput({ onProgrammeChange, initialValue = '' }: 
                   setSearch(item.name)
                   setSelectedDepartment(item.department)
                   setIsDropdownOpen(false)
-                  onProgrammeChange?.(item.name, item.department)
+                  onProgrammeChange?.(item.name, item.department, item.facultyCode)
                 }}
               >
                 <div className="flex flex-col gap-0.5 min-w-0 pr-2">

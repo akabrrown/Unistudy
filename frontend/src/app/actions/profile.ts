@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { getProgrammeDetails } from '@/lib/constants/upsa';
 
 export interface UpdateAcademicProfileInput {
   full_name?: string;
@@ -78,6 +79,13 @@ export async function updateAcademicProfile(data: UpdateAcademicProfileInput) {
       const cleanDegree = data.degree_programme.trim().slice(0, 120);
       payload.degree_programme = cleanDegree;
       payload.degree = cleanDegree;
+
+      // Auto-match faculty and department if known in UPSA catalog
+      const details = getProgrammeDetails(cleanDegree);
+      if (details) {
+        if (!data.faculty && details.facultyCode) payload.faculty = details.facultyCode;
+        if (details.department) payload.department = details.department;
+      }
     }
     if (data.faculty !== undefined) {
       payload.faculty = (data.faculty as string).trim();

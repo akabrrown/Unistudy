@@ -10,6 +10,7 @@ import { completeOnboarding } from './actions';
 import { InstitutionSelect } from './components/InstitutionSelect';
 import { ProgrammeOfStudyInput } from './components/ProgrammeOfStudyInput';
 import { formatAcademicLevel } from '@/lib/utils';
+import { getProgrammeDetails } from '@/lib/constants/upsa';
 import { 
   GraduationCap, 
   BrainCircuit, 
@@ -105,8 +106,6 @@ export function OnboardingForm({ studentName = 'UPSA Scholar', userEmail = '' }:
     if (formRef.current) {
       const formData = new FormData(formRef.current);
       const inst = (formData.get('institution_id') as string) || '';
-      const fac = (formData.get('faculty') as string) || 'FITCS';
-      const dept = (formData.get('department') as string) || '';
       const prog = (formData.get('degree_programme') as string) || '';
       const lvl = (formData.get('year_of_study') as string) || '100';
 
@@ -114,6 +113,10 @@ export function OnboardingForm({ studentName = 'UPSA Scholar', userEmail = '' }:
         toast.error('Please enter or select your UPSA degree programme');
         return;
       }
+
+      const details = getProgrammeDetails(prog);
+      const fac = (formData.get('faculty') as string) || details?.facultyCode || 'FAF';
+      const dept = (formData.get('department') as string) || details?.department || '';
 
       setAcademicData({
         institution_id: inst,
@@ -237,8 +240,15 @@ export function OnboardingForm({ studentName = 'UPSA Scholar', userEmail = '' }:
 
                   <div className="space-y-5">
                     <ProgrammeOfStudyInput
-                      onProgrammeChange={(name) => {
+                      onProgrammeChange={(name, department, facultyCode) => {
                         setCurrentProgramme(name);
+                        const details = getProgrammeDetails(name);
+                        setAcademicData((prev) => ({
+                          ...prev,
+                          degree_programme: name,
+                          department: department || details?.department || prev.department,
+                          faculty: facultyCode || details?.facultyCode || prev.faculty,
+                        }));
                       }}
                     />
 

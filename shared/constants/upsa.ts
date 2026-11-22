@@ -722,6 +722,26 @@ export const UPSA_FACULTIES: UPSAFaculty[] = [
 
 export const ALL_UPSA_PROGRAMMES = UPSA_PROGRAMMES_CATALOG.map((p) => p.name);
 
+/**
+ * Looks up detailed programme metadata including facultyCode, facultyName, department, and level tier.
+ */
+export function getProgrammeDetails(programmeName?: string | null): UPSAProgrammeItem | undefined {
+  if (!programmeName) return undefined;
+  const clean = programmeName.trim().toLowerCase();
+  return UPSA_PROGRAMMES_CATALOG.find((p) => p.name.toLowerCase() === clean);
+}
+
+/**
+ * Returns the official faculty object corresponding to a given programme name.
+ */
+export function getFacultyForProgramme(programmeName?: string | null): typeof UPSA_FACULTIES[number] | undefined {
+  const details = getProgrammeDetails(programmeName);
+  if (details?.facultyCode) {
+    return UPSA_FACULTIES.find((f) => f.code === details.facultyCode);
+  }
+  return undefined;
+}
+
 export interface AcademicProgressionLevel {
   value: number;
   label: string;
