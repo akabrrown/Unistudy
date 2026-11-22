@@ -850,7 +850,7 @@ export default function AdminUsersPage() {
                         </span>
                       </div>
                       <div className="text-muted-foreground text-[11px] truncate max-w-[280px]">
-                        UPSA • {formatAcademicLevel(user.year_of_study)}
+                        UPSA • {formatAcademicLevel(user.year_of_study, user.degree_programme || user.degree)}
                       </div>
                     </td>
 
@@ -1077,7 +1077,7 @@ export default function AdminUsersPage() {
                           {selectedUser.degree_programme || 'Not specified'}
                         </span>
                         <span className="text-[11px] text-muted-foreground block">
-                          Level: {selectedUser.year_of_study ? formatAcademicLevel(selectedUser.year_of_study) : 'Unspecified'}
+                          Level: {selectedUser.year_of_study ? formatAcademicLevel(selectedUser.year_of_study, selectedUser.degree_programme) : 'Unspecified'}
                         </span>
                       </div>
 

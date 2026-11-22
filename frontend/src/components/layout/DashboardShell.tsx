@@ -167,6 +167,7 @@ interface DashboardProfile {
   full_name?: string | null;
   username?: string | null;
   faculty?: string | null;
+  degree_programme?: string | null;
   year_of_study?: string | number | null;
   subscription_tier?: string | null;
   institutions?: {
@@ -519,7 +520,7 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
               <div className="text-xs font-bold">{profile?.full_name || profile?.username || 'UPSA Scholar'}</div>
               <div className="text-[10px] text-muted-foreground">
                 {profile?.institutions?.name || 'University of Professional Studies, Accra'}
-                {profile?.year_of_study ? ` • ${formatAcademicLevel(profile.year_of_study)}` : ''}
+                {profile?.year_of_study ? ` • ${formatAcademicLevel(profile.year_of_study, profile?.degree_programme)}` : ''}
               </div>
             </TooltipContent>
           </Tooltip>
@@ -552,7 +553,7 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
             <div className="text-muted-foreground text-[11px] truncate flex items-center gap-1">
               <GraduationCap className="w-3 h-3 text-[#D89A06]" />
               <span>
-                {profile?.institutions?.abbreviation || 'UPSA'} · {formatAcademicLevel(profile?.year_of_study)}
+                {profile?.institutions?.abbreviation || 'UPSA'} · {formatAcademicLevel(profile?.year_of_study, profile?.degree_programme)}
               </span>
             </div>
           </div>

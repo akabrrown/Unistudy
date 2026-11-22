@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Loader2,
   Search,
@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { updateAcademicProfile } from '@/app/actions/profile';
 import { InstitutionSelect } from '@/app/(auth)/onboarding/components/InstitutionSelect';
 import { cn } from '@/lib/utils';
+import { getProgressionLevelsForProgramme } from '@/lib/constants/upsa';
 
 export interface AcademicSettingsFormProps {
   initialFullName?: string | null;
@@ -60,6 +61,23 @@ export function AcademicSettingsForm({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const [programmes, setProgrammes] = useState<{ id: string; name: string; field?: string; level?: string }[]>([]);
+
+  const progressionLevels = useMemo(() => {
+    return getProgressionLevelsForProgramme(degreeProgramme);
+  }, [degreeProgramme]);
+
+  useEffect(() => {
+    if (progressionLevels.length > 0 && !progressionLevels.some((l) => l.value === yearOfStudy)) {
+      const matching = progressionLevels.find(
+        (l) => l.value === yearOfStudy || l.value === Math.floor(yearOfStudy / 100) || l.value * 100 === yearOfStudy
+      );
+      if (matching) {
+        setYearOfStudy(matching.value);
+      } else {
+        setYearOfStudy(progressionLevels[0].value);
+      }
+    }
+  }, [progressionLevels, yearOfStudy]);
 
   // Username availability state
   const [checkingUsername, setCheckingUsername] = useState(false);
@@ -344,16 +362,15 @@ export function AcademicSettingsForm({
           </label>
           <select
             id="year-of-study"
-            value={yearOfStudy <= 6 ? yearOfStudy * 100 : yearOfStudy}
+            value={yearOfStudy}
             onChange={(e) => setYearOfStudy(Number(e.target.value))}
             className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
           >
-            <option value={100}>Level 100</option>
-            <option value={200}>Level 200</option>
-            <option value={300}>Level 300</option>
-            <option value={400}>Level 400</option>
-            <option value={500}>Level 500</option>
-            <option value={600}>Level 600</option>
+            {progressionLevels.map((lvl) => (
+              <option key={lvl.value} value={lvl.value}>
+                {lvl.label}
+              </option>
+            ))}
           </select>
         </div>
       </div>

@@ -722,6 +722,164 @@ export const UPSA_FACULTIES: UPSAFaculty[] = [
 
 export const ALL_UPSA_PROGRAMMES = UPSA_PROGRAMMES_CATALOG.map((p) => p.name);
 
+export interface AcademicProgressionLevel {
+  value: number;
+  label: string;
+}
+
+/**
+ * Returns dynamic progression levels tailored to the chosen UPSA programme / qualification tier.
+ */
+export function getProgressionLevelsForProgramme(
+  programmeName?: string | null
+): AcademicProgressionLevel[] {
+  if (!programmeName) {
+    return [
+      { value: 100, label: 'Level 100' },
+      { value: 200, label: 'Level 200' },
+      { value: 300, label: 'Level 300' },
+      { value: 400, label: 'Level 400' },
+    ];
+  }
+
+  const pLower = programmeName.toLowerCase().trim();
+
+  // 1. Diploma Programmes (Level 100 – 200)
+  if (pLower.startsWith('diploma') || pLower.includes('diploma in')) {
+    return [
+      { value: 100, label: 'Level 100' },
+      { value: 200, label: 'Level 200' },
+    ];
+  }
+
+  // 2. Post-First Degree 3-Year LLB (Year 1 – 3)
+  if (pLower.includes('post-first degree') || pLower.includes('3-year llb')) {
+    return [
+      { value: 1, label: 'Year 1' },
+      { value: 2, label: 'Year 2' },
+      { value: 3, label: 'Year 3' },
+    ];
+  }
+
+  // 3. 1-Year Master's (MA, MSc, LLM) (Year 1)
+  if (
+    pLower.startsWith('master of arts') ||
+    pLower.startsWith('ma ') ||
+    pLower.startsWith('master of science') ||
+    pLower.startsWith('msc ') ||
+    pLower.startsWith('master of laws') ||
+    pLower.startsWith('llm')
+  ) {
+    return [
+      { value: 1, label: 'Year 1' },
+    ];
+  }
+
+  // 4. 2-Year Master's (MBA, MPhil) (Year 1 – 2)
+  if (
+    pLower.startsWith('master of business administration') ||
+    pLower.startsWith('mba') ||
+    pLower.startsWith('master of philosophy') ||
+    pLower.startsWith('mphil')
+  ) {
+    return [
+      { value: 1, label: 'Year 1' },
+      { value: 2, label: 'Year 2' },
+    ];
+  }
+
+  // 5. Doctoral Programmes (PhD) (Year 1 – 4)
+  if (pLower.startsWith('doctor of philosophy') || pLower.includes('phd')) {
+    return [
+      { value: 1, label: 'Year 1' },
+      { value: 2, label: 'Year 2' },
+      { value: 3, label: 'Year 3' },
+      { value: 4, label: 'Year 4' },
+    ];
+  }
+
+  // 6. Professional Programmes (ICAG, ACCA, CIMA, CIM, CIB, CIHRM, IPMPG)
+  if (pLower.includes('cima') || pLower.includes('management accountant')) {
+    return [
+      { value: 1, label: 'Level 1 (Certificate)' },
+      { value: 2, label: 'Level 2 (Management)' },
+      { value: 3, label: 'Level 3 (Strategic)' },
+      { value: 4, label: 'Level 4 (Professional)' },
+    ];
+  }
+
+  if (
+    pLower.includes('icag') ||
+    pLower.includes('acca') ||
+    pLower.includes('cimg') ||
+    pLower.includes('chartered') ||
+    pLower.includes('cihrm') ||
+    pLower.includes('ipmpg') ||
+    pLower.includes('institute')
+  ) {
+    return [
+      { value: 1, label: 'Level 1 (Part 1)' },
+      { value: 2, label: 'Level 2 (Part 2)' },
+      { value: 3, label: 'Level 3 (Part 3)' },
+    ];
+  }
+
+  // 7. Standard Undergraduate degrees (BSc, BA, BBA, 4-Year LLB) (Level 100 – 400)
+  return [
+    { value: 100, label: 'Level 100' },
+    { value: 200, label: 'Level 200' },
+    { value: 300, label: 'Level 300' },
+    { value: 400, label: 'Level 400' },
+  ];
+}
+
+/**
+ * Smart collegiate academic level formatter conditioned on programme qualification tier
+ */
+export function formatAcademicLevel(
+  year: string | number | null | undefined,
+  programmeName?: string | null
+): string {
+  if (!year && year !== 0) return 'Scholar';
+  const num = typeof year === 'string' ? parseInt(year, 10) : Number(year);
+  if (isNaN(num) || num <= 0) return 'Scholar';
+
+  const pLower = (programmeName || '').toLowerCase().trim();
+
+  // 1. Professional Body Programmes
+  if (
+    pLower.includes('icag') ||
+    pLower.includes('acca') ||
+    pLower.includes('cima') ||
+    pLower.includes('cimg') ||
+    pLower.includes('chartered') ||
+    pLower.includes('cihrm') ||
+    pLower.includes('ipmpg')
+  ) {
+    const partNum = num > 10 ? Math.floor(num / 100) : num;
+    return `Part ${partNum} / Level ${partNum}`;
+  }
+
+  // 2. Postgraduate (PhD, MBA, MPhil, MSc, MA, LLM) or 3-Year LLB
+  if (
+    pLower.includes('doctor') ||
+    pLower.includes('phd') ||
+    pLower.includes('master') ||
+    pLower.includes('mba') ||
+    pLower.includes('mphil') ||
+    pLower.includes('msc') ||
+    pLower.includes('post-first degree') ||
+    pLower.includes('llm')
+  ) {
+    const yearNum = num > 10 ? Math.floor(num / 100) : num;
+    return `Year ${yearNum}`;
+  }
+
+  // 3. Undergraduate & Diploma: Level 100 - 400
+  if (num <= 6) return `Level ${num * 100}`;
+  return `Level ${num}`;
+}
+
 /**
  * Checks whether an email is a verified UPSA institutional email address
  */

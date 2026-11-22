@@ -503,7 +503,7 @@ export default async function DashboardPage() {
 
   const subtitleParts = [
     profile?.degree,
-    profile?.year_of_study ? formatAcademicLevel(profile.year_of_study) : null,
+    profile?.year_of_study ? formatAcademicLevel(profile.year_of_study, profile?.degree) : null,
     profile?.university,
   ].filter(Boolean);
 

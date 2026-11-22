@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 
 export function OnboardingForm() {
   const [step, setStep] = useState(1)
+  const [currentProgramme, setCurrentProgramme] = useState('')
   const formRef = useRef<HTMLFormElement>(null)
   const [academicData, setAcademicData] = useState({
     institution_id: '',
@@ -69,8 +70,8 @@ export function OnboardingForm() {
                   <CardDescription>Select your UPSA Faculty and Degree Major to tailor lecture slides & past papers.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 flex-1 pt-2">
-                  <InstitutionSelect />
-                  <ProgrammeOfStudyInput />
+                  <ProgrammeOfStudyInput onProgrammeChange={(name) => setCurrentProgramme(name)} />
+                  <InstitutionSelect selectedProgramme={currentProgramme} />
                 </CardContent>
                 <CardFooter className="flex justify-between gap-4 pt-3 border-t border-border/50">
                   <Button type="button" onClick={handleNextStep} className="w-full">Next Step</Button>

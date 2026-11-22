@@ -713,7 +713,7 @@ export function ProfileStudioClient({
                       Academic Level
                     </span>
                     <span className="font-mono font-semibold text-foreground">
-                      {formatAcademicLevel(profile.year_of_study)}
+                      {formatAcademicLevel(profile.year_of_study, profile.degree_programme)}
                     </span>
                   </div>
 

@@ -8,8 +8,13 @@ import { GraduationCap, Search, Check, ExternalLink, Filter } from 'lucide-react
 import { UPSA_PROGRAMMES_CATALOG, UPSAStudyLevelTier } from '@/lib/constants/upsa'
 import { Badge } from '@/components/ui/badge'
 
-export function ProgrammeOfStudyInput() {
-  const [search, setSearch] = useState('')
+interface ProgrammeOfStudyInputProps {
+  onProgrammeChange?: (name: string, department?: string) => void
+  initialValue?: string
+}
+
+export function ProgrammeOfStudyInput({ onProgrammeChange, initialValue = '' }: ProgrammeOfStudyInputProps = {}) {
+  const [search, setSearch] = useState(initialValue)
   const [selectedTier, setSelectedTier] = useState<string>('all')
   const [selectedDepartment, setSelectedDepartment] = useState<string>('')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -71,8 +76,10 @@ export function ProgrammeOfStudyInput() {
           className="pl-9 h-10 text-xs bg-background/50 border-primary/20"
           value={search}
           onChange={(e) => {
-            setSearch(e.target.value)
+            const val = e.target.value
+            setSearch(val)
             setIsDropdownOpen(true)
+            onProgrammeChange?.(val, selectedDepartment)
           }}
           onFocus={() => setIsDropdownOpen(true)}
           onBlur={() => {
@@ -97,6 +104,7 @@ export function ProgrammeOfStudyInput() {
                   setSearch(item.name)
                   setSelectedDepartment(item.department)
                   setIsDropdownOpen(false)
+                  onProgrammeChange?.(item.name, item.department)
                 }}
               >
                 <div className="flex flex-col gap-0.5 min-w-0 pr-2">

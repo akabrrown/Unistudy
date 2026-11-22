@@ -45,7 +45,7 @@ export function MobileSidebar({ children, profile }: { children: React.ReactNode
                   Student Portal
                 </span>
                 <span className="text-[11px] text-muted-foreground font-medium">
-                  {profile?.institutions?.abbreviation || 'UPSA'} · {formatAcademicLevel(profile?.year_of_study)}
+                  {profile?.institutions?.abbreviation || 'UPSA'} · {formatAcademicLevel(profile?.year_of_study, profile?.degree_programme)}
                 </span>
               </div>
             </div>

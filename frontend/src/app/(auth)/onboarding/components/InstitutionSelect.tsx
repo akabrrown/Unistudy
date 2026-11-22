@@ -1,31 +1,51 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Building2, ShieldCheck, GraduationCap, CheckCircle2 } from 'lucide-react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { UPSA_INSTITUTION, UPSA_FACULTIES, UPSA_LEVELS } from '@/lib/constants/upsa'
+import { Building2, ShieldCheck, GraduationCap } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
+import { UPSA_INSTITUTION, UPSA_FACULTIES, getProgressionLevelsForProgramme } from '@/lib/constants/upsa'
 
 interface InstitutionSelectProps {
   initialInstitution?: string | null
   initialFaculty?: string | null
   initialLevel?: number | null
   showLevel?: boolean
+  selectedProgramme?: string | null
 }
 
 export function InstitutionSelect({
   initialInstitution,
   initialFaculty,
   initialLevel,
-  showLevel = true
+  showLevel = true,
+  selectedProgramme = null
 }: InstitutionSelectProps = {}) {
   const [selectedFaculty, setSelectedFaculty] = useState<string>(
     initialFaculty || UPSA_FACULTIES[0].code
   )
-  const [selectedLevel, setSelectedLevel] = useState<number>(initialLevel || 100)
+
+  const progressionLevels = useMemo(() => {
+    return getProgressionLevelsForProgramme(selectedProgramme)
+  }, [selectedProgramme])
+
+  const [selectedLevel, setSelectedLevel] = useState<number>(() => {
+    if (initialLevel && progressionLevels.some((l) => l.value === initialLevel)) {
+      return initialLevel
+    }
+    return progressionLevels[0]?.value || 100
+  })
+
+  // Whenever the programme changes, ensure the selected level remains valid for that tier
+  useEffect(() => {
+    if (!progressionLevels.some((l) => l.value === selectedLevel)) {
+      setSelectedLevel(progressionLevels[0]?.value || 100)
+    }
+  }, [progressionLevels, selectedLevel])
 
   const currentFaculty = UPSA_FACULTIES.find((f) => f.code === selectedFaculty) || UPSA_FACULTIES[0]
+  const currentLevelLabel = progressionLevels.find((l) => l.value === selectedLevel)?.label || `Level ${selectedLevel}`
 
   return (
     <div className="space-y-4">
@@ -118,19 +138,24 @@ export function InstitutionSelect({
         <input type="hidden" name="faculty" value={selectedFaculty} />
       </div>
 
-      {/* ── UPSA Level of Study ── */}
+      {/* ── Dynamic UPSA Level / Progression System ── */}
       {showLevel && (
         <div className="space-y-1.5">
-          <Label htmlFor="level_select" className="text-xs font-semibold">
-            Level of Study
-          </Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="level_select" className="text-xs font-semibold">
+              Academic Progression Level
+            </Label>
+            <span className="text-[10px] font-mono text-muted-foreground">
+              {progressionLevels.length} Stages for this tier
+            </span>
+          </div>
           <Select
             value={String(selectedLevel)}
-            onValueChange={(val) => setSelectedLevel(Number(val) || 100)}
+            onValueChange={(val) => setSelectedLevel(Number(val) || progressionLevels[0]?.value || 100)}
           >
             <SelectTrigger id="level_select" className="w-full h-11 text-xs bg-background/60 hover:bg-background border-primary/20 px-3.5">
               <span className="font-semibold text-foreground text-xs">
-                Level {selectedLevel}
+                {currentLevelLabel}
               </span>
             </SelectTrigger>
             <SelectContent
@@ -138,9 +163,9 @@ export function InstitutionSelect({
               side="bottom"
               sideOffset={6}
               align="start"
-              className="w-[var(--anchor-width)] min-w-[220px] p-1.5 rounded-xl border border-primary/20 shadow-xl bg-popover/98 backdrop-blur-md z-50"
+              className="w-[var(--anchor-width)] min-w-[240px] p-1.5 rounded-xl border border-primary/20 shadow-xl bg-popover/98 backdrop-blur-md z-50"
             >
-              {UPSA_LEVELS.map((lvl) => (
+              {progressionLevels.map((lvl) => (
                 <SelectItem
                   key={lvl.value}
                   value={String(lvl.value)}

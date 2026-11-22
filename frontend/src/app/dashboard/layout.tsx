@@ -12,7 +12,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const supabase = await createClient()
   const { data: rawProfile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, role, avatar_url, full_name, username, plan, faculty, year_of_study, institutions(abbreviation, name)')
+    .select('id, role, avatar_url, full_name, username, plan, faculty, degree_programme, year_of_study, institutions(abbreviation, name)')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -38,6 +38,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     username: rawProfile?.username || userDisplayName,
     subscription_tier: rawProfile?.plan || 'free',
     faculty: rawProfile?.faculty || null,
+    degree_programme: rawProfile?.degree_programme || null,
     year_of_study: rawProfile?.year_of_study || null,
     institutions: resolvedInstitutions,
   }
