@@ -51,7 +51,17 @@ export default async function PastPapersPage(props: { params: Promise<{ courseId
       });
       if (klokRes.ok) {
         const kData = await klokRes.json();
-        const items = kData.items || (Array.isArray(kData) ? kData : []);
+        const rawItems = kData.items || (Array.isArray(kData) ? kData : []);
+        // Strictly filter items so only papers matching this course's exact code are included
+        const items = rawItems.filter((item: any) => {
+          if (!normalizedCode) return true;
+          const rawName = (item.name || item.filename || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+          const idx = rawName.indexOf(normalizedCode);
+          if (idx === -1) return false;
+          const nextChar = rawName[idx + normalizedCode.length];
+          return !nextChar || !/[0-9]/.test(nextChar);
+        });
+
         klokPapers = items.map((item: any) => ({
           id: item.id,
           course_id: params.courseId,

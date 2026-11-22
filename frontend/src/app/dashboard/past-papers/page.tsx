@@ -24,6 +24,8 @@ import {
   DownloadCloud,
   Loader2,
   Target,
+  FolderInput,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +36,7 @@ import { resolveCourseColor } from '@/lib/constants/courses';
 import { UploadModal } from '@/components/past-papers/UploadModal';
 import { MoodleSyncModal } from '@/components/past-papers/MoodleSyncModal';
 import { ExamFocusDialog } from '@/components/exam-focus/ExamFocusDialog';
+import { MovePaperDialog } from '@/components/past-papers/MovePaperDialog';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -52,6 +55,7 @@ interface PastPaperCourseJoin {
   course_code?: string | null;
   title?: string | null;
   colour?: string | null;
+  isCentral?: boolean;
 }
 
 interface PastPaperRecord {
@@ -98,10 +102,13 @@ function resolveExamLabel(examType: string | null | undefined): string {
 
 export function matchesCourse(paper: PastPaperRecord, course: CourseItem): boolean {
   if (paper.course_id && paper.course_id === course.id) return true;
+  const cId = Array.isArray(paper.courses) ? paper.courses[0]?.id : paper.courses?.id;
+  const isCentral = Array.isArray(paper.courses) ? false : Boolean((paper.courses as any)?.isCentral);
+  if (cId && !isCentral && cId === course.id) return true;
   const pCode = (paper.normalized_course_code || paper.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const cCode = (course.course_code || course.title || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const cCode = (course.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (!pCode || !cCode) return false;
-  return pCode === cCode || pCode.includes(cCode) || cCode.includes(pCode);
+  return pCode === cCode;
 }
 
 function getCourseJoin(paper: PastPaperRecord): PastPaperCourseJoin | null {
@@ -129,6 +136,9 @@ export default function PastPapersDashboard() {
   const [isExamFocusOpen, setIsExamFocusOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [globalPapers, setGlobalPapers] = useState<PastPaperRecord[]>([]);
+  const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
+  const [paperToMove, setPaperToMove] = useState<PastPaperRecord | null>(null);
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string | null>(null);
   const [examTypeFilter, setExamTypeFilter] = useState<ExamTypeFilter>('all');
   const [yearFilter, setYearFilter] = useState<string>('all');
@@ -209,13 +219,13 @@ export default function PastPapersDashboard() {
       const cId = Array.isArray(p.courses) ? p.courses[0]?.id : p.courses?.id;
       if (cId && userCourseIdSet.has(cId)) return true;
 
-      // 2. Strict match by course code (normalized course code must match user's course code)
+      // 2. Strict match by course code (exact normalized code match)
       const pCode = (p.normalized_course_code || p.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (pCode && userCourseCodes.some((cCode) => pCode === cCode || pCode.startsWith(cCode) || cCode.startsWith(pCode))) return true;
+      if (pCode && userCourseCodes.some((cCode) => pCode === cCode)) return true;
 
-      // 3. Match by paper title containing user's exact course code
-      const pTitle = (p.title || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (pTitle && userCourseCodes.some((cCode) => pTitle.includes(cCode))) return true;
+      // 3. Central bank papers with no assigned course (available in global repository)
+      const isCentral = Array.isArray(p.courses) ? false : Boolean((p.courses as any)?.isCentral);
+      if (isCentral || !p.course_id) return true;
 
       return false;
     });
@@ -291,6 +301,35 @@ export default function PastPapersDashboard() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Global search effect: queries the university past questions repository for any matching papers
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setGlobalPapers([]);
+      setIsSearchingGlobal(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingGlobal(true);
+      try {
+        const res = await fetch(`/api/v1/past-questions?q=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setGlobalPapers(data);
+          }
+        }
+      } catch (err) {
+        console.warn('[Global search error]', err);
+      } finally {
+        setIsSearchingGlobal(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleOpenUpload = (courseId?: string) => {
     setPreselectedCourseId(courseId || null);
@@ -385,17 +424,34 @@ export default function PastPapersDashboard() {
     return map;
   }, [courses]);
 
+  // Merge enrolled course papers with any global repository papers found via global search
+  const allCandidatePapers = useMemo(() => {
+    if (!searchQuery.trim() || globalPapers.length === 0) {
+      return papers;
+    }
+    const map = new Map<string, PastPaperRecord>();
+    for (const p of papers) {
+      map.set(p.id, p);
+    }
+    for (const gp of globalPapers) {
+      if (!map.has(gp.id)) {
+        map.set(gp.id, gp);
+      }
+    }
+    return Array.from(map.values());
+  }, [papers, globalPapers, searchQuery]);
+
   const yearOptions = useMemo(() => {
     const years = new Set<string>();
-    papers.forEach((p) => {
+    allCandidatePapers.forEach((p) => {
       if (p.year) years.add(String(p.year));
     });
     return Array.from(years).sort((a, b) => Number(b) - Number(a));
-  }, [papers]);
+  }, [allCandidatePapers]);
 
   const readyCount = useMemo(
-    () => papers.filter((p) => p.status === 'ready').length,
-    [papers]
+    () => allCandidatePapers.filter((p) => p.status === 'ready').length,
+    [allCandidatePapers]
   );
 
   const scoredAttempts = useMemo(
@@ -411,7 +467,7 @@ export default function PastPapersDashboard() {
 
   const filteredPapers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return papers.filter((p) => {
+    return allCandidatePapers.filter((p) => {
       if (selectedCourseFilter) {
         const selCourse = courseById.get(selectedCourseFilter);
         if (selCourse && !matchesCourse(p, selCourse)) {
@@ -433,7 +489,7 @@ export default function PastPapersDashboard() {
 
       if (!q) return true;
       const joined = getCourseJoin(p);
-      const code = (joined?.course_code || '').toLowerCase();
+      const code = (joined?.course_code || p.course_code || '').toLowerCase();
       const courseTitle = (joined?.title || '').toLowerCase();
       const paperTitle = (p.title || '').toLowerCase();
       const yearStr = p.year ? String(p.year) : '';
@@ -445,13 +501,14 @@ export default function PastPapersDashboard() {
       );
     });
   }, [
-    papers,
+    allCandidatePapers,
     selectedCourseFilter,
     examTypeFilter,
     yearFilter,
     statusFilter,
     searchQuery,
     attemptsByPaper,
+    courseById,
   ]);
 
   const hasActiveFilters =
@@ -603,13 +660,27 @@ export default function PastPapersDashboard() {
           {/* Search & Filter Row */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
             <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              {isSearchingGlobal ? (
+                <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-primary animate-spin" />
+              ) : (
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              )}
               <Input
-                placeholder="Search paper title, course code, or year..."
+                placeholder="Global search: paper title, course code (e.g. BCPC 207, BSIT 309), year..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 h-8 text-xs bg-background"
+                className="pl-8 pr-7 h-8 text-xs bg-background"
               />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear search"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  ✕
+                </button>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -842,12 +913,17 @@ export default function PastPapersDashboard() {
                                 {paper.year}
                               </span>
                             ) : null}
+                            {courseMeta?.isCentral ? (
+                              <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-[#D89A06]/15 text-[#D89A06] border border-[#D89A06]/30">
+                                Central Bank
+                              </span>
+                            ) : null}
                           </div>
 
                           <h3 className="mt-1.5 text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
                             {paper.title || courseMeta?.title || 'Past Examination Paper'}
                           </h3>
-                          {courseMeta?.title && paper.title && paper.title !== courseMeta.title ? (
+                          {courseMeta?.title && paper.title && paper.title !== courseMeta.title && !courseMeta.isCentral ? (
                             <p className="text-xs text-muted-foreground truncate mt-0.5">
                               {courseMeta.title}
                             </p>
@@ -952,6 +1028,22 @@ export default function PastPapersDashboard() {
                           View Exam
                         </a>
                       ) : null}
+
+                      {/* Course Reassignment Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setPaperToMove(paper);
+                        }}
+                        title="Move paper to the course it belongs under"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-background hover:bg-muted px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors cursor-pointer"
+                      >
+                        <FolderInput className="w-3.5 h-3.5 text-primary" />
+                        <span>Move Course</span>
+                      </button>
+
                       {attInfo ? (
                         <Link
                           href={`/dashboard/past-papers/results/${attInfo.latestAttemptId}`}
@@ -1149,6 +1241,18 @@ export default function PastPapersDashboard() {
         courses={courses}
         initialCourseId={selectedCourseFilter || courses[0]?.id}
         defaultTab="questions"
+      />
+
+      {/* Course Reassignment Modal */}
+      <MovePaperDialog
+        isOpen={Boolean(paperToMove)}
+        onClose={() => setPaperToMove(null)}
+        paper={paperToMove}
+        courses={courses}
+        onSuccess={() => {
+          setPaperToMove(null);
+          void loadData();
+        }}
       />
     </div>
   );

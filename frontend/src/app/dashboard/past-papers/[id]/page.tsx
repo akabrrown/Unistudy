@@ -23,6 +23,7 @@ import {
   EyeOff,
   RefreshCw,
   BookOpen,
+  FolderInput,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { apiFetch } from '@/lib/api/client'
@@ -30,6 +31,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { MovePaperDialog } from '@/components/past-papers/MovePaperDialog'
 
 const OPTION_LETTER_STYLES: Record<string, string> = {
   A: 'bg-muted/60 text-muted-foreground border border-border/60',
@@ -66,6 +68,8 @@ export default function PastPaperDetails() {
   const router = useRouter()
   const [paper, setPaper] = useState<any>(null)
   const [questions, setQuestions] = useState<any[]>([])
+  const [courses, setCourses] = useState<any[]>([])
+  const [isMoveOpen, setIsMoveOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [isExtracting, setIsExtracting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -113,6 +117,13 @@ export default function PastPaperDetails() {
       setLoading(true);
       let foundQuestions: any[] = [];
       
+      try {
+        const { data: cData } = await supabase
+          .from('courses')
+          .select('id, course_code, title, colour');
+        if (cData) setCourses(cData);
+      } catch (_) {}
+
       try {
         const res = await fetch(`/api/v1/past-questions/${params.id}`, { cache: 'no-store' });
         if (res.ok) {
@@ -374,6 +385,17 @@ export default function PastPaperDetails() {
           >
             <RefreshCw className={`w-3.5 h-3.5 text-[#00004E] dark:text-[#D89A06] ${isExtracting ? 'animate-spin' : ''}`} />
             {isExtracting ? 'Extracting...' : 'Re-extract AI'}
+          </Button>
+
+          <Button
+            onClick={() => setIsMoveOpen(true)}
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1.5 cursor-pointer font-medium border-border hover:border-primary/50"
+            title="Move paper to the course it belongs under"
+          >
+            <FolderInput className="w-3.5 h-3.5 text-[#00004E] dark:text-[#D89A06]" />
+            Move Course
           </Button>
 
           <a href={effectiveDownloadUrl} target="_blank" rel="noopener noreferrer" download>
@@ -796,6 +818,23 @@ export default function PastPaperDetails() {
           </Card>
         </div>
       </div>
+
+      <MovePaperDialog
+        isOpen={isMoveOpen}
+        onClose={() => setIsMoveOpen(false)}
+        paper={paper}
+        courses={courses}
+        onSuccess={(newCourseId, updatedPaper) => {
+          setIsMoveOpen(false);
+          if (updatedPaper) {
+            setPaper((prev: any) => ({
+              ...prev,
+              ...updatedPaper,
+              courses: updatedPaper.courses || prev?.courses,
+            }));
+          }
+        }}
+      />
     </div>
   )
 }
