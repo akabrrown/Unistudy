@@ -37,7 +37,16 @@ import {
   SlidersHorizontal,
   ChevronDown,
   HelpCircle,
+  Cloud,
+  CheckCircle,
 } from 'lucide-react';
+import {
+  requestPersistentStorage,
+  saveSessionsToIndexedDB,
+  loadSessionsFromIndexedDB,
+  pushSessionsToCloud,
+  pullSessionsFromCloud,
+} from '@/lib/chatStorage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -255,52 +264,128 @@ export default function GeneralAiChatPage() {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<ModelId>('auto');
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'saving' | 'offline'>('synced');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load all sessions from localStorage on mount
+  // Load and hydrate sessions across 3 tiers: LocalStorage -> IndexedDB -> Cloud Sync
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
-      const activeId = localStorage.getItem(ACTIVE_SESSION_ID_KEY);
-      if (stored) {
-        const parsed: ConversationSession[] = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setSessions(parsed);
-          const matched = activeId && parsed.some((s) => s.id === activeId);
-          setActiveSessionId(matched ? activeId : parsed[0].id);
-          const activeSess = parsed.find((s) => s.id === (matched ? activeId : parsed[0].id));
-          if (activeSess?.selectedModel) {
-            setSelectedModel((activeSess.selectedModel as ModelId) || 'auto');
+    let isMounted = true;
+
+    // 1. Request persistent browser storage immunity
+    void requestPersistentStorage();
+
+    const hydrateHistory = async () => {
+      let initialSessions: ConversationSession[] = [];
+      let initialActiveId: string | null = null;
+
+      // Tier 1: Instant local storage read for 0ms visual paint
+      try {
+        const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
+        const activeId = localStorage.getItem(ACTIVE_SESSION_ID_KEY);
+        if (stored) {
+          const parsed: ConversationSession[] = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            initialSessions = parsed;
+            initialActiveId = activeId;
           }
-          return;
         }
+      } catch (_) {}
+
+      // Tier 2: Check IndexedDB (immune to 5MB localStorage quota limit)
+      try {
+        const idbRecord = await loadSessionsFromIndexedDB();
+        if (idbRecord && Array.isArray(idbRecord.sessions) && idbRecord.sessions.length > 0) {
+          if (idbRecord.sessions.length >= initialSessions.length) {
+            initialSessions = idbRecord.sessions;
+            if (idbRecord.activeSessionId) initialActiveId = idbRecord.activeSessionId;
+          }
+        }
+      } catch (err) {
+        console.warn('[ChatPage] IndexedDB hydration notice:', err);
       }
-      // If no stored sessions, initialize with a fresh session
-      const fresh = createNewSession();
-      setSessions([fresh]);
-      setActiveSessionId(fresh.id);
-    } catch (e) {
-      console.warn('Failed to load chat sessions from localStorage', e);
-      const fresh = createNewSession();
-      setSessions([fresh]);
-      setActiveSessionId(fresh.id);
-    }
+
+      if (isMounted && initialSessions.length > 0) {
+        setSessions(initialSessions);
+        const matched = initialActiveId && initialSessions.some((s) => s.id === initialActiveId);
+        setActiveSessionId(matched ? initialActiveId : initialSessions[0].id);
+        const activeSess = initialSessions.find((s) => s.id === (matched ? initialActiveId : initialSessions[0].id));
+        if (activeSess?.selectedModel) {
+          setSelectedModel((activeSess.selectedModel as ModelId) || 'auto');
+        }
+      } else if (isMounted && initialSessions.length === 0) {
+        const fresh = createNewSession();
+        setSessions([fresh]);
+        setActiveSessionId(fresh.id);
+      }
+
+      // Tier 3: Reconcile with Cloud Storage (restores conversations across any device or after browser cache clear)
+      try {
+        const cloudRecord = await pullSessionsFromCloud();
+        if (isMounted && cloudRecord && Array.isArray(cloudRecord.sessions) && cloudRecord.sessions.length > 0) {
+          setSessions((currentSessions) => {
+            const sessionMap = new Map<string, ConversationSession>();
+            cloudRecord.sessions.forEach((s) => sessionMap.set(s.id, s));
+            currentSessions.forEach((s) => {
+              const existing = sessionMap.get(s.id);
+              if (!existing || new Date(s.updatedAt || 0).getTime() > new Date(existing.updatedAt || 0).getTime()) {
+                sessionMap.set(s.id, s);
+              }
+            });
+            const merged = Array.from(sessionMap.values()).sort(
+              (a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+            );
+            return merged;
+          });
+          setSyncStatus('synced');
+        }
+      } catch (cloudErr) {
+        console.warn('[ChatPage] Cloud sync hydration notice:', cloudErr);
+      }
+    };
+
+    void hydrateHistory();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  // Sync sessions to localStorage
+  // Robust Multi-Tier Persistence: LocalStorage + IndexedDB + Debounced Cloud Sync
   useEffect(() => {
+    if (sessions.length === 0) return;
+
+    // 1. Fast LocalStorage mirror (guarded against quota errors)
     try {
-      if (sessions.length > 0) {
-        localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
-      }
+      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
       if (activeSessionId) {
         localStorage.setItem(ACTIVE_SESSION_ID_KEY, activeSessionId);
       }
     } catch (e) {
-      console.warn('Failed to persist chat sessions', e);
+      console.warn('LocalStorage quota limit reached, relying on IndexedDB and Cloud Storage', e);
     }
+
+    // 2. Persistent IndexedDB Write (unlimited multi-MB capacity)
+    void saveSessionsToIndexedDB(sessions, activeSessionId);
+
+    // 3. Debounced Cloud Backup to Supabase Storage
+    setSyncStatus('saving');
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+    }
+
+    syncTimeoutRef.current = setTimeout(async () => {
+      const ok = await pushSessionsToCloud(sessions, activeSessionId);
+      setSyncStatus(ok ? 'synced' : 'offline');
+    }, 1500);
+
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
   }, [sessions, activeSessionId]);
 
   // Current active session
@@ -884,6 +969,13 @@ export default function GeneralAiChatPage() {
               </h2>
               <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-[#FEF8E7] text-[#00004E] dark:bg-white/10 dark:text-[#D89A06]">
                 {sessions.length}
+              </span>
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground ml-1"
+                title={syncStatus === 'synced' ? 'Permanently backed up to cloud & IndexedDB' : 'Saving conversations...'}
+              >
+                <Cloud className={cn("h-3 w-3", syncStatus === 'synced' ? "text-emerald-500" : "text-[#D89A06] animate-pulse")} />
+                <span className="hidden sm:inline text-[9px]">{syncStatus === 'synced' ? 'Saved' : 'Saving...'}</span>
               </span>
             </div>
             <Button

@@ -486,7 +486,9 @@ export default function LectureViewer() {
     const newMessages = [...chatMessages, userMsg];
     
     setChatMessages(newMessages);
-    localStorage.setItem(`slideChat_${slideId}`, JSON.stringify(newMessages));
+    try {
+      localStorage.setItem(`slideChat_${slideId}`, JSON.stringify(newMessages));
+    } catch (_) {}
     setChatInput('');
     setIsChatLoading(true);
 
@@ -596,7 +598,9 @@ export default function LectureViewer() {
       if (replyContent) {
         setChatMessages(prev => {
           const updated: { role: 'user' | 'assistant' | 'system'; content: string }[] = [...prev, { role: 'assistant', content: replyContent }];
-          localStorage.setItem(`slideChat_${slideId}`, JSON.stringify(updated));
+          try {
+            localStorage.setItem(`slideChat_${slideId}`, JSON.stringify(updated));
+          } catch (_) {}
           return updated;
         });
       } else {
