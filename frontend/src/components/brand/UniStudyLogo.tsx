@@ -42,42 +42,9 @@ export const UniStudyLogo: React.FC<UniStudyLogoProps> = ({
 }) => {
   const numericHeight = typeof height === 'number' ? height : HEIGHT_MAP[height] || 36;
 
-  // Render 3D realistic collegiate crest emblem
-  if (variant === 'emblem' || variant === 'realistic') {
-    if (themeMode === 'auto') {
-      return (
-        <span className={`inline-flex items-center shrink-0 ${className}`}>
-          <img
-            src="/brand/crest-transparent.png"
-            alt={alt}
-            style={{ height: `${numericHeight}px`, width: 'auto' }}
-            className="dark:hidden object-contain select-none drop-shadow-xs"
-          />
-          <img
-            src="/brand/crest-transparent.png"
-            alt={alt}
-            style={{ height: `${numericHeight}px`, width: 'auto' }}
-            className="hidden dark:block object-contain select-none drop-shadow-[0_2px_8px_rgba(216,154,6,0.35)]"
-          />
-        </span>
-      );
-    }
-    const emblemSrc = themeMode === 'dark' ? '/brand/crest-dark.jpg' : '/brand/crest-transparent.png';
-    return (
-      <span className={`inline-flex items-center shrink-0 ${className}`}>
-        <img
-          src={emblemSrc}
-          alt={alt}
-          style={{ height: `${numericHeight}px`, width: 'auto' }}
-          className="object-contain select-none rounded-lg"
-        />
-      </span>
-    );
-  }
-
   // Render responsive auto-switching vector image if themeMode is 'auto'
   if (themeMode === 'auto') {
-    if (variant === 'icon') {
+    if (variant === 'icon' || variant === 'emblem' || variant === 'realistic') {
       return (
         <span className={`inline-flex items-center shrink-0 ${className}`}>
           {/* Light Mode Icon */}
@@ -157,7 +124,7 @@ export const UniStudyLogo: React.FC<UniStudyLogoProps> = ({
 
   // Explicit Theme Mode (light or dark)
   let src = '/brand/logo-primary.svg';
-  if (variant === 'icon') {
+  if (variant === 'icon' || variant === 'emblem' || variant === 'realistic') {
     src = themeMode === 'dark' ? '/brand/logo-icon-reversed.svg' : '/brand/logo-icon.svg';
   } else if (variant === 'stacked') {
     src = themeMode === 'dark' ? '/brand/logo-stacked-reversed.svg' : '/brand/logo-stacked.svg';

@@ -1,32 +1,81 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
-  <rect width="64" height="64" rx="14" fill="#00004E" />
-  <rect x="1.5" y="1.5" width="61" height="61" rx="12.5" stroke="#D89A06" stroke-width="2" stroke-opacity="0.4" fill="none" />
-  <g transform="translate(10.65, 8) scale(0.293)">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%" fill="none">
     
-    <!-- Graduation Cap / Mortarboard Apex -->
-    <g id="mortarboard">
-      <polygon points="72,1 142,33 72,65 2,33" fill="#D89A06" />
-      <polygon points="72,1 142,33 72,65 72,1" fill="#F5B82E" opacity="0.3" />
-      <path d="M 32,45 Q 72,69 114,45 L 114,57 Q 72,81 32,57 Z" fill="#B88204" />
-      <ellipse cx="72" cy="33" rx="4.5" ry="3.5" fill="#FFFFFF" />
-      <path d="M 72,33 Q 112,33 140,43 L 144,73" stroke="#B88204" stroke-width="3" stroke-linecap="round" fill="none" />
-      <polygon points="140,71 148,71 146,85 142,85" fill="#B88204" />
+    <g transform="translate(8, 8) scale(1.12)">
+      
+    <!-- Defs for Gradients & Shadow -->
+    <defs>
+      <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#F9CF6E" />
+        <stop offset="45%" stop-color="#D89A06" />
+        <stop offset="100%" stop-color="#A87403" />
+      </linearGradient>
+      <linearGradient id="navyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#00005C" />
+        <stop offset="100%" stop-color="#000038" />
+      </linearGradient>
+      <filter id="softGlow" x="-10%" y="-10%" width="120%" height="120%">
+        <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#D89A06" flood-opacity="0.3" />
+      </filter>
+    </defs>
+
+    <!-- 1. Classical Laurel Branches (Subtle collegiate frame) -->
+    <g id="laurel-wreath" opacity="0.95">
+      <!-- Left Laurel Leaves -->
+      <path d="M 15,38 C 11,46 12,56 16,63 C 14,58 13,50 16,42 Z" fill="#966903" />
+      <path d="M 12,50 C 7,56 9,65 14,71 C 11,66 11,58 15,53 Z" fill="url(#goldGrad)" />
+      <path d="M 13,64 C 9,72 13,80 20,84 C 16,81 15,73 17,67 Z" fill="#FBD880" />
+      <path d="M 20,77 C 18,84 25,91 32,93 C 27,90 25,84 25,79 Z" fill="url(#goldGrad)" />
+
+      <!-- Right Laurel Leaves -->
+      <path d="M 85,38 C 89,46 88,56 84,63 C 86,58 87,50 84,42 Z" fill="#966903" />
+      <path d="M 88,50 C 93,56 91,65 86,71 C 89,66 89,58 85,53 Z" fill="url(#goldGrad)" />
+      <path d="M 87,64 C 91,72 87,80 80,84 C 84,81 85,73 83,67 Z" fill="#FBD880" />
+      <path d="M 80,77 C 82,84 75,91 68,93 C 73,90 75,84 75,79 Z" fill="url(#goldGrad)" />
     </g>
 
-    <!-- Monumental 'U' Columns -->
-    <g id="u-monolith">
-      <path d="M 16,67 L 44,79 L 44,113 C 44,129 56,139 72,139 L 72,163 C 38,163 16,143 16,111 Z" fill="#FFFFFF" />
-      <path d="M 128,67 L 100,79 L 100,113 C 100,129 88,139 72,139 L 72,163 C 106,163 128,143 128,111 Z" fill="#FFFFFF" />
-      <polygon points="16,67 44,79 44,73 16,61" fill="#F5B82E" opacity="0.45" />
-      <polygon points="128,67 100,79 100,73 128,61" fill="#D89A06" opacity="0.45" />
+    <!-- 2. Monumental 'U' Pillars & Open Book Colonnade -->
+    <g id="colonnade-pillars">
+      <!-- Left Monumental Column -->
+      <path d="M 23,38 L 39,46 L 39,68 C 39,78 43,84 50,85 L 50,94 C 33,93 23,83 23,67 Z" fill="url(#navyGrad)" />
+      <!-- Left Column Cap Bevel -->
+      <polygon points="23,38 39,46 39,41 23,33" fill="#FBD880" opacity="0.8" />
+
+      <!-- Right Monumental Column -->
+      <path d="M 77,38 L 61,46 L 61,68 C 61,78 57,84 50,85 L 50,94 C 67,93 77,83 77,67 Z" fill="url(#navyGrad)" />
+      <!-- Right Column Cap Bevel -->
+      <polygon points="77,38 61,46 61,41 77,33" fill="#966903" opacity="0.8" />
+
+      <!-- Open Book Foundation Spine & Curved Pages -->
+      <path d="M 27,74 Q 38,79 50,82 L 50,89 Q 38,85 27,80 Z" fill="url(#goldGrad)" />
+      <path d="M 73,74 Q 62,79 50,82 L 50,89 Q 62,85 73,80 Z" fill="#FBD880" />
     </g>
 
-    <!-- Central Beacon -->
-    <g id="academic-beacon">
-      <polygon points="72,79 58,101 72,123 72,79" fill="#D89A06" />
-      <polygon points="72,79 86,101 72,123 72,79" fill="#F5B82E" />
-      <circle cx="72" cy="101" r="2.5" fill="#00004E" />
+    <!-- 3. Mortarboard Cap (Collegiate Apex Diamond) -->
+    <g id="mortarboard-apex" filter="url(#softGlow)">
+      <!-- Main Isometric Diamond -->
+      <polygon points="50,4 94,22 50,40 6,22" fill="url(#goldGrad)" />
+      <!-- Top Facet Light Highlight -->
+      <polygon points="50,4 94,22 50,22 6,22" fill="#FBD880" opacity="0.35" />
+      <!-- Right Facet Bevel -->
+      <polygon points="50,40 94,22 88,27 50,43" fill="#966903" opacity="0.6" />
+
+      <!-- Skullcap Underband -->
+      <path d="M 28,29 Q 50,43 72,29 L 72,36 Q 50,50 28,36 Z" fill="#966903" />
+
+      <!-- Mortarboard Button -->
+      <ellipse cx="50" cy="22" rx="4" ry="2.8" fill="url(#navyGrad)" />
+
+      <!-- Draped Silk Tassel -->
+      <path d="M 50,22 Q 78,24 88,32 L 89,52" stroke="#966903" stroke-width="2.5" stroke-linecap="round" fill="none" />
+      <polygon points="86,51 92,51 90,62 88,62" fill="url(#goldGrad)" />
+    </g>
+
+    <!-- 4. Central Academic Beacon (Diamond Spark of Truth & Knowledge) -->
+    <g id="beacon-flame">
+      <polygon points="50,44 43,56 50,68 57,56" fill="url(#goldGrad)" />
+      <polygon points="50,44 57,56 50,68 50,44" fill="#FBD880" />
+      <circle cx="50" cy="56" r="2.2" fill="#FFFFFF" />
     </g>
   
-  </g>
-</svg>
+    </g>
+  </svg>
