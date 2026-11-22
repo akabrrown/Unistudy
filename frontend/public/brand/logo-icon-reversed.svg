@@ -1,28 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 146 164" width="100%" height="100%" fill="none">
-  
-    <!-- Graduation Cap / Mortarboard Apex -->
-    <g id="mortarboard">
-      <polygon points="72,1 142,33 72,65 2,33" fill="#D89A06" />
-      <polygon points="72,1 142,33 72,65 72,1" fill="#F5B82E" opacity="0.3" />
-      <path d="M 32,45 Q 72,69 114,45 L 114,57 Q 72,81 32,57 Z" fill="#B88204" />
-      <ellipse cx="72" cy="33" rx="4.5" ry="3.5" fill="#FFFFFF" />
-      <path d="M 72,33 Q 112,33 140,43 L 144,73" stroke="#B88204" stroke-width="3" stroke-linecap="round" fill="none" />
-      <polygon points="140,71 148,71 146,85 142,85" fill="#B88204" />
-    </g>
-
-    <!-- Monumental 'U' Columns -->
-    <g id="u-monolith">
-      <path d="M 16,67 L 44,79 L 44,113 C 44,129 56,139 72,139 L 72,163 C 38,163 16,143 16,111 Z" fill="#FFFFFF" />
-      <path d="M 128,67 L 100,79 L 100,113 C 100,129 88,139 72,139 L 72,163 C 106,163 128,143 128,111 Z" fill="#FFFFFF" />
-      <polygon points="16,67 44,79 44,73 16,61" fill="#F5B82E" opacity="0.45" />
-      <polygon points="128,67 100,79 100,73 128,61" fill="#D89A06" opacity="0.45" />
-    </g>
-
-    <!-- Central Beacon -->
-    <g id="academic-beacon">
-      <polygon points="72,79 58,101 72,123 72,79" fill="#D89A06" />
-      <polygon points="72,79 86,101 72,123 72,79" fill="#F5B82E" />
-      <circle cx="72" cy="101" r="2.5" fill="#00004E" />
-    </g>
-  
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%" fill="none">
+  <defs>
+    <filter id="icon-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#D89A06" flood-opacity="0.25" />
+    </filter>
+  </defs>
+  <rect x="0" y="0" width="128" height="128" rx="28" fill="#00004E" />
+  <rect x="0.5" y="0.5" width="127" height="127" rx="27.5" stroke="#D89A06" stroke-opacity="0.4" stroke-width="1" />
+  <image href="/brand/crest-transparent.png" x="8" y="8" width="112" height="112" preserveAspectRatio="xMidYMid meet" filter="url(#icon-glow)" />
 </svg>

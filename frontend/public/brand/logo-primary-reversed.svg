@@ -1,51 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 242 48" width="100%" height="100%" fill="none">
-  <!-- Scaled Icon: height 46px, width 41px -->
-  <g transform="translate(0, 1) scale(0.28)">
-    
-    <!-- Graduation Cap / Mortarboard Apex -->
-    <g id="mortarboard">
-      <polygon points="72,1 142,33 72,65 2,33" fill="#D89A06" />
-      <polygon points="72,1 142,33 72,65 72,1" fill="#F5B82E" opacity="0.3" />
-      <path d="M 32,45 Q 72,69 114,45 L 114,57 Q 72,81 32,57 Z" fill="#B88204" />
-      <ellipse cx="72" cy="33" rx="4.5" ry="3.5" fill="#FFFFFF" />
-      <path d="M 72,33 Q 112,33 140,43 L 144,73" stroke="#B88204" stroke-width="3" stroke-linecap="round" fill="none" />
-      <polygon points="140,71 148,71 146,85 142,85" fill="#B88204" />
-    </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 252 48" width="100%" height="100%" fill="none">
+  <defs>
+    <linearGradient id="gold-badge-rev" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5B82E" />
+      <stop offset="50%" stop-color="#D89A06" />
+      <stop offset="100%" stop-color="#B88204" />
+    </linearGradient>
+    <filter id="badge-shadow-rev" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+  </defs>
 
-    <!-- Monumental 'U' Columns -->
-    <g id="u-monolith">
-      <path d="M 16,67 L 44,79 L 44,113 C 44,129 56,139 72,139 L 72,163 C 38,163 16,143 16,111 Z" fill="#FFFFFF" />
-      <path d="M 128,67 L 100,79 L 100,113 C 100,129 88,139 72,139 L 72,163 C 106,163 128,143 128,111 Z" fill="#FFFFFF" />
-      <polygon points="16,67 44,79 44,73 16,61" fill="#F5B82E" opacity="0.45" />
-      <polygon points="128,67 100,79 100,73 128,61" fill="#D89A06" opacity="0.45" />
-    </g>
-
-    <!-- Central Beacon -->
-    <g id="academic-beacon">
-      <polygon points="72,79 58,101 72,123 72,79" fill="#D89A06" />
-      <polygon points="72,79 86,101 72,123 72,79" fill="#F5B82E" />
-      <circle cx="72" cy="101" r="2.5" fill="#00004E" />
-    </g>
-  
+  <!-- High-Res Realistic 3D Collegiate Emblem -->
+  <g transform="translate(0, 1)">
+    <image href="/brand/crest-transparent.png" x="0" y="0" width="46" height="46" preserveAspectRatio="xMidYMid meet" />
   </g>
 
   <!-- Typography Lockup -->
-  <g transform="translate(50, 0)">
-    <!-- UniStudy -->
+  <g transform="translate(54, 0)">
+    <!-- UniStudy (White on dark) -->
     <text x="0" y="28" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="28" font-weight="900" letter-spacing="-0.8" fill="#FFFFFF">
       Uni<tspan font-weight="700">Study</tspan>
     </text>
 
     <!-- AI Pill Badge -->
-    <g transform="translate(133, 7)">
-      <rect x="0" y="0" width="38" height="24" rx="6" fill="#D89A06" />
+    <g transform="translate(136, 7)" filter="url(#badge-shadow-rev)">
+      <rect x="0" y="0" width="38" height="24" rx="6" fill="url(#gold-badge-rev)" />
       <text x="19" y="17" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13.5" font-weight="900" letter-spacing="0.5" fill="#00004E" text-anchor="middle">
         AI
       </text>
     </g>
 
     <!-- Descriptor Subtitle -->
-    <text x="1" y="42" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="7.5" font-weight="800" letter-spacing="1.5" fill="#A3A8C2">
+    <text x="1" y="42" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="7.5" font-weight="800" letter-spacing="1.5" fill="#D89A06">
       UPSA ACADEMIC EXCELLENCE
     </text>
   </g>
