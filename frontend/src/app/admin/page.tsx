@@ -135,6 +135,7 @@ export default function AdminOverviewPage() {
           totalCoursesRes,
           totalLecturesRes,
           totalPastPapersRes,
+          aiCallsTodayRes,
           recentUsersRes,
           auditLogsRes,
         ] = await Promise.all([
@@ -145,6 +146,7 @@ export default function AdminOverviewPage() {
           supabase.from('courses').select('*', { count: 'exact', head: true }).then(r => r, () => ({ count: 0 })),
           supabase.from('lectures').select('*', { count: 'exact', head: true }).then(r => r, () => ({ count: 0 })),
           supabase.from('past_papers').select('*', { count: 'exact', head: true }).then(r => r, () => ({ count: 0 })),
+          supabase.from('ai_request_log').select('*', { count: 'exact', head: true }).gte('created_at', startOfToday).then(r => r, () => ({ count: 0 })),
           supabase.from('profiles').select('id, email, full_name, role, plan, university, degree, created_at').order('created_at', { ascending: false }).limit(7).then(r => r, () => ({ data: [] })),
           supabase.from('admin_audit_logs').select('id, admin_id, action_type, target_id, target_type, details, created_at').order('created_at', { ascending: false }).limit(6).then(r => r, () => ({ data: [] })),
         ]);
@@ -156,6 +158,7 @@ export default function AdminOverviewPage() {
         const totalCourses = totalCoursesRes?.count ?? 0;
         const totalLectures = totalLecturesRes?.count ?? 0;
         const totalPastPapers = totalPastPapersRes?.count ?? 0;
+        const totalAiRequestsToday = aiCallsTodayRes?.count ?? 0;
         const recentUsersList = recentUsersRes?.data ?? [];
         const auditLogsList = auditLogsRes?.data ?? [];
 
@@ -165,7 +168,7 @@ export default function AdminOverviewPage() {
             newUsersToday: newUsersToday || 0,
             newUsersWeek: newUsersWeek || 0,
             activePaidSubscribers: activePaid || 0,
-            totalAiRequestsToday: 184, // Estimated active run
+            totalAiRequestsToday: totalAiRequestsToday || 0,
             totalCourses: totalCourses || 0,
             totalLectures: totalLectures || 0,
             totalPastPapers: totalPastPapers || 0,

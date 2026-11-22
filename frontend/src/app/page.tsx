@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { MarketingNavbar } from '@/components/layout/MarketingNavbar'
 import { MarketingFooter } from '@/components/layout/MarketingFooter'
+import { LiveCmsSections } from '@/components/landing/LiveCmsSections'
 import {
   ArrowRight,
   BookOpen,
@@ -18,7 +19,7 @@ import {
   Zap,
 } from "lucide-react"
 
-export const dynamic = 'force-static';
+export const revalidate = 60; // Incremental Static Regeneration at the Edge
 
 export default function LandingPage() {
   return (
@@ -314,6 +315,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Dynamic Live CMS Sections: Metrics, Testimonials & Knowledgebase FAQs */}
+      <LiveCmsSections />
 
       {/* Footer */}
       <MarketingFooter />
