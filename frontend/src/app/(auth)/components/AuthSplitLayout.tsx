@@ -91,17 +91,6 @@ export function AuthSplitLayout({
               </p>
             </div>
           </div>
-
-          {/* Student Testimonial Quote */}
-          <div className="mt-6 p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm space-y-2">
-            <p className="text-xs text-white/85 italic leading-relaxed">
-              &ldquo;UniStudy helped me synthesize semester slide decks in hours rather than days. My GPA in Banking &amp; Finance leaped from 2.9 to 3.8.&rdquo;
-            </p>
-            <div className="flex items-center justify-between text-[11px] text-[#D89A06] font-medium pt-1">
-              <span>Kwame A. • UPSA Level 300 Scholar</span>
-              <span className="text-white/40">Verified Student</span>
-            </div>
-          </div>
         </div>
 
         {/* Bottom Footer: Security & Compliance */}
