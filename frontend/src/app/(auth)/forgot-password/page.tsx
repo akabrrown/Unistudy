@@ -1,254 +1,436 @@
-'use client'
+'use client';
 
-import { useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { PasswordInput } from '@/components/ui/password-input'
-import { ArrowLeft, Loader2, Mail, KeyRound, CheckCircle2 } from 'lucide-react'
-import Link from 'next/link'
+import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/ui/password-input';
+import { AuthSplitLayout } from '../components/AuthSplitLayout';
+import { 
+  ArrowLeft, 
+  Loader2, 
+  Mail, 
+  KeyRound, 
+  CheckCircle2, 
+  AlertCircle, 
+  ArrowRight, 
+  RotateCcw,
+  Lock
+} from 'lucide-react';
+import Link from 'next/link';
 
-const OTP_LENGTH = 6
+const OTP_LENGTH = 6;
 
 export default function ForgotPasswordPage() {
-  const router = useRouter()
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
-  const [email, setEmail] = useState('')
-  const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''))
-  const [newPassword, setNewPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const router = useRouter();
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
+  const [newPassword, setNewPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
 
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([])
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Timer countdown for resending OTP
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   // Step 1: Request Reset
   const handleRequestReset = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!email) return
+    e.preventDefault();
+    if (!email.trim()) return;
 
-    setLoading(true)
-    setError('')
-    const supabase = createClient()
+    setLoading(true);
+    setError('');
+    const supabase = createClient();
     
-    // Supabase will send a 'recovery' email
-    const { error } = await supabase.auth.resetPasswordForEmail(email)
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim());
     
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-      return
+    if (resetError) {
+      setError(resetError.message);
+      setLoading(false);
+      return;
     }
 
-    setStep(2)
-    setLoading(false)
-  }
+    setResendCooldown(60);
+    setStep(2);
+    setLoading(false);
+  };
 
-  // Step 2: Verify OTP
+  // Step 2: Handle OTP input & Paste
   const handleOtpChange = (index: number, value: string) => {
-    if (!/^\d?$/.test(value)) return
-    const next = [...otp]
-    next[index] = value
-    setOtp(next)
-    setError('')
-    if (value && index < OTP_LENGTH - 1) {
-      inputRefs.current[index + 1]?.focus()
+    // Check if pasted multiple characters
+    if (value.length > 1) {
+      const cleaned = value.replace(/\D/g, '').slice(0, OTP_LENGTH);
+      if (cleaned.length > 0) {
+        const next = [...otp];
+        for (let i = 0; i < OTP_LENGTH; i++) {
+          next[i] = cleaned[i] || '';
+        }
+        setOtp(next);
+        const focusIdx = Math.min(cleaned.length, OTP_LENGTH - 1);
+        inputRefs.current[focusIdx]?.focus();
+      }
+      return;
     }
-  }
+
+    if (!/^\d?$/.test(value)) return;
+    const next = [...otp];
+    next[index] = value;
+    setOtp(next);
+    setError('');
+    if (value && index < OTP_LENGTH - 1) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
 
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace' && !otp[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus()
+      inputRefs.current[index - 1]?.focus();
     }
-  }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, OTP_LENGTH);
+    if (!pasted) return;
+
+    const next = [...otp];
+    for (let i = 0; i < OTP_LENGTH; i++) {
+      next[i] = pasted[i] || '';
+    }
+    setOtp(next);
+    const focusIdx = Math.min(pasted.length, OTP_LENGTH - 1);
+    inputRefs.current[focusIdx]?.focus();
+  };
 
   const handleVerifyOtp = async () => {
-    const code = otp.join('')
+    const code = otp.join('');
     if (code.length !== OTP_LENGTH) {
-      setError('Enter the full 6-digit code.')
-      return
+      setError('Please enter the full 6-digit code sent to your email.');
+      return;
     }
 
-    setLoading(true)
-    setError('')
-    const supabase = createClient()
+    setLoading(true);
+    setError('');
+    const supabase = createClient();
 
-    // Verify the OTP code for recovery
-    const { error } = await supabase.auth.verifyOtp({
-      email,
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email: email.trim(),
       token: code,
       type: 'recovery',
-    })
+    });
 
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-      return
+    if (verifyError) {
+      setError(verifyError.message);
+      setLoading(false);
+      return;
     }
 
-    // OTP verified, user is now logged in to a temporary session
-    setStep(3)
-    setLoading(false)
-  }
+    setStep(3);
+    setLoading(false);
+  };
 
   // Step 3: Update Password
   const handleUpdatePassword = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters long.')
-      return
+      setError('Password must be at least 8 characters long.');
+      return;
     }
     if (newPassword.length > 128) {
-      setError('Password cannot exceed 128 characters.')
-      return
+      setError('Password cannot exceed 128 characters.');
+      return;
     }
 
-    setLoading(true)
-    setError('')
-    const supabase = createClient()
+    setLoading(true);
+    setError('');
+    const supabase = createClient();
 
-    const { error } = await supabase.auth.updateUser({
+    const { error: updateError } = await supabase.auth.updateUser({
       password: newPassword,
-    })
+    });
 
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-      return
+    if (updateError) {
+      setError(updateError.message);
+      setLoading(false);
+      return;
     }
 
-    setStep(4)
-    setLoading(false)
-  }
+    setStep(4);
+    setLoading(false);
+  };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4 relative py-12">
-      <Link href="/login" className="absolute top-8 left-8 flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-        <ArrowLeft size={16} />
-        Back to Login
-      </Link>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background -z-10" />
-      
-      <Card className="w-full max-w-md shadow-2xl shadow-primary/10 border-primary/20 bg-card/80 backdrop-blur-sm mt-12 md:mt-0">
-        
-        {step === 1 && (
-          <>
-            <CardHeader className="space-y-4 text-center pb-6">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-                <KeyRound className="h-7 w-7 text-primary" />
-              </div>
-              <CardTitle className="text-2xl font-bold tracking-tight text-foreground">Forgot Password</CardTitle>
-              <CardDescription className="text-muted-foreground">
-                Enter your email address and we'll send you a code to reset your password.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleRequestReset} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="you@example.com" 
-                    required 
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="bg-background/50" 
-                  />
+    <AuthSplitLayout
+      badge="Account Recovery"
+      title="Secure Password Recovery"
+      description="Restore access to your UniStudy scholar account through encrypted one-time verification."
+    >
+      <div className="space-y-6">
+        {/* Step Indicator Pills */}
+        <div className="flex items-center justify-between border-b border-border/50 pb-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {[
+              { num: 1, label: 'Email' },
+              { num: 2, label: 'Code' },
+              { num: 3, label: 'Reset' },
+              { num: 4, label: 'Done' },
+            ].map((s) => {
+              const isCurrent = step === s.num;
+              const isCompleted = step > s.num;
+              return (
+                <div key={s.num} className="flex items-center gap-1.5">
+                  <div
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
+                      isCurrent
+                        ? 'bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] ring-2 ring-[#D89A06]/40'
+                        : isCompleted
+                        ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    {isCompleted ? <CheckCircle2 className="w-3.5 h-3.5" /> : s.num}
+                  </div>
+                  <span
+                    className={`text-[11px] font-medium hidden sm:inline ${
+                      isCurrent ? 'text-foreground font-bold' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {s.label}
+                  </span>
+                  {s.num < 4 && <span className="text-border mx-0.5">•</span>}
                 </div>
-                {error && <p className="text-sm text-destructive">{error}</p>}
-                <Button type="submit" disabled={loading || !email} className="w-full">
-                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Send Reset Code'}
-                </Button>
-              </form>
-            </CardContent>
-          </>
+              );
+            })}
+          </div>
+
+          <Link
+            href="/login"
+            className="text-xs font-semibold text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors"
+          >
+            <ArrowLeft className="w-3 h-3" />
+            <span>Cancel</span>
+          </Link>
+        </div>
+
+        {/* Error Alert */}
+        {error && (
+          <div className="flex items-start gap-3 p-3.5 text-xs sm:text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-xl animate-in fade-in slide-in-from-top-1 duration-200">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
+            <span className="leading-snug font-medium">{error}</span>
+          </div>
         )}
 
-        {step === 2 && (
-          <>
-            <CardHeader className="space-y-4 text-center pb-6">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-                <Mail className="h-7 w-7 text-primary" />
+        {/* ── STEP 1: Enter Email ── */}
+        {step === 1 && (
+          <div className="space-y-5 animate-in fade-in duration-200">
+            <div className="space-y-1.5 text-left">
+              <h2 className="text-2xl font-extrabold tracking-tight text-foreground">
+                Forgot Your Password?
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Enter your registered university email. We will dispatch a 6-digit verification code.
+              </p>
+            </div>
+
+            <form onSubmit={handleRequestReset} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-xs font-semibold text-foreground">
+                  Student / University Email
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="student@upsamail.edu.gh"
+                    required
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10 h-11 rounded-xl bg-background border-border/80 focus:border-[#D89A06] focus:ring-2 focus:ring-[#D89A06]/20 transition-all text-sm"
+                  />
+                  <Mail className="w-4 h-4 text-muted-foreground absolute left-3.5 top-3.5 pointer-events-none" />
+                </div>
               </div>
-              <CardTitle className="text-2xl font-bold tracking-tight text-foreground">Check your email</CardTitle>
-              <CardDescription className="text-muted-foreground">
-                Enter the 6-digit code we sent to <br />
-                <span className="font-medium text-foreground">{email}</span>
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex justify-center gap-2 sm:gap-3">
+
+              <Button
+                type="submit"
+                disabled={loading || !email.trim()}
+                className="w-full h-11 rounded-xl bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:hover:bg-[#c48b05] dark:text-[#00004E] font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2 mt-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Sending Code...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Send Verification Code</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </Button>
+            </form>
+          </div>
+        )}
+
+        {/* ── STEP 2: Verify OTP ── */}
+        {step === 2 && (
+          <div className="space-y-5 animate-in fade-in duration-200">
+            <div className="space-y-1.5 text-left">
+              <h2 className="text-2xl font-extrabold tracking-tight text-foreground">
+                Enter 6-Digit Code
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                We sent a recovery token to{' '}
+                <strong className="text-foreground font-mono">{email}</strong>.
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              <div 
+                className="flex justify-between gap-1.5 sm:gap-2.5"
+                onPaste={handleOtpPaste}
+              >
                 {otp.map((digit, i) => (
                   <input
                     key={i}
-                    ref={(el) => { inputRefs.current[i] = el }}
+                    ref={(el) => { inputRefs.current[i] = el; }}
                     type="text"
                     inputMode="numeric"
                     maxLength={1}
                     value={digit}
                     onChange={(e) => handleOtpChange(i, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                    className="h-12 w-10 sm:h-14 sm:w-12 rounded-lg border-2 border-border bg-background/50 text-center text-xl font-semibold text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    className="h-12 w-11 sm:h-14 sm:w-12 rounded-xl border-2 border-border/80 bg-background text-center text-xl font-mono font-bold text-foreground outline-hidden transition-all focus:border-[#D89A06] focus:ring-2 focus:ring-[#D89A06]/20 shadow-2xs"
                   />
                 ))}
               </div>
-              {error && <p className="text-sm text-center text-destructive">{error}</p>}
-              <Button onClick={handleVerifyOtp} disabled={loading || otp.join('').length !== OTP_LENGTH} className="w-full">
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Verify Code'}
+
+              <Button
+                onClick={handleVerifyOtp}
+                disabled={loading || otp.join('').length !== OTP_LENGTH}
+                className="w-full h-11 rounded-xl bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:hover:bg-[#c48b05] dark:text-[#00004E] font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Verifying Code...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Verify &amp; Continue</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </Button>
-            </CardContent>
-          </>
-        )}
 
-        {step === 3 && (
-          <>
-            <CardHeader className="space-y-4 text-center pb-6">
-              <CardTitle className="text-2xl font-bold tracking-tight text-foreground">Create New Password</CardTitle>
-              <CardDescription className="text-muted-foreground">
-                Your code was verified. Please enter a new password.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleUpdatePassword} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="newPassword">New Password</Label>
-                  <PasswordInput 
-                    id="newPassword" 
-                    required 
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="bg-background/50" 
-                  />
-                </div>
-                {error && <p className="text-sm text-destructive">{error}</p>}
-                <Button type="submit" disabled={loading || newPassword.length < 6} className="w-full">
-                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Update Password'}
-                </Button>
-              </form>
-            </CardContent>
-          </>
-        )}
-
-        {step === 4 && (
-          <CardContent className="space-y-6 pt-10 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-500/10">
-              <CheckCircle2 className="h-8 w-8 text-green-500" />
+              <div className="text-center pt-2">
+                {resendCooldown > 0 ? (
+                  <p className="text-xs text-muted-foreground font-mono">
+                    Resend code available in {resendCooldown}s
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleRequestReset}
+                    disabled={loading}
+                    className="text-xs font-semibold text-[#00004E] dark:text-[#D89A06] hover:underline inline-flex items-center gap-1.5 transition-colors"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Didn&apos;t receive code? Resend</span>
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="space-y-2">
-              <h3 className="text-2xl font-bold tracking-tight text-foreground">Password Reset</h3>
-              <p className="text-muted-foreground">
-                Your password has been successfully updated. You can now log in with your new password.
+          </div>
+        )}
+
+        {/* ── STEP 3: Create New Password ── */}
+        {step === 3 && (
+          <div className="space-y-5 animate-in fade-in duration-200">
+            <div className="space-y-1.5 text-left">
+              <h2 className="text-2xl font-extrabold tracking-tight text-foreground">
+                Set New Password
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Code verified. Choose a strong, memorable password for your scholar account.
               </p>
             </div>
-            <Button onClick={() => router.replace('/login')} className="w-full">
-              Go to Login
-            </Button>
-          </CardContent>
+
+            <form onSubmit={handleUpdatePassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="newPassword" className="text-xs font-semibold text-foreground">
+                  New Password (min 8 characters)
+                </Label>
+                <div className="relative">
+                  <PasswordInput
+                    id="newPassword"
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="pl-10 h-11 rounded-xl bg-background border-border/80 focus:border-[#D89A06] focus:ring-2 focus:ring-[#D89A06]/20 transition-all text-sm"
+                  />
+                  <Lock className="w-4 h-4 text-muted-foreground absolute left-3.5 top-3.5 pointer-events-none" />
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                disabled={loading || newPassword.length < 8}
+                className="w-full h-11 rounded-xl bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:hover:bg-[#c48b05] dark:text-[#00004E] font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2 mt-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Updating Password...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Save &amp; Complete Reset</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </Button>
+            </form>
+          </div>
         )}
-      </Card>
-    </div>
-  )
+
+        {/* ── STEP 4: Success Confirmation ── */}
+        {step === 4 && (
+          <div className="space-y-6 text-center py-4 animate-in zoom-in-95 duration-200">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-2xl font-extrabold tracking-tight text-foreground">
+                Password Reset Successfully
+              </h3>
+              <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
+                Your credentials have been securely updated. You can now access your courses and lecture materials.
+              </p>
+            </div>
+
+            <Button
+              onClick={() => router.replace('/login')}
+              className="w-full h-11 rounded-xl bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:hover:bg-[#c48b05] dark:text-[#00004E] font-bold text-sm shadow-sm transition-all"
+            >
+              Proceed to Sign In
+            </Button>
+          </div>
+        )}
+      </div>
+    </AuthSplitLayout>
+  );
 }

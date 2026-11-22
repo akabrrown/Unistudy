@@ -1,84 +1,89 @@
-import Link from 'next/link'
-import { signup } from '../actions'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { PasswordInput } from '@/components/ui/password-input'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'; import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { ArrowLeft } from 'lucide-react'
-import { UniStudyLogo } from '@/components/brand/UniStudyLogo'
+import Link from 'next/link';
+import { signup } from '../actions';
+import { Button } from '@/components/ui/button';
+import { AuthSplitLayout } from '../components/AuthSplitLayout';
+import { AlertCircle, ArrowRight, Sparkles } from 'lucide-react';
 
-import { EmailField } from './components/EmailField'
-import { UsernameField } from './components/UsernameField'
-import { PasswordStrengthField } from './components/PasswordStrengthField'
-import { FullNameField } from './components/FullNameField' // Force TS re-evaluation
+import { EmailField } from './components/EmailField';
+import { UsernameField } from './components/UsernameField';
+import { PasswordStrengthField } from './components/PasswordStrengthField';
+import { FullNameField } from './components/FullNameField';
 
 export default async function SignupPage(props: { searchParams: Promise<{ error?: string }> }) {
-  const searchParams = await props.searchParams
+  const searchParams = await props.searchParams;
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4 relative py-12">
-      <Link href="/" className="absolute top-8 left-8 flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-        <ArrowLeft size={16} />
-        Back to Home
-      </Link>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background -z-10" />
-      <Card className="w-full max-w-xl shadow-2xl shadow-primary/10 border-primary/20 bg-card/80 backdrop-blur-sm mt-12 md:mt-0">
-        <CardHeader className="space-y-4 text-center pb-6">
-          <div className="flex justify-center mb-2">
-            <UniStudyLogo height={44} />
+    <AuthSplitLayout
+      badge="Join the UPSA Cohort"
+      title="Unlock Your Academic Potential"
+      description="Create your student account to access AI study decks, intelligent past paper grading, and 20 free complimentary AI study credits."
+    >
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="space-y-2 text-left">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#D89A06]/15 text-[#D89A06] dark:text-[#D89A06] text-[11px] font-bold">
+            <Sparkles className="w-3 h-3" />
+            <span>Includes 20 Free AI Study Credits</span>
           </div>
-          <CardTitle className="text-3xl font-bold tracking-tight text-foreground">Create an Account</CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Join UniStudy AI and transform your learning
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form action={signup} autoComplete="off" className="space-y-6">
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+            Create Your Account
+          </h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Enter your student details to activate your UPSA scholar workspace.
+          </p>
+        </div>
 
+        {/* Error Alert */}
+        {searchParams?.error && (
+          <div className="flex items-start gap-3 p-3.5 text-xs sm:text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-xl animate-in fade-in slide-in-from-top-1 duration-200">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
+            <span className="leading-snug font-medium">{searchParams.error}</span>
+          </div>
+        )}
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <UsernameField />
-                <FullNameField />
-              </div>
-              <EmailField />
-            </div>
+        {/* Form */}
+        <form action={signup} autoComplete="off" className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <FullNameField />
+            <UsernameField />
+          </div>
 
-            <PasswordStrengthField />
+          <EmailField />
+          <PasswordStrengthField />
 
-            <div className="border-t border-border pt-4">
-              {searchParams?.error && (
-                <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md mb-4">
-                  {searchParams.error}
-                </div>
-              )}
+          <Button
+            type="submit"
+            className="w-full h-11 rounded-xl bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:hover:bg-[#c48b05] dark:text-[#00004E] font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2 mt-4"
+          >
+            <span>Create Scholar Account</span>
+            <ArrowRight className="w-4 h-4" />
+          </Button>
 
-              <Button type="submit" className="w-full">
-                Sign Up
-              </Button>
+          <p className="text-[11px] text-muted-foreground text-center leading-relaxed pt-1">
+            By creating an account, you agree to our{' '}
+            <Link href="/terms" target="_blank" className="font-semibold text-foreground hover:text-[#D89A06] underline">
+              Terms of Service
+            </Link>{' '}
+            and{' '}
+            <Link href="/privacy" target="_blank" className="font-semibold text-foreground hover:text-[#D89A06] underline">
+              Privacy Policy
+            </Link>.
+          </p>
+        </form>
 
-              <p className="text-[11px] text-muted-foreground text-center mt-3 leading-relaxed">
-                By creating an account, you agree to our{' '}
-                <Link href="/terms" target="_blank" className="text-primary hover:underline font-medium">
-                  Terms of Service
-                </Link>{' '}
-                and acknowledge our{' '}
-                <Link href="/privacy" target="_blank" className="text-primary hover:underline font-medium">
-                  Privacy Policy
-                </Link>.
-              </p>
-            </div>
-          </form>
-        </CardContent>
-        <CardFooter className="flex justify-center border-t border-border/40 pt-6">
-          <p className="text-sm text-muted-foreground">
+        {/* Footer Toggle */}
+        <div className="pt-4 border-t border-border/60 text-center">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Already have an account?{' '}
-            <Link href="/login" className="font-semibold text-primary hover:underline">
-              Sign in
+            <Link
+              href="/login"
+              className="font-bold text-[#00004E] dark:text-[#D89A06] hover:underline transition-colors"
+            >
+              Sign In
             </Link>
           </p>
-        </CardFooter>
-      </Card>
-    </div>
-  )
+        </div>
+      </div>
+    </AuthSplitLayout>
+  );
 }

@@ -1,68 +1,106 @@
-import Link from 'next/link'
-import { login } from '../actions'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { PasswordInput } from '@/components/ui/password-input'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft } from 'lucide-react'
-import { UniStudyLogo } from '@/components/brand/UniStudyLogo'
+import Link from 'next/link';
+import { login } from '../actions';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/ui/password-input';
+import { AuthSplitLayout } from '../components/AuthSplitLayout';
+import { AlertCircle, Lock, Mail, ArrowRight } from 'lucide-react';
 
 export default async function LoginPage(props: { searchParams: Promise<{ error?: string }> }) {
-  const searchParams = await props.searchParams
+  const searchParams = await props.searchParams;
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4 relative">
-      <Link href="/" className="absolute top-8 left-8 flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-        <ArrowLeft size={16} />
-        Back to Home
-      </Link>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background -z-10" />
-      <Card className="w-full max-w-md shadow-xl shadow-primary/5 border-primary/20 bg-card/80 backdrop-blur-sm mt-12 md:mt-0">
-        <CardHeader className="space-y-4 text-center pb-6">
-          <div className="flex justify-center mb-2">
-            <UniStudyLogo height={44} />
+    <AuthSplitLayout
+      badge="UPSA Student Portal"
+      title="Master Your Courses with Grounded AI"
+      description="Access your personalized course decks, past examination papers, and real-time Socratic AI tutoring calibrated directly to your syllabus."
+    >
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="space-y-2 text-left">
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+            Sign In to UniStudy
+          </h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Enter your university email and password to resume your study sessions.
+          </p>
+        </div>
+
+        {/* Error Alert */}
+        {searchParams?.error && (
+          <div className="flex items-start gap-3 p-3.5 text-xs sm:text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-xl animate-in fade-in slide-in-from-top-1 duration-200">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
+            <span className="leading-snug font-medium">{searchParams.error}</span>
           </div>
-          <CardTitle className="text-3xl font-bold tracking-tight text-foreground">Welcome Back</CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Enter your email to sign in to your account
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form action={login} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" placeholder="example@gmail.com" required className="bg-background/50" />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <Link href="/forgot-password" className="text-sm font-medium text-primary hover:underline">
-                  Forgot password?
-                </Link>
-              </div>
-              <PasswordInput id="password" name="password" required className="bg-background/50" />
-            </div>
+        )}
 
-            {searchParams?.error && (
-              <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
-                {searchParams.error}
-              </div>
-            )}
+        {/* Form */}
+        <form action={login} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-xs font-semibold text-foreground">
+              Student / University Email
+            </Label>
+            <div className="relative">
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="student@upsamail.edu.gh"
+                required
+                autoComplete="email"
+                className="pl-10 h-11 rounded-xl bg-background border-border/80 focus:border-[#D89A06] focus:ring-2 focus:ring-[#D89A06]/20 transition-all text-sm"
+              />
+              <Mail className="w-4 h-4 text-muted-foreground absolute left-3.5 top-3.5 pointer-events-none" />
+            </div>
+          </div>
 
-            <Button type="submit" className="w-full">
-              Sign In
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex justify-center border-t border-border/40 pt-6">
-          <p className="text-sm text-muted-foreground">
-            Don't have an account?{' '}
-            <Link href="/signup" className="font-semibold text-primary hover:underline">
-              Sign up
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password" className="text-xs font-semibold text-foreground">
+                Password
+              </Label>
+              <Link
+                href="/forgot-password"
+                className="text-xs font-medium text-[#00004E] dark:text-[#D89A06] hover:underline transition-colors"
+              >
+                Forgot password?
+              </Link>
+            </div>
+            <div className="relative">
+              <PasswordInput
+                id="password"
+                name="password"
+                required
+                autoComplete="current-password"
+                className="pl-10 h-11 rounded-xl bg-background border-border/80 focus:border-[#D89A06] focus:ring-2 focus:ring-[#D89A06]/20 transition-all text-sm"
+              />
+              <Lock className="w-4 h-4 text-muted-foreground absolute left-3.5 top-3.5 pointer-events-none" />
+            </div>
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full h-11 rounded-xl bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:hover:bg-[#c48b05] dark:text-[#00004E] font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2 mt-2"
+          >
+            <span>Sign In</span>
+            <ArrowRight className="w-4 h-4" />
+          </Button>
+        </form>
+
+        {/* Footer Toggle */}
+        <div className="pt-4 border-t border-border/60 text-center">
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Don&apos;t have a scholar account?{' '}
+            <Link
+              href="/signup"
+              className="font-bold text-[#00004E] dark:text-[#D89A06] hover:underline transition-colors"
+            >
+              Create Account
             </Link>
           </p>
-        </CardFooter>
-      </Card>
-    </div>
-  )
+        </div>
+      </div>
+    </AuthSplitLayout>
+  );
 }
