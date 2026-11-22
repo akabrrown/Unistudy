@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       model: 'openai/gpt-oss-120b',
       messages: [{ 
         role: 'user', 
-        content: `Generate a realistic weekly study planner for a ${profile.degree_programme} Year ${profile.year_of_study} student.
+        content: `Generate a realistic weekly study planner for a ${profile.degree_programme} ${profile.year_of_study ? (profile.year_of_study <= 6 ? `Level ${profile.year_of_study * 100}` : `Level ${profile.year_of_study}`) : 'student'}.
 Study frequency: ${profile.study_frequency || 'most_days'}.
 Session length: ${profile.study_hours_per_session || '1_to_2'} per session.
 Create a 7-day schedule with specific time blocks for studying.

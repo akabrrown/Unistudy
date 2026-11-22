@@ -1077,7 +1077,7 @@ export default function AdminUsersPage() {
                           {selectedUser.degree_programme || 'Not specified'}
                         </span>
                         <span className="text-[11px] text-muted-foreground block">
-                          Level / Year: {selectedUser.year_of_study ? `Year ${selectedUser.year_of_study}` : 'Unspecified'}
+                          Level: {selectedUser.year_of_study ? formatAcademicLevel(selectedUser.year_of_study) : 'Unspecified'}
                         </span>
                       </div>
 

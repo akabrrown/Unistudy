@@ -184,7 +184,7 @@ export function ProfileStudioClient({
         done: Boolean(institutionName && institutionName !== 'Not provided'),
       },
       { label: 'Degree Programme', done: Boolean(profile.degree_programme?.trim()) },
-      { label: 'Academic Level (Year)', done: Boolean(profile.year_of_study) },
+      { label: 'Academic Level (Level 100 - 400)', done: Boolean(profile.year_of_study) },
       { label: 'Semester Study Goal', done: Boolean(profile.study_goal?.trim()) },
       { label: 'VARK Learning Modality', done: Boolean(profile.learning_style) },
     ];

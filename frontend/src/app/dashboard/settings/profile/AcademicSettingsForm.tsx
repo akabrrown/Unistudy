@@ -344,16 +344,16 @@ export function AcademicSettingsForm({
           </label>
           <select
             id="year-of-study"
-            value={yearOfStudy}
+            value={yearOfStudy <= 6 ? yearOfStudy * 100 : yearOfStudy}
             onChange={(e) => setYearOfStudy(Number(e.target.value))}
             className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
           >
-            <option value={1}>Year 1 (100)</option>
-            <option value={2}>Year 2 (200)</option>
-            <option value={3}>Year 3 (300)</option>
-            <option value={4}>Year 4 (400)</option>
-            <option value={5}>Year 5</option>
-            <option value={6}>Year 6+</option>
+            <option value={100}>Level 100</option>
+            <option value={200}>Level 200</option>
+            <option value={300}>Level 300</option>
+            <option value={400}>Level 400</option>
+            <option value={500}>Level 500</option>
+            <option value={600}>Level 600</option>
           </select>
         </div>
       </div>
