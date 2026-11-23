@@ -10,7 +10,7 @@ import { completeOnboarding } from './actions';
 import { InstitutionSelect } from './components/InstitutionSelect';
 import { ProgrammeOfStudyInput } from './components/ProgrammeOfStudyInput';
 import { formatAcademicLevel } from '@/lib/utils';
-import { getProgrammeDetails } from '@/lib/constants/upsa';
+import { getProgrammeDetails, getProgressionLevelsForProgramme, UPSA_INSTITUTION } from '@/lib/constants/upsa';
 import { 
   GraduationCap, 
   BrainCircuit, 
@@ -101,7 +101,7 @@ export function OnboardingForm({ studentName = 'UPSA Scholar', userEmail = '' }:
 
   const formRef = useRef<HTMLFormElement>(null);
   const [academicData, setAcademicData] = useState({
-    institution_id: '',
+    institution_id: UPSA_INSTITUTION.id,
     faculty: 'FITCS',
     department: 'Department of Information Technology Studies',
     degree_programme: '',
@@ -110,30 +110,11 @@ export function OnboardingForm({ studentName = 'UPSA Scholar', userEmail = '' }:
 
   // Step 1 -> Step 2 validation
   const handleProceedToTutor = () => {
-    if (formRef.current) {
-      const formData = new FormData(formRef.current);
-      const inst = (formData.get('institution_id') as string) || '';
-      const prog = (formData.get('degree_programme') as string) || '';
-      const lvl = (formData.get('year_of_study') as string) || '100';
-
-      if (!prog.trim()) {
-        toast.error('Please enter or select your UPSA degree programme');
-        return;
-      }
-
-      const details = getProgrammeDetails(prog);
-      const fac = (formData.get('faculty') as string) || details?.facultyCode || 'FAF';
-      const dept = (formData.get('department') as string) || details?.department || '';
-
-      setAcademicData({
-        institution_id: inst,
-        faculty: fac,
-        department: dept,
-        degree_programme: prog,
-        year_of_study: lvl,
-      });
-      setStep(2);
+    if (!academicData.degree_programme.trim()) {
+      toast.error('Please enter or select your UPSA degree programme');
+      return;
     }
+    setStep(2);
   };
 
   // Step 2 -> Step 3 validation
@@ -248,19 +229,48 @@ export function OnboardingForm({ studentName = 'UPSA Scholar', userEmail = '' }:
 
                   <div className="space-y-5">
                     <ProgrammeOfStudyInput
+                      value={academicData.degree_programme}
+                      initialValue={academicData.degree_programme}
+                      includeHiddenInputs={false}
                       onProgrammeChange={(name, department, facultyCode) => {
                         setCurrentProgramme(name);
                         const details = getProgrammeDetails(name);
+                        const fac = facultyCode || details?.facultyCode || academicData.faculty;
+                        const dept = department || details?.department || academicData.department;
+                        const progressionLevels = getProgressionLevelsForProgramme(name);
+                        const currentLevelNum = Number(academicData.year_of_study) || 100;
+                        const levelStillValid = progressionLevels.some((l) => l.value === currentLevelNum);
+                        const updatedLevel = levelStillValid ? academicData.year_of_study : String(progressionLevels[0]?.value || 100);
+
                         setAcademicData((prev) => ({
                           ...prev,
                           degree_programme: name,
-                          department: department || details?.department || prev.department,
-                          faculty: facultyCode || details?.facultyCode || prev.faculty,
+                          department: dept,
+                          faculty: fac,
+                          year_of_study: updatedLevel,
                         }));
                       }}
                     />
 
-                    <InstitutionSelect selectedProgramme={currentProgramme} />
+                    <InstitutionSelect
+                      selectedProgramme={academicData.degree_programme}
+                      initialFaculty={academicData.faculty}
+                      initialLevel={Number(academicData.year_of_study) || 100}
+                      includeHiddenInputs={false}
+                      onLevelChange={(lvl) => {
+                        setAcademicData((prev) => ({
+                          ...prev,
+                          year_of_study: String(lvl),
+                        }));
+                      }}
+                      onFacultyChange={(fac, dept) => {
+                        setAcademicData((prev) => ({
+                          ...prev,
+                          faculty: fac,
+                          department: dept || prev.department,
+                        }));
+                      }}
+                    />
                   </div>
 
                   <div className="pt-4 border-t border-border/60 flex justify-end">

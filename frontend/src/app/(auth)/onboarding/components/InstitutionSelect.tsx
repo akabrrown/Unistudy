@@ -15,9 +15,12 @@ import {
 interface InstitutionSelectProps {
   initialInstitution?: string | null;
   initialFaculty?: string | null;
-  initialLevel?: number | null;
+  initialLevel?: number | string | null;
   showLevel?: boolean;
   selectedProgramme?: string | null;
+  onLevelChange?: (level: number) => void;
+  onFacultyChange?: (facultyCode: string, department?: string) => void;
+  includeHiddenInputs?: boolean;
 }
 
 export function InstitutionSelect({
@@ -26,6 +29,9 @@ export function InstitutionSelect({
   initialLevel,
   showLevel = true,
   selectedProgramme = null,
+  onLevelChange,
+  onFacultyChange,
+  includeHiddenInputs = true,
 }: InstitutionSelectProps = {}) {
   const matchedDetails = useMemo(() => {
     return getProgrammeDetails(selectedProgramme);
@@ -37,31 +43,64 @@ export function InstitutionSelect({
 
   const [isManualOverride, setIsManualOverride] = useState(false);
 
+  // Sync with initialFaculty prop when changed from parent
+  useEffect(() => {
+    if (initialFaculty && !matchedDetails) {
+      setSelectedFaculty(initialFaculty);
+    }
+  }, [initialFaculty, matchedDetails]);
+
   // Automatically sync faculty whenever a known programme is chosen
   useEffect(() => {
     if (matchedDetails?.facultyCode) {
       setSelectedFaculty(matchedDetails.facultyCode);
       setIsManualOverride(false);
+      onFacultyChange?.(matchedDetails.facultyCode, matchedDetails.department);
     }
-  }, [matchedDetails]);
+  }, [matchedDetails, onFacultyChange]);
 
   const progressionLevels = useMemo(() => {
     return getProgressionLevelsForProgramme(selectedProgramme);
   }, [selectedProgramme]);
 
+  const parsedInitialLevel = Number(initialLevel) || null;
+
   const [selectedLevel, setSelectedLevel] = useState<number>(() => {
-    if (initialLevel && progressionLevels.some((l) => l.value === initialLevel)) {
-      return initialLevel;
+    if (parsedInitialLevel && progressionLevels.some((l) => l.value === parsedInitialLevel)) {
+      return parsedInitialLevel;
     }
     return progressionLevels[0]?.value || 100;
   });
 
+  // Sync with initialLevel prop when changed from parent
+  useEffect(() => {
+    if (parsedInitialLevel && parsedInitialLevel !== selectedLevel && progressionLevels.some((l) => l.value === parsedInitialLevel)) {
+      setSelectedLevel(parsedInitialLevel);
+    }
+  }, [parsedInitialLevel, progressionLevels]);
+
   // Whenever the programme changes, ensure the selected level remains valid for that tier
   useEffect(() => {
     if (!progressionLevels.some((l) => l.value === selectedLevel)) {
-      setSelectedLevel(progressionLevels[0]?.value || 100);
+      const fallback = progressionLevels[0]?.value || 100;
+      setSelectedLevel(fallback);
+      onLevelChange?.(fallback);
     }
-  }, [progressionLevels, selectedLevel]);
+  }, [progressionLevels, selectedLevel, onLevelChange]);
+
+  const handleLevelSelect = (val: string | null) => {
+    if (!val) return;
+    const num = Number(val) || progressionLevels[0]?.value || 100;
+    setSelectedLevel(num);
+    onLevelChange?.(num);
+  };
+
+  const handleFacultySelect = (code: string | null) => {
+    if (!code) return;
+    setSelectedFaculty(code);
+    setIsManualOverride(true);
+    onFacultyChange?.(code, matchedDetails?.department);
+  };
 
   const currentFaculty = UPSA_FACULTIES.find((f) => f.code === selectedFaculty) || UPSA_FACULTIES[0];
   const currentLevelLabel = progressionLevels.find((l) => l.value === selectedLevel)?.label || `Level ${selectedLevel}`;
@@ -101,8 +140,12 @@ export function InstitutionSelect({
       </div>
 
       {/* Hidden inputs to pass UPSA canonical info */}
-      <input type="hidden" name="institution_id" value={UPSA_INSTITUTION.id} />
-      <input type="hidden" name="university" value={UPSA_INSTITUTION.name} />
+      {includeHiddenInputs && (
+        <>
+          <input type="hidden" name="institution_id" value={UPSA_INSTITUTION.id} />
+          <input type="hidden" name="university" value={UPSA_INSTITUTION.name} />
+        </>
+      )}
 
       {/* ── Auto-Matched Faculty vs Manual Selector ── */}
       {matchedDetails && !isManualOverride ? (
@@ -136,8 +179,12 @@ export function InstitutionSelect({
             </button>
           </div>
 
-          <input type="hidden" name="faculty" value={selectedFaculty} />
-          <input type="hidden" name="department" value={matchedDetails.department} />
+          {includeHiddenInputs && (
+            <>
+              <input type="hidden" name="faculty" value={selectedFaculty} />
+              <input type="hidden" name="department" value={matchedDetails.department} />
+            </>
+          )}
         </div>
       ) : (
         /* Manual Faculty Selector Fallback */
@@ -153,6 +200,7 @@ export function InstitutionSelect({
                 onClick={() => {
                   setSelectedFaculty(matchedDetails.facultyCode);
                   setIsManualOverride(false);
+                  onFacultyChange?.(matchedDetails.facultyCode, matchedDetails.department);
                 }}
                 className="text-[10px] font-mono text-[#D89A06] hover:underline inline-flex items-center gap-1"
               >
@@ -163,7 +211,7 @@ export function InstitutionSelect({
           </div>
           <Select
             value={selectedFaculty}
-            onValueChange={(val: any) => setSelectedFaculty(val || UPSA_FACULTIES[0].code)}
+            onValueChange={handleFacultySelect}
           >
             <SelectTrigger id="faculty_select" className="w-full h-12 text-xs bg-background/60 hover:bg-background border-primary/20 px-3.5">
               <div className="flex items-center gap-2 min-w-0 text-left">
@@ -205,9 +253,13 @@ export function InstitutionSelect({
               ))}
             </SelectContent>
           </Select>
-          <input type="hidden" name="faculty" value={selectedFaculty} />
-          {matchedDetails?.department && (
-            <input type="hidden" name="department" value={matchedDetails.department} />
+          {includeHiddenInputs && (
+            <>
+              <input type="hidden" name="faculty" value={selectedFaculty} />
+              {matchedDetails?.department && (
+                <input type="hidden" name="department" value={matchedDetails.department} />
+              )}
+            </>
           )}
         </div>
       )}
@@ -225,7 +277,7 @@ export function InstitutionSelect({
           </div>
           <Select
             value={String(selectedLevel)}
-            onValueChange={(val) => setSelectedLevel(Number(val) || progressionLevels[0]?.value || 100)}
+            onValueChange={handleLevelSelect}
           >
             <SelectTrigger id="level_select" className="w-full h-11 text-xs bg-background/60 hover:bg-background border-primary/20 px-3.5">
               <span className="font-semibold text-foreground text-xs">
@@ -250,7 +302,9 @@ export function InstitutionSelect({
               ))}
             </SelectContent>
           </Select>
-          <input type="hidden" name="year_of_study" value={selectedLevel} />
+          {includeHiddenInputs && (
+            <input type="hidden" name="year_of_study" value={selectedLevel} />
+          )}
         </div>
       )}
     </div>

@@ -11,13 +11,27 @@ import { Badge } from '@/components/ui/badge'
 interface ProgrammeOfStudyInputProps {
   onProgrammeChange?: (name: string, department?: string, facultyCode?: string) => void
   initialValue?: string
+  value?: string
+  includeHiddenInputs?: boolean
 }
 
-export function ProgrammeOfStudyInput({ onProgrammeChange, initialValue = '' }: ProgrammeOfStudyInputProps = {}) {
-  const [search, setSearch] = useState(initialValue)
+export function ProgrammeOfStudyInput({
+  onProgrammeChange,
+  initialValue = '',
+  value,
+  includeHiddenInputs = true,
+}: ProgrammeOfStudyInputProps = {}) {
+  const [search, setSearch] = useState(value !== undefined ? value : initialValue)
   const [selectedTier, setSelectedTier] = useState<string>('all')
   const [selectedDepartment, setSelectedDepartment] = useState<string>('')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+
+  // Keep search in sync if value prop changes from parent
+  useMemo(() => {
+    if (value !== undefined && value !== search) {
+      setSearch(value);
+    }
+  }, [value]);
 
   const filteredProgrammes = useMemo(() => {
     return UPSA_PROGRAMMES_CATALOG.filter((item) => {
@@ -71,7 +85,7 @@ export function ProgrammeOfStudyInput({ onProgrammeChange, initialValue = '' }: 
         <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
         <Input
           id="degree_programme"
-          name="degree_programme"
+          {...(includeHiddenInputs ? { name: "degree_programme" } : {})}
           placeholder="Search by programme or department (e.g. Accounting, IT, Law, Marketing)..."
           className="pl-9 h-10 text-xs bg-background/50 border-primary/20"
           value={search}
@@ -89,8 +103,10 @@ export function ProgrammeOfStudyInput({ onProgrammeChange, initialValue = '' }: 
         />
       </div>
 
-      {/* Hidden input to pass selected department to server action */}
-      <input type="hidden" name="department" value={selectedDepartment} />
+      {/* Hidden input to pass selected department to server action if standalone */}
+      {includeHiddenInputs && (
+        <input type="hidden" name="department" value={selectedDepartment} />
+      )}
 
       {isDropdownOpen && (
         <div className="absolute z-30 w-full mt-1 bg-popover/98 backdrop-blur-md border border-primary/30 rounded-xl shadow-2xl max-h-72 overflow-y-auto divide-y divide-border/40">
