@@ -62,6 +62,7 @@ import {
 import { getSlideThumbnailUrl, isPlaceholderSlideUrl } from '@/lib/images';
 import { cn } from '@/lib/utils';
 import { CalibrateTutorDialog } from '@/components/chat/CalibrateTutorDialog';
+import { createClient } from '@/lib/supabase/client';
 
 interface LectureItem {
   id: string;
@@ -278,6 +279,36 @@ export default function GeneralAiChatPage() {
   const [syncStatus, setSyncStatus] = useState<'synced' | 'saving' | 'offline'>('synced');
   const [isCalibrateDialogOpen, setIsCalibrateDialogOpen] = useState(false);
   const [walletCredits, setWalletCredits] = useState<number | null>(null);
+  const [tutorConfig, setTutorConfig] = useState<{ name: string; personality: string; tone: string }>({
+    name: 'Alex',
+    personality: 'encouraging',
+    tone: 'academic',
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadTutorConfig() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const [settingsRes, profileRes] = await Promise.all([
+          supabase.from('user_settings').select('ai_tutor_name, ai_personality, ai_tone').eq('user_id', user.id).maybeSingle(),
+          supabase.from('profiles').select('tutor_name, tutor_personality').eq('id', user.id).maybeSingle(),
+        ]);
+        if (isMounted) {
+          const name = settingsRes.data?.ai_tutor_name || profileRes.data?.tutor_name || 'Alex';
+          const personality = settingsRes.data?.ai_personality || profileRes.data?.tutor_personality || 'encouraging';
+          const tone = settingsRes.data?.ai_tone || 'academic';
+          setTutorConfig({ name, personality, tone });
+        }
+      } catch {}
+    }
+    loadTutorConfig();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -775,6 +806,13 @@ export default function GeneralAiChatPage() {
         messages: historyForApi,
         temperature: 0.55,
         model: selectedModel,
+        tutorName: tutorConfig.name,
+        tutorPersonality: tutorConfig.personality,
+        tutorTone: tutorConfig.tone,
+        studentConfig: {
+          personality: tutorConfig.personality,
+          tone: tutorConfig.tone,
+        },
       };
 
       if (activeDeck) {
@@ -1207,9 +1245,12 @@ export default function GeneralAiChatPage() {
                   <h1 className="text-lg md:text-xl font-black tracking-tight text-[#00004E] dark:text-white truncate">
                     {currentSession?.title || 'AI Study Tutor & Assistant'}
                   </h1>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#D89A06]/20 text-[#8C6404] dark:text-[#D89A06] border border-[#D89A06]/40 uppercase tracking-wide">
+                    {tutorConfig.name} ({tutorConfig.personality})
+                  </span>
                 </div>
                 <p className="text-xs text-muted-foreground truncate">
-                  24/7 Collegiate AI Tutor · General Academic &amp; Slide-Grounded Mentoring
+                  Personalized Tutor {tutorConfig.name} · {tutorConfig.tone === 'casual' ? 'Casual & Relatable' : 'Academic & Scholarly'} · Slide Grounding &amp; Mentoring
                 </p>
               </div>
             </div>
@@ -1912,6 +1953,13 @@ export default function GeneralAiChatPage() {
       <CalibrateTutorDialog
         open={isCalibrateDialogOpen}
         onOpenChange={setIsCalibrateDialogOpen}
+        onSaved={(saved) => {
+          setTutorConfig({
+            name: saved.tutor_name,
+            personality: saved.tutor_personality,
+            tone: saved.tutor_tone,
+          });
+        }}
       />
     </div>
   );

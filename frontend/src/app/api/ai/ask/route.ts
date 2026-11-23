@@ -35,6 +35,10 @@ const AskRequestSchema = z.object({
     temperature: z.number().min(0).max(1).optional(),
     model: z.string().optional(),
     grounding: z.unknown().optional(),
+    tutorName: z.string().optional(),
+    tutorPersonality: z.string().optional(),
+    tutorTone: z.string().optional(),
+    studentConfig: z.unknown().optional(),
     messages: z
       .array(
         z.object({
@@ -244,15 +248,65 @@ export async function POST(request: Request) {
       payload.systemPrompt ||
       'You are an expert AI university tutor. Provide clear, highly readable, well-structured pedagogical explanations using markdown headers, bullet points, and LaTeX for math.';
 
+    const isTutorFeature = parsed.data.feature === 'ai-tutor';
+
+    // Fetch user settings and profile to personalize AI Tutor persona and tone
+    let tutorName = payload.tutorName;
+    let tutorPersonality = payload.tutorPersonality;
+    let tutorTone = payload.tutorTone;
+    let studentConfig: any = payload.studentConfig;
+    let studentCourseContext = 'University Academic Studies';
+
+    if (isTutorFeature) {
+      try {
+        const [settingsRes, profileRes] = await Promise.all([
+          supabase
+            .from('user_settings')
+            .select('ai_tutor_name, ai_personality, ai_tone, ai_reading_level, learning_style, language')
+            .eq('user_id', user.id)
+            .maybeSingle(),
+          supabase
+            .from('profiles')
+            .select('full_name, username, tutor_name, tutor_personality, degree_programme, faculty')
+            .eq('id', user.id)
+            .maybeSingle(),
+        ]);
+
+        const settingsRow = settingsRes.data;
+        const profileRow = profileRes.data;
+
+        tutorName = tutorName || settingsRow?.ai_tutor_name || profileRow?.tutor_name || 'Alex';
+        tutorPersonality = tutorPersonality || settingsRow?.ai_personality || profileRow?.tutor_personality || 'encouraging';
+        tutorTone = tutorTone || settingsRow?.ai_tone || 'academic';
+
+        if (profileRow?.degree_programme) {
+          studentCourseContext = `${profileRow.degree_programme} (Faculty of ${profileRow.faculty || 'Academic Studies'})`;
+        }
+
+        studentConfig = studentConfig || {
+          personality: tutorPersonality,
+          readingLevel: settingsRow?.ai_reading_level || 'undergraduate',
+          tone: tutorTone,
+          learningStyle: settingsRow?.learning_style || 'active',
+          language: settingsRow?.language || 'English',
+        };
+      } catch (err) {
+        console.warn('[API /ai/ask] Failed to load tutor settings for personalization:', err);
+      }
+    }
+
     const groundingResult = payload.grounding
       ? TutorGroundingSchema.safeParse(payload.grounding)
       : null;
 
     let groundingSources: GroundingSource[] = [];
+    let candidateSlides: any[] = [];
+    let retrievedChunks: any[] = [];
+    let grounding: TutorGroundingInput | null = null;
 
     if (groundingResult?.success) {
-      const grounding: TutorGroundingInput = groundingResult.data as TutorGroundingInput;
-      let candidateSlides = grounding.slides || [];
+      grounding = groundingResult.data as TutorGroundingInput;
+      candidateSlides = grounding.slides || [];
       if (candidateSlides.length === 0 && grounding.lectureId) {
         const { data: dbSlides } = await supabase
           .from('slides')
@@ -265,29 +319,7 @@ export async function POST(request: Request) {
         }
       }
 
-      let studentConfig = grounding.studentConfig;
-      let tutorName: string | undefined;
-      let tutorPersonality: string | undefined;
-      if (!studentConfig) {
-        const { data: settingsRow } = await supabase
-          .from('user_settings')
-          .select('ai_tutor_name, ai_personality, ai_tone, ai_reading_level, learning_style, language')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        if (settingsRow) {
-          tutorName = settingsRow.ai_tutor_name || undefined;
-          tutorPersonality = settingsRow.ai_personality || undefined;
-          studentConfig = {
-            personality: settingsRow.ai_personality || undefined,
-            readingLevel: settingsRow.ai_reading_level || undefined,
-            tone: settingsRow.ai_tone || undefined,
-            learningStyle: settingsRow.learning_style || undefined,
-            language: settingsRow.language || undefined,
-          };
-        }
-      }
-
-      const retrievedChunks = retrieveRelevantSlideChunks(
+      retrievedChunks = retrieveRelevantSlideChunks(
         latestUserQuestion,
         candidateSlides,
         grounding.currentSlideNumber,
@@ -300,6 +332,7 @@ export async function POST(request: Request) {
           text: `${s.raw_text || ''} ${s.explanation || ''}`.trim(),
         }))
         .filter((s) => s.text.length > 0);
+
       if (
         grounding.currentSlideNumber &&
         (grounding.currentSlideText || grounding.currentSlideExplanation)
@@ -309,17 +342,19 @@ export async function POST(request: Request) {
           text: `${grounding.currentSlideText || ''} ${grounding.currentSlideExplanation || ''}`.trim(),
         });
       }
+    }
 
+    if (isTutorFeature) {
       systemPrompt = buildGroundedTutorPrompt({
-        tutorName,
-        tutorPersonality: tutorPersonality || studentConfig?.personality,
-        courseContext: grounding.courseContext,
-        currentSlideNumber: grounding.currentSlideNumber,
-        currentSlideText: grounding.currentSlideText,
-        currentSlideExplanation: grounding.currentSlideExplanation,
+        tutorName: tutorName || 'Alex',
+        tutorPersonality: tutorPersonality || 'encouraging',
+        courseContext: grounding?.courseContext || studentCourseContext,
+        currentSlideNumber: grounding?.currentSlideNumber,
+        currentSlideText: grounding?.currentSlideText,
+        currentSlideExplanation: grounding?.currentSlideExplanation,
         retrievedChunks,
-        studentConfig,
-        commandMode: grounding.commandMode ?? detectTutorCommandMode(latestUserQuestion),
+        studentConfig: studentConfig || { personality: tutorPersonality || 'encouraging', tone: tutorTone || 'academic' },
+        commandMode: grounding?.commandMode ?? detectTutorCommandMode(latestUserQuestion),
       });
     }
 

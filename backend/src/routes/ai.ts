@@ -342,16 +342,17 @@ router.post('/ask', async (req: Request, res: Response) => {
   }
   
   // Fetch user settings
-  let userSettings = null;
+  let userSettings: any = null;
+  let userProfile: any = null;
   try {
     const { supabaseAsUser } = await import('../lib/supabase');
     const supabase = supabaseAsUser(req.user!.jwt);
-    const { data } = await supabase
-      .from('user_settings')
-      .select('*')
-      .eq('user_id', req.user!.id)
-      .single();
-    if (data) userSettings = data;
+    const [settingsRes, profileRes] = await Promise.all([
+      supabase.from('user_settings').select('*').eq('user_id', req.user!.id).maybeSingle(),
+      supabase.from('profiles').select('tutor_name, tutor_personality, degree_programme, faculty').eq('id', req.user!.id).maybeSingle(),
+    ]);
+    if (settingsRes.data) userSettings = settingsRes.data;
+    if (profileRes.data) userProfile = profileRes.data;
   } catch (err) {
     console.error('Failed to fetch user settings for AI:', err);
   }
@@ -363,6 +364,19 @@ router.post('/ask', async (req: Request, res: Response) => {
   let enrichedPayload = {
     ...payload,
     temperature: payload.temperature ?? (feature === 'chat_message' ? 0.55 : undefined),
+  };
+
+  const isTutorRequest = feature === 'chat_message' || feature === 'ai-tutor';
+  const resolvedTutorName = payload.tutorName || userSettings?.ai_tutor_name || userProfile?.tutor_name || 'Alex';
+  const resolvedTutorPersonality = payload.tutorPersonality || userSettings?.ai_personality || userProfile?.tutor_personality || 'encouraging';
+  const resolvedTutorTone = payload.tutorTone || userSettings?.ai_tone || 'academic';
+
+  const defaultStudentConfig = {
+    personality: resolvedTutorPersonality,
+    readingLevel: userSettings?.ai_reading_level || 'undergraduate',
+    tone: resolvedTutorTone,
+    learningStyle: userSettings?.learning_style || 'active',
+    language: userSettings?.language || 'English',
   };
 
   let groundingSources: GroundingSource[] = [];
@@ -388,21 +402,36 @@ router.post('/ask', async (req: Request, res: Response) => {
     enrichedPayload = {
       ...enrichedPayload,
       systemPrompt: buildGroundedTutorPrompt({
-        tutorName: userSettings?.ai_tutor_name || undefined,
-        tutorPersonality: userSettings?.ai_personality || undefined,
+        tutorName: resolvedTutorName,
+        tutorPersonality: resolvedTutorPersonality,
         courseContext: g.courseContext,
         currentSlideNumber: g.currentSlideNumber,
         currentSlideText: g.currentSlideText,
         currentSlideExplanation: g.currentSlideExplanation,
         retrievedChunks: chunks,
-        studentConfig: g.studentConfig ?? {
-          personality: userSettings?.ai_personality || undefined,
-          readingLevel: userSettings?.ai_reading_level || undefined,
-          tone: userSettings?.ai_tone || undefined,
-          learningStyle: userSettings?.learning_style || undefined,
-          language: userSettings?.language || undefined,
-        },
+        studentConfig: g.studentConfig ?? defaultStudentConfig,
         commandMode: g.commandMode ?? detectTutorCommandMode(String(latestQ)),
+      }),
+    };
+  } else if (isTutorRequest) {
+    const rawMsgs = Array.isArray(payload.messages) ? payload.messages : [];
+    const latestQ =
+      [...rawMsgs].reverse().find((m: any) => m?.role === 'user')?.content ||
+      payload.prompt ||
+      '';
+    const courseContext = userProfile?.degree_programme
+      ? `${userProfile.degree_programme} · Faculty of ${userProfile.faculty || 'Academic Studies'}`
+      : 'University Degree Studies';
+
+    enrichedPayload = {
+      ...enrichedPayload,
+      systemPrompt: buildGroundedTutorPrompt({
+        tutorName: resolvedTutorName,
+        tutorPersonality: resolvedTutorPersonality,
+        courseContext,
+        retrievedChunks: [],
+        studentConfig: defaultStudentConfig,
+        commandMode: detectTutorCommandMode(String(latestQ)),
       }),
     };
   }
