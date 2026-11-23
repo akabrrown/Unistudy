@@ -292,6 +292,9 @@ export default function GeneralAiChatPage() {
   const [syncStatus, setSyncStatus] = useState<'synced' | 'saving' | 'offline'>('synced');
   const [isCalibrateDialogOpen, setIsCalibrateDialogOpen] = useState(false);
   const [walletCredits, setWalletCredits] = useState<number | null>(null);
+  const [freePasses, setFreePasses] = useState<number | null>(null);
+  const [paidCredits, setPaidCredits] = useState<number | null>(null);
+  const [secondsUntilRefill, setSecondsUntilRefill] = useState<number | null>(null);
   const [tutorConfig, setTutorConfig] = useState<{ name: string; personality: string; tone: string }>({
     name: 'Alex',
     personality: 'encouraging',
@@ -424,8 +427,12 @@ export default function GeneralAiChatPage() {
         const res = await fetch('/api/quota/status', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
-          if (isMounted && typeof data.walletBalance === 'number') {
-            setWalletCredits(data.walletBalance);
+          if (isMounted) {
+            if (typeof data.wallet_balance === 'number') setWalletCredits(data.wallet_balance);
+            else if (typeof data.walletBalance === 'number') setWalletCredits(data.walletBalance);
+            if (typeof data.free_passes === 'number') setFreePasses(data.free_passes);
+            if (typeof data.paid_credits === 'number') setPaidCredits(data.paid_credits);
+            if (typeof data.seconds_until_refill === 'number') setSecondsUntilRefill(data.seconds_until_refill);
           }
         }
       } catch {
@@ -435,9 +442,18 @@ export default function GeneralAiChatPage() {
     fetchCredits();
 
     const handleCreditsChanged = (e: Event) => {
-      const ce = e as CustomEvent<{ balance?: number }>;
+      const ce = e as CustomEvent<{ balance?: number; freePasses?: number; paidCredits?: number; secondsUntilRefill?: number }>;
       if (typeof ce.detail?.balance === 'number') {
         setWalletCredits(ce.detail.balance);
+      }
+      if (typeof ce.detail?.freePasses === 'number') {
+        setFreePasses(ce.detail.freePasses);
+      }
+      if (typeof ce.detail?.paidCredits === 'number') {
+        setPaidCredits(ce.detail.paidCredits);
+      }
+      if (typeof ce.detail?.secondsUntilRefill === 'number') {
+        setSecondsUntilRefill(ce.detail.secondsUntilRefill);
       }
     };
     window.addEventListener('unistudy-credits-changed', handleCreditsChanged);
@@ -990,10 +1006,19 @@ export default function GeneralAiChatPage() {
       // Instantly synchronize live deducted credits across the entire application
       if (typeof data.remainingCredits === 'number') {
         setWalletCredits(data.remainingCredits);
+        if (typeof data.freePasses === 'number') setFreePasses(data.freePasses);
+        if (typeof data.paidCredits === 'number') setPaidCredits(data.paidCredits);
+        if (typeof data.secondsUntilRefill === 'number') setSecondsUntilRefill(data.secondsUntilRefill);
+
         if (typeof window !== 'undefined') {
           window.dispatchEvent(
             new CustomEvent('unistudy-credits-changed', {
-              detail: { balance: data.remainingCredits },
+              detail: {
+                balance: data.remainingCredits,
+                freePasses: data.freePasses,
+                paidCredits: data.paidCredits,
+                secondsUntilRefill: data.secondsUntilRefill,
+              },
             })
           );
         }
@@ -1479,11 +1504,24 @@ export default function GeneralAiChatPage() {
 
               <Link
                 href="/dashboard/settings/billing"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2.5 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors shadow-2xs"
-                title="Your AI Credit Fuel. Click to view billing and usage."
+                className="inline-flex items-center gap-2 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2.5 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors shadow-2xs group"
+                title={`Dual-Pocket Wallet: ${freePasses ?? 8}/8 Free 6h Passes + ${paidCredits ?? 20} Paid Credits (Never expires)`}
               >
-                <span className="text-[#D89A06]">⚡</span>
-                <span>{walletCredits ?? 20} Credits</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-[#D89A06]">⚡</span>
+                  <span>{freePasses ?? 8}/8 Free</span>
+                  {secondsUntilRefill !== null && (freePasses ?? 8) < 8 && secondsUntilRefill > 0 && (
+                    <span className="text-[10px] text-muted-foreground font-mono hidden md:inline">
+                      ({Math.floor(secondsUntilRefill / 3600)}h {Math.floor((secondsUntilRefill % 3600) / 60)}m)
+                    </span>
+                  )}
+                </div>
+                {(paidCredits ?? 0) > 0 && (
+                  <div className="flex items-center gap-1 border-l border-[#D89A06]/30 pl-1.5">
+                    <span className="text-xs">🪙</span>
+                    <span>{paidCredits} Paid</span>
+                  </div>
+                )}
               </Link>
 
               <Button

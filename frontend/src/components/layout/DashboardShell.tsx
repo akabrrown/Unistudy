@@ -210,6 +210,8 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [walletBalance, setWalletBalance] = useState<number>(initialWalletBalance ?? 20);
+  const [freePasses, setFreePasses] = useState<number | null>(null);
+  const [paidCredits, setPaidCredits] = useState<number | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -218,8 +220,11 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
         const res = await fetch('/api/quota/status', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
-          if (isMounted && typeof data.walletBalance === 'number') {
-            setWalletBalance(data.walletBalance);
+          if (isMounted) {
+            if (typeof data.wallet_balance === 'number') setWalletBalance(data.wallet_balance);
+            else if (typeof data.walletBalance === 'number') setWalletBalance(data.walletBalance);
+            if (typeof data.free_passes === 'number') setFreePasses(data.free_passes);
+            if (typeof data.paid_credits === 'number') setPaidCredits(data.paid_credits);
           }
         }
       } catch {
@@ -229,9 +234,15 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
     syncWallet();
 
     const handleCreditsChanged = (e: Event) => {
-      const ce = e as CustomEvent<{ balance?: number }>;
+      const ce = e as CustomEvent<{ balance?: number; freePasses?: number; paidCredits?: number }>;
       if (typeof ce.detail?.balance === 'number') {
         setWalletBalance(ce.detail.balance);
+      }
+      if (typeof ce.detail?.freePasses === 'number') {
+        setFreePasses(ce.detail.freePasses);
+      }
+      if (typeof ce.detail?.paidCredits === 'number') {
+        setPaidCredits(ce.detail.paidCredits);
       }
     };
     window.addEventListener('unistudy-credits-changed', handleCreditsChanged);
@@ -540,8 +551,10 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
               }
             />
             <TooltipContent side="right" sideOffset={12}>
-              <div className="text-xs font-bold">{walletBalance} AI Credits</div>
-              <div className="text-[10px] text-muted-foreground">Click to view billing &amp; usage</div>
+              <div className="text-xs font-bold">
+                {freePasses !== null ? `${freePasses}/8 Free Passes + ${paidCredits ?? 0} Paid` : `${walletBalance} Credits`}
+              </div>
+              <div className="text-[10px] text-muted-foreground">Free passes refill every 6 hours · Click for billing</div>
             </TooltipContent>
           </Tooltip>
         </div>
@@ -549,7 +562,7 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
         <Link
           href="/dashboard/settings/billing"
           className="flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-[#00004E]/5 via-[#D89A06]/10 to-transparent dark:from-[#D89A06]/15 dark:via-white/5 dark:to-transparent border border-[#D89A06]/35 hover:border-[#D89A06] transition-all group shadow-2xs"
-          title="AI Credits Wallet — Click to view balance & usage"
+          title={`Dual-Pocket Wallet: ${freePasses !== null ? `${freePasses}/8 Free Passes` : ''} ${paidCredits !== null ? `+ ${paidCredits} Paid Credits` : ''} — Click to manage`}
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-lg bg-[#D89A06] text-[#00004E] flex items-center justify-center font-black text-sm shrink-0 shadow-xs group-hover:scale-105 transition-transform">
@@ -559,10 +572,13 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
               <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground group-hover:text-foreground">
                 AI Credit Fuel
               </div>
-              <div className="text-xs font-black text-[#00004E] dark:text-[#D89A06] flex items-center gap-1.5">
-                <span>{walletBalance} Credits</span>
+              <div className="text-xs font-black text-[#00004E] dark:text-[#D89A06] flex items-center gap-1.5 flex-wrap">
+                <span>{freePasses !== null ? `${freePasses}/8 Free` : `${walletBalance} Credits`}</span>
+                {paidCredits !== null && paidCredits > 0 && (
+                  <span className="text-[10px] text-muted-foreground font-semibold">+{paidCredits} Paid</span>
+                )}
                 <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">
-                  Active
+                  6h Refill
                 </span>
               </div>
             </div>

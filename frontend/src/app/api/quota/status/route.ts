@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireAuth } from '@/lib/security/adminGuard';
+import { getDualTierWallet } from '@/lib/ai/quota';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,9 +25,9 @@ export async function GET(req: NextRequest) {
     const now = new Date();
     const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
 
-    // Fetch wallet, user quota, and ai_request_log metrics in parallel
-    const [walletRes, quotaRes, logsRes] = await Promise.all([
-      supabase.from('credit_wallets').select('balance').eq('user_id', userId).maybeSingle(),
+    // Fetch dual tier wallet, user quota, and ai_request_log metrics in parallel
+    const [dualTierWallet, quotaRes, logsRes] = await Promise.all([
+      getDualTierWallet(userId),
       supabase.from('user_quota').select('*').eq('user_id', userId).maybeSingle(),
       supabase
         .from('ai_request_log')
@@ -36,26 +37,7 @@ export async function GET(req: NextRequest) {
         .limit(300),
     ]);
 
-    let walletBalance = 0;
-
-    // Guarantee the promised 20 Free Welcome Bonus AI Credits if wallet has never been provisioned
-    if (!walletRes.data || typeof walletRes.data.balance !== 'number') {
-      try {
-        const { getAdminClient } = await import('@/lib/supabase/admin');
-        const admin = getAdminClient();
-        await (admin.from('credit_wallets') as any).upsert({
-          user_id: userId,
-          balance: 20,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' });
-        walletBalance = 20;
-      } catch (err) {
-        console.warn('[Quota] Auto-grant welcome bonus notice:', err);
-        walletBalance = 20;
-      }
-    } else {
-      walletBalance = walletRes.data.balance;
-    }
+    const walletBalance = dualTierWallet.totalAvailable;
     const quota = quotaRes.data || {};
     const logs = logsRes.data || [];
 
@@ -113,7 +95,13 @@ export async function GET(req: NextRequest) {
 
     const response = {
       wallet_balance: walletBalance,
-      wallet_credits: walletBalance > 500 ? Number((walletBalance / 100).toFixed(2)) : walletBalance,
+      wallet_credits: walletBalance,
+      free_passes: dualTierWallet.freePasses,
+      free_passes_limit: dualTierWallet.freePassesLimit,
+      paid_credits: dualTierWallet.paidCredits,
+      seconds_until_refill: dualTierWallet.secondsUntilRefill,
+      next_refill_at: dualTierWallet.nextRefillAt,
+      tier: dualTierWallet.tier,
       plan: 'credit_system',
       usage_summary: {
         points_used_today: totalTodayPoints,

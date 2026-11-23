@@ -119,6 +119,24 @@ export const FREE_DAILY_ALLOWANCES: Record<string, number> = {
   youtube: 300
 }
 
+export const DUAL_TIER_CONFIG = {
+  FREE_PASSES_LIMIT: 8,
+  PRO_PASSES_LIMIT: 25,
+  REFRESH_INTERVAL_HOURS: 6,
+  REFRESH_INTERVAL_MS: 6 * 60 * 60 * 1000,
+  VELOCITY_MAX_PER_MINUTE: 12,
+} as const;
+
+export interface DualTierWalletInfo {
+  freePasses: number;
+  freePassesLimit: number;
+  paidCredits: number;
+  totalAvailable: number;
+  tier: 'free' | 'pro' | string;
+  nextRefillAt: string;
+  secondsUntilRefill: number;
+}
+
 export const CREDIT_BUNDLES: Record<string, { price: number; credits: number }> = {
   starter:  { price: 10,  credits: 10000  },
   standard: { price: 25,  credits: 30000  },

@@ -23,6 +23,7 @@ import {
   verifyResponseGrounding,
   type GroundingSource,
 } from '../../../../../../shared/lib/groundingVerifier';
+import { getDualTierWallet, deductUserCredits } from '@/lib/ai/quota';
 
 export const dynamic = 'force-dynamic';
 
@@ -337,34 +338,20 @@ export async function POST(request: Request) {
     const latestUserQuestion =
       [...rawMessages].reverse().find((m) => m.role === 'user')?.content || '';
 
-    // Verify and check user credit wallet
-    const { getAdminClient } = await import('@/lib/supabase/admin');
-    const admin = getAdminClient();
+    // Verify and check user credit wallet with 6-Hour Dual-Tier Refill
+    const wallet = await getDualTierWallet(user.id);
 
-    const { data: walletRow } = await (admin.from('credit_wallets') as any)
-      .select('balance')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    let userBalance: number;
-    if (!walletRow || typeof walletRow.balance !== 'number') {
-      // First time user: initialize with guaranteed 20 welcome bonus credits
-      await (admin.from('credit_wallets') as any).upsert({
-        user_id: user.id,
-        balance: 20,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
-      userBalance = 20;
-    } else {
-      userBalance = walletRow.balance;
-    }
-
-    if (userBalance <= 0) {
+    if (wallet.totalAvailable <= 0) {
+      const hours = Math.floor(wallet.secondsUntilRefill / 3600);
+      const mins = Math.floor((wallet.secondsUntilRefill % 3600) / 60);
       return NextResponse.json(
         {
-          error: 'You have exhausted your AI Credits (0 remaining). Please top up in Billing to continue chatting.',
+          error: `You have exhausted your Free Passes and Paid Credits. Free passes refill in ${hours}h ${mins}m, or top up with a credit bundle to continue immediately.`,
           code: 'INSUFFICIENT_CREDITS',
           remainingCredits: 0,
+          freePasses: wallet.freePasses,
+          paidCredits: wallet.paidCredits,
+          secondsUntilRefill: wallet.secondsUntilRefill,
         },
         { status: 402 }
       );
@@ -556,29 +543,8 @@ export async function POST(request: Request) {
         ? verifyResponseGrounding(sanitizedReply, groundingSources)
         : null;
 
-    // Deduct 1 credit for the successful AI interaction
-    const newBalance = Math.max(0, userBalance - 1);
-    try {
-      await (admin.from('credit_wallets') as any).upsert({
-        user_id: user.id,
-        balance: newBalance,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
-
-      // Audit log into ai_request_log
-      await (admin.from('ai_request_log') as any).insert({
-        user_id: user.id,
-        provider: providerResult.provider,
-        feature: 'ai-tutor',
-        pool_type: 'credit_funded',
-        requests_cost: 1,
-        was_cached: false,
-        drew_from_pool: false,
-        user_plan: 'credit_system',
-      });
-    } catch (logErr) {
-      console.warn('[API /ai/ask] Balance deduction notice:', logErr);
-    }
+    // Deduct 1 credit using Dual-Tier priority (Free passes first, then paid balance)
+    const deductResult = await deductUserCredits(user.id, 'ai-tutor', providerResult.provider, 1);
 
     return NextResponse.json({
       result: {
@@ -594,7 +560,11 @@ export async function POST(request: Request) {
       grounding: groundingReport,
       provider: providerResult.provider,
       modelUsed: providerResult.model,
-      remainingCredits: newBalance,
+      remainingCredits: deductResult.remainingCredits,
+      freePasses: deductResult.freePasses,
+      paidCredits: deductResult.paidCredits,
+      secondsUntilRefill: deductResult.secondsUntilRefill,
+      deductedFrom: deductResult.deductedFrom,
     });
   } catch (err: unknown) {
     console.error('API /ai/ask error:', err);

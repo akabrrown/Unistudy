@@ -6,6 +6,8 @@ import {
   FEATURE_COSTS,
   PROVIDER_CONFIG,
   FREE_DAILY_ALLOWANCES,
+  DUAL_TIER_CONFIG,
+  DualTierWalletInfo,
 } from '../../../../shared/constants/quota'
 
 const cleanEnv = (val?: string) => (val ? val.replace(/^["']|["']$/g, '').trim() : '')
@@ -22,6 +24,35 @@ export const redis =
 
 let upstashUnavailableUntil = 0
 const UPSTASH_COOLDOWN_MS = 60_000
+
+// In-memory velocity guard fallback if Redis is unavailable
+const velocityMap = new Map<string, { count: number; resetAt: number }>()
+
+export async function checkVelocityLimit(userId: string): Promise<boolean> {
+  const now = Date.now()
+  const key = `rate_limit:ai:${userId}`
+
+  if (redis && now >= upstashUnavailableUntil) {
+    try {
+      const current = await redis.incr(key)
+      if (current === 1) {
+        await redis.expire(key, 60)
+      }
+      return current <= DUAL_TIER_CONFIG.VELOCITY_MAX_PER_MINUTE
+    } catch {
+      // fallback to memory
+    }
+  }
+
+  const record = velocityMap.get(userId)
+  if (!record || now >= record.resetAt) {
+    velocityMap.set(userId, { count: 1, resetAt: now + 60_000 })
+    return true
+  }
+
+  record.count += 1
+  return record.count <= DUAL_TIER_CONFIG.VELOCITY_MAX_PER_MINUTE
+}
 
 async function safeRedisGet<T>(key: string): Promise<T | null> {
   if (!redis || Date.now() < upstashUnavailableUntil) return null
@@ -79,35 +110,102 @@ export type QuotaCheckResult = {
   wallet_balance: number
 }
 
-export async function getCreditBalance(userId: string): Promise<number> {
+export async function getDualTierWallet(userId: string): Promise<DualTierWalletInfo> {
   try {
-    const supabase = await createClient()
-    const { data } = await supabase
-      .from('credit_wallets')
-      .select('balance')
-      .eq('user_id', userId)
-      .maybeSingle()
+    const { getAdminClient } = await import('@/lib/supabase/admin')
+    const admin = getAdminClient()
 
-    if (!data || typeof data.balance !== 'number') {
-      try {
-        const { getAdminClient } = await import('@/lib/supabase/admin')
-        const admin = getAdminClient()
-        await (admin.from('credit_wallets') as any).upsert({
-          user_id: userId,
-          balance: 20,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' })
-        return 20
-      } catch {
-        return 20
+    // Try calling the atomic DB function first
+    const { data: rpcData, error: rpcErr } = await (admin.rpc as any)('get_or_refill_wallet', { p_user_id: userId })
+    if (!rpcErr && rpcData && typeof rpcData === 'object') {
+      const d = rpcData as Record<string, any>
+      return {
+        freePasses: Number(d.free_passes ?? 8),
+        freePassesLimit: Number(d.free_passes_limit ?? 8),
+        paidCredits: Number(d.paid_credits ?? 20),
+        totalAvailable: Number(d.total_available ?? 28),
+        tier: String(d.tier ?? 'free'),
+        nextRefillAt: String(d.next_refill_at ?? new Date(Date.now() + DUAL_TIER_CONFIG.REFRESH_INTERVAL_MS).toISOString()),
+        secondsUntilRefill: Number(d.seconds_until_refill ?? 6 * 3600),
       }
     }
 
-    return data.balance
+    // Direct query fallback with lazy 6h math
+    const { data: walletRow } = await (admin.from('credit_wallets') as any)
+      .select('balance, free_passes, free_passes_refreshed_at, tier')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    const now = Date.now()
+    const tier = walletRow?.tier === 'pro' ? 'pro' : 'free'
+    const maxFree = tier === 'pro' ? DUAL_TIER_CONFIG.PRO_PASSES_LIMIT : DUAL_TIER_CONFIG.FREE_PASSES_LIMIT
+
+    if (!walletRow) {
+      await (admin.from('credit_wallets') as any).upsert({
+        user_id: userId,
+        balance: 20,
+        free_passes: maxFree,
+        free_passes_refreshed_at: new Date(now).toISOString(),
+        tier,
+        updated_at: new Date(now).toISOString(),
+      }, { onConflict: 'user_id' })
+
+      return {
+        freePasses: maxFree,
+        freePassesLimit: maxFree,
+        paidCredits: 20,
+        totalAvailable: maxFree + 20,
+        tier,
+        nextRefillAt: new Date(now + DUAL_TIER_CONFIG.REFRESH_INTERVAL_MS).toISOString(),
+        secondsUntilRefill: 6 * 3600,
+      }
+    }
+
+    let freePasses = typeof walletRow.free_passes === 'number' ? walletRow.free_passes : maxFree
+    let refreshedAt = walletRow.free_passes_refreshed_at
+      ? new Date(walletRow.free_passes_refreshed_at).getTime()
+      : 0
+
+    if (now - refreshedAt >= DUAL_TIER_CONFIG.REFRESH_INTERVAL_MS) {
+      freePasses = maxFree
+      refreshedAt = now
+      await (admin.from('credit_wallets') as any).update({
+        free_passes: maxFree,
+        free_passes_refreshed_at: new Date(now).toISOString(),
+        updated_at: new Date(now).toISOString(),
+      }).eq('user_id', userId)
+    }
+
+    const paidCredits = typeof walletRow.balance === 'number' ? walletRow.balance : 0
+    const nextRefill = refreshedAt + DUAL_TIER_CONFIG.REFRESH_INTERVAL_MS
+    const secondsUntilRefill = Math.max(0, Math.floor((nextRefill - now) / 1000))
+
+    return {
+      freePasses,
+      freePassesLimit: maxFree,
+      paidCredits,
+      totalAvailable: freePasses + paidCredits,
+      tier,
+      nextRefillAt: new Date(nextRefill).toISOString(),
+      secondsUntilRefill,
+    }
   } catch (err) {
-    console.warn('[Quota] Credit wallet lookup failed:', err instanceof Error ? err.message : err)
-    return 20
+    console.warn('[getDualTierWallet] Fallback notice:', err instanceof Error ? err.message : err)
+    return {
+      freePasses: 8,
+      freePassesLimit: 8,
+      paidCredits: 20,
+      totalAvailable: 28,
+      tier: 'free',
+      nextRefillAt: new Date(Date.now() + DUAL_TIER_CONFIG.REFRESH_INTERVAL_MS).toISOString(),
+      secondsUntilRefill: 6 * 3600,
+    }
   }
+}
+
+export async function getCreditBalance(userId: string): Promise<number> {
+  const wallet = await getDualTierWallet(userId)
+  return wallet.totalAvailable
 }
 
 export async function getUserQuota(userId: string): Promise<Record<string, unknown> | null> {
@@ -150,8 +248,8 @@ export async function getUserQuota(userId: string): Promise<Record<string, unkno
 
 export async function checkUserQuota(userId: string, feature: Feature): Promise<QuotaCheckResult> {
   const cost = 1
-  const walletBalance = await getCreditBalance(userId)
-  const isAllowed = walletBalance >= cost
+  const wallet = await getDualTierWallet(userId)
+  const isAllowed = wallet.totalAvailable >= cost
 
   return {
     allowed: isAllowed,
@@ -159,7 +257,7 @@ export async function checkUserQuota(userId: string, feature: Feature): Promise<
     cost,
     daily_used: 0,
     daily_limit: 0,
-    wallet_balance: walletBalance,
+    wallet_balance: wallet.totalAvailable,
   }
 }
 
@@ -168,41 +266,11 @@ export async function consumeUserQuota(
   feature: Feature,
   cost: number = 1
 ): Promise<{ success: boolean; remainingCredits: number }> {
-  const walletBalance = await getCreditBalance(userId)
-  if (walletBalance < cost) {
+  const result = await deductUserCredits(userId, feature, FEATURE_PROVIDER_MAP[feature] || 'gemini', cost)
+  if (!result.allowed) {
     throw new Error('quota_exhausted')
   }
-
-  const newBalance = Math.max(0, walletBalance - cost)
-
-  try {
-    const { getAdminClient } = await import('@/lib/supabase/admin')
-    const admin = getAdminClient()
-    await (admin.from('credit_wallets') as any).upsert({
-      user_id: userId,
-      balance: newBalance,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' })
-
-    const provider = FEATURE_PROVIDER_MAP[feature] || 'gemini'
-    await (admin.from('ai_request_log') as any).insert({
-      user_id: userId,
-      provider,
-      feature,
-      pool_type: 'credit_funded',
-      requests_cost: cost,
-      was_cached: false,
-      drew_from_pool: false,
-      user_plan: 'credit_system',
-    })
-  } catch (adminErr) {
-    console.warn('[consumeUserQuota] Admin update failed, attempting RPC fallback:', adminErr)
-    const supabase = await createClient()
-    await supabase.rpc('decrement_credit_wallet', { p_user_id: userId, p_amount: cost })
-  }
-
-  await safeRedisDel(`user_quota:${userId}`)
-  return { success: true, remainingCredits: newBalance }
+  return { success: true, remainingCredits: result.remainingCredits }
 }
 
 export async function deductUserCredits(
@@ -210,58 +278,157 @@ export async function deductUserCredits(
   feature: string,
   provider: string = 'gemini',
   cost: number = 1
-): Promise<{ allowed: boolean; remainingCredits: number; error?: string }> {
+): Promise<{
+  allowed: boolean
+  remainingCredits: number
+  freePasses: number
+  paidCredits: number
+  secondsUntilRefill: number
+  deductedFrom?: 'free' | 'paid' | 'mixed'
+  error?: string
+}> {
   try {
-    const { getAdminClient } = await import('@/lib/supabase/admin')
-    const admin = getAdminClient()
-
-    const { data: walletRow } = await (admin.from('credit_wallets') as any)
-      .select('balance')
-      .eq('user_id', userId)
-      .maybeSingle()
-
-    let currentBalance: number
-    if (!walletRow || typeof walletRow.balance !== 'number') {
-      await (admin.from('credit_wallets') as any).upsert({
-        user_id: userId,
-        balance: 20,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' })
-      currentBalance = 20
-    } else {
-      currentBalance = walletRow.balance
-    }
-
-    if (currentBalance < cost) {
+    // 1. Anti-Bot Velocity Limiter check
+    const isVelocityAllowed = await checkVelocityLimit(userId)
+    if (!isVelocityAllowed) {
       return {
         allowed: false,
-        remainingCredits: currentBalance,
-        error: 'You have exhausted your AI Credits (0 remaining). Please top up in Billing to continue.',
+        remainingCredits: 0,
+        freePasses: 0,
+        paidCredits: 0,
+        secondsUntilRefill: 60,
+        error: 'Too many requests in a short period. Please slow down and try again in a few moments.',
       }
     }
 
-    const newBalance = Math.max(0, currentBalance - cost)
+    const { getAdminClient } = await import('@/lib/supabase/admin')
+    const admin = getAdminClient()
+
+    // 2. Try the atomic database RPC function first
+    try {
+      const { data: rpcRes, error: rpcErr } = await (admin.rpc as any)('consume_ai_credit_dual_tier', {
+        p_user_id: userId,
+        p_amount: cost,
+      })
+
+      if (!rpcErr && rpcRes && typeof rpcRes === 'object') {
+        const d = rpcRes as Record<string, any>
+        if (d.allowed === false) {
+          const hours = Math.floor(d.seconds_until_refill / 3600)
+          const mins = Math.floor((d.seconds_until_refill % 3600) / 60)
+          return {
+            allowed: false,
+            remainingCredits: 0,
+            freePasses: Number(d.free_passes ?? 0),
+            paidCredits: Number(d.paid_credits ?? 0),
+            secondsUntilRefill: Number(d.seconds_until_refill ?? 0),
+            error: `You have exhausted your Free Passes and Paid Credits. Free passes refill in ${hours}h ${mins}m, or top up with a credit bundle to continue immediately.`,
+          }
+        }
+
+        // Audit log
+        try {
+          await (admin.from('ai_request_log') as any).insert({
+            user_id: userId,
+            provider,
+            feature,
+            pool_type: d.deducted_from === 'free' ? 'free_daily' : 'credit_funded',
+            requests_cost: cost,
+            was_cached: false,
+            drew_from_pool: d.deducted_from === 'free',
+            user_plan: 'credit_system',
+          })
+        } catch {
+          // Log failure is non-blocking
+        }
+
+        await safeRedisDel(`user_quota:${userId}`)
+
+        return {
+          allowed: true,
+          remainingCredits: Number(d.total_available ?? 0),
+          freePasses: Number(d.free_passes ?? 0),
+          paidCredits: Number(d.paid_credits ?? 0),
+          secondsUntilRefill: Number(d.seconds_until_refill ?? 0),
+          deductedFrom: d.deducted_from,
+        }
+      }
+    } catch (rpcCallErr) {
+      console.warn('[deductUserCredits] RPC call warning, using JS fallback:', rpcCallErr)
+    }
+
+    // 3. Fallback JS Dual-Tier deduction
+    const wallet = await getDualTierWallet(userId)
+    if (wallet.totalAvailable < cost) {
+      const hours = Math.floor(wallet.secondsUntilRefill / 3600)
+      const mins = Math.floor((wallet.secondsUntilRefill % 3600) / 60)
+      return {
+        allowed: false,
+        remainingCredits: wallet.totalAvailable,
+        freePasses: wallet.freePasses,
+        paidCredits: wallet.paidCredits,
+        secondsUntilRefill: wallet.secondsUntilRefill,
+        error: `You have exhausted your Free Passes and Paid Credits. Free passes refill in ${hours}h ${mins}m, or top up with a credit bundle to continue immediately.`,
+      }
+    }
+
+    let newFree = wallet.freePasses
+    let newPaid = wallet.paidCredits
+    let deductedFrom: 'free' | 'paid' | 'mixed' = 'free'
+
+    if (newFree >= cost) {
+      newFree -= cost
+      deductedFrom = 'free'
+    } else if (newFree > 0) {
+      const rem = cost - newFree
+      newFree = 0
+      newPaid = Math.max(0, newPaid - rem)
+      deductedFrom = 'mixed'
+    } else {
+      newPaid = Math.max(0, newPaid - cost)
+      deductedFrom = 'paid'
+    }
+
     await (admin.from('credit_wallets') as any).upsert({
       user_id: userId,
-      balance: newBalance,
+      free_passes: newFree,
+      balance: newPaid,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' })
 
-    await (admin.from('ai_request_log') as any).insert({
-      user_id: userId,
-      provider,
-      feature,
-      pool_type: 'credit_funded',
-      requests_cost: cost,
-      was_cached: false,
-      drew_from_pool: false,
-      user_plan: 'credit_system',
-    })
+    try {
+      await (admin.from('ai_request_log') as any).insert({
+        user_id: userId,
+        provider,
+        feature,
+        pool_type: deductedFrom === 'free' ? 'free_daily' : 'credit_funded',
+        requests_cost: cost,
+        was_cached: false,
+        drew_from_pool: deductedFrom === 'free',
+        user_plan: 'credit_system',
+      })
+    } catch {
+      // Log failure is non-blocking
+    }
 
     await safeRedisDel(`user_quota:${userId}`)
-    return { allowed: true, remainingCredits: newBalance }
+
+    return {
+      allowed: true,
+      remainingCredits: newFree + newPaid,
+      freePasses: newFree,
+      paidCredits: newPaid,
+      secondsUntilRefill: wallet.secondsUntilRefill,
+      deductedFrom,
+    }
   } catch (err: unknown) {
     console.error('[deductUserCredits] Error:', err)
-    return { allowed: true, remainingCredits: 0 }
+    return {
+      allowed: true,
+      remainingCredits: 1,
+      freePasses: 1,
+      paidCredits: 0,
+      secondsUntilRefill: 0,
+    }
   }
 }

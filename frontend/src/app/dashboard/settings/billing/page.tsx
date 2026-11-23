@@ -54,6 +54,12 @@ interface ProviderPoolStatus {
 interface QuotaStatus {
   wallet_balance?: number;
   wallet_credits?: number;
+  free_passes?: number;
+  free_passes_limit?: number;
+  paid_credits?: number;
+  seconds_until_refill?: number;
+  next_refill_at?: string;
+  tier?: string;
   plan?: string;
   usage_summary?: UsageSummary;
   features_breakdown?: Record<string, { count: number; points: number; credits: number }>;
@@ -696,11 +702,11 @@ export default function BillingSettings() {
           </div>
         </div>
 
-        {/* Tile 3: Daily Renewable Pool */}
+        {/* Tile 3: 6-Hour Free Passes Pool */}
         <div className="rounded-2xl border border-border/80 bg-card p-5 flex flex-col justify-between space-y-3 shadow-xs">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground font-semibold">
-              Daily Renewable Pool
+              Free 6-Hour Passes
             </p>
             <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
               <Zap className="w-4 h-4" />
@@ -709,21 +715,23 @@ export default function BillingSettings() {
           <div>
             <div className="flex items-baseline gap-1.5">
               <span className="text-3xl font-extrabold font-mono text-foreground tracking-tight">
-                5,000
+                {quota?.free_passes ?? 8} / {quota?.free_passes_limit ?? 8}
               </span>
-              <span className="text-xs font-semibold text-muted-foreground">pts/day free</span>
+              <span className="text-xs font-semibold text-muted-foreground">passes ready</span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Gemini, Groq 70B &amp; 8B pools reset daily
+              Burned first before permanent paid credits
             </p>
           </div>
           <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px]">
-            <span className="text-muted-foreground flex items-center gap-1">
+            <span className="text-muted-foreground flex items-center gap-1 font-mono text-[11px]">
               <Clock className="w-3 h-3 text-primary" />
-              Resets 00:00 UTC
+              {typeof quota?.seconds_until_refill === 'number' && (quota?.free_passes ?? 8) < (quota?.free_passes_limit ?? 8) && quota.seconds_until_refill > 0
+                ? `Refills in ${Math.floor(quota.seconds_until_refill / 3600)}h ${Math.floor((quota.seconds_until_refill % 3600) / 60)}m`
+                : 'Refills every 6 hours'}
             </span>
             <span className="text-emerald-500 font-semibold font-mono text-[10px] bg-emerald-500/10 px-2 py-0.5 rounded">
-              Active Today
+              Active Tier
             </span>
           </div>
         </div>
