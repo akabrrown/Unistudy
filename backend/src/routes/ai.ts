@@ -15,6 +15,7 @@ router.use(protectExpensiveEndpoint({ maxPerMinute: 12, maxConcurrent: 2 }));
 router.use(deduplicateInFlightRequests({ methods: ['GET', 'POST'] }));
 
 import multer from 'multer';
+import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { compile, derivative, evaluate, format, lusolve, simplify } from 'mathjs';
 import {
@@ -685,92 +686,101 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
       }
     }
 
+    // Send SSE headers immediately so the browser receives an instant connection
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof (res as any).flushHeaders === 'function') {
+      (res as any).flushHeaders();
+    }
+
     let fullText = '';
-    try {
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-      const result = await callWithFallback(genAI, GEMINI_VISION_MODELS, model =>
-        model.generateContent({ contents: [{ role: 'user', parts }] })
-      );
-      fullText = result.response.text();
-    } catch (geminiErr: any) {
-      // 1. Try OpenRouter Vision if image is present and OPENROUTER_API_KEY is configured
-      let openRouterSuccess = false;
-      const openRouterKey = process.env.OPENROUTER_API_KEY;
-      if (imageUrl && imageUrl !== 'https://example.com/placeholder.png' && openRouterKey) {
-        try {
-          console.log('Gemini vision failed, calling OpenRouter Vision fallback for slide image...');
-          const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${openRouterKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              model: OPENROUTER_CANDIDATE_MODELS[0],
-              max_tokens: 1200,
-              messages: [
-                {
-                  role: 'user',
-                  content: [
-                    { type: 'text', text: prompt },
-                    { type: 'image_url', image_url: { url: imageUrl } }
-                  ]
-                }
-              ]
-            })
-          });
 
-          if (orRes.ok) {
-            const orData = await orRes.json();
-            const text = orData.choices?.[0]?.message?.content;
-            if (text) {
-              fullText = text;
-              openRouterSuccess = true;
-              console.log('OpenRouter Vision fallback succeeded for slide explanation!');
-            }
-          } else {
-            const orErrText = await orRes.text().catch(() => '');
-            console.warn('OpenRouter Vision fallback responded with error:', orRes.status, orErrText);
-          }
-        } catch (orErr) {
-          console.warn('OpenRouter Vision fallback network error:', orErr);
-        }
-      }
-
-      // 2. Fall back to Groq text LLM if OpenRouter didn't produce text
-      if (!openRouterSuccess) {
-        console.log(`Falling back to Groq (${GROQ_SMART_MODELS[0]})...`);
-        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: GROQ_SMART_MODELS[0],
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: prompt }
-            ]
-          })
+    // Fast-path 1: If slide has clean text and NO image, stream from Groq in < 200ms
+    const hasValidImage = Boolean(imageUrl && imageUrl !== 'https://example.com/placeholder.png' && !imageUrl.includes('placeholder'));
+    
+    if (!hasValidImage && process.env.GROQ_API_KEY) {
+      try {
+        const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        const groqStream = await groq.chat.completions.create({
+          model: GROQ_SMART_MODELS[0] || 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt }
+          ],
+          stream: true,
+          temperature: 0.5,
         });
 
-        if (groqRes.ok) {
-          const groqData = await groqRes.json();
-          fullText = groqData.choices?.[0]?.message?.content || '';
-        } else {
-          const errBody = await groqRes.json().catch(() => ({}));
-          console.error('Groq fallback also failed:', errBody);
-          throw geminiErr;
+        for await (const chunk of groqStream) {
+          const delta = chunk.choices[0]?.delta?.content || '';
+          if (delta) {
+            fullText += delta;
+            res.write(`data: ${JSON.stringify(delta)}\n\n`);
+          }
         }
+      } catch (groqFastErr) {
+        console.warn('[AI Explain] Groq fast-path notice, falling back to Gemini:', groqFastErr);
       }
     }
 
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
+    // Path 2: If image is present or Groq didn't yield text, stream from Gemini Vision
+    if (!fullText && process.env.GEMINI_API_KEY) {
+      try {
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        for (const modelName of GEMINI_VISION_MODELS) {
+          try {
+            const model = genAI.getGenerativeModel({ model: modelName });
+            const streamResult = await model.generateContentStream({ contents: [{ role: 'user', parts }] });
+            for await (const chunk of streamResult.stream) {
+              const chunkText = chunk.text();
+              if (chunkText) {
+                fullText += chunkText;
+                res.write(`data: ${JSON.stringify(chunkText)}\n\n`);
+              }
+            }
+            if (fullText) break; // Successful stream
+          } catch (modelErr: any) {
+            console.warn(`[AI Explain] Gemini model ${modelName} stream notice:`, modelErr?.message || modelErr);
+          }
+        }
+      } catch (geminiErr: any) {
+        console.warn('[AI Explain] Gemini vision streaming notice:', geminiErr?.message || geminiErr);
+      }
+    }
 
-    res.write(`data: ${JSON.stringify(fullText)}\n\n`);
+    // Path 3: Fallback to Groq text completion if needed
+    if (!fullText && process.env.GROQ_API_KEY) {
+      try {
+        const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        const groqStream = await groq.chat.completions.create({
+          model: GROQ_SMART_MODELS[0] || 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt }
+          ],
+          stream: true,
+          temperature: 0.5,
+        });
+
+        for await (const chunk of groqStream) {
+          const delta = chunk.choices[0]?.delta?.content || '';
+          if (delta) {
+            fullText += delta;
+            res.write(`data: ${JSON.stringify(delta)}\n\n`);
+          }
+        }
+      } catch (groqFallbackErr) {
+        console.error('[AI Explain] Groq final fallback error:', groqFallbackErr);
+      }
+    }
+
+    if (!fullText) {
+      fullText = `### Explanation (Slide ${slideNumber || 'Overview'})\n\n${cleanSlideText || 'Please review the slide material. If math or diagrams are present, make sure the slide image is clear.'}`;
+      res.write(`data: ${JSON.stringify(fullText)}\n\n`);
+    }
+
     res.write('data: [DONE]\n\n');
     res.end();
 

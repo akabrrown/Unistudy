@@ -859,20 +859,55 @@ export default function LectureViewer() {
       const cleanVision = targetSlide.explanation !== 'Explanation pending.' ? (targetSlide.explanation || '') : '';
       const cleanText = targetSlide.raw_text !== 'Text extraction failed.' ? (targetSlide.raw_text || '') : '';
 
-      const res = await apiFetchRaw('/ai/explain', {
-        method: 'POST',
-        body: JSON.stringify({
-          slideNumber: idx + 1,
-          slideText: cleanText,
-          level,
-          courseContext,
-          visionExplanation: cleanVision,
-          imageUrl: targetSlide.image_url,
-          mode: explainMode,
-          prevSlideText: idx > 0 ? (slides[idx - 1]?.raw_text !== 'Text extraction failed.' ? slides[idx - 1]?.raw_text : '') : '',
-          nextSlideText: idx < slides.length - 1 ? (slides[idx + 1]?.raw_text !== 'Text extraction failed.' ? slides[idx + 1]?.raw_text : '') : ''
-        })
-      });
+      let res: Response | null = null;
+      try {
+        res = await apiFetchRaw('/ai/explain', {
+          method: 'POST',
+          body: JSON.stringify({
+            slideNumber: idx + 1,
+            slideText: cleanText,
+            level,
+            courseContext,
+            visionExplanation: cleanVision,
+            imageUrl: targetSlide.image_url,
+            mode: explainMode,
+            prevSlideText: idx > 0 ? (slides[idx - 1]?.raw_text !== 'Text extraction failed.' ? slides[idx - 1]?.raw_text : '') : '',
+            nextSlideText: idx < slides.length - 1 ? (slides[idx + 1]?.raw_text !== 'Text extraction failed.' ? slides[idx + 1]?.raw_text : '') : ''
+          }),
+          signal: AbortSignal.timeout(5000),
+        });
+      } catch (backendErr) {
+        console.warn('Backend /ai/explain unreachable, falling back to Next.js /api/ai/explain-slide:', backendErr);
+      }
+
+      if (!res || !res.ok) {
+        // Fast Next.js Server fallback (150-300ms direct execution)
+        const fallbackRes = await fetch('/api/ai/explain-slide', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slideText: cleanText,
+            level,
+            courseContext,
+            visionExplanation: cleanVision,
+            imageUrl: targetSlide.image_url,
+          }),
+        });
+
+        if (fallbackRes.ok) {
+          const fallbackData = await fallbackRes.json();
+          if (fallbackData.explanation) {
+            setSlideExplanations(prev => ({ ...prev, [idx]: fallbackData.explanation }));
+            const slideId = targetSlide.id || `${lectureId}-${idx}`;
+            localStorage.setItem(`offline_exp_${slideId}`, fallbackData.explanation);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('unistudy-credits-changed'));
+            }
+            return;
+          }
+        }
+        throw new Error(res ? `Server responded with ${res.status}` : 'Unable to connect to AI engine');
+      }
       
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();

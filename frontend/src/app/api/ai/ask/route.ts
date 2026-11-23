@@ -98,14 +98,17 @@ async function tryGroq(
     }),
   ];
 
-  const candidateModels = [...GROQ_SMART_MODELS, ...GROQ_FAST_MODELS];
+  const candidateModels = Array.from(new Set([...GROQ_SMART_MODELS, ...GROQ_FAST_MODELS]));
   for (const model of candidateModels) {
     try {
-      const completion = await groq.chat.completions.create({
-        model,
-        messages: groqMessages,
-        temperature,
-      });
+      const completion = await groq.chat.completions.create(
+        {
+          model,
+          messages: groqMessages,
+          temperature,
+        },
+        { signal: AbortSignal.timeout(7000) }
+      );
       const text = completion.choices[0]?.message?.content?.trim();
       if (text) {
         return { text, provider: 'groq', model: `Groq (${model})` };
