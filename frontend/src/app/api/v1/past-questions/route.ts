@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { ensurePaperIngested } from '@/lib/past-papers/ingestion';
+import { normalizePastPaperTitle } from '@/lib/past-papers/titleNormalizer';
 
 export const dynamic = 'force-dynamic';
 
@@ -141,8 +142,8 @@ export async function GET(req: NextRequest) {
     // 4. Map external KLOK papers
     const klokPapers: any[] = [];
     for (const item of allKlokItems) {
-      const rawName = item.name || item.filename || 'Past Examination Paper';
-      const cleanTitle = rawName.replace(/\.pdf$/i, '').trim();
+      const rawName = item.name || item.filename || item.title || item.id || 'Past Examination Paper';
+      const cleanTitle = normalizePastPaperTitle(rawName);
       const detectedCode = extractCourseCode(cleanTitle);
 
       // Check if this paper matches any of the user's enrolled courses

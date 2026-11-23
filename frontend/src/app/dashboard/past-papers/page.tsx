@@ -38,6 +38,7 @@ import { ExamFocusDialog } from '@/components/exam-focus/ExamFocusDialog';
 import { MovePaperDialog } from '@/components/past-papers/MovePaperDialog';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { normalizePastPaperTitle } from '@/lib/past-papers/titleNormalizer';
 
 interface CourseItem {
   id: string;
@@ -915,9 +916,9 @@ export default function PastPapersDashboard() {
                           </div>
 
                           <h3 className="mt-1.5 text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
-                            {paper.title || courseMeta?.title || 'Past Examination Paper'}
+                            {normalizePastPaperTitle(paper.title) || courseMeta?.title || 'Past Examination Paper'}
                           </h3>
-                          {courseMeta?.title && paper.title && paper.title !== courseMeta.title && !courseMeta.isCentral ? (
+                          {courseMeta?.title && paper.title && normalizePastPaperTitle(paper.title) !== courseMeta.title && !courseMeta.isCentral ? (
                             <p className="text-xs text-muted-foreground truncate mt-0.5">
                               {courseMeta.title}
                             </p>

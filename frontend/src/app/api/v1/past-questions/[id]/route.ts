@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { normalizePastPaperTitle } from '@/lib/past-papers/titleNormalizer';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,9 +82,7 @@ export async function GET(
         decodedPath = paperId;
       }
 
-      const pathParts = decodedPath.split(/[\/\\]/);
-      const filename = pathParts[pathParts.length - 1] || 'Past Examination Paper';
-      const cleanTitle = filename.replace(/\.pdf$/i, '').trim();
+      const cleanTitle = normalizePastPaperTitle(decodedPath || paperId);
       const detectedCode = extractCourseCode(cleanTitle);
 
       // Attempt to link to user's registered courses if session exists

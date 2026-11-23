@@ -1,6 +1,7 @@
 import { createClient, getServerUser } from '@/lib/supabase/server';
 import { AnxietyCheckIn } from '@/components/AnxietyCheckIn';
 import { formatAcademicLevel } from '@/lib/utils';
+import { normalizePastPaperTitle } from '@/lib/past-papers/titleNormalizer';
 import {
   DashboardCommandCenter,
   type DashboardAssessmentItem,
@@ -472,7 +473,7 @@ export default async function DashboardPage() {
     return {
       id: att.id,
       kind: 'past_paper',
-      title: paper?.title || 'Past Paper Attempt',
+      title: normalizePastPaperTitle(paper?.title) || 'Past Paper Attempt',
       subtitle: course?.course_code || (paper?.year ? `Exam ${paper.year}` : 'Past Paper'),
       scorePercent:
         att.score_percentage !== null && att.score_percentage !== undefined

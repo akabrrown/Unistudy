@@ -32,6 +32,7 @@ import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { MovePaperDialog } from '@/components/past-papers/MovePaperDialog'
+import { normalizePastPaperTitle } from '@/lib/past-papers/titleNormalizer';
 
 const OPTION_LETTER_STYLES: Record<string, string> = {
   A: 'bg-muted/60 text-muted-foreground border border-border/60',
@@ -359,7 +360,7 @@ export default function PastPaperDetails() {
         <div>
           <div className="flex flex-wrap items-center gap-2.5 mb-2">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-[#00004E] dark:text-white">
-              {paper.courses?.course_code || paper.course_code || paper.title || 'Course Paper'}
+              {paper.courses?.course_code || paper.course_code || normalizePastPaperTitle(paper.title) || 'Course Paper'}
             </h1>
             <span className="px-3 py-1 bg-[#00004E]/10 text-[#00004E] dark:bg-[#D89A06]/20 dark:text-[#D89A06] border border-[#00004E]/15 dark:border-[#D89A06]/30 rounded-full text-xs font-bold font-mono">
               {paper.year}
@@ -371,7 +372,7 @@ export default function PastPaperDetails() {
               <CheckCircle2 className="w-3 h-3" /> Ready for Trial
             </span>
           </div>
-          <p className="text-sm text-muted-foreground">{paper.courses?.title || paper.title}</p>
+          <p className="text-sm text-muted-foreground">{paper.courses?.title || normalizePastPaperTitle(paper.title)}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">

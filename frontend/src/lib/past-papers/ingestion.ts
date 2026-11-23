@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { createClient } from '@supabase/supabase-js';
+import { normalizePastPaperTitle } from '@/lib/past-papers/titleNormalizer';
 
 const KLOK_BASE_URL = process.env.KLOK_BASE_URL || 'https://kloksearch.vercel.app';
 const KLOK_API_KEY = process.env.KLOK_API_KEY || 'klok_live_ddbeef2ccb5ed98dd45873c1d35060c4';
@@ -81,8 +82,8 @@ export async function ensurePaperIngested(
     return { id: paperItem.id, file_url: null };
   }
 
-  const rawName = paperItem.name || paperItem.filename || 'Past Examination Paper';
-  const cleanTitle = rawName.replace(/\.pdf$/i, '').trim();
+  const rawName = paperItem.name || paperItem.filename || paperItem.title || paperItem.id || 'Past Examination Paper';
+  const cleanTitle = normalizePastPaperTitle(rawName);
   const year = parseYear(paperItem.year || cleanTitle);
   const isMidterm = cleanTitle.toLowerCase().includes('mid') || cleanTitle.toLowerCase().includes('interim');
   const normalizedCode = (course.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');

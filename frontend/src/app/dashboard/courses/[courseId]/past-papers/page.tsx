@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { CourseUploadPastPaperButton } from '@/components/past-papers/CourseUploadPastPaperButton';
 import { DeletePastPaperButton } from '@/components/past-papers/DeletePastPaperButton';
 import { EmptyState } from '@/components/ui/empty-state';
+import { normalizePastPaperTitle } from '@/lib/past-papers/titleNormalizer';
 
 export default async function PastPapersPage(props: { params: Promise<{ courseId: string }> }) {
   const params = await props.params;
@@ -159,7 +160,7 @@ export default async function PastPapersPage(props: { params: Promise<{ courseId
                       </span>
                     </div>
                     <h3 className="font-bold text-base text-foreground leading-snug group-hover:text-primary transition-colors">
-                      {paper.title || `${paper.year} ${paper.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm'}`}
+                      {normalizePastPaperTitle(paper.title) || `${paper.year} ${paper.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm'}`}
                     </h3>
                     <p className="text-xs text-muted-foreground flex items-center gap-2">
                       <span>Uploaded {new Date(paper.created_at).toLocaleDateString()}</span>
@@ -170,7 +171,7 @@ export default async function PastPapersPage(props: { params: Promise<{ courseId
 
                   <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
                     {paper.user_id === session.user.id && (
-                      <DeletePastPaperButton paperId={paper.id} paperTitle={paper.title || `${paper.year} Exam`} />
+                      <DeletePastPaperButton paperId={paper.id} paperTitle={normalizePastPaperTitle(paper.title) || `${paper.year} Exam`} />
                     )}
                     <a
                       href={paper.download_url || `/api/v1/past-questions/download?id=${encodeURIComponent(paper.id)}`}

@@ -16,6 +16,7 @@ import { FolderInput, Check, Loader2, BookOpen, AlertCircle } from 'lucide-react
 import { resolveCourseColor } from '@/lib/constants/courses';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { normalizePastPaperTitle } from '@/lib/past-papers/titleNormalizer';
 
 export interface CourseOption {
   id: string;
@@ -56,7 +57,7 @@ export function MovePaperDialog({
       // Find initial course match or leave unselected
       const currentCourseId = paper.course_id || (paper.courses && !paper.courses.isCentral ? paper.courses.id : '');
       setSelectedCourseId(currentCourseId || '');
-      setCustomTitle(paper.title || '');
+      setCustomTitle(normalizePastPaperTitle(paper.title) || '');
     }
   }, [paper]);
 
@@ -135,7 +136,7 @@ export function MovePaperDialog({
               Selected Paper
             </div>
             <div className="text-sm font-bold text-foreground line-clamp-1">
-              {paper.title || 'Past Examination Paper'}
+              {normalizePastPaperTitle(paper.title) || 'Past Examination Paper'}
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>Current:</span>
