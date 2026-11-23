@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
+import { setCachedDashboardSnapshotFast } from '@/lib/offlineSync';
 import {
   ArrowRight,
   BookOpen,
@@ -201,6 +202,19 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
   } = props;
 
   const [courseFilter, setCourseFilter] = useState<CourseFilterTab>('all');
+
+  // 0ms Local Snapshot: Store dashboard state in Dexie IndexedDB for instant offline hydration
+  useEffect(() => {
+    if (courses && courses.length > 0) {
+      void setCachedDashboardSnapshotFast('last_dashboard', {
+        courses,
+        resumeItem,
+        creditBalance,
+        upcomingEvents,
+        timestamp: Date.now(),
+      });
+    }
+  }, [courses, resumeItem, creditBalance, upcomingEvents]);
 
   const upcomingExams = useMemo(
     () => upcomingEvents.filter((event) => event.type === 'exam'),

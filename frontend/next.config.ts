@@ -32,7 +32,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
     formats: ['image/avif', 'image/webp'],
-    minimumCacheTTL: 86400,
+    minimumCacheTTL: 604800, // 7 days edge CDN cache
     remotePatterns: [
       {
         protocol: 'https',

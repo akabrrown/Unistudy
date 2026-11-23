@@ -184,6 +184,81 @@ export async function setCachedDeckFast(lectureId: string, slides: any[]): Promi
 }
 
 /**
+ * 0ms Flashcard Cache: Reads and saves flashcards in Dexie IndexedDB.
+ */
+export async function getCachedFlashcardsFast(courseId: string): Promise<any[] | null> {
+  if (!courseId) return null;
+  try {
+    const record = await db.cached_flashcard_decks.get(courseId);
+    if (record && Array.isArray(record.flashcards) && record.flashcards.length > 0) {
+      return record.flashcards;
+    }
+  } catch {}
+  return null;
+}
+
+export async function setCachedFlashcardsFast(courseId: string, flashcards: any[]): Promise<void> {
+  if (!courseId || !Array.isArray(flashcards)) return;
+  try {
+    await db.cached_flashcard_decks.put({
+      courseId,
+      flashcards,
+      cachedAt: Date.now(),
+    });
+  } catch {}
+}
+
+/**
+ * 0ms Course Lectures Cache
+ */
+export async function getCachedCourseLecturesFast(courseId: string): Promise<any[] | null> {
+  if (!courseId) return null;
+  try {
+    const record = await db.cached_course_lectures.get(courseId);
+    if (record && Array.isArray(record.lectures) && record.lectures.length > 0) {
+      return record.lectures;
+    }
+  } catch {}
+  return null;
+}
+
+export async function setCachedCourseLecturesFast(courseId: string, lectures: any[]): Promise<void> {
+  if (!courseId || !Array.isArray(lectures)) return;
+  try {
+    await db.cached_course_lectures.put({
+      courseId,
+      lectures,
+      cachedAt: Date.now(),
+    });
+  } catch {}
+}
+
+/**
+ * 0ms Dashboard Snapshot Cache
+ */
+export async function getCachedDashboardSnapshotFast(userId: string): Promise<any | null> {
+  if (!userId) return null;
+  try {
+    const record = await db.cached_dashboard_snapshots.get(userId);
+    if (record?.snapshot) {
+      return record.snapshot;
+    }
+  } catch {}
+  return null;
+}
+
+export async function setCachedDashboardSnapshotFast(userId: string, snapshot: any): Promise<void> {
+  if (!userId || !snapshot) return;
+  try {
+    await db.cached_dashboard_snapshots.put({
+      userId,
+      snapshot,
+      cachedAt: Date.now(),
+    });
+  } catch {}
+}
+
+/**
  * Background Queue Drainer: Automatically flushes pending mutations
  * whenever the student's browser reconnects to the network.
  */
@@ -202,6 +277,9 @@ export async function drainOfflineSyncQueue(): Promise<number> {
             body: JSON.stringify({ content: item.payload.content }),
           });
           await db.cached_notes.update(item.payload.slideId, { syncStatus: 'synced' });
+        } else if (item.action === 'review_card' && item.payload?.cardId) {
+          const { submitFlashcardReview } = await import('@/app/actions/flashcards');
+          await submitFlashcardReview(item.payload.cardId, item.payload.rating, item.payload.currentData);
         }
         await db.sync_queue.delete(item.id);
         processed++;

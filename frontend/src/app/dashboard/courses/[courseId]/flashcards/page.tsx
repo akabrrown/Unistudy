@@ -11,6 +11,13 @@ import { createClient } from '@/lib/supabase/client'
 import { Rating } from '@/lib/utils/sm2'
 import { useSettings } from '@/contexts/SettingsContext'
 import { toast } from 'sonner'
+import {
+  getCachedFlashcardsFast,
+  setCachedFlashcardsFast,
+  getCachedCourseLecturesFast,
+  setCachedCourseLecturesFast,
+} from '@/lib/offlineSync'
+import { db } from '@/lib/db'
 
 export default function FlashcardsPage() {
   const params = useParams()
@@ -41,7 +48,19 @@ export default function FlashcardsPage() {
   }, [courseId])
 
   async function fetchData() {
-    setLoading(true)
+    // 0ms Local-First Cache Preload: Instant UI render from IndexedDB
+    try {
+      const [cachedLecs, cachedCards] = await Promise.all([
+        getCachedCourseLecturesFast(courseId),
+        getCachedFlashcardsFast(courseId),
+      ]);
+      if (cachedCards && cachedCards.length > 0) {
+        if (cachedLecs && cachedLecs.length > 0) setLectures(cachedLecs);
+        setFlashcards(cachedCards);
+        setLoading(false);
+      }
+    } catch {}
+
     let lecs: any[] = []
     try {
       lecs = await apiFetch(`/lectures/${courseId}`)
@@ -68,12 +87,14 @@ export default function FlashcardsPage() {
 
     const cleanLectures = (lecs || []).filter((l: any) => !l.title?.startsWith('[FAILED'))
     setLectures(cleanLectures)
+    void setCachedCourseLecturesFast(courseId, cleanLectures);
     const lecIds = cleanLectures.map((l: any) => l.id)
 
     const { getFlashcards } = await import('@/app/actions/flashcards')
     const res = lecIds.length > 0 ? await getFlashcards(lecIds) : { data: [] }
     const fetchedCards = res.data || []
     setFlashcards(fetchedCards)
+    void setCachedFlashcardsFast(courseId, fetchedCards);
     setLoading(false)
     return fetchedCards
   }
@@ -133,37 +154,49 @@ export default function FlashcardsPage() {
 
   async function handleRating(rating: Rating) {
     const card = dueCards[currentCardIndex]
-    setSubmittingRating(true)
-    
-    const res = await submitFlashcardReview(card.id, rating, {
+    if (!card) return;
+
+    const reviewPayload = {
       ease_factor: card.ease_factor,
       interval_days: card.interval_days,
-      repetitions: card.repetitions
-    })
-    
-    setSubmittingRating(false)
-    
-    if (res.error) {
-      alert(res.error)
-      return
-    }
+      repetitions: card.repetitions,
+    };
 
-    if (res.nextData) {
-      setFlashcards(prev => prev.map(c => 
-        c.id === card.id ? { ...c, ...res.nextData } : c
-      ))
-    }
-
+    // 0ms Optimistic Navigation: Advance card immediately without waiting for server response
     if (currentCardIndex < dueCards.length - 1) {
-      setCurrentCardIndex(prev => prev + 1)
-      setIsFlipped(false)
-      setMnemonicsData(null)
-      setTranslatedFront('')
-      setTranslatedBack('')
+      setCurrentCardIndex(prev => prev + 1);
+      setIsFlipped(false);
+      setMnemonicsData(null);
+      setTranslatedFront('');
+      setTranslatedBack('');
     } else {
-      // Finished
-      setReviewMode(false)
+      setReviewMode(false);
+      toast.success("Deck review completed! Great work!");
     }
+
+    // Background Async Sync: persist review to database or offline queue
+    void (async () => {
+      try {
+        const res = await submitFlashcardReview(card.id, rating, reviewPayload);
+        if (res.nextData) {
+          setFlashcards(prev => {
+            const updated = prev.map(c => c.id === card.id ? { ...c, ...res.nextData } : c);
+            void setCachedFlashcardsFast(courseId, updated);
+            return updated;
+          });
+        }
+      } catch (err) {
+        console.warn('[Flashcards] Background review sync queued for reconnect:', err);
+        try {
+          await db.sync_queue.add({
+            action: 'review_card',
+            payload: { cardId: card.id, rating, currentData: reviewPayload },
+            createdAt: Date.now(),
+            retries: 0,
+          });
+        } catch {}
+      }
+    })();
   }
 
   function playAudio(text: string, e: React.MouseEvent) {

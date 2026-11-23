@@ -44,9 +44,27 @@ export interface CachedLectureDeck {
   cachedAt: number;
 }
 
+export interface CachedFlashcardDeck {
+  courseId: string;
+  flashcards: any[];
+  cachedAt: number;
+}
+
+export interface CachedCourseLectures {
+  courseId: string;
+  lectures: any[];
+  cachedAt: number;
+}
+
+export interface CachedDashboardSnapshot {
+  userId: string;
+  snapshot: any;
+  cachedAt: number;
+}
+
 export interface SyncQueueItem {
   id?: number;
-  action: 'save_note' | 'save_progress';
+  action: 'save_note' | 'save_progress' | 'review_card';
   payload: any;
   createdAt: number;
   retries: number;
@@ -59,6 +77,9 @@ export class UniStudyDB extends Dexie {
   downloaded_flashcards!: Table<DownloadedFlashcard>;
   cached_notes!: Table<CachedSlideNote, string>;
   cached_decks!: Table<CachedLectureDeck, string>;
+  cached_flashcard_decks!: Table<CachedFlashcardDeck, string>;
+  cached_course_lectures!: Table<CachedCourseLectures, string>;
+  cached_dashboard_snapshots!: Table<CachedDashboardSnapshot, string>;
   sync_queue!: Table<SyncQueueItem, number>;
 
   constructor() {
@@ -73,6 +94,11 @@ export class UniStudyDB extends Dexie {
       cached_notes: 'slideId, syncStatus, updatedAt',
       cached_decks: 'lectureId, cachedAt',
       sync_queue: '++id, action, createdAt'
+    });
+    this.version(3).stores({
+      cached_flashcard_decks: 'courseId, cachedAt',
+      cached_course_lectures: 'courseId, cachedAt',
+      cached_dashboard_snapshots: 'userId, cachedAt'
     });
   }
 }
