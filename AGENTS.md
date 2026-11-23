@@ -55,3 +55,22 @@
 - Both Light Theme and Dark Theme must be verified for high contrast and readability.
 - Zero generic purple/pink gradients; zero AI sparkle icons (`Sparkles`).
 - Follow the complete styling contract in `.agents/rules/04-upsa-brand-ui-styling-contract.md`.
+
+## 10. World-Class System Speed & Local-First Offline Architecture
+- **Multi-Tier Local-First Reads (RAM → IndexedDB → SWR Background Sync):**
+  - Read-heavy data (past questions, slide notes, lecture transcripts, course outlines) must render instantaneously from local storage before any network request is initiated.
+  - Tier 1: In-memory module cache (0ms).
+  - Tier 2: Dexie / IndexedDB persistent local cache (<5ms).
+  - Tier 3: Asynchronous background SWR (`stale-while-revalidate`) revalidation to keep content synchronized without blocking the UI.
+- **Predictive Lookahead Preloading:**
+  - Sequential user journeys (e.g. Slide $N \rightarrow N+1, N+2$, Course $\rightarrow$ First Lecture, Quiz Question $Q \rightarrow Q+1$) must eagerly warm the buffer in background microtasks or idle callbacks (`requestIdleCallback`) so page transitions are 0ms instant.
+- **Zero-Delay AI Streaming Architecture:**
+  - AI responses must flush SSE stream headers immediately (`res.flushHeaders()` / edge stream chunk 0) within <100ms.
+  - Decouple background compute (e.g. PDF generation, analytics, database logging) from active token streaming.
+- **3-State Resilient Circuit Breakers (Hystrix Pattern):**
+  - External dependencies (Redis, AI providers, OCR microservices) must be wrapped in a 3-state circuit breaker (`CLOSED` $\rightarrow$ `OPEN` $\rightarrow$ `HALF_OPEN` with canary probe successes required to close).
+  - Systems must gracefully degrade to local-first or fallback modes when a dependency fails, never crashing or hanging the user request.
+- **Interactive Form Pending States (`useFormStatus`):**
+  - Every form submission and authentication button must immediately provide visual feedback upon click.
+  - In Next.js App Router server action forms, buttons must be extracted into dedicated client components utilizing React 19's `useFormStatus()`, rendering an accessible spinner (`Loader2`) and descriptive pending text (`Signing in...`), while disabling re-clicks to prevent race conditions.
+
