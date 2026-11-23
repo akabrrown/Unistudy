@@ -444,7 +444,7 @@ export function AuditClient({ initialLogs = [] }: AuditClientProps) {
 
           <Button
             onClick={() => setCheckpointOpen(true)}
-            className="h-9 gap-1.5 bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white shadow-sm"
+            className="h-9 gap-1.5 bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white dark:text-[#00004E] font-semibold shadow-sm"
           >
             <BookmarkPlus className="w-4 h-4" />
             <span>Record Checkpoint</span>
@@ -1097,7 +1097,7 @@ export function AuditClient({ initialLogs = [] }: AuditClientProps) {
                 <Button
                   size="sm"
                   onClick={() => setInspectedLog(null)}
-                  className="bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white text-xs"
+                  className="bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white dark:text-[#00004E] font-semibold text-xs"
                 >
                   Close Dossier
                 </Button>
@@ -1184,7 +1184,7 @@ export function AuditClient({ initialLogs = [] }: AuditClientProps) {
                 type="submit"
                 size="sm"
                 disabled={isSubmittingCheckpoint || !chkActionType.trim()}
-                className="bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white gap-1.5"
+                className="bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white dark:text-[#00004E] font-semibold gap-1.5"
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>{isSubmittingCheckpoint ? 'Recording...' : 'Record Checkpoint'}</span>

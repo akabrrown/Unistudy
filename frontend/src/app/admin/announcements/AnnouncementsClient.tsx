@@ -563,7 +563,7 @@ export function AnnouncementsClient({
 
           <Button
             onClick={handleOpenCreate}
-            className="h-9 gap-1.5 bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white shadow-sm"
+            className="h-9 gap-1.5 bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white dark:text-[#00004E] font-semibold shadow-sm"
           >
             <Plus className="w-4 h-4" />
             <span>New Broadcast</span>
@@ -736,7 +736,7 @@ export function AnnouncementsClient({
             className={`rounded-xl border shadow-md transition-colors overflow-hidden ${
               simulatorTheme === 'dark'
                 ? 'bg-zinc-950 border-zinc-800 text-zinc-100'
-                : 'bg-white border-zinc-200 text-zinc-900'
+                : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100'
             }`}
           >
             {/* Mock Dashboard Topbar */}
@@ -771,7 +771,7 @@ export function AnnouncementsClient({
                       ? 'bg-red-600 text-white'
                       : selectedPreview.type === 'email'
                       ? 'bg-blue-600 text-white'
-                      : 'bg-[var(--color-plum-500)] text-white'
+                      : 'bg-[var(--color-plum-500)] text-white dark:text-[#00004E]'
                   }`}
                 >
                   <div className="flex items-start sm:items-center gap-3 min-w-0">
@@ -1451,7 +1451,7 @@ export function AnnouncementsClient({
               size="sm"
               onClick={handleSaveAnnouncement}
               disabled={isSubmitting || !composerTitle.trim() || !composerBody.trim()}
-              className="bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white gap-1.5 shadow-sm"
+              className="bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white dark:text-[#00004E] font-semibold gap-1.5 shadow-sm"
             >
               <Send className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Launching...' : editingItem ? 'Save Changes' : 'Dispatch Broadcast'}</span>

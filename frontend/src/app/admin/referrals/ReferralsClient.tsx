@@ -495,7 +495,7 @@ export function ReferralsClient({
 
           <Button
             onClick={() => handleOpenProvision()}
-            className="h-9 gap-1.5 bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white shadow-sm"
+            className="h-9 gap-1.5 bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white dark:text-[#00004E] font-semibold shadow-sm"
           >
             <Plus className="w-4 h-4" />
             <span>Provision Ambassador Code</span>
@@ -1246,7 +1246,7 @@ export function ReferralsClient({
               size="sm"
               onClick={handleSaveProvision}
               disabled={isSubmitting || !provCode.trim() || !provReferredEmail.trim()}
-              className="bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white gap-1.5 shadow-sm"
+              className="bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white dark:text-[#00004E] font-semibold gap-1.5 shadow-sm"
             >
               <Crown className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Provisioning...' : 'Provision Ambassador Code'}</span>

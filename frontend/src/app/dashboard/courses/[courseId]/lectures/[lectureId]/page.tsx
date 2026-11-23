@@ -1578,7 +1578,7 @@ export default function LectureViewer() {
                 if (hasDisplayImage) {
                   return (
                     <div 
-                      className={`absolute inset-0 z-10 select-none overflow-hidden bg-white flex items-center justify-center ${
+                      className={`absolute inset-0 z-10 select-none overflow-hidden bg-white dark:bg-[#0A0A28] flex items-center justify-center ${
                         zoomLevel > 1.0 ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'
                       }`}
                       onMouseDown={handlePanMouseDown}

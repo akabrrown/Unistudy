@@ -3,7 +3,7 @@
 
 @plugin "tailwindcss-animate";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 @font-face {
   font-family: 'OpenDyslexic';
@@ -55,8 +55,8 @@
   --color-plum-100: #E0E6F5;
   --color-plum-200: #C2CEEC;
   --color-plum-400: #D89A06;
-  --color-plum-500: var(--color-plum-500);
-  --color-plum-600: var(--color-plum-600);
+  --color-plum-500: var(--plum-500, #00004E);
+  --color-plum-600: var(--plum-600, #000038);
   --color-plum-700: #000038;
   --color-plum-800: #000030;
   --color-plum-900: #000028;
@@ -170,6 +170,8 @@
     --bg-page: #F8F9FD;
     --bg-card: #FFFFFF;
     --bg-subtle: #F0F3F9;
+    --plum-500: #00004E;
+    --plum-600: #000038;
     --color-plum-500: #00004E;
     --color-plum-600: #000038;
     --text-muted: #4B526B;
@@ -226,6 +228,8 @@
     --bg-page: #040416;
     --bg-card: #0A0A28;
     --bg-subtle: #121238;
+    --plum-500: #D89A06;
+    --plum-600: #B88205;
     --color-plum-500: #D89A06;
     --color-plum-600: #B88205;
     --text-muted: #A3A8C2;
@@ -260,7 +264,7 @@
     --accent: 42 95% 46%;
     --accent-foreground: 240 100% 12%;
     
-    --destructive: 0 65% 45%;
+    --destructive: 0 85% 65%;
     --destructive-foreground: 0 0% 100%;
     
     /* Borders: Subtle illuminated midnight navy border */
