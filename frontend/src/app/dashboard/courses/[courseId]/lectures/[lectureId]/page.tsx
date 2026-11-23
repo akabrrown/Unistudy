@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Microscope, Volume2, PenTool, StickyNote, Monitor, Eye, EyeOff, Loader2, PlaySquare, Play, X, Pin, Frown, Meh, Smile, Zap, Flame, Square, Eraser, RefreshCw, MessageCircle, Send, Hourglass, Pause, Calculator, Music, FileText, DownloadCloud, BookOpen, Languages, ChevronDown, SlidersHorizontal, Maximize, Layers, Check, ArrowRight, GraduationCap, Bot } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Microscope, Volume2, PenTool, StickyNote, Monitor, Eye, EyeOff, Loader2, PlaySquare, Play, X, Pin, Frown, Meh, Smile, Zap, Flame, Square, Eraser, RefreshCw, MessageCircle, Send, Hourglass, Pause, Calculator, Music, FileText, DownloadCloud, BookOpen, Languages, ChevronDown, SlidersHorizontal, Maximize, Layers, Check, ArrowRight, GraduationCap, Bot, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
 import { FocusTimer, FocusTimerRef } from '@/components/study/FocusTimer'
 import { CalculatorPanel } from '@/components/study/CalculatorPanel'
 import { TutorFeedbackView } from '@/components/study/TutorFeedbackView'
@@ -194,9 +194,219 @@ export default function LectureViewer() {
   // Mouse wheel slide switching and thumbnail scrolling
   const lastWheelTimeRef = useRef<number>(0);
   const thumbnailStripRef = useRef<HTMLDivElement>(null);
+  const slideContainerRef = useRef<HTMLDivElement>(null);
+
+  // --- Slide Scoped Zoom & Pan State (strictly isolated to slide previewer) ---
+  const [zoomLevel, setZoomLevel] = useState<number>(1.0);
+  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState<boolean>(false);
+  const zoomLevelRef = useRef<number>(1.0);
+  zoomLevelRef.current = zoomLevel;
+  const panOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  panOffsetRef.current = panOffset;
+
+  const panStartRef = useRef<{ x: number; y: number; initialPanX: number; initialPanY: number }>({
+    x: 0,
+    y: 0,
+    initialPanX: 0,
+    initialPanY: 0,
+  });
+
+  const touchStartRef = useRef<{
+    x: number;
+    y: number;
+    initialPanX: number;
+    initialPanY: number;
+    pinchDist?: number;
+    initialZoom?: number;
+  }>({
+    x: 0,
+    y: 0,
+    initialPanX: 0,
+    initialPanY: 0,
+  });
+
+  const clampPan = (newX: number, newY: number, currentScale: number) => {
+    if (currentScale <= 1.0 || !slideContainerRef.current) {
+      return { x: 0, y: 0 };
+    }
+    const rect = slideContainerRef.current.getBoundingClientRect();
+    const maxPanX = Math.max(0, ((currentScale - 1) * rect.width) / 2);
+    const maxPanY = Math.max(0, ((currentScale - 1) * rect.height) / 2);
+    return {
+      x: Math.max(-maxPanX, Math.min(maxPanX, newX)),
+      y: Math.max(-maxPanY, Math.min(maxPanY, newY)),
+    };
+  };
+
+  // Auto-reset zoom and pan when navigating slides
+  useEffect(() => {
+    setZoomLevel(1.0);
+    setPanOffset({ x: 0, y: 0 });
+    setIsPanning(false);
+  }, [slideIndex]);
+
+  // Non-passive event listener on slideContainerRef to intercept Ctrl+Wheel / Pinch-to-zoom
+  // This GUARANTEES the outer browser and website layout never zooms.
+  useEffect(() => {
+    const container = slideContainerRef.current;
+    if (!container) return;
+
+    const handleNativeWheel = (e: WheelEvent) => {
+      // 1. Pinch or Ctrl/Cmd + Wheel: Zoom slide only and prevent browser whole-page zoom
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        const delta = -e.deltaY * 0.005;
+        const currentZ = zoomLevelRef.current;
+        const nextZ = Math.max(1.0, Math.min(3.5, Number((currentZ + delta).toFixed(2))));
+        setZoomLevel(nextZ);
+        setPanOffset(prev => clampPan(prev.x, prev.y, nextZ));
+        return;
+      }
+
+      // 2. Standard Wheel while zoomed in: Pan image without flipping slides
+      if (zoomLevelRef.current > 1.0) {
+        e.preventDefault();
+        e.stopPropagation();
+        const currentZ = zoomLevelRef.current;
+        const nextX = panOffsetRef.current.x - e.deltaX * 0.8;
+        const nextY = panOffsetRef.current.y - e.deltaY * 0.8;
+        setPanOffset(clampPan(nextX, nextY, currentZ));
+      }
+    };
+
+    container.addEventListener('wheel', handleNativeWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleNativeWheel);
+    };
+  }, []);
+
+  const handleZoomIn = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setZoomLevel(prev => {
+      const next = Math.min(3.5, Number((prev + 0.25).toFixed(2)));
+      setPanOffset(curr => clampPan(curr.x, curr.y, next));
+      return next;
+    });
+  };
+
+  const handleZoomOut = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setZoomLevel(prev => {
+      const next = Math.max(1.0, Number((prev - 0.25).toFixed(2)));
+      if (next === 1.0) {
+        setPanOffset({ x: 0, y: 0 });
+      } else {
+        setPanOffset(curr => clampPan(curr.x, curr.y, next));
+      }
+      return next;
+    });
+  };
+
+  const handleResetZoom = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setZoomLevel(1.0);
+    setPanOffset({ x: 0, y: 0 });
+    setIsPanning(false);
+  };
+
+  const handleToggleZoom = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (zoomLevel > 1.05) {
+      handleResetZoom();
+    } else {
+      setZoomLevel(2.0);
+    }
+  };
+
+  const handleSlideDoubleClick = (e: React.MouseEvent) => {
+    if (isDrawMode) return;
+    e.stopPropagation();
+    handleToggleZoom();
+  };
+
+  const handlePanMouseDown = (e: React.MouseEvent) => {
+    if (isDrawMode || zoomLevel <= 1.0) return;
+    if (e.button !== 0) return;
+    setIsPanning(true);
+    panStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      initialPanX: panOffset.x,
+      initialPanY: panOffset.y,
+    };
+  };
+
+  const handlePanMouseMove = (e: React.MouseEvent) => {
+    if (!isPanning || zoomLevel <= 1.0) return;
+    const dx = e.clientX - panStartRef.current.x;
+    const dy = e.clientY - panStartRef.current.y;
+    const newX = panStartRef.current.initialPanX + dx;
+    const newY = panStartRef.current.initialPanY + dy;
+    setPanOffset(clampPan(newX, newY, zoomLevel));
+  };
+
+  const handlePanMouseUp = () => {
+    if (isPanning) {
+      setIsPanning(false);
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (isDrawMode) return;
+    if (e.touches.length === 1 && zoomLevel > 1.0) {
+      setIsPanning(true);
+      touchStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        initialPanX: panOffset.x,
+        initialPanY: panOffset.y,
+      };
+    } else if (e.touches.length === 2) {
+      setIsPanning(false);
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      touchStartRef.current = {
+        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+        initialPanX: panOffset.x,
+        initialPanY: panOffset.y,
+        pinchDist: dist,
+        initialZoom: zoomLevel,
+      };
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isDrawMode) return;
+    if (e.touches.length === 1 && isPanning && zoomLevel > 1.0) {
+      const dx = e.touches[0].clientX - touchStartRef.current.x;
+      const dy = e.touches[0].clientY - touchStartRef.current.y;
+      const newX = touchStartRef.current.initialPanX + dx;
+      const newY = touchStartRef.current.initialPanY + dy;
+      setPanOffset(clampPan(newX, newY, zoomLevel));
+    } else if (e.touches.length === 2 && touchStartRef.current.pinchDist) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const scaleFactor = dist / touchStartRef.current.pinchDist;
+      const baseZoom = touchStartRef.current.initialZoom || 1.0;
+      const nextZ = Math.max(1.0, Math.min(3.5, Number((baseZoom * scaleFactor).toFixed(2))));
+      setZoomLevel(nextZ);
+      setPanOffset(prev => clampPan(prev.x, prev.y, nextZ));
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsPanning(false);
+    touchStartRef.current.pinchDist = undefined;
+  };
 
   const handleSlideWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     if (isDrawMode) return;
+    if (zoomLevel > 1.0) return; // Prevent flipping slides when student is zoomed in
     const now = Date.now();
     if (now - lastWheelTimeRef.current < 280) return;
 
@@ -327,9 +537,6 @@ export default function LectureViewer() {
   // Notes state
   const [slideNotes, setSlideNotes] = useState<string>('')
   const [savingNotes, setSavingNotes] = useState(false)
-
-  // Fullscreen ref
-  const slideContainerRef = useRef<HTMLDivElement>(null)
 
   // Canvas Drawing ref
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -1308,21 +1515,43 @@ export default function LectureViewer() {
 
                 if (hasDisplayImage) {
                   return (
-                    <div className="absolute inset-0 z-10 select-none overflow-hidden bg-white flex items-center justify-center">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img 
-                        key={displaySrc}
-                        src={displaySrc} 
-                        alt={`Slide ${slideIndex + 1}`} 
-                        className="w-full h-full object-contain pointer-events-none select-none transition-opacity duration-150"
-                        loading="eager"
-                        decoding="async"
-                        ref={(el) => {
-                          // Catches failures that resolved before React attached onError.
-                          if (el && el.complete && el.naturalWidth === 0 && el.currentSrc) handleSlideImgError();
+                    <div 
+                      className={`absolute inset-0 z-10 select-none overflow-hidden bg-white flex items-center justify-center ${
+                        zoomLevel > 1.0 ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'
+                      }`}
+                      onMouseDown={handlePanMouseDown}
+                      onMouseMove={handlePanMouseMove}
+                      onMouseUp={handlePanMouseUp}
+                      onMouseLeave={handlePanMouseUp}
+                      onTouchStart={handleTouchStart}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
+                      onDoubleClick={handleSlideDoubleClick}
+                    >
+                      <div
+                        className="w-full h-full flex items-center justify-center will-change-transform"
+                        style={{
+                          transform: `translate3d(${panOffset.x}px, ${panOffset.y}px, 0) scale(${zoomLevel})`,
+                          transformOrigin: 'center center',
+                          transition: isPanning ? 'none' : 'transform 140ms cubic-bezier(0.2, 0, 0, 1)',
                         }}
-                        onError={handleSlideImgError}
-                      />
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img 
+                          key={displaySrc}
+                          src={displaySrc} 
+                          alt={`Slide ${slideIndex + 1}`} 
+                          className="w-full h-full object-contain pointer-events-none select-none transition-opacity duration-150"
+                          loading="eager"
+                          decoding="async"
+                          ref={(el) => {
+                            // Catches failures that resolved before React attached onError.
+                            if (el && el.complete && el.naturalWidth === 0 && el.currentSrc) handleSlideImgError();
+                          }}
+                          onError={handleSlideImgError}
+                          draggable={false}
+                        />
+                      </div>
                     </div>
                   );
                 }
@@ -1460,6 +1689,55 @@ export default function LectureViewer() {
                   )}
                 </>
               )}
+
+              {/* Scoped Slide Zoom Toolbar */}
+              <div 
+                className={`absolute z-40 flex items-center gap-1 px-2 py-1 rounded-full bg-background/85 hover:bg-background/95 text-foreground border border-border/80 shadow-md backdrop-blur-md transition-all duration-200 select-none ${
+                  isFocusMode ? 'top-4 right-16' : 'top-3 right-3'
+                }`}
+                onClick={(e) => e.stopPropagation()}
+                title="Slide Zoom Controls (or Ctrl+Scroll / Double Click to zoom)"
+              >
+                <button
+                  type="button"
+                  onClick={handleZoomOut}
+                  disabled={zoomLevel <= 1.0}
+                  className="p-1 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                  title="Zoom Out (Ctrl -)"
+                  aria-label="Zoom Out"
+                >
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleToggleZoom}
+                  className="px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-foreground hover:text-primary transition-colors cursor-pointer"
+                  title="Click to toggle 100% / 200%"
+                >
+                  {Math.round(zoomLevel * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={handleZoomIn}
+                  disabled={zoomLevel >= 3.5}
+                  className="p-1 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                  title="Zoom In (Ctrl +)"
+                  aria-label="Zoom In"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </button>
+                {zoomLevel > 1.0 && (
+                  <button
+                    type="button"
+                    onClick={handleResetZoom}
+                    className="p-1 ml-0.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    title="Reset Zoom to 100%"
+                    aria-label="Reset Zoom"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
