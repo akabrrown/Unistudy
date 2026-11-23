@@ -40,6 +40,7 @@ const AskRequestSchema = z.object({
     tutorPersonality: z.string().optional(),
     tutorTone: z.string().optional(),
     studentConfig: z.unknown().optional(),
+    previousSessionsContext: z.string().max(45_000).optional(),
     attachment: z
       .object({
         name: z.string().max(255),
@@ -49,6 +50,18 @@ const AskRequestSchema = z.object({
         textContent: z.string().max(250_000).optional(),
       })
       .nullable()
+      .optional(),
+    attachments: z
+      .array(
+        z.object({
+          name: z.string().max(255),
+          type: z.string().max(100),
+          size: z.number().max(5 * 1024 * 1024, 'File size exceeds 5MB limit'),
+          data: z.string().max(8_000_000).optional(),
+          textContent: z.string().max(250_000).optional(),
+        })
+      )
+      .max(5, 'Maximum 5 attachments allowed per message')
       .optional(),
     messages: z
       .array(
@@ -75,11 +88,25 @@ interface AttachmentPayload {
   textContent?: string;
 }
 
+function formatTextAttachmentsBlock(attachments: AttachmentPayload[]): string {
+  const textOnes = attachments.filter((a) => Boolean(a.textContent));
+  if (textOnes.length === 0) return '';
+  return (
+    '\n\n' +
+    textOnes
+      .map(
+        (att, i) =>
+          `[Attached File ${i + 1} of ${attachments.length}: ${att.name}]\n\`\`\`\n${att.textContent}\n\`\`\``
+      )
+      .join('\n\n')
+  );
+}
+
 async function tryGroq(
   systemPrompt: string,
   rawMessages: Array<{ role: string; content: string }>,
   temperature: number,
-  attachment?: AttachmentPayload | null
+  attachments: AttachmentPayload[] = []
 ): Promise<ProviderResult | null> {
   if (!process.env.GROQ_API_KEY) return null;
   const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -88,8 +115,8 @@ async function tryGroq(
     ...rawMessages.map((m, idx) => {
       const isLastUser = idx === rawMessages.length - 1 && m.role === 'user';
       let content = String(m.content || '');
-      if (isLastUser && attachment?.textContent) {
-        content += `\n\n[Attached File: ${attachment.name}]\n\`\`\`\n${attachment.textContent}\n\`\`\``;
+      if (isLastUser && attachments.length > 0) {
+        content += formatTextAttachmentsBlock(attachments);
       }
       return {
         role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
@@ -125,7 +152,7 @@ async function tryGemini(
   systemPrompt: string,
   rawMessages: Array<{ role: string; content: string }>,
   temperature: number,
-  attachment?: AttachmentPayload | null
+  attachments: AttachmentPayload[] = []
 ): Promise<ProviderResult | null> {
   if (!process.env.GEMINI_API_KEY) return null;
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -141,23 +168,25 @@ async function tryGemini(
         const isLatestUser = idx === rawMessages.length - 1 && m.role === 'user';
         const parts: Array<any> = [{ text: String(m.content || '') }];
 
-        if (isLatestUser && attachment) {
-          if (attachment.textContent) {
-            parts.push({
-              text: `\n\n[Attached File: ${attachment.name}]\n\`\`\`\n${attachment.textContent}\n\`\`\``,
-            });
-          } else if (attachment.data) {
-            const cleanBase64 = attachment.data.replace(/^data:[^;]+;base64,/, '');
-            const mimeType =
-              attachment.type ||
-              (attachment.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
-            parts.push({
-              inlineData: {
-                mimeType,
-                data: cleanBase64,
-              },
-            });
-          }
+        if (isLatestUser && attachments.length > 0) {
+          attachments.forEach((attachment, attIdx) => {
+            if (attachment.textContent) {
+              parts.push({
+                text: `\n\n[Attached File ${attIdx + 1}: ${attachment.name}]\n\`\`\`\n${attachment.textContent}\n\`\`\``,
+              });
+            } else if (attachment.data) {
+              const cleanBase64 = attachment.data.replace(/^data:[^;]+;base64,/, '');
+              const mimeType =
+                attachment.type ||
+                (attachment.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+              parts.push({
+                inlineData: {
+                  mimeType,
+                  data: cleanBase64,
+                },
+              });
+            }
+          });
         }
 
         return {
@@ -186,25 +215,33 @@ async function tryOpenRouter(
   systemPrompt: string,
   rawMessages: Array<{ role: string; content: string }>,
   temperature: number,
-  attachment?: AttachmentPayload | null
+  attachments: AttachmentPayload[] = []
 ): Promise<ProviderResult | null> {
   if (!process.env.OPENROUTER_API_KEY) return null;
   const orMessages = [
     { role: 'system', content: systemPrompt },
     ...rawMessages.map((m, idx) => {
       const isLatestUser = idx === rawMessages.length - 1 && m.role === 'user';
-      if (isLatestUser && attachment?.data && attachment.type?.startsWith('image/')) {
+      const imageAttachments = attachments.filter(
+        (a) => a.data && a.type?.startsWith('image/')
+      );
+      if (isLatestUser && imageAttachments.length > 0) {
+        let baseText = String(m.content || '');
+        baseText += formatTextAttachmentsBlock(attachments);
         return {
           role: 'user',
           content: [
-            { type: 'text', text: String(m.content || '') },
-            { type: 'image_url', image_url: { url: attachment.data } },
+            { type: 'text', text: baseText },
+            ...imageAttachments.map((img) => ({
+              type: 'image_url',
+              image_url: { url: img.data! },
+            })),
           ],
         };
       }
       let content = String(m.content || '');
-      if (isLatestUser && attachment?.textContent) {
-        content += `\n\n[Attached File: ${attachment.name}]\n\`\`\`\n${attachment.textContent}\n\`\`\``;
+      if (isLatestUser && attachments.length > 0) {
+        content += formatTextAttachmentsBlock(attachments);
       }
       return {
         role: m.role === 'assistant' ? 'assistant' : 'user',
@@ -243,7 +280,7 @@ async function tryAgentRouter(
   systemPrompt: string,
   rawMessages: any[],
   temperature: number,
-  attachment?: AttachmentPayload | null
+  attachments: AttachmentPayload[] = []
 ): Promise<ProviderResult | null> {
   const apiKey = process.env.AGENTROUTER_API_KEY;
   if (!apiKey) return null;
@@ -255,8 +292,8 @@ async function tryAgentRouter(
     ...rawMessages.map((m, idx) => {
       const isLatestUser = idx === rawMessages.length - 1 && m.role === 'user';
       let content = String(m.content || '');
-      if (isLatestUser && attachment?.textContent) {
-        content += `\n\n[Attached File: ${attachment.name}]\n\`\`\`\n${attachment.textContent}\n\`\`\``;
+      if (isLatestUser && attachments.length > 0) {
+        content += formatTextAttachmentsBlock(attachments);
       }
       return {
         role: m.role === 'assistant' ? 'assistant' : 'user',
@@ -313,6 +350,13 @@ export async function POST(request: Request) {
     }
 
     const { payload } = parsed.data;
+    const allAttachments: AttachmentPayload[] =
+      payload.attachments && payload.attachments.length > 0
+        ? payload.attachments
+        : payload.attachment
+          ? [payload.attachment]
+          : [];
+
     const rawMessages =
       payload.messages && payload.messages.length > 0
         ? payload.messages
@@ -320,25 +364,28 @@ export async function POST(request: Request) {
           ? [{ role: 'user' as const, content: payload.prompt }]
           : [];
 
-    if (rawMessages.length === 0 && !payload.attachment) {
+    if (rawMessages.length === 0 && allAttachments.length === 0) {
       return NextResponse.json({ error: 'Prompt, messages, or attachment required' }, { status: 400 });
     }
 
-    if (rawMessages.length === 0 && payload.attachment) {
+    if (rawMessages.length === 0 && allAttachments.length > 0) {
+      const names = allAttachments.map((a) => a.name).join(', ');
       rawMessages.push({
         role: 'user',
-        content: `Please analyze and explain the attached ${payload.attachment.name}.`,
+        content: `Please analyze and explain the attached file(s): ${names}.`,
       });
     }
 
-    // Strict 5MB size limit validation on attachments
-    if (payload.attachment && payload.attachment.size > 5 * 1024 * 1024) {
-      return NextResponse.json(
-        {
-          error: `File size exceeds 5MB limit (${(payload.attachment.size / (1024 * 1024)).toFixed(1)}MB). Please upload a file smaller than 5MB.`,
-        },
-        { status: 400 }
-      );
+    // Strict 5MB size limit validation on each attachment
+    for (const att of allAttachments) {
+      if (att.size > 5 * 1024 * 1024) {
+        return NextResponse.json(
+          {
+            error: `File "${att.name}" exceeds 5MB limit (${(att.size / (1024 * 1024)).toFixed(1)}MB). Please upload files smaller than 5MB.`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     const latestUserQuestion =
@@ -477,15 +524,20 @@ export async function POST(request: Request) {
       });
     }
 
+    if (payload.previousSessionsContext && payload.previousSessionsContext.trim().length > 0) {
+      systemPrompt += `\n\n<previous_conversations_memory>\nThe student has previous study conversation sessions stored in their workspace. When the student refers to a previous conversation, past chat, earlier study session, or asks what was discussed previously, use the following memory log to answer accurately and seamlessly connect concepts across sessions:\n${payload.previousSessionsContext.trim()}\n</previous_conversations_memory>`;
+    }
+
     const temperature = payload.temperature ?? 0.55;
     const requestedModel = (payload.model || 'auto').toLowerCase();
-    const attachment = payload.attachment;
 
-    const hasMultimodalAttachment = Boolean(
-      attachment?.data &&
-        (attachment.type?.startsWith('image/') ||
-          attachment.type === 'application/pdf' ||
-          attachment.name?.match(/\.(png|jpe?g|webp|gif|pdf)$/i))
+    const hasMultimodalAttachment = allAttachments.some((attachment) =>
+      Boolean(
+        attachment?.data &&
+          (attachment.type?.startsWith('image/') ||
+            attachment.type === 'application/pdf' ||
+            attachment.name?.match(/\.(png|jpe?g|webp|gif|pdf)$/i))
+      )
     );
 
     let providerResult: ProviderResult | null = null;
@@ -493,41 +545,41 @@ export async function POST(request: Request) {
     // Prioritize Gemini for multimodal vision & PDF attachments, otherwise respect requested routing
     if (hasMultimodalAttachment) {
       providerResult =
-        (await tryGemini(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryGroq(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature, attachment));
+        (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments));
     } else if (requestedModel.includes('agent') || requestedModel.includes('router')) {
       providerResult =
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryGroq(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryGemini(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature, attachment));
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments));
     } else if (requestedModel.includes('gemini')) {
       providerResult =
-        (await tryGemini(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryGroq(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature, attachment));
+        (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments));
     } else if (requestedModel.includes('groq') || requestedModel === 'fast') {
       providerResult =
-        (await tryGroq(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryGemini(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature, attachment));
+        (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments));
     } else if (requestedModel.includes('openrouter') || requestedModel.includes('qwen')) {
       providerResult =
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryGemini(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryGroq(systemPrompt, rawMessages, temperature, attachment));
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments));
     } else {
       // Default / Smart Auto order: Groq (low latency) -> Gemini (deep reasoning) -> AgentRouter -> OpenRouter
       providerResult =
-        (await tryGroq(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryGemini(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature, attachment)) ||
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature, attachment));
+        (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments)) ||
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments));
     }
 
     if (!providerResult || !providerResult.text) {

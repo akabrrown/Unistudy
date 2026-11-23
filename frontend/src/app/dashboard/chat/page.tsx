@@ -44,6 +44,7 @@ import {
   Eye,
   FileText,
   Image as ImageIcon,
+  Quote,
 } from 'lucide-react';
 import {
   requestPersistentStorage,
@@ -111,6 +112,8 @@ interface ChatMessage {
   timestamp: string;
   referencedDeck?: ReferencedDeck | null;
   attachment?: ChatAttachment | null;
+  attachments?: ChatAttachment[];
+  quotedText?: string;
   citations?: number[];
   modelUsed?: string;
   provider?: string;
@@ -301,7 +304,12 @@ export default function GeneralAiChatPage() {
     tone: 'academic',
   });
 
-  const [pendingAttachment, setPendingAttachment] = useState<ChatAttachment | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
+  const [quotedText, setQuotedText] = useState<string | null>(null);
+  const [referencedSessionId, setReferencedSessionId] = useState<string | null>(null);
+  const [isRefPickerOpen, setIsRefPickerOpen] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingMessageText, setEditingMessageText] = useState('');
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [previewModalImage, setPreviewModalImage] = useState<{ src: string; alt: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -314,64 +322,93 @@ export default function GeneralAiChatPage() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }, []);
 
-  const handleProcessFile = useCallback((file: File) => {
-    if (!file) return;
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      toast.error(
-        `"${file.name}" exceeds the 5MB limit (${formatFileSize(file.size)}). Please select an image or file under 5MB.`
-      );
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
+  const MAX_ATTACHMENTS = 5;
 
-    const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif|svg)$/i.test(file.name);
-    const isTextDoc = file.type.startsWith('text/') || /\.(txt|md|csv|json|py|java|cpp|c|r|sql|html|css|js|ts|tsx)$/i.test(file.name);
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      if (isTextDoc) {
-        const textReader = new FileReader();
-        textReader.onload = () => {
-          setPendingAttachment({
-            name: file.name,
-            size: file.size,
-            type: file.type || 'text/plain',
-            data: dataUrl,
-            textContent: textReader.result as string,
-            isImage: false,
-          });
-          toast.success(`Attached ${file.name} (${formatFileSize(file.size)})`);
+  const readFileAsAttachment = useCallback(
+    (file: File): Promise<ChatAttachment | null> =>
+      new Promise((resolve) => {
+        const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif|svg)$/i.test(file.name);
+        const isTextDoc =
+          file.type.startsWith('text/') ||
+          /\.(txt|md|csv|json|py|java|cpp|c|r|sql|html|css|js|ts|tsx)$/i.test(file.name);
+        const reader = new FileReader();
+        reader.onerror = () => resolve(null);
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          if (isTextDoc) {
+            const textReader = new FileReader();
+            textReader.onerror = () => resolve(null);
+            textReader.onload = () =>
+              resolve({
+                name: file.name,
+                size: file.size,
+                type: file.type || 'text/plain',
+                data: dataUrl,
+                textContent: textReader.result as string,
+                isImage: false,
+              });
+            textReader.readAsText(file);
+          } else {
+            resolve({
+              name: file.name,
+              size: file.size,
+              type: file.type || (isImage ? 'image/jpeg' : 'application/pdf'),
+              data: dataUrl,
+              isImage,
+            });
+          }
         };
-        textReader.readAsText(file);
-      } else {
-        setPendingAttachment({
-          name: file.name,
-          size: file.size,
-          type: file.type || (isImage ? 'image/jpeg' : 'application/pdf'),
-          data: dataUrl,
-          isImage,
-        });
-        toast.success(`Attached ${isImage ? 'image' : 'file'} "${file.name}" (${formatFileSize(file.size)})`);
+        reader.readAsDataURL(file);
+      }),
+    []
+  );
+
+  const handleProcessFiles = useCallback(
+    async (incoming: File[]) => {
+      if (incoming.length === 0) return;
+      const slots = MAX_ATTACHMENTS - pendingAttachments.length;
+      if (slots <= 0) {
+        toast.error('You can attach up to 5 files at a time. Remove one to add another.');
+        return;
       }
-    };
-    reader.readAsDataURL(file);
-  }, [MAX_ATTACHMENT_BYTES, formatFileSize]);
+      if (incoming.length > slots) {
+        toast.info(`Only ${slots} more file${slots === 1 ? '' : 's'} fit. Keeping the first ${slots}.`);
+      }
+      const accepted: File[] = [];
+      for (const file of incoming.slice(0, slots)) {
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          toast.error(`"${file.name}" exceeds the 5MB limit (${formatFileSize(file.size)}).`);
+          continue;
+        }
+        accepted.push(file);
+      }
+      const results = (await Promise.all(accepted.map(readFileAsAttachment))).filter(
+        (a): a is ChatAttachment => a !== null
+      );
+      if (results.length > 0) {
+        setPendingAttachments((prev) => [...prev, ...results].slice(0, MAX_ATTACHMENTS));
+        toast.success(`Attached ${results.length} file${results.length === 1 ? '' : 's'}`);
+      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    },
+    [pendingAttachments.length, MAX_ATTACHMENT_BYTES, formatFileSize, readFileAsAttachment]
+  );
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData?.items;
     if (!items) return;
+    const files: File[] = [];
     for (const item of Array.from(items)) {
       if (item.kind === 'file') {
         const file = item.getAsFile();
-        if (file) {
-          e.preventDefault();
-          handleProcessFile(file);
-          break;
-        }
+        if (file) files.push(file);
       }
     }
-  }, [handleProcessFile]);
+    if (files.length > 0) {
+      e.preventDefault();
+      void handleProcessFiles(files);
+    }
+  }, [handleProcessFiles]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -389,9 +426,9 @@ export default function GeneralAiChatPage() {
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingOver(false);
-    const droppedFile = e.dataTransfer.files?.[0];
-    if (droppedFile) {
-      handleProcessFile(droppedFile);
+    const dropped = Array.from(e.dataTransfer.files || []);
+    if (dropped.length > 0) {
+      void handleProcessFiles(dropped);
     }
   };
 
@@ -887,34 +924,72 @@ export default function GeneralAiChatPage() {
     return COMMAND_SHORTCUTS.find((c) => trimmed.startsWith(c.prefix)) || null;
   }, [inputPrompt]);
 
-  // Submit message
-  const handleSendMessage = async (textToSend?: string) => {
-    const text = (textToSend || inputPrompt).trim();
-    if ((!text && !pendingAttachment) || isLoading || !activeSessionId) return;
+  const buildPreviousSessionsContext = useCallback((): string => {
+    const MAX_TOTAL = 40000;
+    const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
+    const others = sessions
+      .filter((s) => s.id !== activeSessionId && s.messages.some((m) => m.role === 'user'))
+      .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
 
-    const attachmentToSend = pendingAttachment ? { ...pendingAttachment } : null;
+    const explicit = referencedSessionId ? others.find((s) => s.id === referencedSessionId) : null;
+    const recent = others.filter((s) => s.id !== explicit?.id).slice(0, 6);
+
+    const render = (s: ConversationSession, maxMsgs: number, maxChars: number, label: string) => {
+      const turns = s.messages
+        .slice(-maxMsgs)
+        .map((m) => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${clip(m.content.replace(/\s+/g, ' '), maxChars)}`)
+        .join('\n');
+      const deck = s.referencedDeck ? ` | Deck: ${s.referencedDeck.courseCode} ${s.referencedDeck.lectureTitle}` : '';
+      return `### ${label}: "${s.title}" (${new Date(s.updatedAt || Date.now()).toLocaleDateString()})${deck}\n${turns}`;
+    };
+
+    const blocks: string[] = [];
+    if (explicit) blocks.push(render(explicit, 24, 900, 'EXPLICITLY REFERENCED CONVERSATION'));
+    recent.forEach((s) => blocks.push(render(s, 6, 350, 'Recent conversation')));
+    return blocks.join('\n\n').slice(0, MAX_TOTAL);
+  }, [sessions, activeSessionId, referencedSessionId]);
+
+  // Submit message
+  const handleSendMessage = async (
+    textToSend?: string,
+    opts?: { baseMessages?: ChatMessage[]; attachments?: ChatAttachment[]; quote?: string | null }
+  ) => {
+    const rawText = (textToSend ?? inputPrompt).trim();
+    const attachmentsToSend = opts?.attachments ?? pendingAttachments.map((a) => ({ ...a }));
+    if ((!rawText && attachmentsToSend.length === 0) || isLoading || !activeSessionId) return;
+
+    const quote = opts && 'quote' in opts ? opts.quote : textToSend === undefined ? quotedText : null;
+    const text = quote
+      ? `${quote
+          .split('\n')
+          .map((l) => `> ${l}`)
+          .join('\n')}\n\n${rawText}`.trim()
+      : rawText;
+    const baseMessages = opts?.baseMessages ?? messages;
 
     const userMessage: ChatMessage = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       role: 'user',
       content:
         text ||
-        (attachmentToSend
-          ? `Please analyze and explain the attached ${attachmentToSend.isImage ? 'image' : 'file'} (${attachmentToSend.name}).`
-          : ''),
+        `Please analyze and explain the attached file${attachmentsToSend.length === 1 ? '' : 's'} (${attachmentsToSend.map((a) => a.name).join(', ')}).`,
       timestamp: new Date().toISOString(),
       referencedDeck: activeDeck ? { ...activeDeck } : null,
-      attachment: attachmentToSend,
+      attachments: attachmentsToSend,
     };
 
-    const newMessages = [...messages, userMessage];
+    const newMessages = [...baseMessages, userMessage];
 
     // Auto-generate title from the first student message
-    const isFirstUserMessage = messages.length === 0;
+    const isFirstUserMessage = baseMessages.length === 0;
     const computedTitle = isFirstUserMessage
-      ? (text || attachmentToSend?.name || 'Study Session')
+      ? (rawText || attachmentsToSend[0]?.name || 'Study Session')
           .replace(/^(\/test|\/plan|\/explain|\/summary)\s*/i, '')
-          .slice(0, 48) || 'Study Session'
+          .replace(/<!DOCTYPE[^>]*>/gi, '')
+          .replace(/<\/?[a-z][^>]*>/gi, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 100) || 'Study Session'
       : currentSession?.title || 'Study Session';
 
     // Update current session with user message immediately
@@ -933,7 +1008,8 @@ export default function GeneralAiChatPage() {
     );
 
     setInputPrompt('');
-    setPendingAttachment(null);
+    setPendingAttachments([]);
+    setQuotedText(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -959,14 +1035,19 @@ export default function GeneralAiChatPage() {
         },
       };
 
-      if (attachmentToSend) {
-        payload.attachment = {
-          name: attachmentToSend.name,
-          type: attachmentToSend.type,
-          size: attachmentToSend.size,
-          data: attachmentToSend.data,
-          textContent: attachmentToSend.textContent,
-        };
+      if (attachmentsToSend.length > 0) {
+        payload.attachments = attachmentsToSend.map((a) => ({
+          name: a.name,
+          type: a.type,
+          size: a.size,
+          data: a.data,
+          textContent: a.textContent,
+        }));
+      }
+
+      const memoryContext = buildPreviousSessionsContext();
+      if (memoryContext) {
+        payload.previousSessionsContext = memoryContext;
       }
 
       if (activeDeck) {
@@ -1089,6 +1170,45 @@ export default function GeneralAiChatPage() {
       setIsLoading(false);
       setTimeout(() => textareaRef.current?.focus(), 50);
     }
+  };
+
+  const getMessageAttachments = (m: ChatMessage): ChatAttachment[] =>
+    m.attachments && m.attachments.length > 0 ? m.attachments : m.attachment ? [m.attachment] : [];
+
+  const handleRegenerate = (assistantMessageId: string) => {
+    if (isLoading) return;
+    const idx = messages.findIndex((m) => m.id === assistantMessageId);
+    if (idx < 0) return;
+    let userIdx = idx - 1;
+    while (userIdx >= 0 && messages[userIdx].role !== 'user') userIdx--;
+    if (userIdx < 0) return;
+    const userMsg = messages[userIdx];
+    void handleSendMessage(userMsg.content, {
+      baseMessages: messages.slice(0, userIdx),
+      attachments: getMessageAttachments(userMsg),
+      quote: null,
+    });
+  };
+
+  const handleSubmitEdit = (messageId: string) => {
+    if (isLoading) return;
+    const idx = messages.findIndex((m) => m.id === messageId);
+    const edited = editingMessageText.trim();
+    if (idx < 0 || !edited) return;
+    const original = messages[idx];
+    setEditingMessageId(null);
+    setEditingMessageText('');
+    void handleSendMessage(edited, {
+      baseMessages: messages.slice(0, idx),
+      attachments: getMessageAttachments(original),
+      quote: null,
+    });
+  };
+
+  const handleQuoteMessage = (content: string) => {
+    const clean = content.replace(/\s+/g, ' ').trim();
+    setQuotedText(clean.length > 600 ? `${clean.slice(0, 600)}…` : clean);
+    setTimeout(() => textareaRef.current?.focus(), 30);
   };
 
   // Handle enter key to send
@@ -1408,8 +1528,8 @@ export default function GeneralAiChatPage() {
       <main className="flex-1 flex flex-col min-w-0">
         {/* Top Header & Context Bar */}
         <header className="flex-shrink-0 bg-card border border-border rounded-2xl p-4 shadow-xs mb-3 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+            <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
               <Button
                 variant="outline"
                 size="icon"
@@ -1426,23 +1546,23 @@ export default function GeneralAiChatPage() {
 
               <UniStudyLogo variant="icon" height={32} className="shrink-0" alt="UniStudy AI Study Tutor" />
 
-              <div className="min-w-0">
+              <div className="flex-1 min-w-0 space-y-0.5">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-lg md:text-xl font-black tracking-tight text-[#00004E] dark:text-white truncate">
+                  <h1 className="text-lg md:text-xl font-black tracking-tight text-[#00004E] dark:text-white break-words leading-snug">
                     {currentSession?.title || 'AI Study Tutor & Assistant'}
                   </h1>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#D89A06]/20 text-[#8C6404] dark:text-[#D89A06] border border-[#D89A06]/40 uppercase tracking-wide">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#D89A06]/20 text-[#8C6404] dark:text-[#D89A06] border border-[#D89A06]/40 uppercase tracking-wide shrink-0">
                     {tutorConfig.name} ({tutorConfig.personality})
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-xs text-muted-foreground leading-relaxed">
                   Personalized Tutor {tutorConfig.name} · {tutorConfig.tone === 'casual' ? 'Casual & Relatable' : 'Academic & Scholarly'} · Slide Grounding &amp; Mentoring
                 </p>
               </div>
             </div>
 
             {/* Model Selector & Action Toolbar */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
               {/* Dynamic Model Selector Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -1575,7 +1695,7 @@ export default function GeneralAiChatPage() {
                     {activeDeck.courseCode}
                   </span>
                   <span className="text-muted-foreground">/</span>
-                  <span className="truncate max-w-[200px] md:max-w-[320px] font-medium text-foreground">
+                  <span className="font-medium text-foreground break-words">
                     {activeDeck.lectureTitle}
                   </span>
                   {typeof activeDeck.slideCount === 'number' && activeDeck.slideCount > 0 && (
@@ -1696,45 +1816,102 @@ export default function GeneralAiChatPage() {
                         <span className="font-bold text-[#00004E] dark:text-white">You</span>
                       </div>
                       <div className="rounded-2xl rounded-br-xs p-4 bg-[#00004E] text-white text-xs md:text-sm leading-relaxed shadow-2xs font-medium whitespace-pre-wrap break-words selection:bg-[#D89A06] selection:text-[#00004E]">
-                        {message.attachment && (
-                          <div className="mb-2.5">
-                            {message.attachment.isImage ? (
-                              <div
-                                onClick={() =>
-                                  setPreviewModalImage({
-                                    src: message.attachment!.data,
-                                    alt: message.attachment!.name,
-                                  })
-                                }
-                                className="relative max-w-[280px] rounded-xl overflow-hidden border border-white/20 bg-black/20 cursor-pointer hover:opacity-95 transition-opacity group shadow-xs"
-                                title="Click to view full image"
-                              >
-                                <img
-                                  src={message.attachment.data}
-                                  alt={message.attachment.name}
-                                  className="w-full h-auto max-h-60 object-contain rounded-xl"
-                                />
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold gap-1.5">
-                                  <Eye className="h-3.5 w-3.5" /> View image
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/10 border border-white/20 max-w-sm">
-                                <FileText className="h-4 w-4 text-[#D89A06] shrink-0" />
-                                <div className="min-w-0">
-                                  <div className="font-bold truncate text-white text-xs">
-                                    {message.attachment.name}
-                                  </div>
-                                  <div className="text-[10px] text-white/70">
-                                    {formatFileSize(message.attachment.size)}
+                        {getMessageAttachments(message).length > 0 && (
+                          <div className="mb-2.5 flex flex-wrap gap-2">
+                            {getMessageAttachments(message).map((att, attIdx) =>
+                              att.isImage ? (
+                                <div
+                                  key={`${att.name}-${attIdx}`}
+                                  onClick={() => setPreviewModalImage({ src: att.data, alt: att.name })}
+                                  className="relative rounded-xl overflow-hidden border border-white/20 bg-black/20 cursor-pointer hover:opacity-95 transition-opacity group shadow-xs"
+                                  style={{ width: getMessageAttachments(message).length > 1 ? 120 : 280 }}
+                                  title="Click to view full image"
+                                >
+                                  <img
+                                    src={att.data}
+                                    alt={att.name}
+                                    className={cn(
+                                      'w-full object-cover rounded-xl',
+                                      getMessageAttachments(message).length > 1 ? 'h-24' : 'h-auto max-h-60 object-contain'
+                                    )}
+                                  />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold gap-1.5">
+                                    <Eye className="h-3.5 w-3.5" /> View
                                   </div>
                                 </div>
-                              </div>
+                              ) : (
+                                <div
+                                  key={`${att.name}-${attIdx}`}
+                                  className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/10 border border-white/20 max-w-[220px]"
+                                >
+                                  <FileText className="h-4 w-4 text-[#D89A06] shrink-0" />
+                                  <div className="min-w-0">
+                                    <div className="font-bold truncate text-white text-xs">{att.name}</div>
+                                    <div className="text-[10px] text-white/70">{formatFileSize(att.size)}</div>
+                                  </div>
+                                </div>
+                              )
                             )}
                           </div>
                         )}
-                        {message.content}
+                        {editingMessageId === message.id ? (
+                          <div className="space-y-2 min-w-[240px] md:min-w-[420px]">
+                            <textarea
+                              value={editingMessageText}
+                              onChange={(e) => setEditingMessageText(e.target.value)}
+                              rows={Math.min(8, Math.max(2, editingMessageText.split('\n').length))}
+                              autoFocus
+                              className="w-full rounded-lg bg-white/10 border border-white/30 p-2 text-white text-xs md:text-sm focus:outline-none focus:border-[#D89A06] resize-none"
+                            />
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingMessageId(null);
+                                  setEditingMessageText('');
+                                }}
+                                className="px-3 py-1 rounded-lg text-[11px] font-bold border border-white/30 hover:bg-white/10 cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSubmitEdit(message.id)}
+                                disabled={!editingMessageText.trim() || isLoading}
+                                className="px-3 py-1 rounded-lg text-[11px] font-bold bg-[#D89A06] text-[#00004E] hover:bg-[#C28905] cursor-pointer disabled:opacity-40"
+                              >
+                                Save &amp; resend
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          message.content
+                        )}
                       </div>
+                      {editingMessageId !== message.id && (
+                        <div className="flex items-center gap-1 px-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingMessageId(message.id);
+                              setEditingMessageText(message.content);
+                            }}
+                            disabled={isLoading}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer disabled:opacity-40"
+                            title="Edit and resend"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleQuoteMessage(message.content)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                            title="Quote in reply"
+                          >
+                            <Quote className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="w-full rounded-2xl border border-border/80 border-l-[4px] border-l-[#D89A06] bg-card text-foreground shadow-xs overflow-hidden transition-all duration-200">
@@ -1793,6 +1970,23 @@ export default function GeneralAiChatPage() {
                             ) : (
                               <Copy className="h-3.5 w-3.5" />
                             )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleQuoteMessage(message.content)}
+                            className="p-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                            title="Ask about this answer"
+                          >
+                            <Quote className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRegenerate(message.id)}
+                            disabled={isLoading}
+                            className="p-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer disabled:opacity-40"
+                            title="Regenerate response"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
                           </button>
                           <span className="text-[11px] text-muted-foreground ml-1 font-mono">
                             {new Date(message.timestamp).toLocaleTimeString([], {
@@ -1959,56 +2153,94 @@ export default function GeneralAiChatPage() {
             })}
           </div>
 
-          {/* Attachment Preview Chip */}
-          {pendingAttachment && (
-            <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#FEF8E7] dark:bg-[#00004E]/50 border border-[#D89A06]/40 shadow-xs animate-in fade-in duration-150">
-              <div className="flex items-center gap-2.5 min-w-0">
-                {pendingAttachment.isImage ? (
-                  <div
-                    onClick={() =>
-                      setPreviewModalImage({
-                        src: pendingAttachment.data,
-                        alt: pendingAttachment.name,
-                      })
-                    }
-                    className="relative h-11 w-11 rounded-lg overflow-hidden border border-[#D89A06]/40 bg-black/10 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
-                    title="Click to preview image"
+          {/* Context chips: quoted reply + referenced past chat */}
+          {(quotedText || referencedSessionId) && (
+            <div className="flex flex-wrap items-start gap-2">
+              {quotedText && (
+                <div className="flex items-start gap-2 flex-1 min-w-[220px] p-2.5 rounded-xl bg-muted/40 border border-border border-l-4 border-l-[#D89A06]">
+                  <Quote className="h-3.5 w-3.5 mt-0.5 text-[#D89A06] shrink-0" />
+                  <p className="flex-1 text-[11px] text-muted-foreground line-clamp-2 break-words">{quotedText}</p>
+                  <button
+                    type="button"
+                    onClick={() => setQuotedText(null)}
+                    className="p-0.5 rounded hover:bg-muted text-muted-foreground cursor-pointer"
+                    title="Remove quote"
                   >
-                    <img
-                      src={pendingAttachment.data}
-                      alt={pendingAttachment.name}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                ) : (
-                  <div className="h-11 w-11 rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] flex items-center justify-center shrink-0 font-bold shadow-2xs">
-                    <FileText className="h-5 w-5" />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <div className="font-bold text-xs text-[#00004E] dark:text-white truncate max-w-[220px] sm:max-w-xs md:max-w-md">
-                    {pendingAttachment.name}
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
-                    <span className="font-mono">{formatFileSize(pendingAttachment.size)}</span>
-                    <span>·</span>
-                    <span className="text-[#D89A06] font-semibold">Max 5MB</span>
-                    <span>·</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">Ready</span>
-                  </div>
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                 </div>
+              )}
+              {referencedSessionId && (
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-[#FEF8E7] dark:bg-white/10 border border-[#D89A06]/40 max-w-full">
+                  <Clock className="h-3.5 w-3.5 text-[#D89A06] shrink-0" />
+                  <span className="text-[11px] font-semibold text-[#00004E] dark:text-white truncate max-w-[240px]">
+                    Using chat: {sessions.find((s) => s.id === referencedSessionId)?.title || 'Past chat'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setReferencedSessionId(null)}
+                    className="p-0.5 rounded hover:bg-black/10 text-muted-foreground cursor-pointer"
+                    title="Stop referencing this chat"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Attachment Preview Strip (up to 5) */}
+          {pendingAttachments.length > 0 && (
+            <div className="p-2.5 rounded-xl bg-[#FEF8E7] dark:bg-[#00004E]/50 border border-[#D89A06]/40 shadow-xs animate-in fade-in duration-150 space-y-2">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-bold text-[#00004E] dark:text-white">
+                  {pendingAttachments.length}/{MAX_ATTACHMENTS} files attached
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingAttachments([]);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                  className="font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  Clear all
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setPendingAttachment(null);
-                  if (fileInputRef.current) fileInputRef.current.value = '';
-                }}
-                className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0 ml-2"
-                title="Remove attachment"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex flex-wrap gap-2">
+                {pendingAttachments.map((att, attIdx) => (
+                  <div
+                    key={`${att.name}-${attIdx}`}
+                    className="relative flex items-center gap-2 pr-7 p-1.5 rounded-lg bg-card border border-[#D89A06]/40 max-w-[220px]"
+                  >
+                    {att.isImage ? (
+                      <div
+                        onClick={() => setPreviewModalImage({ src: att.data, alt: att.name })}
+                        className="h-9 w-9 rounded-md overflow-hidden bg-black/10 shrink-0 cursor-pointer"
+                        title="Click to preview image"
+                      >
+                        <img src={att.data} alt={att.name} className="h-full w-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="h-9 w-9 rounded-md bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] flex items-center justify-center shrink-0">
+                        <FileText className="h-4 w-4" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-bold text-[11px] text-[#00004E] dark:text-white truncate">{att.name}</div>
+                      <div className="text-[10px] font-mono text-muted-foreground">{formatFileSize(att.size)}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPendingAttachments((prev) => prev.filter((_, i) => i !== attIdx))}
+                      className="absolute top-1 right-1 p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground cursor-pointer"
+                      title={`Remove ${att.name}`}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -2028,32 +2260,91 @@ export default function GeneralAiChatPage() {
             <input
               ref={fileInputRef}
               type="file"
+              multiple
               accept="image/*,.pdf,.txt,.docx,.csv,.md,.json,.py,.java,.cpp,.c,.r,.sql"
               onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleProcessFile(file);
+                const files = Array.from(e.target.files || []);
+                if (files.length > 0) void handleProcessFiles(files);
                 if (fileInputRef.current) fileInputRef.current.value = '';
               }}
               className="hidden"
             />
 
-            {/* Attach File/Image Button (Limit 5MB) */}
+            {/* Attach Files/Images Button (up to 5 at a time, 5MB each) */}
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading}
+              disabled={isLoading || pendingAttachments.length >= MAX_ATTACHMENTS}
               className={cn(
-                'h-10 w-10 p-0 rounded-xl shrink-0 cursor-pointer transition-all',
-                pendingAttachment
+                'h-10 w-10 p-0 rounded-xl shrink-0 cursor-pointer transition-all relative',
+                pendingAttachments.length > 0
                   ? 'bg-[#FEF8E7] text-[#00004E] border border-[#D89A06] dark:bg-white/10 dark:text-[#D89A06]'
                   : 'text-muted-foreground hover:text-[#00004E] hover:bg-[#FEF8E7] dark:hover:text-[#D89A06] dark:hover:bg-white/10'
               )}
-              title="Attach image or file (Max 5MB)"
+              title="Attach up to 5 images or files at a time (5MB each)"
             >
               <Paperclip className="h-4 w-4" />
+              {pendingAttachments.length > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-[#D89A06] text-[#00004E] text-[10px] font-bold flex items-center justify-center">
+                  {pendingAttachments.length}
+                </span>
+              )}
             </Button>
+
+            {/* Reference a past chat */}
+            <div className="relative shrink-0">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsRefPickerOpen((v) => !v)}
+                disabled={isLoading}
+                className={cn(
+                  'h-10 w-10 p-0 rounded-xl cursor-pointer transition-all',
+                  referencedSessionId
+                    ? 'bg-[#FEF8E7] text-[#00004E] border border-[#D89A06] dark:bg-white/10 dark:text-[#D89A06]'
+                    : 'text-muted-foreground hover:text-[#00004E] hover:bg-[#FEF8E7] dark:hover:text-[#D89A06] dark:hover:bg-white/10'
+                )}
+                title="Refer to a previous chat"
+              >
+                <Clock className="h-4 w-4" />
+              </Button>
+              {isRefPickerOpen && (
+                <div className="absolute bottom-12 left-0 z-30 w-72 max-h-72 overflow-y-auto rounded-xl border border-border bg-card shadow-lg p-1.5 space-y-1">
+                  <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Refer to a previous chat
+                  </div>
+                  {sessions.filter((s) => s.id !== activeSessionId && s.messages.some((m) => m.role === 'user')).length === 0 ? (
+                    <div className="px-2 py-3 text-xs text-muted-foreground">No earlier conversations yet.</div>
+                  ) : (
+                    sessions
+                      .filter((s) => s.id !== activeSessionId && s.messages.some((m) => m.role === 'user'))
+                      .map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => {
+                            setReferencedSessionId(s.id);
+                            setIsRefPickerOpen(false);
+                            setTimeout(() => textareaRef.current?.focus(), 30);
+                          }}
+                          className={cn(
+                            'w-full text-left px-2 py-1.5 rounded-lg text-xs hover:bg-[#FEF8E7] dark:hover:bg-white/10 cursor-pointer',
+                            referencedSessionId === s.id && 'bg-[#FEF8E7] dark:bg-white/10 font-semibold'
+                          )}
+                        >
+                          <div className="truncate text-[#00004E] dark:text-white">{s.title}</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {new Date(s.updatedAt || Date.now()).toLocaleDateString()} · {s.messages.length} messages
+                          </div>
+                        </button>
+                      ))
+                  )}
+                </div>
+              )}
+            </div>
 
             <textarea
               ref={textareaRef}
@@ -2062,11 +2353,11 @@ export default function GeneralAiChatPage() {
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               placeholder={
-                pendingAttachment
-                  ? `Ask about "${pendingAttachment.name}"... (e.g. solve problem, explain notes, summarize)`
+                pendingAttachments.length > 0
+                  ? `Ask about ${pendingAttachments.length === 1 ? `"${pendingAttachments[0].name}"` : `these ${pendingAttachments.length} files`}... (e.g. solve, explain, summarize)`
                   : activeDeck
-                    ? `Ask anything grounded in "${activeDeck.lectureTitle}"... (Attach images/files up to 5MB)`
-                    : 'Ask anything across your courses, concepts, or formulas... (Attach images/files up to 5MB)'
+                    ? `Ask anything grounded in "${activeDeck.lectureTitle}"...`
+                    : 'Ask anything, or say "refer to our previous conversation"...'
               }
               rows={1}
               disabled={isLoading}
@@ -2075,7 +2366,7 @@ export default function GeneralAiChatPage() {
 
             <Button
               onClick={() => handleSendMessage()}
-              disabled={(!inputPrompt.trim() && !pendingAttachment) || isLoading}
+              disabled={(!inputPrompt.trim() && pendingAttachments.length === 0) || isLoading}
               className="h-10 w-10 p-0 rounded-xl bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] transition-all shadow-2xs flex-shrink-0 cursor-pointer disabled:opacity-40"
               title="Send Message (Enter)"
             >
