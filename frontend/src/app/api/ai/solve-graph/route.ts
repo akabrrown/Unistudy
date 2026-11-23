@@ -89,6 +89,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Verify and deduct 1 credit for graph solving
+    const { deductUserCredits } = await import('@/lib/ai/quota');
+    const creditCheck = await deductUserCredits(auth.userId, 'solve-graph', 'groq', 1);
+    if (!creditCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: creditCheck.error || 'You have exhausted your AI Credits (0 remaining). Please top up in Billing to continue.',
+          code: 'INSUFFICIENT_CREDITS',
+          remainingCredits: creditCheck.remainingCredits,
+        },
+        { status: 402 }
+      );
+    }
+
     const { problem = '', imageBase64, mimeType } = parsedInput.data;
 
     // Fast-path deterministic CAS & coordinate geometry solver BEFORE calling any external LLM
@@ -103,6 +117,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           spec: deterministicSpec,
           modelUsed: 'deterministic-cas',
+          remainingCredits: creditCheck.remainingCredits,
         });
       }
     }
@@ -514,6 +529,7 @@ export async function POST(req: NextRequest) {
       spec: resolvedSpec,
       extractedProblemText: resolvedSpec.extractedProblemText || effectiveProblemText || undefined,
       modelUsed,
+      remainingCredits: creditCheck.remainingCredits,
     });
   } catch (err: unknown) {
     console.error('[SolveGraph] Route error:', err);

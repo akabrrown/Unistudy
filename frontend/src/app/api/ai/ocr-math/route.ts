@@ -82,6 +82,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Empty image payload' }, { status: 400 });
     }
 
+    // Verify and deduct 1 credit for OCR math scanning
+    const { deductUserCredits } = await import('@/lib/ai/quota');
+    const creditCheck = await deductUserCredits(auth.userId, 'ocr-math', 'mistral', 1);
+    if (!creditCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: creditCheck.error || 'You have exhausted your AI Credits (0 remaining). Please top up in Billing to continue.',
+          code: 'INSUFFICIENT_CREDITS',
+          remainingCredits: creditCheck.remainingCredits,
+        },
+        { status: 402 }
+      );
+    }
+
     const ocrPrompt = buildMathOcrPrompt(mode);
     const dataUrl = `data:${effectiveMime};base64,${base64Data}`;
     let extractedText = '';
@@ -226,6 +240,7 @@ export async function POST(req: NextRequest) {
       success: true,
       extractedText,
       provider: providerUsed,
+      remainingCredits: creditCheck.remainingCredits,
     });
   } catch (err: unknown) {
     console.error('[OcrMath] Route error:', err);

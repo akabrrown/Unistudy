@@ -54,6 +54,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Please upload a valid image' }, { status: 400 });
     }
 
+    // Verify and deduct 1 credit for scanning notes
+    const { deductUserCredits } = await import('@/lib/ai/quota');
+    const creditCheck = await deductUserCredits(userId!, 'scan-notes', 'gemini', 1);
+    if (!creditCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: creditCheck.error || 'You have exhausted your AI Credits (0 remaining). Please top up in Billing to continue.',
+          code: 'INSUFFICIENT_CREDITS',
+          remainingCredits: creditCheck.remainingCredits,
+        },
+        { status: 402 }
+      );
+    }
+
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const base64Image = buffer.toString('base64');
@@ -194,6 +208,7 @@ RULES:
 
     return NextResponse.json({
       transcription: normalizeLatexMarkdown(transcription),
+      remainingCredits: creditCheck.remainingCredits,
     });
   } catch (err: unknown) {
     console.error('Notes Scanner Error:', err);

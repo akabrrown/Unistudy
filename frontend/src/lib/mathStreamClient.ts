@@ -31,6 +31,9 @@ export async function extractMathFromImage(params: {
       error?: string;
     };
     if (res.ok && data?.extractedText?.trim()) {
+      if (typeof (data as any)?.remainingCredits === 'number' && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('unistudy-credits-changed', { detail: { balance: (data as any).remainingCredits } }));
+      }
       return data.extractedText.trim();
     }
     if (data?.error) {
@@ -176,6 +179,10 @@ export async function solveMathProblemStream(params: SolveMathStreamParams): Pro
     );
   }
 
-  return consumeMathSse(localRes, onChunk, onExtractedText);
+  const result = await consumeMathSse(localRes, onChunk, onExtractedText);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('unistudy-credits-changed'));
+  }
+  return result;
 }
 

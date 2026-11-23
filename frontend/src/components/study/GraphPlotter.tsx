@@ -532,6 +532,9 @@ export function GraphPlotter({ fullHeight = false }: { fullHeight?: boolean }) {
 
       const data = await res.json().catch(() => ({}))
       if (res.ok && data?.spec) {
+        if (typeof data.remainingCredits === 'number' && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('unistudy-credits-changed', { detail: { balance: data.remainingCredits } }))
+        }
         const nextSpec = data.spec as GraphSpec
         setGraphSpec(nextSpec)
         syncBoundsFromSpec(nextSpec)

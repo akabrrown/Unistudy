@@ -128,6 +128,16 @@ export async function generateFlashcards(lectureId: string) {
       }
     }
 
+    // Verify and deduct 1 credit for flashcard generation
+    const { deductUserCredits } = await import('@/lib/ai/quota')
+    const creditCheck = await deductUserCredits(user.id, 'flashcard_generation', 'gemini', 1)
+    if (!creditCheck.allowed) {
+      return {
+        error: creditCheck.error || 'You have exhausted your AI Credits (0 remaining). Please top up in Billing to continue.',
+        remainingCredits: creditCheck.remainingCredits,
+      }
+    }
+
     const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8005'
 
     // 1. Try Express backend if reachable
@@ -151,6 +161,7 @@ export async function generateFlashcards(lectureId: string) {
             success: true,
             count: data.count,
             cards: refreshed.data || [],
+            remainingCredits: creditCheck.remainingCredits,
           }
         }
         if (res.status === 402) {
@@ -244,6 +255,7 @@ export async function generateFlashcards(lectureId: string) {
       success: true,
       count: (insertedRows || cardsToInsert).length,
       cards: insertedRows || cardsToInsert,
+      remainingCredits: creditCheck.remainingCredits,
     }
   } catch (err: unknown) {
     console.error('generateFlashcards exception:', err)

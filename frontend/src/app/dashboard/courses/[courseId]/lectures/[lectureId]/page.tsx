@@ -899,6 +899,9 @@ export default function LectureViewer() {
       const slideId = targetSlide.id || `${lectureId}-${idx}`;
       if (fullEx && !fullEx.includes('Showing mock response')) {
         localStorage.setItem(`offline_exp_${slideId}`, fullEx);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('unistudy-credits-changed'));
+        }
       }
     } catch (e: any) {
       setSlideExplanations(prev => ({ ...prev, [idx]: `**Error:** ${e.message}` }));

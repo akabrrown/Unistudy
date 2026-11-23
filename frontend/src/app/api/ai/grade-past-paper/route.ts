@@ -146,6 +146,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Verify and deduct 1 credit for past paper grading
+    const { deductUserCredits } = await import('@/lib/ai/quota');
+    const creditCheck = await deductUserCredits(auth.userId, 'grade-past-paper', 'groq', 1);
+    if (!creditCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: creditCheck.error || 'You have exhausted your AI Credits (0 remaining). Please top up in Billing to continue.',
+          code: 'INSUFFICIENT_CREDITS',
+          remainingCredits: creditCheck.remainingCredits,
+        },
+        { status: 402 }
+      );
+    }
+
     const { answers, is_ultra, course_id } = parsedInput.data;
     const enrichedAnswers: PastPaperAnswerInput[] = answers.map((a) => ({ ...a }));
 
@@ -211,7 +225,11 @@ export async function POST(req: NextRequest) {
       allResults.push(...results);
     }
 
-    return NextResponse.json({ success: true, data: allResults });
+    return NextResponse.json({
+      success: true,
+      data: allResults,
+      remainingCredits: creditCheck.remainingCredits,
+    });
   } catch (err) {
     console.error('[GradePastPaper] Route error:', err);
     return NextResponse.json(

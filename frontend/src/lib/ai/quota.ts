@@ -149,113 +149,119 @@ export async function getUserQuota(userId: string): Promise<Record<string, unkno
 }
 
 export async function checkUserQuota(userId: string, feature: Feature): Promise<QuotaCheckResult> {
-  const provider = FEATURE_PROVIDER_MAP[feature]
-  const cost = FEATURE_COSTS[feature]
-  const config = PROVIDER_CONFIG[provider]
-
-  if (!config.has_user_quota || !config.user_quota_column) {
-    return { allowed: true, cost: 0, daily_used: 0, daily_limit: 9999, wallet_balance: 9999 }
-  }
-
-  const colPrefix = config.user_quota_column
-  const dailyLimit = FREE_DAILY_ALLOWANCES[colPrefix] || 0
-
-  const [quota, walletBalance] = await Promise.all([
-    getUserQuota(userId),
-    getCreditBalance(userId),
-  ])
-
-  // If the user_quota row hasn't been initialized yet, treat daily usage as 0 rather than locking out free allowance
-  if (!quota) {
-    const isAllowed = dailyLimit >= cost || walletBalance >= cost
-    return {
-      allowed: isAllowed,
-      reason: isAllowed ? undefined : 'limit_reached',
-      cost,
-      daily_used: 0,
-      daily_limit: dailyLimit,
-      wallet_balance: walletBalance,
-    }
-  }
-
-  const used = Number(quota[`${colPrefix}_daily_used`] || 0)
-  const rawReset = quota[`${colPrefix}_daily_reset`]
-  const resetsAt = new Date(
-    typeof rawReset === 'string' || typeof rawReset === 'number' ? rawReset : Date.now()
-  )
-  resetsAt.setUTCDate(resetsAt.getUTCDate() + 1)
-  resetsAt.setUTCHours(0, 0, 0, 0)
-
-  const isNewPeriod = new Date() > resetsAt
-  const actualUsed = isNewPeriod ? 0 : used
-  const dailyRemaining = dailyLimit - actualUsed
-  const isAllowed = dailyRemaining >= cost || walletBalance >= cost
+  const cost = 1
+  const walletBalance = await getCreditBalance(userId)
+  const isAllowed = walletBalance >= cost
 
   return {
     allowed: isAllowed,
     reason: isAllowed ? undefined : 'limit_reached',
     cost,
-    daily_used: actualUsed,
-    daily_limit: dailyLimit,
+    daily_used: 0,
+    daily_limit: 0,
     wallet_balance: walletBalance,
   }
 }
 
-export async function consumeUserQuota(userId: string, feature: Feature): Promise<boolean> {
-  const provider = FEATURE_PROVIDER_MAP[feature]
-  const cost = FEATURE_COSTS[feature]
-  if (cost <= 0) return true
-
-  const config = PROVIDER_CONFIG[provider]
-  if (!config.has_user_quota || !config.user_quota_column) {
-    return true
-  }
-
-  const colPrefix = config.user_quota_column
-  const dailyLimit = FREE_DAILY_ALLOWANCES[colPrefix] || 0
-
-  const [quota, walletBalance] = await Promise.all([
-    getUserQuota(userId),
-    getCreditBalance(userId),
-  ])
-
-  const used = Number(quota?.[`${colPrefix}_daily_used`] || 0)
-  const rawReset = quota?.[`${colPrefix}_daily_reset`]
-  const resetsAt = new Date(
-    typeof rawReset === 'string' || typeof rawReset === 'number' ? rawReset : Date.now()
-  )
-  resetsAt.setUTCDate(resetsAt.getUTCDate() + 1)
-  resetsAt.setUTCHours(0, 0, 0, 0)
-  const isNewPeriod = new Date() > resetsAt
-  const actualUsed = isNewPeriod ? 0 : used
-  const dailyRemaining = dailyLimit - actualUsed
-
-  const supabase = await createClient()
-
-  if (dailyRemaining >= cost) {
-    const rpcName = `increment_user_${colPrefix}_daily`
-    await supabase.rpc(rpcName as never, { p_user_id: userId, p_amount: cost } as never)
-  } else if (walletBalance >= cost) {
-    await supabase.rpc('decrement_credit_wallet', { p_user_id: userId, p_amount: cost })
-  } else {
+export async function consumeUserQuota(
+  userId: string,
+  feature: Feature,
+  cost: number = 1
+): Promise<{ success: boolean; remainingCredits: number }> {
+  const walletBalance = await getCreditBalance(userId)
+  if (walletBalance < cost) {
     throw new Error('quota_exhausted')
   }
 
+  const newBalance = Math.max(0, walletBalance - cost)
+
   try {
-    await supabase.from('ai_request_log').insert({
+    const { getAdminClient } = await import('@/lib/supabase/admin')
+    const admin = getAdminClient()
+    await (admin.from('credit_wallets') as any).upsert({
+      user_id: userId,
+      balance: newBalance,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' })
+
+    const provider = FEATURE_PROVIDER_MAP[feature] || 'gemini'
+    await (admin.from('ai_request_log') as any).insert({
       user_id: userId,
       provider,
       feature,
-      pool_type: config.pool_type,
+      pool_type: 'credit_funded',
       requests_cost: cost,
       was_cached: false,
       drew_from_pool: false,
       user_plan: 'credit_system',
     })
-  } catch {
-    // Non-fatal if RLS restricts client-scoped log insertion
+  } catch (adminErr) {
+    console.warn('[consumeUserQuota] Admin update failed, attempting RPC fallback:', adminErr)
+    const supabase = await createClient()
+    await supabase.rpc('decrement_credit_wallet', { p_user_id: userId, p_amount: cost })
   }
 
   await safeRedisDel(`user_quota:${userId}`)
-  return true
+  return { success: true, remainingCredits: newBalance }
+}
+
+export async function deductUserCredits(
+  userId: string,
+  feature: string,
+  provider: string = 'gemini',
+  cost: number = 1
+): Promise<{ allowed: boolean; remainingCredits: number; error?: string }> {
+  try {
+    const { getAdminClient } = await import('@/lib/supabase/admin')
+    const admin = getAdminClient()
+
+    const { data: walletRow } = await (admin.from('credit_wallets') as any)
+      .select('balance')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    let currentBalance: number
+    if (!walletRow || typeof walletRow.balance !== 'number') {
+      await (admin.from('credit_wallets') as any).upsert({
+        user_id: userId,
+        balance: 20,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' })
+      currentBalance = 20
+    } else {
+      currentBalance = walletRow.balance
+    }
+
+    if (currentBalance < cost) {
+      return {
+        allowed: false,
+        remainingCredits: currentBalance,
+        error: 'You have exhausted your AI Credits (0 remaining). Please top up in Billing to continue.',
+      }
+    }
+
+    const newBalance = Math.max(0, currentBalance - cost)
+    await (admin.from('credit_wallets') as any).upsert({
+      user_id: userId,
+      balance: newBalance,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' })
+
+    await (admin.from('ai_request_log') as any).insert({
+      user_id: userId,
+      provider,
+      feature,
+      pool_type: 'credit_funded',
+      requests_cost: cost,
+      was_cached: false,
+      drew_from_pool: false,
+      user_plan: 'credit_system',
+    })
+
+    await safeRedisDel(`user_quota:${userId}`)
+    return { allowed: true, remainingCredits: newBalance }
+  } catch (err: unknown) {
+    console.error('[deductUserCredits] Error:', err)
+    return { allowed: true, remainingCredits: 0 }
+  }
 }

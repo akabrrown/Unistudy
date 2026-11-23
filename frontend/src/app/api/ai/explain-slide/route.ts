@@ -40,6 +40,20 @@ export async function POST(request: Request) {
     }
     releaseGuard = limit.release;
 
+    // Verify and deduct 1 credit for slide explanation
+    const { deductUserCredits } = await import('@/lib/ai/quota');
+    const creditCheck = await deductUserCredits(user.id, 'slide_explanation', 'gemini', 1);
+    if (!creditCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: creditCheck.error || 'You have exhausted your AI Credits (0 remaining). Please top up in Billing to continue.',
+          code: 'INSUFFICIENT_CREDITS',
+          remainingCredits: creditCheck.remainingCredits,
+        },
+        { status: 402 }
+      );
+    }
+
     const { slideText, level, courseContext, visionExplanation, imageUrl } = await request.json();
 
     const result = await generateSlideExplanation(
@@ -54,7 +68,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
-    return NextResponse.json({ explanation: result.explanation });
+    return NextResponse.json({
+      explanation: result.explanation,
+      remainingCredits: creditCheck.remainingCredits,
+    });
   } catch (error: any) {
     console.error('API /explain-slide error:', error);
     return NextResponse.json({ error: 'Failed to generate explanation' }, { status: 500 });

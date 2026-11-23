@@ -84,6 +84,9 @@ export default function FlashcardsPage() {
     if (res.error) {
       toast.error(typeof res.error === 'string' ? res.error : 'Failed to generate flashcards')
     } else {
+      if (typeof (res as any).remainingCredits === 'number' && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('unistudy-credits-changed', { detail: { balance: (res as any).remainingCredits } }))
+      }
       const updatedCards = await fetchData()
       const returnedCards = Array.isArray((res as any).cards) ? (res as any).cards : []
       let effectiveCards = updatedCards

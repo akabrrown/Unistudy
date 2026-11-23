@@ -257,6 +257,20 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Verify and deduct 1 credit for essay grading
+    const { deductUserCredits } = await import('@/lib/ai/quota');
+    const creditCheck = await deductUserCredits(userId, 'grade-essay', 'groq', 1);
+    if (!creditCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: creditCheck.error || 'You have exhausted your AI Credits (0 remaining). Please top up in Billing to continue.',
+          code: 'INSUFFICIENT_CREDITS',
+          remainingCredits: creditCheck.remainingCredits,
+        },
+        { status: 402 }
+      );
+    }
     const {
       prompt,
       essay,
@@ -352,6 +366,7 @@ export async function POST(req: NextRequest) {
               report: finalReport,
               isLiveAI: Boolean(streamedEssay),
               modelUsed,
+              remainingCredits: creditCheck.remainingCredits,
             });
           } catch (streamErr: unknown) {
             const msg = streamErr instanceof Error ? streamErr.message : 'Realtime grading failed';
@@ -383,7 +398,7 @@ export async function POST(req: NextRequest) {
       if (!rewritten) {
         return NextResponse.json({ error: 'Unable to regenerate 100/100 essay right now.' }, { status: 502 });
       }
-      return NextResponse.json({ perfect_essay: humanizeEssayText(rewritten), isLiveAI: true });
+      return NextResponse.json({ perfect_essay: humanizeEssayText(rewritten), isLiveAI: true, remainingCredits: creditCheck.remainingCredits });
     }
 
     const systemPrompt = buildEssayGraderPrompt(prompt, essay);
@@ -415,6 +430,7 @@ export async function POST(req: NextRequest) {
       report: finalReport,
       isLiveAI: Boolean(parsedReport),
       modelUsed: modelUsed || 'fallback',
+      remainingCredits: creditCheck.remainingCredits,
     });
   } catch (err: unknown) {
     console.error('Essay Grader Error:', err);

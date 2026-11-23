@@ -338,7 +338,10 @@ export default function NotesScannerPage() {
           body: formData,
         });
         if (localRes.ok) {
-          const payload = (await localRes.json()) as { transcription?: string };
+          const payload = (await localRes.json()) as { transcription?: string; remainingCredits?: number };
+          if (typeof payload?.remainingCredits === 'number' && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('unistudy-credits-changed', { detail: { balance: payload.remainingCredits } }));
+          }
           if (payload?.transcription) {
             resultText = payload.transcription;
           }

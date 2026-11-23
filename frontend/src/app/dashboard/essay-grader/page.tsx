@@ -301,6 +301,9 @@ export default function EssayGraderPage() {
         } else if (eventName === 'done') {
           receivedProgress = true;
           completedNormally = true;
+          if (typeof payload.remainingCredits === 'number' && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('unistudy-credits-changed', { detail: { balance: payload.remainingCredits } }));
+          }
           if (typeof payload.modelUsed === 'string') {
             latestModel = payload.modelUsed;
             setModelUsed(payload.modelUsed);
@@ -379,6 +382,9 @@ export default function EssayGraderPage() {
         await consumeEssayStream(res.body);
       } else {
         const data = await res.json();
+        if (typeof data.remainingCredits === 'number' && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('unistudy-credits-changed', { detail: { balance: data.remainingCredits } }));
+        }
         setReport(data.report);
         setStreamEssayText(data.report?.perfect_essay || '');
         if (data.modelUsed) setModelUsed(data.modelUsed);

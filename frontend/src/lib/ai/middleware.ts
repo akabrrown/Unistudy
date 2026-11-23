@@ -63,9 +63,9 @@ export function withAIQuota(
               wallet_balance: quotaStatus.wallet_balance,
               remaining: 0,
               message:
-                'You have exhausted your daily free allowance and do not have enough credits.',
+                'You have exhausted your AI Credits (0 remaining). Please top up in Billing to continue.',
             },
-            { status: 429 }
+            { status: 402 }
           )
         }
 

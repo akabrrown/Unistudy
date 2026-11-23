@@ -179,6 +179,9 @@ export default function ExamResults() {
               })
               if (localRes.ok) {
                 const localJson = await localRes.json()
+                if (typeof localJson.remainingCredits === 'number' && typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('unistudy-credits-changed', { detail: { balance: localJson.remainingCredits } }))
+                }
                 if (localJson.success && Array.isArray(localJson.data)) {
                   await applyResults(localJson.data)
                 }
