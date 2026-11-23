@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/api/client'
 import { Button } from '@/components/ui/button'
 import { Loader2, Printer, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
+import { UniStudyLogo } from '@/components/brand/UniStudyLogo'
 
 export default function CheatSheetPage() {
   const params = useParams()
@@ -72,6 +73,12 @@ export default function CheatSheetPage() {
         <div className="bg-white text-black p-4 min-h-[29.7cm] w-full max-w-[21cm] mx-auto border print:border-none">
           {cheatSheetData ? (
             <div className="space-y-4">
+              <div className="flex items-center justify-between border-b-2 border-black pb-2">
+                <UniStudyLogo variant="primary" themeMode="light" height={26} />
+                <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-gray-600">
+                  UPSA Academic Revision System
+                </span>
+              </div>
               <h1 className="text-2xl font-bold text-center uppercase border-b border-black pb-2">
                 {cheatSheetData.title}
               </h1>

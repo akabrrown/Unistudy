@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Microscope, Volume
 import { FocusTimer, FocusTimerRef } from '@/components/study/FocusTimer'
 import { CalculatorPanel } from '@/components/study/CalculatorPanel'
 import { TutorFeedbackView } from '@/components/study/TutorFeedbackView'
+import { UniStudyLogo } from '@/components/brand/UniStudyLogo'
 import { generateSlideExplanation } from '@/app/actions/explain'
 import { downloadLecturePack } from '@/lib/downloadPack'
 import { getFlashcards } from '@/app/actions/flashcards'
@@ -1948,9 +1949,7 @@ export default function LectureViewer() {
         <div className={`absolute right-0 top-14 bottom-0 ${isChatExpanded ? 'w-[720px] max-w-[95vw]' : 'w-[450px] max-w-[90vw]'} bg-card border-l border-border shadow-2xl flex flex-col z-[60] transition-all duration-300 ease-in-out animate-in slide-in-from-right`}>
           <div className="flex items-center justify-between p-3.5 border-b border-border bg-emerald-500/10 backdrop-blur-xs">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs ring-1 ring-emerald-500/30">
-                <GraduationCap size={16} />
-              </div>
+              <UniStudyLogo variant="icon" height={28} className="shrink-0" alt="UniStudy AI Tutor" />
               <div>
                 <h3 className="font-bold text-sm flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
                   {settings?.ai_tutor_name || 'AI Tutor'}
@@ -2023,8 +2022,8 @@ export default function LectureViewer() {
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/5">
             {chatMessages.length === 0 ? (
               <div className="py-6 px-2 text-center">
-                <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shadow-xs">
-                  <MessageCircle className="w-6 h-6" />
+                <div className="flex justify-center mb-3">
+                  <UniStudyLogo variant="icon" height={44} className="shrink-0" alt="UniStudy AI Tutor" />
                 </div>
                 <h4 className="text-sm font-semibold text-foreground mb-1">
                   Ask {settings?.ai_tutor_name || 'your AI Tutor'} anything

@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { toast } from 'sonner';
+import { UniStudyLogo } from '@/components/brand/UniStudyLogo';
 import {
   BrainCircuit,
   Send,
@@ -1175,9 +1176,7 @@ export default function GeneralAiChatPage() {
                 )}
               </Button>
 
-              <div className="h-9 w-9 rounded-xl bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] flex items-center justify-center font-bold shadow-xs border border-[#D89A06]/40 shrink-0">
-                <GraduationCap className="h-4 w-4" />
-              </div>
+              <UniStudyLogo variant="icon" height={32} className="shrink-0" alt="UniStudy AI Study Tutor" />
 
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -1339,8 +1338,8 @@ export default function GeneralAiChatPage() {
         <div className="flex-1 bg-card border border-border rounded-2xl p-4 md:p-6 overflow-y-auto space-y-5 shadow-xs relative">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto py-8 space-y-5">
-              <div className="h-14 w-14 rounded-2xl bg-[#FEF8E7] dark:bg-[#00004E] border-2 border-[#D89A06] flex items-center justify-center text-[#00004E] dark:text-[#D89A06] shadow-sm">
-                <GraduationCap className="h-7 w-7" />
+              <div className="flex justify-center mb-1">
+                <UniStudyLogo variant="icon" height={56} className="shrink-0" alt="UniStudy AI Study Tutor" />
               </div>
 
               <div className="space-y-1.5">
@@ -1420,9 +1419,7 @@ export default function GeneralAiChatPage() {
                       {/* Tutor Header Card Banner */}
                       <div className="flex items-center justify-between px-4 md:px-5 py-2.5 bg-[#00004E]/[0.03] dark:bg-white/[0.03] border-b border-border/60">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="h-7 w-7 rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] flex items-center justify-center font-bold shadow-2xs shrink-0">
-                            <GraduationCap className="h-4 w-4" />
-                          </div>
+                          <UniStudyLogo variant="icon" height={26} className="shrink-0" alt="UniStudy AI Tutor" />
                           <div className="min-w-0 flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-xs text-[#00004E] dark:text-white">
                               UniStudy AI Tutor

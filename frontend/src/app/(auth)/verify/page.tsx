@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Mail, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { UniStudyLogo } from '@/components/brand/UniStudyLogo'
 
 const OTP_LENGTH = 6
 
@@ -115,8 +116,8 @@ function VerifyContent() {
 
       <Card className="w-full max-w-md shadow-2xl shadow-primary/10 border-primary/20 bg-card/80 backdrop-blur-sm">
         <CardHeader className="space-y-4 text-center pb-6">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-            <Mail className="h-7 w-7 text-primary" />
+          <div className="flex justify-center mb-1">
+            <UniStudyLogo variant="icon" height={44} alt="UniStudy Crest" />
           </div>
           <CardTitle className="text-2xl font-bold tracking-tight text-foreground">Check your email</CardTitle>
           <CardDescription className="text-muted-foreground">

@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { completeOnboarding } from './actions';
 import { InstitutionSelect } from './components/InstitutionSelect';
 import { ProgrammeOfStudyInput } from './components/ProgrammeOfStudyInput';
+import { UniStudyLogo } from '@/components/brand/UniStudyLogo';
 import { formatAcademicLevel } from '@/lib/utils';
 import { getProgrammeDetails, getProgressionLevelsForProgramme, UPSA_INSTITUTION } from '@/lib/constants/upsa';
 import { 
@@ -487,10 +488,8 @@ export function OnboardingForm({ studentName = 'UPSA Scholar', userEmail = '' }:
                     <div className="absolute top-0 right-0 w-48 h-48 rounded-full bg-[#D89A06]/15 blur-2xl pointer-events-none" />
 
                     <div className="relative z-10 flex items-center justify-between border-b border-white/10 pb-4 mb-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-[#D89A06] text-[#00004E] font-black text-xs flex items-center justify-center">
-                          U
-                        </div>
+                      <div className="flex items-center gap-2.5">
+                        <UniStudyLogo variant="icon" themeMode="dark" height={28} className="shrink-0" alt="UniStudy Collegiate Crest" />
                         <div>
                           <div className="text-xs font-black tracking-wider uppercase text-white">
                             UniStudy AI • Scholar Pass

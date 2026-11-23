@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/api/client'
 import { Button } from '@/components/ui/button'
 import { Loader2, Printer, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
+import { UniStudyLogo } from '@/components/brand/UniStudyLogo'
 
 export default function StudyPosterPage() {
   const params = useParams()
@@ -72,6 +73,12 @@ export default function StudyPosterPage() {
         <div className="bg-white text-black p-8 rounded-xl shadow-lg print:shadow-none print:p-0 min-h-[29.7cm] w-full max-w-[21cm] mx-auto border print:border-none">
           {posterData ? (
             <div className="space-y-8">
+              <div className="flex items-center justify-between border-b-2 border-black pb-3">
+                <UniStudyLogo variant="primary" themeMode="light" height={32} />
+                <span className="text-xs font-mono font-bold tracking-wider uppercase text-gray-600">
+                  UPSA Examination Review Board
+                </span>
+              </div>
               <h1 className="text-4xl font-black text-center border-b-4 border-black pb-4 uppercase tracking-tighter">
                 {posterData.title}
               </h1>

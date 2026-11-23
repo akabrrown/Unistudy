@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { UniStudyLogo } from '@/components/brand/UniStudyLogo'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAdmin()
@@ -28,9 +29,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <aside className="w-64 border-r border-border bg-card flex flex-col hidden md:flex shrink-0">
         <div className="p-6 border-b border-border">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#00004E] text-[#D89A06] flex items-center justify-center font-bold text-base shadow-sm border border-[#D89A06]/30">
-              U
-            </div>
+            <UniStudyLogo variant="icon" height={34} className="shrink-0" alt="UniStudy Crest" />
             <div>
               <h2 className="text-lg font-bold text-foreground tracking-tight">
                 UniStudy <span className="text-[#D89A06]">Admin</span>

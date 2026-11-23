@@ -9,6 +9,7 @@ import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { UniStudyLogo } from '@/components/brand/UniStudyLogo'
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
@@ -101,9 +102,7 @@ export function TutorFeedbackView({
               {/* Tutor Header Card Banner */}
               <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-b border-border/60">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center ring-1 ring-emerald-500/30 shadow-xs">
-                    <GraduationCap size={14} />
-                  </div>
+                  <UniStudyLogo variant="icon" height={24} className="shrink-0" alt="UniStudy AI Tutor" />
                   <div>
                     <span className="font-semibold text-xs tracking-tight text-foreground flex items-center gap-1.5">
                       {tutorName}

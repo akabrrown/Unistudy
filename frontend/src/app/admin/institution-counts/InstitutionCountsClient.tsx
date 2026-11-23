@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { UniStudyLogo } from '@/components/brand/UniStudyLogo';
 import {
   Building2,
   Users,
@@ -351,9 +352,7 @@ export default function InstitutionCountsClient({ initialData, initialInstitutio
         <CardContent className="p-4 sm:p-5">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
-              <div className="w-12 h-12 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center font-bold text-primary text-lg shrink-0">
-                UPSA
-              </div>
+              <UniStudyLogo variant="icon" height={48} className="shrink-0" alt="UPSA Official Crest" />
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-lg font-bold text-foreground">
