@@ -41,6 +41,9 @@ import {
   Cloud,
   CheckCircle,
   Bot,
+  Eye,
+  FileText,
+  Image as ImageIcon,
 } from 'lucide-react';
 import {
   requestPersistentStorage,
@@ -92,12 +95,22 @@ interface ReferencedDeck {
   slideCount?: number | null;
 }
 
+interface ChatAttachment {
+  name: string;
+  size: number;
+  type: string;
+  data: string; // data URL base64
+  textContent?: string;
+  isImage: boolean;
+}
+
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
   referencedDeck?: ReferencedDeck | null;
+  attachment?: ChatAttachment | null;
   citations?: number[];
   modelUsed?: string;
   provider?: string;
@@ -284,6 +297,100 @@ export default function GeneralAiChatPage() {
     personality: 'encouraging',
     tone: 'academic',
   });
+
+  const [pendingAttachment, setPendingAttachment] = useState<ChatAttachment | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [previewModalImage, setPreviewModalImage] = useState<{ src: string; alt: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024; // Strict 5MB limit
+
+  const formatFileSize = useCallback((bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }, []);
+
+  const handleProcessFile = useCallback((file: File) => {
+    if (!file) return;
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      toast.error(
+        `"${file.name}" exceeds the 5MB limit (${formatFileSize(file.size)}). Please select an image or file under 5MB.`
+      );
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif|svg)$/i.test(file.name);
+    const isTextDoc = file.type.startsWith('text/') || /\.(txt|md|csv|json|py|java|cpp|c|r|sql|html|css|js|ts|tsx)$/i.test(file.name);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      if (isTextDoc) {
+        const textReader = new FileReader();
+        textReader.onload = () => {
+          setPendingAttachment({
+            name: file.name,
+            size: file.size,
+            type: file.type || 'text/plain',
+            data: dataUrl,
+            textContent: textReader.result as string,
+            isImage: false,
+          });
+          toast.success(`Attached ${file.name} (${formatFileSize(file.size)})`);
+        };
+        textReader.readAsText(file);
+      } else {
+        setPendingAttachment({
+          name: file.name,
+          size: file.size,
+          type: file.type || (isImage ? 'image/jpeg' : 'application/pdf'),
+          data: dataUrl,
+          isImage,
+        });
+        toast.success(`Attached ${isImage ? 'image' : 'file'} "${file.name}" (${formatFileSize(file.size)})`);
+      }
+    };
+    reader.readAsDataURL(file);
+  }, [MAX_ATTACHMENT_BYTES, formatFileSize]);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          handleProcessFile(file);
+          break;
+        }
+      }
+    }
+  }, [handleProcessFile]);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile) {
+      handleProcessFile(droppedFile);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -767,14 +874,21 @@ export default function GeneralAiChatPage() {
   // Submit message
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputPrompt).trim();
-    if (!text || isLoading || !activeSessionId) return;
+    if ((!text && !pendingAttachment) || isLoading || !activeSessionId) return;
+
+    const attachmentToSend = pendingAttachment ? { ...pendingAttachment } : null;
 
     const userMessage: ChatMessage = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       role: 'user',
-      content: text,
+      content:
+        text ||
+        (attachmentToSend
+          ? `Please analyze and explain the attached ${attachmentToSend.isImage ? 'image' : 'file'} (${attachmentToSend.name}).`
+          : ''),
       timestamp: new Date().toISOString(),
       referencedDeck: activeDeck ? { ...activeDeck } : null,
+      attachment: attachmentToSend,
     };
 
     const newMessages = [...messages, userMessage];
@@ -782,7 +896,9 @@ export default function GeneralAiChatPage() {
     // Auto-generate title from the first student message
     const isFirstUserMessage = messages.length === 0;
     const computedTitle = isFirstUserMessage
-      ? text.replace(/^(\/test|\/plan|\/explain|\/summary)\s*/i, '').slice(0, 48) || 'Study Session'
+      ? (text || attachmentToSend?.name || 'Study Session')
+          .replace(/^(\/test|\/plan|\/explain|\/summary)\s*/i, '')
+          .slice(0, 48) || 'Study Session'
       : currentSession?.title || 'Study Session';
 
     // Update current session with user message immediately
@@ -801,6 +917,8 @@ export default function GeneralAiChatPage() {
     );
 
     setInputPrompt('');
+    setPendingAttachment(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -824,6 +942,16 @@ export default function GeneralAiChatPage() {
           tone: tutorConfig.tone,
         },
       };
+
+      if (attachmentToSend) {
+        payload.attachment = {
+          name: attachmentToSend.name,
+          type: attachmentToSend.type,
+          size: attachmentToSend.size,
+          data: attachmentToSend.data,
+          textContent: attachmentToSend.textContent,
+        };
+      }
 
       if (activeDeck) {
         payload.grounding = {
@@ -1530,6 +1658,43 @@ export default function GeneralAiChatPage() {
                         <span className="font-bold text-[#00004E] dark:text-white">You</span>
                       </div>
                       <div className="rounded-2xl rounded-br-xs p-4 bg-[#00004E] text-white text-xs md:text-sm leading-relaxed shadow-2xs font-medium whitespace-pre-wrap break-words selection:bg-[#D89A06] selection:text-[#00004E]">
+                        {message.attachment && (
+                          <div className="mb-2.5">
+                            {message.attachment.isImage ? (
+                              <div
+                                onClick={() =>
+                                  setPreviewModalImage({
+                                    src: message.attachment!.data,
+                                    alt: message.attachment!.name,
+                                  })
+                                }
+                                className="relative max-w-[280px] rounded-xl overflow-hidden border border-white/20 bg-black/20 cursor-pointer hover:opacity-95 transition-opacity group shadow-xs"
+                                title="Click to view full image"
+                              >
+                                <img
+                                  src={message.attachment.data}
+                                  alt={message.attachment.name}
+                                  className="w-full h-auto max-h-60 object-contain rounded-xl"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold gap-1.5">
+                                  <Eye className="h-3.5 w-3.5" /> View image
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/10 border border-white/20 max-w-sm">
+                                <FileText className="h-4 w-4 text-[#D89A06] shrink-0" />
+                                <div className="min-w-0">
+                                  <div className="font-bold truncate text-white text-xs">
+                                    {message.attachment.name}
+                                  </div>
+                                  <div className="text-[10px] text-white/70">
+                                    {formatFileSize(message.attachment.size)}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         {message.content}
                       </div>
                     </>
@@ -1756,26 +1921,123 @@ export default function GeneralAiChatPage() {
             })}
           </div>
 
+          {/* Attachment Preview Chip */}
+          {pendingAttachment && (
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#FEF8E7] dark:bg-[#00004E]/50 border border-[#D89A06]/40 shadow-xs animate-in fade-in duration-150">
+              <div className="flex items-center gap-2.5 min-w-0">
+                {pendingAttachment.isImage ? (
+                  <div
+                    onClick={() =>
+                      setPreviewModalImage({
+                        src: pendingAttachment.data,
+                        alt: pendingAttachment.name,
+                      })
+                    }
+                    className="relative h-11 w-11 rounded-lg overflow-hidden border border-[#D89A06]/40 bg-black/10 shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                    title="Click to preview image"
+                  >
+                    <img
+                      src={pendingAttachment.data}
+                      alt={pendingAttachment.name}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-11 w-11 rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] flex items-center justify-center shrink-0 font-bold shadow-2xs">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="font-bold text-xs text-[#00004E] dark:text-white truncate max-w-[220px] sm:max-w-xs md:max-w-md">
+                    {pendingAttachment.name}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
+                    <span className="font-mono">{formatFileSize(pendingAttachment.size)}</span>
+                    <span>·</span>
+                    <span className="text-[#D89A06] font-semibold">Max 5MB</span>
+                    <span>·</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">Ready</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingAttachment(null);
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                }}
+                className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0 ml-2"
+                title="Remove attachment"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
           {/* Textarea Input Container */}
-          <div className="relative flex items-end gap-2 bg-card border-2 border-border focus-within:border-[#D89A06] rounded-2xl p-2 transition-all shadow-xs">
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={cn(
+              'relative flex items-end gap-2 bg-card border-2 rounded-2xl p-2 transition-all shadow-xs',
+              isDraggingOver
+                ? 'border-[#D89A06] bg-[#FEF8E7]/40 dark:bg-white/5 ring-2 ring-[#D89A06]/30'
+                : 'border-border focus-within:border-[#D89A06]'
+            )}
+          >
+            {/* Hidden File Input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf,.txt,.docx,.csv,.md,.json,.py,.java,.cpp,.c,.r,.sql"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleProcessFile(file);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+              className="hidden"
+            />
+
+            {/* Attach File/Image Button (Limit 5MB) */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              className={cn(
+                'h-10 w-10 p-0 rounded-xl shrink-0 cursor-pointer transition-all',
+                pendingAttachment
+                  ? 'bg-[#FEF8E7] text-[#00004E] border border-[#D89A06] dark:bg-white/10 dark:text-[#D89A06]'
+                  : 'text-muted-foreground hover:text-[#00004E] hover:bg-[#FEF8E7] dark:hover:text-[#D89A06] dark:hover:bg-white/10'
+              )}
+              title="Attach image or file (Max 5MB)"
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
+
             <textarea
               ref={textareaRef}
               value={inputPrompt}
               onChange={handleInput}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder={
-                activeDeck
-                  ? `Ask anything grounded in "${activeDeck.lectureTitle}"... (Type /test for quiz, /plan for roadmap)`
-                  : 'Ask anything across your courses, concepts, or formulas... (Shift+Enter for newline)'
+                pendingAttachment
+                  ? `Ask about "${pendingAttachment.name}"... (e.g. solve problem, explain notes, summarize)`
+                  : activeDeck
+                    ? `Ask anything grounded in "${activeDeck.lectureTitle}"... (Attach images/files up to 5MB)`
+                    : 'Ask anything across your courses, concepts, or formulas... (Attach images/files up to 5MB)'
               }
               rows={1}
               disabled={isLoading}
-              className="flex-1 bg-transparent px-3 py-2 text-xs md:text-sm resize-none focus:outline-none placeholder:text-muted-foreground/60 max-h-44 overflow-y-auto leading-relaxed"
+              className="flex-1 bg-transparent px-2 py-2 text-xs md:text-sm resize-none focus:outline-none placeholder:text-muted-foreground/60 max-h-44 overflow-y-auto leading-relaxed"
             />
 
             <Button
               onClick={() => handleSendMessage()}
-              disabled={!inputPrompt.trim() || isLoading}
+              disabled={(!inputPrompt.trim() && !pendingAttachment) || isLoading}
               className="h-10 w-10 p-0 rounded-xl bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] transition-all shadow-2xs flex-shrink-0 cursor-pointer disabled:opacity-40"
               title="Send Message (Enter)"
             >
@@ -1994,6 +2256,40 @@ export default function GeneralAiChatPage() {
           });
         }}
       />
+
+      {/* Full-size Image Lightbox Modal */}
+      {previewModalImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setPreviewModalImage(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[92vh] bg-card border-2 border-[#D89A06]/40 rounded-2xl overflow-hidden p-3 shadow-2xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center pb-2 border-b border-border mb-2 px-1">
+              <span className="text-xs font-bold text-[#00004E] dark:text-white truncate max-w-md">
+                {previewModalImage.alt}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewModalImage(null)}
+                className="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                title="Close preview"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="overflow-auto max-h-[80vh] flex items-center justify-center bg-black/5 dark:bg-black/30 rounded-xl p-1">
+              <img
+                src={previewModalImage.src}
+                alt={previewModalImage.alt}
+                className="max-h-[78vh] w-auto max-w-full rounded-lg object-contain shadow-md"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

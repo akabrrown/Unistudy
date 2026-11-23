@@ -39,6 +39,16 @@ const AskRequestSchema = z.object({
     tutorPersonality: z.string().optional(),
     tutorTone: z.string().optional(),
     studentConfig: z.unknown().optional(),
+    attachment: z
+      .object({
+        name: z.string().max(255),
+        type: z.string().max(100),
+        size: z.number().max(5 * 1024 * 1024, 'File size exceeds 5MB limit'),
+        data: z.string().max(8_000_000).optional(),
+        textContent: z.string().max(250_000).optional(),
+      })
+      .nullable()
+      .optional(),
     messages: z
       .array(
         z.object({
@@ -56,19 +66,35 @@ interface ProviderResult {
   model: string;
 }
 
+interface AttachmentPayload {
+  name: string;
+  type: string;
+  size: number;
+  data?: string;
+  textContent?: string;
+}
+
 async function tryGroq(
   systemPrompt: string,
   rawMessages: Array<{ role: string; content: string }>,
-  temperature: number
+  temperature: number,
+  attachment?: AttachmentPayload | null
 ): Promise<ProviderResult | null> {
   if (!process.env.GROQ_API_KEY) return null;
   const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
   const groqMessages = [
     { role: 'system' as const, content: systemPrompt },
-    ...rawMessages.map((m) => ({
-      role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
-      content: String(m.content || ''),
-    })),
+    ...rawMessages.map((m, idx) => {
+      const isLastUser = idx === rawMessages.length - 1 && m.role === 'user';
+      let content = String(m.content || '');
+      if (isLastUser && attachment?.textContent) {
+        content += `\n\n[Attached File: ${attachment.name}]\n\`\`\`\n${attachment.textContent}\n\`\`\``;
+      }
+      return {
+        role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+        content,
+      };
+    }),
   ];
 
   const candidateModels = [...GROQ_SMART_MODELS, ...GROQ_FAST_MODELS];
@@ -94,7 +120,8 @@ async function tryGroq(
 async function tryGemini(
   systemPrompt: string,
   rawMessages: Array<{ role: string; content: string }>,
-  temperature: number
+  temperature: number,
+  attachment?: AttachmentPayload | null
 ): Promise<ProviderResult | null> {
   if (!process.env.GEMINI_API_KEY) return null;
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -106,10 +133,34 @@ async function tryGemini(
         generationConfig: { temperature },
       });
 
-      const contents = rawMessages.map((m) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: String(m.content || '') }],
-      }));
+      const contents = rawMessages.map((m, idx) => {
+        const isLatestUser = idx === rawMessages.length - 1 && m.role === 'user';
+        const parts: Array<any> = [{ text: String(m.content || '') }];
+
+        if (isLatestUser && attachment) {
+          if (attachment.textContent) {
+            parts.push({
+              text: `\n\n[Attached File: ${attachment.name}]\n\`\`\`\n${attachment.textContent}\n\`\`\``,
+            });
+          } else if (attachment.data) {
+            const cleanBase64 = attachment.data.replace(/^data:[^;]+;base64,/, '');
+            const mimeType =
+              attachment.type ||
+              (attachment.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+            parts.push({
+              inlineData: {
+                mimeType,
+                data: cleanBase64,
+              },
+            });
+          }
+        }
+
+        return {
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts,
+        };
+      });
 
       const res = await model.generateContent({ contents });
       const text = res.response.text()?.trim();
@@ -127,15 +178,32 @@ async function tryGemini(
 async function tryOpenRouter(
   systemPrompt: string,
   rawMessages: Array<{ role: string; content: string }>,
-  temperature: number
+  temperature: number,
+  attachment?: AttachmentPayload | null
 ): Promise<ProviderResult | null> {
   if (!process.env.OPENROUTER_API_KEY) return null;
   const orMessages = [
     { role: 'system', content: systemPrompt },
-    ...rawMessages.map((m) => ({
-      role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: String(m.content || ''),
-    })),
+    ...rawMessages.map((m, idx) => {
+      const isLatestUser = idx === rawMessages.length - 1 && m.role === 'user';
+      if (isLatestUser && attachment?.data && attachment.type?.startsWith('image/')) {
+        return {
+          role: 'user',
+          content: [
+            { type: 'text', text: String(m.content || '') },
+            { type: 'image_url', image_url: { url: attachment.data } },
+          ],
+        };
+      }
+      let content = String(m.content || '');
+      if (isLatestUser && attachment?.textContent) {
+        content += `\n\n[Attached File: ${attachment.name}]\n\`\`\`\n${attachment.textContent}\n\`\`\``;
+      }
+      return {
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content,
+      };
+    }),
   ];
 
   for (const model of OPENROUTER_CANDIDATE_MODELS) {
@@ -167,7 +235,8 @@ async function tryOpenRouter(
 async function tryAgentRouter(
   systemPrompt: string,
   rawMessages: any[],
-  temperature: number
+  temperature: number,
+  attachment?: AttachmentPayload | null
 ): Promise<ProviderResult | null> {
   const apiKey = process.env.AGENTROUTER_API_KEY;
   if (!apiKey) return null;
@@ -176,10 +245,17 @@ async function tryAgentRouter(
 
   const arMessages = [
     { role: 'system', content: systemPrompt },
-    ...rawMessages.map((m) => ({
-      role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: String(m.content || ''),
-    })),
+    ...rawMessages.map((m, idx) => {
+      const isLatestUser = idx === rawMessages.length - 1 && m.role === 'user';
+      let content = String(m.content || '');
+      if (isLatestUser && attachment?.textContent) {
+        content += `\n\n[Attached File: ${attachment.name}]\n\`\`\`\n${attachment.textContent}\n\`\`\``;
+      }
+      return {
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content,
+      };
+    }),
   ];
 
   for (const model of AGENTROUTER_CANDIDATE_MODELS) {
@@ -237,8 +313,25 @@ export async function POST(request: Request) {
           ? [{ role: 'user' as const, content: payload.prompt }]
           : [];
 
-    if (rawMessages.length === 0) {
-      return NextResponse.json({ error: 'Prompt or messages required' }, { status: 400 });
+    if (rawMessages.length === 0 && !payload.attachment) {
+      return NextResponse.json({ error: 'Prompt, messages, or attachment required' }, { status: 400 });
+    }
+
+    if (rawMessages.length === 0 && payload.attachment) {
+      rawMessages.push({
+        role: 'user',
+        content: `Please analyze and explain the attached ${payload.attachment.name}.`,
+      });
+    }
+
+    // Strict 5MB size limit validation on attachments
+    if (payload.attachment && payload.attachment.size > 5 * 1024 * 1024) {
+      return NextResponse.json(
+        {
+          error: `File size exceeds 5MB limit (${(payload.attachment.size / (1024 * 1024)).toFixed(1)}MB). Please upload a file smaller than 5MB.`,
+        },
+        { status: 400 }
+      );
     }
 
     const latestUserQuestion =
@@ -393,41 +486,55 @@ export async function POST(request: Request) {
 
     const temperature = payload.temperature ?? 0.55;
     const requestedModel = (payload.model || 'auto').toLowerCase();
+    const attachment = payload.attachment;
+
+    const hasMultimodalAttachment = Boolean(
+      attachment?.data &&
+        (attachment.type?.startsWith('image/') ||
+          attachment.type === 'application/pdf' ||
+          attachment.name?.match(/\.(png|jpe?g|webp|gif|pdf)$/i))
+    );
 
     let providerResult: ProviderResult | null = null;
 
-    // Route to user's explicitly requested model/provider first
-    if (requestedModel.includes('agent') || requestedModel.includes('router')) {
+    // Prioritize Gemini for multimodal vision & PDF attachments, otherwise respect requested routing
+    if (hasMultimodalAttachment) {
       providerResult =
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature)) ||
-        (await tryGroq(systemPrompt, rawMessages, temperature)) ||
-        (await tryGemini(systemPrompt, rawMessages, temperature)) ||
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature));
+        (await tryGemini(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryGroq(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature, attachment));
+    } else if (requestedModel.includes('agent') || requestedModel.includes('router')) {
+      providerResult =
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryGroq(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryGemini(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature, attachment));
     } else if (requestedModel.includes('gemini')) {
       providerResult =
-        (await tryGemini(systemPrompt, rawMessages, temperature)) ||
-        (await tryGroq(systemPrompt, rawMessages, temperature)) ||
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature)) ||
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature));
+        (await tryGemini(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryGroq(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature, attachment));
     } else if (requestedModel.includes('groq') || requestedModel === 'fast') {
       providerResult =
-        (await tryGroq(systemPrompt, rawMessages, temperature)) ||
-        (await tryGemini(systemPrompt, rawMessages, temperature)) ||
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature)) ||
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature));
+        (await tryGroq(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryGemini(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature, attachment));
     } else if (requestedModel.includes('openrouter') || requestedModel.includes('qwen')) {
       providerResult =
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature)) ||
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature)) ||
-        (await tryGemini(systemPrompt, rawMessages, temperature)) ||
-        (await tryGroq(systemPrompt, rawMessages, temperature));
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryGemini(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryGroq(systemPrompt, rawMessages, temperature, attachment));
     } else {
       // Default / Smart Auto order: Groq (low latency) -> Gemini (deep reasoning) -> AgentRouter -> OpenRouter
       providerResult =
-        (await tryGroq(systemPrompt, rawMessages, temperature)) ||
-        (await tryGemini(systemPrompt, rawMessages, temperature)) ||
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature)) ||
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature));
+        (await tryGroq(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryGemini(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryAgentRouter(systemPrompt, rawMessages, temperature, attachment)) ||
+        (await tryOpenRouter(systemPrompt, rawMessages, temperature, attachment));
     }
 
     if (!providerResult || !providerResult.text) {
