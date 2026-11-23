@@ -252,20 +252,63 @@ export default function LectureViewer() {
   const [translatedExplanation, setTranslatedExplanation] = useState<Record<number, string>>({})
   const [inlineExplainQuestion, setInlineExplainQuestion] = useState('')
 
-  // Load chat history and offline explanations from local storage when slide changes
+  // Helper to persist slide chat across LocalStorage and Cloud
+  const syncSlideChatToCloud = (slideId: string, messages: { role: 'user' | 'assistant' | 'system'; content: string }[]) => {
+    try {
+      localStorage.setItem(`slideChat_${slideId}`, JSON.stringify(messages));
+    } catch (_) {}
+    void fetch('/api/lectures/slide-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slideId, messages }),
+    }).catch((err) => {
+      console.warn('[LecturePage] Slide chat cloud save notice:', err);
+    });
+  };
+
+  // Load chat history across LocalStorage (instant 0ms) and Cloud Sync (cross-browser persistence)
   useEffect(() => {
     if (!currentSlide) return;
     const slideId = currentSlide.id || `${lectureId}-${slideIndex}`;
+    
+    // Tier 1: Instant LocalStorage read
     const savedChat = localStorage.getItem(`slideChat_${slideId}`);
     if (savedChat) {
       try {
-        setChatMessages(JSON.parse(savedChat));
+        const parsed = JSON.parse(savedChat);
+        if (Array.isArray(parsed)) {
+          setChatMessages(parsed);
+        }
       } catch (e) {
         setChatMessages([]);
       }
     } else {
       setChatMessages([]);
     }
+
+    // Tier 2: Cloud Sync (ensures cross-browser and cross-device persistence)
+    let isCancelled = false;
+    async function loadCloudSlideChat() {
+      try {
+        const res = await fetch(`/api/lectures/slide-chat?slideId=${encodeURIComponent(slideId)}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!isCancelled && Array.isArray(data.history) && data.history.length > 0) {
+          setChatMessages((prev) => {
+            if (prev.length <= data.history.length) {
+              try {
+                localStorage.setItem(`slideChat_${slideId}`, JSON.stringify(data.history));
+              } catch (_) {}
+              return data.history;
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        console.warn('[LecturePage] Slide chat cloud sync notice:', err);
+      }
+    }
+    void loadCloudSlideChat();
     
     // Load offline explanation
     const offlineEx = localStorage.getItem(`offline_exp_${slideId}`);
@@ -274,6 +317,10 @@ export default function LectureViewer() {
         setSlideExplanations(prev => ({ ...prev, [slideIndex]: offlineEx }));
       }
     }
+
+    return () => {
+      isCancelled = true;
+    };
   }, [slideIndex, currentSlide?.id, lectureId]);
 
   // Notes state
@@ -486,9 +533,7 @@ export default function LectureViewer() {
     const newMessages = [...chatMessages, userMsg];
     
     setChatMessages(newMessages);
-    try {
-      localStorage.setItem(`slideChat_${slideId}`, JSON.stringify(newMessages));
-    } catch (_) {}
+    syncSlideChatToCloud(slideId, newMessages);
     setChatInput('');
     setIsChatLoading(true);
 
@@ -600,9 +645,7 @@ export default function LectureViewer() {
       if (replyContent) {
         setChatMessages(prev => {
           const updated: { role: 'user' | 'assistant' | 'system'; content: string }[] = [...prev, { role: 'assistant', content: replyContent }];
-          try {
-            localStorage.setItem(`slideChat_${slideId}`, JSON.stringify(updated));
-          } catch (_) {}
+          syncSlideChatToCloud(slideId, updated);
           return updated;
         });
       } else {
@@ -1938,6 +1981,11 @@ export default function LectureViewer() {
                     const slideId = currentSlide?.id || `${lectureId}-${slideIndex}`;
                     localStorage.removeItem(`slideChat_${slideId}`);
                     setChatMessages([]);
+                    void fetch('/api/lectures/slide-chat', {
+                      method: 'DELETE',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ slideId }),
+                    }).catch(() => {});
                     toast.success('Chat history cleared');
                   }}
                   title="Start New Chat"

@@ -278,6 +278,7 @@ export default function GeneralAiChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isHydratedRef = useRef(false);
 
   // Load and hydrate sessions across 3 tiers: LocalStorage -> IndexedDB -> Cloud Sync
   useEffect(() => {
@@ -316,42 +317,78 @@ export default function GeneralAiChatPage() {
         console.warn('[ChatPage] IndexedDB hydration notice:', err);
       }
 
+      // If we found local sessions, render them immediately so user sees them at 0ms
       if (isMounted && initialSessions.length > 0) {
         setSessions(initialSessions);
         const matched = initialActiveId && initialSessions.some((s) => s.id === initialActiveId);
-        setActiveSessionId(matched ? initialActiveId : initialSessions[0].id);
-        const activeSess = initialSessions.find((s) => s.id === (matched ? initialActiveId : initialSessions[0].id));
+        const targetId = matched ? initialActiveId! : initialSessions[0].id;
+        setActiveSessionId(targetId);
+        const activeSess = initialSessions.find((s) => s.id === targetId);
         if (activeSess?.selectedModel) {
           setSelectedModel((activeSess.selectedModel as ModelId) || 'auto');
         }
-      } else if (isMounted && initialSessions.length === 0) {
-        const fresh = createNewSession();
-        setSessions([fresh]);
-        setActiveSessionId(fresh.id);
       }
 
-      // Tier 3: Reconcile with Cloud Storage (restores conversations across any device or after browser cache clear)
+      // Tier 3: Reconcile with Cloud Storage (restores conversations across any device or browser)
       try {
         const cloudRecord = await pullSessionsFromCloud();
         if (isMounted && cloudRecord && Array.isArray(cloudRecord.sessions) && cloudRecord.sessions.length > 0) {
-          setSessions((currentSessions) => {
+          const cloudSessions = cloudRecord.sessions;
+          let resolvedSessions: ConversationSession[] = [];
+
+          // If local had NO sessions, or only had an empty placeholder session with 0 user messages:
+          const hasLocalUserMessages = initialSessions.some(
+            (s) => Array.isArray(s.messages) && s.messages.some((m) => m.role === 'user')
+          );
+
+          if (!hasLocalUserMessages) {
+            // New browser or empty local cache: adopt full cloud history directly
+            resolvedSessions = cloudSessions;
+          } else {
+            // Merge local and cloud by session id and updatedAt
             const sessionMap = new Map<string, ConversationSession>();
-            cloudRecord.sessions.forEach((s) => sessionMap.set(s.id, s));
-            currentSessions.forEach((s) => {
+            cloudSessions.forEach((s) => sessionMap.set(s.id, s));
+            initialSessions.forEach((s) => {
               const existing = sessionMap.get(s.id);
-              if (!existing || new Date(s.updatedAt || 0).getTime() > new Date(existing.updatedAt || 0).getTime()) {
+              if (!existing || new Date(s.updatedAt || 0).getTime() >= new Date(existing.updatedAt || 0).getTime()) {
                 sessionMap.set(s.id, s);
               }
             });
-            const merged = Array.from(sessionMap.values()).sort(
+            resolvedSessions = Array.from(sessionMap.values()).sort(
               (a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
             );
-            return merged;
-          });
+          }
+
+          setSessions(resolvedSessions);
+
+          // Resolve active session
+          const cloudActiveId = cloudRecord.activeSessionId;
+          const targetActiveId =
+            cloudActiveId && resolvedSessions.some((s) => s.id === cloudActiveId)
+              ? cloudActiveId
+              : resolvedSessions[0].id;
+
+          setActiveSessionId(targetActiveId);
+          const activeSess = resolvedSessions.find((s) => s.id === targetActiveId);
+          if (activeSess?.selectedModel) {
+            setSelectedModel((activeSess.selectedModel as ModelId) || 'auto');
+          }
           setSyncStatus('synced');
+        } else if (isMounted && initialSessions.length === 0) {
+          // Neither local nor cloud has sessions: create a brand new conversation
+          const fresh = createNewSession();
+          setSessions([fresh]);
+          setActiveSessionId(fresh.id);
         }
       } catch (cloudErr) {
         console.warn('[ChatPage] Cloud sync hydration notice:', cloudErr);
+        if (isMounted && initialSessions.length === 0) {
+          const fresh = createNewSession();
+          setSessions([fresh]);
+          setActiveSessionId(fresh.id);
+        }
+      } finally {
+        isHydratedRef.current = true;
       }
     };
 
@@ -364,7 +401,7 @@ export default function GeneralAiChatPage() {
 
   // Robust Multi-Tier Persistence: LocalStorage + IndexedDB + Debounced Cloud Sync
   useEffect(() => {
-    if (sessions.length === 0) return;
+    if (!isHydratedRef.current || sessions.length === 0) return;
 
     // 1. Fast LocalStorage mirror (guarded against quota errors)
     try {
@@ -379,7 +416,7 @@ export default function GeneralAiChatPage() {
     // 2. Persistent IndexedDB Write (unlimited multi-MB capacity)
     void saveSessionsToIndexedDB(sessions, activeSessionId);
 
-    // 3. Debounced Cloud Backup to Supabase Storage
+    // 3. Debounced Cloud Backup to Supabase Storage and Postgres
     setSyncStatus('saving');
     if (syncTimeoutRef.current) {
       clearTimeout(syncTimeoutRef.current);
