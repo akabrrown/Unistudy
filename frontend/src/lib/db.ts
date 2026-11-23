@@ -31,11 +31,35 @@ export interface DownloadedFlashcard {
   back: string;
 }
 
+export interface CachedSlideNote {
+  slideId: string;
+  content: string;
+  updatedAt: number;
+  syncStatus: 'synced' | 'pending';
+}
+
+export interface CachedLectureDeck {
+  lectureId: string;
+  slides: any[];
+  cachedAt: number;
+}
+
+export interface SyncQueueItem {
+  id?: number;
+  action: 'save_note' | 'save_progress';
+  payload: any;
+  createdAt: number;
+  retries: number;
+}
+
 export class UniStudyDB extends Dexie {
   downloaded_courses!: Table<DownloadedCourse>;
   downloaded_lectures!: Table<DownloadedLecture>;
   downloaded_slides!: Table<DownloadedSlide>;
   downloaded_flashcards!: Table<DownloadedFlashcard>;
+  cached_notes!: Table<CachedSlideNote, string>;
+  cached_decks!: Table<CachedLectureDeck, string>;
+  sync_queue!: Table<SyncQueueItem, number>;
 
   constructor() {
     super('UniStudyDB');
@@ -44,6 +68,11 @@ export class UniStudyDB extends Dexie {
       downloaded_lectures: 'id, course_id',
       downloaded_slides: 'id, lecture_id, slide_index',
       downloaded_flashcards: 'id, course_id'
+    });
+    this.version(2).stores({
+      cached_notes: 'slideId, syncStatus, updatedAt',
+      cached_decks: 'lectureId, cachedAt',
+      sync_queue: '++id, action, createdAt'
     });
   }
 }

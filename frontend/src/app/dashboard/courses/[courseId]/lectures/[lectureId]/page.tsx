@@ -28,6 +28,13 @@ import {
   retrieveRelevantSlideChunks,
 } from '../../../../../../../../shared/lib/aiTutor'
 import { dedupeSlidesByNumber } from '../../../../../../../../shared/lib/slideDedupe'
+import {
+  preloadSlideAssets,
+  getSlideNoteFast,
+  saveSlideNoteFast,
+  getCachedDeckFast,
+  setCachedDeckFast,
+} from '@/lib/offlineSync'
 
 type ImageStage = 'raw' | 'failed';
 const slideKey = (slide: any, index: number): string => String(slide?.id ?? `idx-${index}`);
@@ -542,37 +549,42 @@ export default function LectureViewer() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
 
-  // Load notes when slide changes
+  // Predictive asset pre-loading: pre-fetches next/previous slide images into browser cache for 0ms transitions
   useEffect(() => {
-    async function loadNotes() {
-      if (!currentSlide) return;
-      const slideId = currentSlide.id || `${lectureId}-${slideIndex}`;
-      try {
-        const data = await apiFetch(`/lectures/${slideId}/notes`);
-        setSlideNotes(data.content || '');
-      } catch (err) {
-        setSlideNotes('');
-      }
+    if (slides && slides.length > 0) {
+      preloadSlideAssets(slides, slideIndex, 2);
     }
-    loadNotes()
-  }, [slideIndex, currentSlide, lectureId])
+  }, [slideIndex, slides]);
+
+  // Load notes when slide changes with 0ms local read + background sync
+  useEffect(() => {
+    if (!currentSlide) return;
+    const slideId = currentSlide.id || `${lectureId}-${slideIndex}`;
+    let isMounted = true;
+
+    void getSlideNoteFast(slideId, (serverContent) => {
+      if (isMounted) {
+        setSlideNotes(serverContent);
+      }
+    }).then((cached) => {
+      if (isMounted) {
+        setSlideNotes(cached);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [slideIndex, currentSlide?.id, lectureId]);
 
   const handleSaveNotes = async () => {
     if (!currentSlide) return;
-    setSavingNotes(true)
-    
     const slideId = currentSlide.id || `${lectureId}-${slideIndex}`;
-    try {
-      await apiFetch(`/lectures/${slideId}/notes`, {
-        method: 'POST',
-        body: JSON.stringify({ content: slideNotes })
-      });
-      toast.success('Note saved successfully!')
-    } catch (err: any) {
-      toast.error('Failed to save note')
-    }
-    setSavingNotes(false)
-    setIsNotesOpen(false)
+    
+    // 0ms instant save to local stores + optimistic UI + background DB sync
+    void saveSlideNoteFast(slideId, slideNotes);
+    toast.success('Note saved (synced in background)!');
+    setIsNotesOpen(false);
   }
 
   // Text to Speech
@@ -922,17 +934,31 @@ export default function LectureViewer() {
           }
         }
 
-        // Fetch slides
+        // 0ms Local-First Deck Preload from IndexedDB
+        const cachedDeck = await getCachedDeckFast(lectureId);
+        if (cachedDeck && cachedDeck.length > 0) {
+          setSlides(cachedDeck);
+          setSlidesLoading(false);
+          if (initialSlideParam) {
+            const parsed = parseInt(initialSlideParam, 10);
+            if (!isNaN(parsed) && parsed >= 1 && parsed <= cachedDeck.length) {
+              setSlideIndex(parsed - 1);
+            }
+          }
+        }
+
+        // Fetch slides from server (revalidating and syncing local cache)
         const slidesData = dedupeSlidesByNumber(await apiFetch(`/lectures/${lectureId}/slides`))
         if (slidesData.length > 0) {
           setSlides(slidesData)
+          void setCachedDeckFast(lectureId, slidesData);
           if (initialSlideParam) {
             const parsed = parseInt(initialSlideParam, 10);
             if (!isNaN(parsed) && parsed >= 1 && parsed <= slidesData.length) {
               setSlideIndex(parsed - 1);
             }
           }
-        } else {
+        } else if (!cachedDeck || cachedDeck.length === 0) {
           setSlides([])
         }
       } catch (err: any) {
