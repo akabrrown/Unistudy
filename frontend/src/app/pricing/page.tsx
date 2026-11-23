@@ -49,16 +49,16 @@ export default function PricingPage() {
       <div className='py-24 px-8'>
         
         {/* Header Section */}
-        <div className='max-w-4xl mx-auto text-center space-y-6 mb-20'>
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#FEF8E7] dark:bg-[#00004E]/40 text-[#00004E] dark:text-[#D89A06] text-sm font-bold tracking-wide border border-[#D89A06]/30 mb-2">
-            <ShieldCheck size={16} />
-            The No-Subscription Guarantee
+        <div className='max-w-3xl mx-auto text-center space-y-4 mb-16'>
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#FEF8E7] dark:bg-[#00004E]/40 text-[#00004E] dark:text-[#D89A06] text-xs font-bold tracking-wide border border-[#D89A06]/30">
+            <ShieldCheck size={15} />
+            No Monthly Subscriptions
           </div>
-          <h1 className='text-5xl md:text-6xl font-black tracking-tight text-[#00004E] dark:text-white'>
-            Pay only for what you <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00004E] via-[#D89A06] to-[#D89A06] dark:from-[#D89A06] dark:to-white">actually use.</span>
+          <h1 className='text-4xl md:text-5xl font-black tracking-tight text-[#00004E] dark:text-white'>
+            Pay only during <span className="text-[#D89A06]">exam season.</span>
           </h1>
-          <p className='text-xl text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed max-w-3xl mx-auto'>
-            Subscriptions are a trap for students. Why pay a monthly fee when you only study heavily during midterms and finals? With our Pay-As-You-Go credit system, your credits never expire.
+          <p className='text-base md:text-lg text-[#4B526B] dark:text-[#A3A8C2] max-w-2xl mx-auto'>
+            You get 8 free passes every 6 hours automatically. Buy permanent credits only when you need extra revision volume—they never expire.
           </p>
         </div>
 
@@ -137,47 +137,44 @@ export default function PricingPage() {
           ))}
         </div>
         
-        {/* Deep Dive Explainer Section */}
-        <div className='max-w-5xl mx-auto mt-32'>
-          <div className="grid md:grid-cols-2 gap-12">
-            
-            {/* Free Tier Info */}
-            <div className="bg-white dark:bg-[#0A0A28] rounded-[32px] p-10 border-2 border-[#D89A06]/30 dark:border-white/10 shadow-sm">
-              <div className="w-12 h-12 rounded-xl bg-[#00004E] text-[#D89A06] border border-[#D89A06]/40 flex items-center justify-center mb-6 shadow-xs">
-                <Clock size={24} />
+        {/* Visual Credit Value Strip (Replaces Two 60-Word Explainer Paragraphs) */}
+        <div className='max-w-6xl mx-auto mt-16'>
+          <div className="rounded-2xl border border-border bg-white dark:bg-[#0A0A28] p-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-4 rounded-xl bg-[#F8F9FD] dark:bg-white/5 border border-border/70 space-y-1">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#D89A06]">
+                <Clock size={15} />
+                <span>Free Every 6 Hours</span>
               </div>
-              <h3 className="text-2xl font-bold text-[#00004E] dark:text-white mb-4">Generous Free Daily Limits</h3>
-              <p className="text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed mb-6">
-                You get a generous free daily allowance of AI requests (e.g. 50 Fast Model requests, 10 Smart Model requests) that resets every single midnight. 
-              </p>
-              <div className="p-4 bg-[#F0F3F9] dark:bg-white/5 rounded-xl border border-[#D9E0EE] dark:border-transparent">
-                <p className="text-sm font-medium text-[#00004E] dark:text-white">
-                  Most students only ever need to buy credits during midterms and finals week when their study volume skyrockets.
-                </p>
-              </div>
+              <div className="text-lg font-black font-mono text-[#00004E] dark:text-white">8 Free Passes</div>
+              <div className="text-xs text-muted-foreground">Used first before paid credits</div>
             </div>
 
-            {/* Model Tier Info */}
-            <div className="bg-white dark:bg-[#0A0A28] rounded-[32px] p-10 border border-[#D9E0EE] dark:border-white/10 shadow-sm">
-              <div className="w-12 h-12 rounded-xl bg-[#FFF4E5] dark:bg-orange-500/20 flex items-center justify-center text-orange-600 dark:text-orange-400 mb-6">
-                <AlertTriangle size={24} />
+            <div className="p-4 rounded-xl bg-[#F8F9FD] dark:bg-white/5 border border-border/70 space-y-1">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#00004E] dark:text-[#D89A06]">
+                <Zap size={15} />
+                <span>1 Credit Covers</span>
               </div>
-              <h3 className="text-2xl font-bold text-[#00004E] dark:text-white mb-4">Smart vs Fast Models</h3>
-              <p className="text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed mb-6">
-                Not all AI models are created equal. You have full control over which model processes your requests.
-              </p>
-              <ul className="space-y-4 text-[#00004E] dark:text-white font-medium">
-                <li className="flex gap-3">
-                  <span className="font-bold text-[#00004E] dark:text-[#D89A06]">Fast Tier:</span> 
-                  <span>(1x Multiplier) Uses Groq 8B or Gemini Flash for instant, cheap answers.</span>
-                </li>
-                <li className="flex gap-3">
-                  <span className="font-bold text-orange-600 dark:text-orange-400">Smart Tier:</span> 
-                  <span>(10x Multiplier) Uses Groq 70B or Claude for deep, complex essay grading and analysis.</span>
-                </li>
-              </ul>
+              <div className="text-lg font-black font-mono text-[#00004E] dark:text-white">1 Full Action</div>
+              <div className="text-xs text-muted-foreground">Slide breakdown, mock exam, or essay</div>
             </div>
 
+            <div className="p-4 rounded-xl bg-[#F8F9FD] dark:bg-white/5 border border-border/70 space-y-1">
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                <Check size={15} />
+                <span>Welcome Bonus</span>
+              </div>
+              <div className="text-lg font-black font-mono text-[#00004E] dark:text-white">20 Free Credits</div>
+              <div className="text-xs text-muted-foreground">Included on every new student account</div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-[#F8F9FD] dark:bg-white/5 border border-border/70 space-y-1">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#D89A06]">
+                <ShieldCheck size={15} />
+                <span>Instant Top-Up</span>
+              </div>
+              <div className="text-lg font-black font-mono text-[#00004E] dark:text-white">MoMo &amp; Card</div>
+              <div className="text-xs text-muted-foreground">MTN, Telecel, AT Money &amp; Visa</div>
+            </div>
           </div>
         </div>
 

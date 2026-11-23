@@ -203,21 +203,21 @@ export function PinnedLibraryClient({
   };
 
   return (
-    <div className="max-w-[1440px] mx-auto space-y-6 pb-12">
-      {/* Studio Header & Route Switcher */}
-      <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-border/80 pb-5">
-        <div className="space-y-1.5">
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[11px] font-mono uppercase tracking-wider">
-            <Pin className="w-3.5 h-3.5" />
-            Curated Course Video Vault · Pinned Library
-          </div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            Pinned Lecture Library
+    <div className="max-w-[1440px] mx-auto space-y-5 pb-12">
+      {/* Compact Pinned Library Header (No 4-Card Telemetry Wall) */}
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border/80 pb-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+            Pinned Videos
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl">
-            Organize saved university lectures by course code, track watch completion across your
-            syllabus queue, and resume timestamped study notes.
-          </p>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="px-2.5 py-0.5 rounded-full bg-muted font-mono font-bold text-foreground">
+              {telemetry.total} saved
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-bold">
+              {telemetry.watched}/{telemetry.total} watched
+            </span>
+          </div>
         </div>
 
         {/* Dedicated Page Switcher */}
@@ -225,105 +225,21 @@ export function PinnedLibraryClient({
           <div className="inline-flex items-center rounded-xl border border-border bg-muted/40 p-1">
             <Link
               href="/dashboard/youtube"
-              className="inline-flex items-center gap-2 rounded-lg text-muted-foreground hover:text-foreground px-3.5 py-2 text-xs font-semibold transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg text-muted-foreground hover:text-foreground px-3.5 py-1.5 text-xs font-semibold transition-colors"
             >
               <Search className="w-3.5 h-3.5 text-red-500" />
-              Discover Lectures
+              Search Videos
             </Link>
             <Link
               href="/dashboard/youtube/pinned"
-              className="inline-flex items-center gap-2 rounded-lg bg-background text-foreground shadow-xs px-3.5 py-2 text-xs font-semibold transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg bg-background text-foreground shadow-xs px-3.5 py-1.5 text-xs font-semibold transition-colors"
             >
               <Pin className="w-3.5 h-3.5 text-primary" />
-              Pinned Library
-              <span className="ml-0.5 rounded-full bg-primary/15 text-primary px-1.5 py-0.5 text-[10px] font-mono font-bold">
-                {telemetry.total}
-              </span>
+              Pinned ({telemetry.total})
             </Link>
           </div>
         </div>
       </header>
-
-      {/* 4-Tile Library Progress Telemetry Strip */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Total Pinned Lectures
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {telemetry.total}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Saved across {Object.keys(countsByCourse).length} courses
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-            <Pin className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5 flex items-center justify-between">
-          <div className="flex-1 pr-3">
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Syllabus Completion
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {telemetry.pct}%{' '}
-              <span className="text-xs font-normal text-muted-foreground">
-                ({telemetry.watched}/{telemetry.total})
-              </span>
-            </p>
-            <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden mt-1.5">
-              <div
-                className="h-full rounded-full bg-emerald-500 transition-all"
-                style={{ width: `${telemetry.pct}%` }}
-              />
-            </div>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
-            <CheckCircle2 className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Unwatched Study Queue
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {telemetry.unwatched}{' '}
-              <span className="text-xs font-normal text-muted-foreground">remaining</span>
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {telemetry.unwatched === 0 && telemetry.total > 0
-                ? 'All pinned lectures completed'
-                : 'Ready for active study'}
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
-            <Clock className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Annotated with Notes
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {telemetry.withNotes}{' '}
-              <span className="text-xs font-normal text-muted-foreground">lectures</span>
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Synced in Study Studio
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-500">
-            <FileText className="w-4 h-4" />
-          </div>
-        </div>
-      </section>
 
       {/* Course Filter Rail + Status & Search Controls */}
       <section className="rounded-2xl border border-border/80 bg-card p-5 space-y-4">

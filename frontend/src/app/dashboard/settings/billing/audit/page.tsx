@@ -333,28 +333,18 @@ export default function StandaloneAuditLogPage() {
 
   return (
     <div className="max-w-[1440px] mx-auto space-y-6 pb-16">
-      {/* Studio Header & Navigation */}
-      <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-border/80 pb-5">
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <Link
-              href="/dashboard/settings/billing"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" /> Back to Billing
-            </Link>
-            <span className="text-muted-foreground/60">•</span>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-mono uppercase tracking-wider">
-              <History className="w-3 h-3" />
-              Standalone Audit Ledger
-            </div>
-          </div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            Live AI Compute Deductions &amp; Audit Log
+      {/* Compact Usage History Header */}
+      <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-border/80 pb-4">
+        <div className="space-y-1">
+          <Link
+            href="/dashboard/settings/billing"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" /> Back to Billing
+          </Link>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+            Credit Usage History
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground max-w-3xl">
-            Complete, timestamped audit trail of every AI inference call. Tracks exact feature actions, dispatched provider engines, free allowance pools vs. wallet deductions, and compute credits spent.
-          </p>
         </div>
 
         {/* Action Controls & Navigation Tabs */}

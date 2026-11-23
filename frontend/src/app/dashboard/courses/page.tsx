@@ -552,13 +552,13 @@ export default function CoursesPage() {
       {/* Header + Course Study Tools Dock */}
       <header className="rounded-2xl border border-border/80 bg-card p-5 md:p-6 shadow-xs space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="space-y-0.5">
+          <div className="flex items-center gap-3">
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
               My Courses
             </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Organize your semester modules, upload lecture slide decks, and practice matched past examination papers.
-            </p>
+            <span className="px-2.5 py-0.5 rounded-full bg-muted text-xs font-mono font-bold text-foreground">
+              {activeCourses.length}
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">

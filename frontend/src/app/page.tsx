@@ -52,8 +52,8 @@ export default function LandingPage() {
               </h1>
 
               {/* Subheading with High Light-Theme Contrast */}
-              <p className="text-lg md:text-xl text-[#3A4363] dark:text-[#A3A8C2] leading-relaxed max-w-xl font-normal">
-                Upload your lecturer&apos;s slides, course outlines, and past question papers. Get clear slide-by-slide explanations, timed mock exams with full marking schemes, and step-by-step accounting and math solutions.
+              <p className="text-base md:text-lg text-[#3A4363] dark:text-[#A3A8C2] leading-relaxed max-w-lg font-normal">
+                Drop in your lecture slides and past papers for cited slide notes, 120-minute timed mock exams, and step-by-step math solutions.
               </p>
 
               {/* Action Buttons */}
@@ -160,42 +160,36 @@ export default function LandingPage() {
 
       {/* Asymmetric Editorial Study Architecture (Replaces Symmetrical 4-Icon Bento Grid) */}
       <section className="py-20 md:py-24 max-w-7xl mx-auto px-6 sm:px-8">
-        <div className="max-w-2xl mb-12 space-y-2">
+        <div className="max-w-2xl mb-10 space-y-1.5">
           <p className="text-xs font-bold uppercase tracking-widest text-[#D89A06]">
-            Built for UPSA Coursework &amp; Examinations
+            UPSA Coursework &amp; Exam Suite
           </p>
           <h2 className="text-3xl md:text-4xl font-black tracking-tight text-[#00004E] dark:text-white">
-            Study From Your Lecturer&apos;s Exact Material—Not Generic Web Answers.
+            Anchored to Your Lecturer&apos;s Slides.
           </h2>
-          <p className="text-base text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">
-            General chatbots guess when asked about specific university modules. UniStudy reads your uploaded PDF slides and past question papers line by line.
-          </p>
         </div>
 
         <div className="grid lg:grid-cols-12 gap-6 items-stretch">
           {/* Left Lead Editorial Showcase (7 columns) */}
-          <div className="lg:col-span-7 rounded-2xl border border-border bg-white dark:bg-[#0A0A28] p-6 md:p-8 flex flex-col justify-between space-y-6 shadow-xs">
-            <div className="space-y-3">
+          <div className="lg:col-span-7 rounded-2xl border border-border bg-white dark:bg-[#0A0A28] p-6 md:p-7 flex flex-col justify-between space-y-5 shadow-xs">
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#00004E] dark:text-[#D89A06]">
-                  Slide Studio &amp; Exam Topic Matcher
+                  Slide Studio &amp; Exam Matcher
                 </span>
-                <span className="text-xs font-mono text-muted-foreground">PDF · PPTX · Handwritten Notes</span>
+                <span className="text-xs font-mono text-muted-foreground">PDF · PPTX · Photos</span>
               </div>
-              <h3 className="text-2xl font-bold text-[#00004E] dark:text-white tracking-tight">
-                Cross-reference 80-slide lecture decks with past exam questions in seconds
+              <h3 className="text-xl md:text-2xl font-bold text-[#00004E] dark:text-white tracking-tight">
+                Match lecture slides to past exam questions automatically
               </h3>
-              <p className="text-sm text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">
-                Paste the revision areas your lecturer mentioned in class. UniStudy scans every slide in your course and every past paper in the archive to show you which slides carry the heaviest exam weight—and flags any topic missing from your notes.
-              </p>
             </div>
 
             {/* Concrete Visual Artifact Table Inside Lead Card */}
             <div className="rounded-xl border border-border bg-[#F8F9FD] dark:bg-[#040416] overflow-hidden text-xs">
               <div className="grid grid-cols-12 bg-[#00004E] text-white px-4 py-2.5 font-semibold">
                 <div className="col-span-5">Lecturer Revision Topic</div>
-                <div className="col-span-4">Matched Lecture Slides</div>
-                <div className="col-span-3 text-right">Past Exam Hits</div>
+                <div className="col-span-4">Matched Slides</div>
+                <div className="col-span-3 text-right">Past Exams</div>
               </div>
               <div className="divide-y divide-border">
                 <div className="grid grid-cols-12 px-4 py-2.5 items-center">
@@ -216,9 +210,9 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2">
+            <div className="flex items-center justify-between pt-1">
               <span className="text-xs text-muted-foreground">
-                Generates one-page printable A4 revision sheets &amp; SM-2 flashcards
+                One-page printable A4 cheat sheets &amp; SM-2 flashcards
               </span>
               <Link href="/signup" className="text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:underline inline-flex items-center gap-1">
                 Try With Your Slides <ArrowRight className="w-3.5 h-3.5" />
@@ -228,46 +222,46 @@ export default function LandingPage() {
 
           {/* Right Stacked Column (5 columns) */}
           <div className="lg:col-span-5 flex flex-col justify-between gap-6">
-            <div className="flex-1 rounded-2xl border border-border bg-white dark:bg-[#0A0A28] p-6 flex flex-col justify-between space-y-4 shadow-xs">
-              <div className="space-y-2">
+            <div className="flex-1 rounded-2xl border border-border bg-white dark:bg-[#0A0A28] p-6 flex flex-col justify-between space-y-3 shadow-xs">
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-[#D89A06]">
-                    Timed Examination Simulator
+                    120-Min Exam Simulator
                   </span>
                   <span className="text-xs font-mono text-muted-foreground">Section A &amp; B</span>
                 </div>
                 <h3 className="text-lg font-bold text-[#00004E] dark:text-white">
-                  Real UPSA Past Papers with Sub-Question Grading
+                  Real UPSA Past Papers with Sub-Part Grading
                 </h3>
-                <p className="text-sm text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">
-                  Practice authentic past papers under a 120-minute exam clock. Get part-by-part marking for `(a)`, `(b)`, `(i)`, and `(ii)` alongside complete model answers for any question you skip.
+                <p className="text-xs text-[#4B526B] dark:text-[#A3A8C2]">
+                  Instant rubric marking for `(a)`, `(b)`, `(i)`, and `(ii)` plus worked model solutions.
                 </p>
               </div>
               <div className="pt-3 border-t border-border flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Includes Accounting, Finance, Management, IT &amp; Law</span>
+                <span className="text-muted-foreground">Level 100–400 Archive</span>
                 <Link href="/signup" className="font-bold text-[#00004E] dark:text-[#D89A06] hover:underline">
                   Browse Papers &rarr;
                 </Link>
               </div>
             </div>
 
-            <div className="flex-1 rounded-2xl border border-border bg-[#00004E] text-white p-6 flex flex-col justify-between space-y-4 shadow-xs">
-              <div className="space-y-2">
+            <div className="flex-1 rounded-2xl border border-border bg-[#00004E] text-white p-6 flex flex-col justify-between space-y-3 shadow-xs">
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-[#D89A06]">
-                    Quantitative &amp; Graph Solver
+                    Math &amp; Graph Solver
                   </span>
                   <span className="text-xs font-mono text-white/70">Calculus · Matrices · Stats</span>
                 </div>
                 <h3 className="text-lg font-bold text-white">
-                  Exact Symbolic Math &amp; Coordinate Graph Sheets
+                  Symbolic Derivations &amp; 2mm Graph Sheets
                 </h3>
-                <p className="text-sm text-white/80 leading-relaxed">
-                  Solve derivatives, definite integrals, simultaneous linear systems, and plot multi-curve coordinate graphs on interactive millimeter grid paper—or snap a photo of handwritten math notes.
+                <p className="text-xs text-white/80">
+                  Plot multi-curve coordinate graphs and solve derivatives, integrals, and linear systems.
                 </p>
               </div>
               <div className="pt-3 border-t border-white/15 flex items-center justify-between text-xs">
-                <span className="text-white/70">Verified symbolic steps with KaTeX notation</span>
+                <span className="text-white/70">KaTeX &amp; Photo Math OCR</span>
                 <Link href="/signup" className="font-bold text-[#D89A06] hover:underline">
                   Open Solver &rarr;
                 </Link>

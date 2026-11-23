@@ -331,21 +331,16 @@ export function YouTubeStudyClient({
   };
 
   return (
-    <div className="max-w-[1440px] mx-auto space-y-6 pb-12">
-      {/* Studio Header & Route Switcher */}
-      <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-border/80 pb-5">
-        <div className="space-y-1.5">
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 text-[11px] font-mono uppercase tracking-wider">
-            <PlaySquare className="w-3.5 h-3.5" />
-            Academic Video Intelligence · Discovery Studio
-          </div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            Discover University Lectures
+    <div className="max-w-[1440px] mx-auto space-y-5 pb-12">
+      {/* Compact Video Workspace Header (No 4-Card Telemetry Wall or API v3 Badge) */}
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border/80 pb-4">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+            Video Lectures
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl">
-            Search peer-reviewed university lectures, concept breakdowns, and worked exam solutions.
-            Pin videos directly to your active courses or open them in the synchronized Study Studio.
-          </p>
+          <span className="px-2.5 py-0.5 rounded-full bg-muted text-xs font-mono font-bold text-muted-foreground">
+            {telemetry.totalPinned} pinned
+          </span>
         </div>
 
         {/* Dedicated Page Switcher */}
@@ -353,121 +348,26 @@ export function YouTubeStudyClient({
           <div className="inline-flex items-center rounded-xl border border-border bg-muted/40 p-1">
             <Link
               href="/dashboard/youtube"
-              className="inline-flex items-center gap-2 rounded-lg bg-background text-foreground shadow-xs px-3.5 py-2 text-xs font-semibold transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg bg-background text-foreground shadow-xs px-3.5 py-1.5 text-xs font-semibold transition-colors"
             >
               <Search className="w-3.5 h-3.5 text-red-500" />
-              Discover Lectures
+              Search Videos
             </Link>
             <Link
               href="/dashboard/youtube/pinned"
-              className="inline-flex items-center gap-2 rounded-lg text-muted-foreground hover:text-foreground px-3.5 py-2 text-xs font-semibold transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg text-muted-foreground hover:text-foreground px-3.5 py-1.5 text-xs font-semibold transition-colors"
             >
               <Pin className="w-3.5 h-3.5 text-primary" />
-              Pinned Library
-              <span className="ml-0.5 rounded-full bg-primary/15 text-primary px-1.5 py-0.5 text-[10px] font-mono font-bold">
-                {telemetry.totalPinned}
-              </span>
+              Pinned ({telemetry.totalPinned})
             </Link>
           </div>
         </div>
       </header>
 
-      {/* 4-Tile Telemetry Strip */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Pinned Library Vault
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {telemetry.totalPinned}{' '}
-              <span className="text-xs font-normal text-muted-foreground">lectures</span>
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Across {telemetry.coursesWithPins} active{' '}
-              {telemetry.coursesWithPins === 1 ? 'course' : 'courses'}
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-            <Pin className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Watch Completion
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {telemetry.completionPct}%
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {telemetry.watchedCount} of {telemetry.totalPinned} pinned watched
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
-            <CheckCircle2 className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Enrolled Course Targets
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {courses.length}{' '}
-              <span className="text-xs font-normal text-muted-foreground">courses</span>
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {courses.length > 0
-                ? courses.slice(0, 3).map((c) => c.course_code).join(', ')
-                : 'No courses created yet'}
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
-            <GraduationCap className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Discovery Mode
-            </p>
-            <p className="text-lg font-bold font-mono text-foreground mt-0.5 capitalize">
-              {academicMode === 'raw' ? 'Exact Query' : `${academicMode}s`}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Duration: {durationFilter === 'any' ? 'All lengths' : durationFilter} · Sort:{' '}
-              {sortOrder}
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500">
-            <SlidersHorizontal className="w-4 h-4" />
-          </div>
-        </div>
-      </section>
-
       {/* Main Search & Direct URL Grid */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Left 8 Cols: Academic Omni-Search Console */}
+        {/* Left 8 Cols: Direct Video Search */}
         <div className="lg:col-span-8 rounded-2xl border border-border/80 bg-card p-5 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div>
-              <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-                <Search className="w-4 h-4 text-red-500" />
-                Academic Lecture Search Engine
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                Automatically prioritizes university seminars, chalkboard derivations, and structured tutorials.
-              </p>
-            </div>
-            <span className="text-[11px] font-mono text-muted-foreground bg-muted/50 px-2.5 py-1 rounded-md border border-border self-start sm:self-auto">
-              YouTube Data API v3
-            </span>
-          </div>
-
           <form onSubmit={handleFormSubmit} className="flex flex-col sm:flex-row gap-2.5">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />

@@ -432,11 +432,11 @@ export default function LecturesHubPage() {
     <div className="max-w-[1380px] mx-auto pb-12 space-y-6">
       {/* Studio Command Header */}
       <header className="rounded-2xl border border-border/80 bg-card p-5 md:p-6 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
             <Link
               href="/dashboard/courses"
-              className="font-mono uppercase tracking-wider text-[11px] text-primary font-semibold hover:underline"
+              className="text-xs text-primary font-semibold hover:underline"
             >
               Courses
             </Link>
@@ -456,14 +456,11 @@ export default function LecturesHubPage() {
             <span>Lectures &amp; Slide Decks</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <BookOpen className="w-6 h-6 text-primary" strokeWidth={1.75} />
-            {activeCourse ? `${activeCourse.course_code} – Lectures & Slide Decks` : 'Lectures & Slide Decks'}
+            {activeCourse ? `${activeCourse.course_code} – Lectures` : 'Lectures & Slide Decks'}
+            <span className="px-2.5 py-0.5 rounded-full bg-muted text-xs font-mono font-bold text-foreground">
+              {filteredLectures.length}
+            </span>
           </h1>
-          <p className="text-xs md:text-sm text-muted-foreground">
-            {activeCourse
-              ? `All official presentation slides and study materials for ${activeCourse.title}.`
-              : 'Select what course you want to study, resume your latest deck, or review slides with the AI Tutor.'}
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">

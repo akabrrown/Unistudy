@@ -330,18 +330,14 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
                   <Link
                     key={tool.href}
                     href={tool.href}
-                    className="group flex flex-col justify-between rounded-xl border border-[#D89A06]/20 bg-muted/20 hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5 hover:border-[#D89A06]/60 p-2.5 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
+                    className="group flex items-center gap-2 rounded-xl border border-[#D89A06]/25 bg-muted/20 hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5 hover:border-[#D89A06]/60 px-2.5 py-2 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
                   >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-card border border-[#D89A06]/40 group-hover:scale-105 transition-transform shadow-2xs">
-                        <Icon className="h-3.5 w-3.5" strokeWidth={2} />
-                      </span>
-                      <ArrowRight className="h-3 w-3 text-[#D89A06] opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all" strokeWidth={2} />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-[#00004E] dark:text-foreground leading-tight truncate">{tool.label}</div>
-                      <div className="text-[11px] text-muted-foreground leading-tight mt-0.5 truncate">{tool.hint}</div>
-                    </div>
+                    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-card border border-[#D89A06]/40 group-hover:scale-105 transition-transform shadow-2xs">
+                      <Icon className="h-3.5 w-3.5" strokeWidth={2} />
+                    </span>
+                    <span className="text-xs font-bold text-[#00004E] dark:text-foreground leading-tight truncate">
+                      {tool.label}
+                    </span>
                   </Link>
                 );
               })}
@@ -350,94 +346,58 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
         </div>
       </header>
 
-      {/* Row 2: Study Summary Strip */}
-      <section aria-label="Study metrics" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      {/* Row 2: Compact Inline Visual Metric Pills (Replaces Heavy 4-Box KPI Wall) */}
+      <section aria-label="Study metrics" className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <Link
           href={primaryReviewHref}
-          className="group rounded-xl border border-border/80 bg-card p-4 hover:border-[#D89A06] hover:shadow-xs transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-2xs"
+          className="group flex items-center justify-between rounded-xl border border-border/80 bg-card px-3.5 py-2.5 hover:border-[#D89A06] transition-all cursor-pointer"
         >
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">Flashcards Due Today</span>
-            <BrainCircuit className="h-4 w-4 text-[#D89A06]" strokeWidth={2} />
+          <div className="flex items-center gap-2.5 min-w-0">
+            <BrainCircuit className="h-4 w-4 text-[#D89A06] shrink-0" strokeWidth={2} />
+            <span className="text-xs font-semibold text-muted-foreground truncate">Due Cards</span>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-mono text-2xl font-black tracking-tight text-[#00004E] dark:text-white tabular-nums">
-              {dueFlashcards}
-            </span>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              of {totalFlashcards} cards
-            </span>
-          </div>
-          <p className="mt-1.5 text-xs text-muted-foreground flex items-center justify-between">
-            <span>{dueFlashcards > 0 ? 'Ready for review' : 'All cards caught up'}</span>
-            <span className="text-[#00004E] dark:text-[#D89A06] font-semibold group-hover:underline text-xs">Review &rarr;</span>
-          </p>
+          <span className="font-mono text-sm font-black text-[#00004E] dark:text-white tabular-nums">
+            {dueFlashcards} <span className="text-xs font-normal text-muted-foreground">/ {totalFlashcards}</span>
+          </span>
         </Link>
 
         <Link
           href="/dashboard/analytics#velocity"
-          className="group rounded-xl border border-border/80 bg-card p-4 hover:border-[#D89A06] hover:shadow-xs transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-2xs"
+          className="group flex items-center justify-between rounded-xl border border-border/80 bg-card px-3.5 py-2.5 hover:border-[#D89A06] transition-all cursor-pointer"
         >
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">Study Time (7 Days)</span>
-            <Clock className="h-4 w-4 text-[#00004E] dark:text-[#D89A06]" strokeWidth={2} />
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Clock className="h-4 w-4 text-[#00004E] dark:text-[#D89A06] shrink-0" strokeWidth={2} />
+            <span className="text-xs font-semibold text-muted-foreground truncate">7-Day Focus</span>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-mono text-2xl font-black tracking-tight text-[#00004E] dark:text-white tabular-nums">
-              {formatStudyHours(weeklyMinutes)}
-            </span>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              across {weeklySessions} {weeklySessions === 1 ? 'session' : 'sessions'}
-            </span>
-          </div>
-          <p className="mt-1.5 text-xs text-muted-foreground flex items-center justify-between">
-            <span>Weekly study log</span>
-            <span className="text-[#00004E] dark:text-[#D89A06] font-semibold group-hover:underline text-xs">Details &rarr;</span>
-          </p>
+          <span className="font-mono text-sm font-black text-[#00004E] dark:text-white tabular-nums">
+            {formatStudyHours(weeklyMinutes)}
+          </span>
         </Link>
 
         <Link
           href="/dashboard/past-papers"
-          className="group rounded-xl border border-border/80 bg-card p-4 hover:border-[#D89A06] hover:shadow-xs transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-2xs"
+          className="group flex items-center justify-between rounded-xl border border-border/80 bg-card px-3.5 py-2.5 hover:border-[#D89A06] transition-all cursor-pointer"
         >
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">Mock &amp; Quiz Average</span>
-            <TrendingUp className="h-4 w-4 text-[#D89A06]" strokeWidth={2} />
+          <div className="flex items-center gap-2.5 min-w-0">
+            <TrendingUp className="h-4 w-4 text-[#D89A06] shrink-0" strokeWidth={2} />
+            <span className="text-xs font-semibold text-muted-foreground truncate">Exam Avg</span>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-mono text-2xl font-black tracking-tight text-[#00004E] dark:text-white tabular-nums">
-              {avgScorePercent !== null ? `${avgScorePercent}%` : '--'}
-            </span>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {assessmentCount} {assessmentCount === 1 ? 'attempt' : 'attempts'}
-            </span>
-          </div>
-          <p className="mt-1.5 text-xs text-muted-foreground flex items-center justify-between">
-            <span>{avgScorePercent !== null ? 'Past papers & quizzes' : 'Take a quiz or mock'}</span>
-            <span className="text-[#00004E] dark:text-[#D89A06] font-semibold group-hover:underline text-xs">Practice &rarr;</span>
-          </p>
+          <span className="font-mono text-sm font-black text-[#00004E] dark:text-white tabular-nums">
+            {avgScorePercent !== null ? `${avgScorePercent}%` : '--'}
+          </span>
         </Link>
 
         <Link
           href="/dashboard/calendar"
-          className="group rounded-xl border border-border/80 bg-card p-4 hover:border-[#D89A06] hover:shadow-xs transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-2xs"
+          className="group flex items-center justify-between rounded-xl border border-border/80 bg-card px-3.5 py-2.5 hover:border-[#D89A06] transition-all cursor-pointer"
         >
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">Next Scheduled Exam</span>
-            <CalendarIcon className="h-4 w-4 text-[#D89A06]" strokeWidth={2} />
+          <div className="flex items-center gap-2.5 min-w-0">
+            <CalendarIcon className="h-4 w-4 text-[#D89A06] shrink-0" strokeWidth={2} />
+            <span className="text-xs font-semibold text-muted-foreground truncate">Next Exam</span>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-mono text-2xl font-black tracking-tight text-[#00004E] dark:text-white tabular-nums">
-              {nearestExam ? `${nearestExam.daysLeft}d` : '--'}
-            </span>
-            <span className="text-xs text-muted-foreground truncate font-medium">
-              {nearestExam ? nearestExam.title : 'No exams added'}
-            </span>
-          </div>
-          <p className="mt-1.5 text-xs text-muted-foreground flex items-center justify-between">
-            <span>{upcomingEvents.length} upcoming {upcomingEvents.length === 1 ? 'event' : 'events'}</span>
-            <span className="text-[#00004E] dark:text-[#D89A06] font-semibold group-hover:underline text-xs">Calendar &rarr;</span>
-          </p>
+          <span className="font-mono text-sm font-black text-[#00004E] dark:text-white tabular-nums">
+            {nearestExam ? `${nearestExam.daysLeft}d` : '--'}
+          </span>
         </Link>
       </section>
 

@@ -531,13 +531,13 @@ export default function PastPapersDashboard() {
       {/* Command Header */}
       <header className="rounded-2xl border border-border/80 bg-card p-5 md:p-6 shadow-xs space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="space-y-0.5">
+          <div className="flex items-center gap-3">
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-              Past Examination Papers
+              Past Papers
             </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Practice official university past papers under timed exam conditions or download original PDFs.
-            </p>
+            <span className="px-2.5 py-0.5 rounded-full bg-muted text-xs font-mono font-bold text-foreground">
+              {papers.length}
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">

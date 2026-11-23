@@ -410,21 +410,22 @@ export default function CalendarPage() {
 
   return (
     <div className="max-w-[1380px] mx-auto pb-12 space-y-5">
-      {/* Studio Header + Telemetry */}
-      <header className="rounded-2xl border border-border/80 bg-card p-5 md:p-6 shadow-xs space-y-4">
+      {/* Compact Calendar Toolbar (No 4-Card Schedule Telemetry Strip) */}
+      <header className="rounded-2xl border border-border/80 bg-card p-4 md:p-5 shadow-xs space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-mono uppercase tracking-wider text-[11px] text-primary font-semibold">
-                Planning &amp; Revision
-              </span>
-              <span aria-hidden="true">/</span>
-              <span>Exam Countdowns, Assignments &amp; Smart Timetable</span>
-            </div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-              <CalendarIcon className="w-7 h-7 text-primary" />
-              Study Calendar &amp; Planner
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+              Study Calendar
             </h1>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 font-semibold">
+                <strong className="font-mono">{upcomingExams.length}</strong> Exams
+                {nearestExamDays !== null ? ` (${nearestExamDays}d)` : ''}
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 font-semibold">
+                <strong className="font-mono">{upcomingAssignments.length}</strong> Assignments
+              </span>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
@@ -464,66 +465,6 @@ export default function CalendarPage() {
               Add Event
             </Button>
           </div>
-        </div>
-
-        {/* 4-Tile Schedule Telemetry Strip */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-          <div className="rounded-xl border border-border/70 bg-muted/25 px-3.5 py-2.5 flex items-center justify-between">
-            <div>
-              <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-                Upcoming Exams
-              </div>
-              <div className="font-mono text-xl font-bold text-foreground tabular-nums mt-0.5">
-                {upcomingExams.length}
-                {nearestExamDays !== null ? (
-                  <span className="text-xs font-normal text-rose-600 dark:text-rose-400 ml-1.5">
-                    (next in {nearestExamDays}d)
-                  </span>
-                ) : null}
-              </div>
-            </div>
-            <FileWarning className="h-4 w-4 text-rose-500" />
-          </div>
-
-          <div className="rounded-xl border border-border/70 bg-muted/25 px-3.5 py-2.5 flex items-center justify-between">
-            <div>
-              <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-                Assignments Due
-              </div>
-              <div className="font-mono text-xl font-bold text-foreground tabular-nums mt-0.5">
-                {upcomingAssignments.length}
-              </div>
-            </div>
-            <BookOpen className="h-4 w-4 text-blue-500" />
-          </div>
-
-          <div className="rounded-xl border border-border/70 bg-muted/25 px-3.5 py-2.5 flex items-center justify-between">
-            <div>
-              <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-                Sessions This Month
-              </div>
-              <div className="font-mono text-xl font-bold text-foreground tabular-nums mt-0.5">
-                {monthSessionCount}
-              </div>
-            </div>
-            <Clock className="h-4 w-4 text-emerald-500" />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setView('timetable')}
-            className="text-left rounded-xl border border-border/70 bg-muted/25 hover:border-primary/40 px-3.5 py-2.5 flex items-center justify-between transition-colors cursor-pointer"
-          >
-            <div className="min-w-0">
-              <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-                Smart Timetable
-              </div>
-              <div className="text-sm font-bold text-foreground mt-0.5 truncate">
-                {template ? 'Active Plan' : 'Not Generated'}
-              </div>
-            </div>
-            <LayoutGrid className="h-4 w-4 text-primary shrink-0" />
-          </button>
         </div>
 
         {/* View Toggle & Event Filter Bar */}

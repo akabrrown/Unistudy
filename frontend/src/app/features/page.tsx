@@ -200,63 +200,73 @@ export default function FeaturesPage() {
           </div>
         </section>
 
-        {/* Academic Specification Table (Replaces 9 Identical Icon-in-a-Box Cards) */}
-        <section className="space-y-6">
-          <div className="max-w-2xl space-y-1.5">
-            <h2 className="text-2xl md:text-3xl font-black text-[#00004E] dark:text-white tracking-tight">
-              Complete Academic Specification
-            </h2>
-            <p className="text-sm text-[#4B526B] dark:text-[#A3A8C2]">
-              Every module included in your student account across web and offline study sessions.
+        {/* 3 Visual Study Artifact Tiles (Replaces Text-Heavy 6-Row Specification Table) */}
+        <section className="grid md:grid-cols-3 gap-6">
+          {/* Artifact 1: SM-2 Flashcard Stack */}
+          <div className="rounded-2xl border border-border bg-white dark:bg-[#0A0A28] p-6 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-[#00004E] dark:text-[#D89A06]">SM-2 Flashcards</span>
+              <span className="font-mono text-muted-foreground">Active Recall</span>
+            </div>
+            <div className="rounded-xl border-2 border-[#D89A06]/40 bg-[#FEF8E7]/50 dark:bg-white/5 p-4 space-y-2">
+              <div className="text-[10px] font-mono uppercase text-[#D89A06] font-bold">BCPC 208 · Card 12</div>
+              <div className="text-xs font-bold text-[#00004E] dark:text-white">
+                When does IRR conflict with NPV on mutually exclusive projects?
+              </div>
+              <div className="pt-2 flex gap-1.5 text-[10px] font-bold">
+                <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-600">Again (1d)</span>
+                <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-600">Good (4d)</span>
+                <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600">Easy (9d)</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Auto-generated from your slides and cached offline.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-border bg-white dark:bg-[#0A0A28] overflow-hidden shadow-xs">
-            <div className="grid grid-cols-1 md:grid-cols-12 bg-[#00004E] text-white px-6 py-3.5 text-xs font-bold uppercase tracking-wider">
-              <div className="md:col-span-3">Workspace Tool</div>
-              <div className="md:col-span-5">What It Does For Your Revision</div>
-              <div className="md:col-span-4">Supported Formats &amp; Output</div>
+          {/* Artifact 2: 2mm Coordinate Graph Sheet */}
+          <div className="rounded-2xl border border-border bg-white dark:bg-[#0A0A28] p-6 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-[#00004E] dark:text-[#D89A06]">2mm Graph Sheet</span>
+              <span className="font-mono text-muted-foreground">Multi-Curve Plotter</span>
             </div>
-            <div className="divide-y divide-border text-sm">
-              {[
-                [
-                  "Lecture Slide Studio",
-                  "Breaks down uploaded lecture decks slide by slide with cited definitions, audio read-aloud, and key takeaways.",
-                  "PDF, PPTX, DOCX · Cited Slide Notes",
-                ],
-                [
-                  "Exam Focus Matcher",
-                  "Correlates lecturer focus areas against your slides and past papers to highlight high-probability exam questions.",
-                  "Topic Coverage Map & Gap Practice Drills",
-                ],
-                [
-                  "Past Paper Mock Engine",
-                  "Timed 120-minute trial exams with automatic MCQ scoring and sub-question rubric grading for theory parts.",
-                  "Level 100–400 Past Papers · Worked Model Answers",
-                ],
-                [
-                  "Math & Graph Plotter",
-                  "Solves calculus, matrices, and statistics step by step and plots multi-curve coordinate graphs on millimeter grid paper.",
-                  "Symbolic CAS + 2mm WASSCE/University Grid",
-                ],
-                [
-                  "Handwritten Note Scanner",
-                  "Digitizes photos of handwritten notebook derivations and whiteboard tables into editable LaTeX and Markdown.",
-                  "PNG, JPG, WebP · KaTeX Formula Export",
-                ],
-                [
-                  "SM-2 Flashcards & Quizzes",
-                  "Schedules active-recall flashcard reviews based on your confidence ratings before midterms and finals.",
-                  "Spaced Repetition Deck & Offline Cache",
-                ],
-              ].map(([tool, purpose, output]) => (
-                <div key={tool} className="grid grid-cols-1 md:grid-cols-12 px-6 py-4 gap-2 items-center hover:bg-muted/20 transition-colors">
-                  <div className="md:col-span-3 font-bold text-[#00004E] dark:text-white">{tool}</div>
-                  <div className="md:col-span-5 text-xs sm:text-sm text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">{purpose}</div>
-                  <div className="md:col-span-4 text-xs font-mono text-[#00004E] dark:text-[#D89A06] font-medium">{output}</div>
-                </div>
-              ))}
+            <div className="rounded-xl border border-border bg-[#F8F9FD] dark:bg-[#040416] p-4 space-y-2">
+              <div className="flex items-center justify-between text-[10px] font-mono">
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold">y₁ = x² − 4x + 3</span>
+                <span className="text-sky-600 dark:text-sky-400 font-bold">y₂ = 2x − 2</span>
+              </div>
+              <div className="h-14 rounded-lg border border-dashed border-[#D89A06]/40 flex items-center justify-around px-3 text-[10px] font-mono text-[#00004E] dark:text-white bg-white dark:bg-[#0A0A28]">
+                <span>Root: (1, 0)</span>
+                <span>•</span>
+                <span>Vertex: (2, −1)</span>
+                <span>•</span>
+                <span>Root: (3, 0)</span>
+              </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Plots roots, intersections, and coordinate transformations.
+            </p>
+          </div>
+
+          {/* Artifact 3: Printable A4 Cheat Sheet */}
+          <div className="rounded-2xl border border-border bg-white dark:bg-[#0A0A28] p-6 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-[#00004E] dark:text-[#D89A06]">A4 Revision Sheet</span>
+              <span className="font-mono text-muted-foreground">1-Click Print</span>
+            </div>
+            <div className="rounded-xl border border-border bg-[#F8F9FD] dark:bg-[#040416] p-4 space-y-2">
+              <div className="flex items-center justify-between text-[10px] font-mono border-b border-border pb-1">
+                <span className="font-bold text-[#00004E] dark:text-white">WEEK 1–12 SUMMARY</span>
+                <span className="text-[#D89A06] font-bold">A4 PDF</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-muted-foreground pt-1">
+                <div className="p-1.5 rounded bg-white dark:bg-[#0A0A28] border border-border">18 Core Formulas</div>
+                <div className="p-1.5 rounded bg-white dark:bg-[#0A0A28] border border-border">24 Key Definitions</div>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Condenses 80-slide decks into a two-column exam sheet.
+            </p>
           </div>
         </section>
       </main>
