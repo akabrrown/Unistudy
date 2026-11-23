@@ -68,9 +68,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
       .eq('user_id', user.id)
       .maybeSingle()
 
-    if (walletData && typeof walletData.balance === 'number' && walletData.balance > 0) {
+    if (walletData && typeof walletData.balance === 'number') {
       initialWalletBalance = walletData.balance
     } else {
+      // First time user: initialize with guaranteed 20 welcome bonus credits
       const { getAdminClient } = await import('@/lib/supabase/admin')
       const admin = getAdminClient()
       await (admin.from('credit_wallets') as any).upsert({

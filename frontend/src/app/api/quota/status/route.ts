@@ -36,10 +36,10 @@ export async function GET(req: NextRequest) {
         .limit(300),
     ]);
 
-    let walletBalance = typeof walletRes.data?.balance === 'number' ? walletRes.data.balance : 0;
+    let walletBalance = 0;
 
-    // Guarantee the promised 20 Free Welcome Bonus AI Credits if never provisioned or balance is 0
-    if (!walletRes.data || walletBalance === 0) {
+    // Guarantee the promised 20 Free Welcome Bonus AI Credits if wallet has never been provisioned
+    if (!walletRes.data || typeof walletRes.data.balance !== 'number') {
       try {
         const { getAdminClient } = await import('@/lib/supabase/admin');
         const admin = getAdminClient();
@@ -51,7 +51,10 @@ export async function GET(req: NextRequest) {
         walletBalance = 20;
       } catch (err) {
         console.warn('[Quota] Auto-grant welcome bonus notice:', err);
+        walletBalance = 20;
       }
+    } else {
+      walletBalance = walletRes.data.balance;
     }
     const quota = quotaRes.data || {};
     const logs = logsRes.data || [];
@@ -110,7 +113,7 @@ export async function GET(req: NextRequest) {
 
     const response = {
       wallet_balance: walletBalance,
-      wallet_credits: Number((walletBalance / 100).toFixed(2)),
+      wallet_credits: walletBalance > 500 ? Number((walletBalance / 100).toFixed(2)) : walletBalance,
       plan: 'credit_system',
       usage_summary: {
         points_used_today: totalTodayPoints,

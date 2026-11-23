@@ -348,12 +348,10 @@ export default function BillingSettings() {
       ]);
 
       let bal = 0;
-      if (typeof quotaRes?.wallet_balance === 'number' && quotaRes.wallet_balance > 0) {
+      if (typeof quotaRes?.wallet_balance === 'number') {
         bal = quotaRes.wallet_balance;
-      } else if (walletRes.data && typeof walletRes.data.balance === 'number' && walletRes.data.balance > 0) {
+      } else if (walletRes.data && typeof walletRes.data.balance === 'number') {
         bal = walletRes.data.balance;
-      } else if (typeof quotaRes?.wallet_balance === 'number') {
-        bal = quotaRes.wallet_balance;
       } else {
         bal = 20; // Default guaranteed welcome bonus
       }
@@ -465,8 +463,24 @@ export default function BillingSettings() {
     };
   }, [loadData, supabase]);
 
+  useEffect(() => {
+    const handleCreditsChanged = (e: Event) => {
+      const ce = e as CustomEvent<{ balance?: number }>;
+      if (typeof ce.detail?.balance === 'number') {
+        setBalance(ce.detail.balance);
+      }
+    };
+    window.addEventListener('unistudy-credits-changed', handleCreditsChanged);
+    return () => {
+      window.removeEventListener('unistudy-credits-changed', handleCreditsChanged);
+    };
+  }, []);
+
   const formattedCreditsLeft = useMemo(() => {
-    return (balance / 100).toFixed(2).replace(/\.00$/, '');
+    if (balance > 500) {
+      return (balance / 100).toLocaleString(undefined, { maximumFractionDigits: 1 });
+    }
+    return balance.toString();
   }, [balance]);
 
   // Filtered usage logs for display
@@ -638,7 +652,7 @@ export default function BillingSettings() {
               <span className="text-xs font-semibold text-muted-foreground">credits</span>
             </div>
             <p className="text-xs font-mono text-muted-foreground mt-0.5">
-              {balance.toLocaleString()} compute points available
+              {balance > 500 ? `${balance.toLocaleString()} compute points available` : `${balance} AI Credits ready for use`}
             </p>
           </div>
           <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px]">

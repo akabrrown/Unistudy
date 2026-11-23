@@ -227,8 +227,18 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
       }
     }
     syncWallet();
+
+    const handleCreditsChanged = (e: Event) => {
+      const ce = e as CustomEvent<{ balance?: number }>;
+      if (typeof ce.detail?.balance === 'number') {
+        setWalletBalance(ce.detail.balance);
+      }
+    };
+    window.addEventListener('unistudy-credits-changed', handleCreditsChanged);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('unistudy-credits-changed', handleCreditsChanged);
     };
   }, [pathname]);
 

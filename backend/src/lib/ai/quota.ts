@@ -19,7 +19,7 @@ export async function getCreditBalance(userId: string): Promise<number> {
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (!data || typeof data.balance !== 'number' || data.balance === 0) {
+    if (!data || typeof data.balance !== 'number') {
       try {
         await supabaseAdmin
           .from('credit_wallets')

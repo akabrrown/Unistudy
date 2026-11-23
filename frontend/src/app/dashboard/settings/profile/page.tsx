@@ -116,11 +116,11 @@ export default async function ProfileSettingsPage() {
     : 0;
 
   let walletBalance =
-    walletRes.data && typeof walletRes.data.balance === 'number' && walletRes.data.balance > 0
+    walletRes.data && typeof walletRes.data.balance === 'number'
       ? walletRes.data.balance
       : 20;
 
-  if (!walletRes.data || !walletRes.data.balance) {
+  if (!walletRes.data || typeof walletRes.data.balance !== 'number') {
     try {
       const { getAdminClient } = await import('@/lib/supabase/admin');
       const admin = getAdminClient();

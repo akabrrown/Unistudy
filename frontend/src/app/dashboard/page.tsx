@@ -233,10 +233,8 @@ export default async function DashboardPage() {
     }
     if (walletRes.status === 'fulfilled' && walletRes.value.data) {
       creditBalance = Number((walletRes.value.data as WalletRow).balance ?? 0);
-    }
-
-    // Guarantee the promised 20 Free Welcome Bonus AI Credits if wallet is missing or balance is 0
-    if (creditBalance === 0) {
+    } else {
+      // Guarantee the promised 20 Free Welcome Bonus AI Credits if wallet is missing
       try {
         const { getAdminClient } = await import('@/lib/supabase/admin');
         const admin = getAdminClient();

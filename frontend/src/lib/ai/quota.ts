@@ -88,7 +88,7 @@ export async function getCreditBalance(userId: string): Promise<number> {
       .eq('user_id', userId)
       .maybeSingle()
 
-    if (!data || typeof data.balance !== 'number' || data.balance === 0) {
+    if (!data || typeof data.balance !== 'number') {
       try {
         const { getAdminClient } = await import('@/lib/supabase/admin')
         const admin = getAdminClient()
@@ -103,7 +103,7 @@ export async function getCreditBalance(userId: string): Promise<number> {
       }
     }
 
-    return typeof data.balance === 'number' ? data.balance : 20
+    return data.balance
   } catch (err) {
     console.warn('[Quota] Credit wallet lookup failed:', err instanceof Error ? err.message : err)
     return 20

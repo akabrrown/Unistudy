@@ -326,8 +326,18 @@ export default function GeneralAiChatPage() {
       }
     }
     fetchCredits();
+
+    const handleCreditsChanged = (e: Event) => {
+      const ce = e as CustomEvent<{ balance?: number }>;
+      if (typeof ce.detail?.balance === 'number') {
+        setWalletCredits(ce.detail.balance);
+      }
+    };
+    window.addEventListener('unistudy-credits-changed', handleCreditsChanged);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('unistudy-credits-changed', handleCreditsChanged);
     };
   }, []);
 
@@ -833,10 +843,33 @@ export default function GeneralAiChatPage() {
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
+        if (res.status === 402 || errJson.code === 'INSUFFICIENT_CREDITS') {
+          setWalletCredits(0);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('unistudy-credits-changed', {
+                detail: { balance: 0 },
+              })
+            );
+          }
+          toast.error('You have 0 AI Credits remaining. Please top up in Billing to continue.');
+        }
         throw new Error(errJson.error || `Server responded with status ${res.status}`);
       }
 
       const data = await res.json();
+
+      // Instantly synchronize live deducted credits across the entire application
+      if (typeof data.remainingCredits === 'number') {
+        setWalletCredits(data.remainingCredits);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('unistudy-credits-changed', {
+              detail: { balance: data.remainingCredits },
+            })
+          );
+        }
+      }
       const replyContent =
         data.result?.choices?.[0]?.message?.content ||
         'I received your message, but the model did not generate an answer. Please retry.';
