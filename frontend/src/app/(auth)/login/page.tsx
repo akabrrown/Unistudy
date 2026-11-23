@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { login } from '../actions';
 import { Button } from '@/components/ui/button';
+import { AuthSubmitButton } from '../components/AuthSubmitButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
@@ -79,13 +80,9 @@ export default async function LoginPage(props: { searchParams: Promise<{ error?:
             </div>
           </div>
 
-          <Button
-            type="submit"
-            className="w-full h-11 rounded-xl bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:hover:bg-[#c48b05] dark:text-[#00004E] font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2 mt-2"
-          >
-            <span>Sign In</span>
-            <ArrowRight className="w-4 h-4" />
-          </Button>
+          <AuthSubmitButton loadingText="Signing in to UniStudy...">
+            Sign In
+          </AuthSubmitButton>
         </form>
 
         {/* Footer Toggle */}

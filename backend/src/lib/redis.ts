@@ -5,32 +5,46 @@ import { env } from '../config/env';
 // Local in-memory cache as fallback when Upstash Redis is unreachable or during outages
 const localCache = new NodeCache({ stdTTL: 60, checkperiod: 120 });
 
-let isUpstashDisabled = false;
+// Hystrix 3-State Circuit Breaker (CLOSED, OPEN, HALF_OPEN)
+export type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+let circuitState: CircuitState = 'CLOSED';
 let lastFailureTime = 0;
 let lastLogTime = 0;
-const COOLDOWN_MS = 60_000; // Retry Upstash after 60 seconds
+let consecutiveCanarySuccesses = 0;
+const CANARY_SUCCESS_THRESHOLD = 3;
+const COOLDOWN_MS = 60_000; // 60s cooldown in OPEN state before canary trial
 
-function isCircuitOpen(): boolean {
-  if (!isUpstashDisabled) return false;
-  if (Date.now() - lastFailureTime > COOLDOWN_MS) {
-    return false;
+export function getCircuitState(): CircuitState {
+  if (circuitState === 'OPEN') {
+    if (Date.now() - lastFailureTime > COOLDOWN_MS) {
+      circuitState = 'HALF_OPEN';
+      consecutiveCanarySuccesses = 0;
+      console.log('[Redis] Circuit Breaker transitioned to HALF_OPEN. Sampling canary requests to remote Upstash...');
+    }
   }
-  return true;
+  return circuitState;
 }
 
-function tripCircuit(err: any) {
+function recordSuccess() {
+  if (circuitState === 'HALF_OPEN') {
+    consecutiveCanarySuccesses++;
+    if (consecutiveCanarySuccesses >= CANARY_SUCCESS_THRESHOLD) {
+      circuitState = 'CLOSED';
+      consecutiveCanarySuccesses = 0;
+      console.log('[Redis] Remote Upstash canary probes succeeded (3/3). Circuit CLOSED (normal operation fully restored).');
+    }
+  } else if (circuitState === 'CLOSED') {
+    consecutiveCanarySuccesses = 0;
+  }
+}
+
+function recordFailure(err: any) {
   lastFailureTime = Date.now();
-  if (!isUpstashDisabled || Date.now() - lastLogTime > COOLDOWN_MS) {
-    isUpstashDisabled = true;
+  circuitState = 'OPEN';
+  consecutiveCanarySuccesses = 0;
+  if (Date.now() - lastLogTime > COOLDOWN_MS) {
     lastLogTime = Date.now();
-    console.warn(`[Redis] Upstash connection failed (${err?.message || err}). Falling back to in-memory cache.`);
-  }
-}
-
-function resetCircuit() {
-  if (isUpstashDisabled) {
-    isUpstashDisabled = false;
-    console.log('[Redis] Upstash connection restored. Resuming remote caching.');
+    console.warn(`[Redis] Remote Upstash operation failed (${err?.message || err}). Circuit OPEN, routing to local in-memory cache.`);
   }
 }
 
@@ -43,15 +57,15 @@ export const redis = new Proxy(rawRedis, {
   get(target: any, prop: string | symbol, receiver: any) {
     if (prop === 'get') {
       return async (key: string) => {
-        if (isCircuitOpen()) {
+        if (getCircuitState() === 'OPEN') {
           return localCache.get(key) ?? null;
         }
         try {
           const val = await target.get(key);
-          resetCircuit();
+          recordSuccess();
           return val;
         } catch (err: any) {
-          tripCircuit(err);
+          recordFailure(err);
           return localCache.get(key) ?? null;
         }
       };
@@ -61,15 +75,15 @@ export const redis = new Proxy(rawRedis, {
       return async (key: string, value: any, opts?: { ex?: number; px?: number }) => {
         const ttlSeconds = opts?.ex ?? (opts?.px ? Math.ceil(opts.px / 1000) : 0);
         localCache.set(key, value, ttlSeconds);
-        if (isCircuitOpen()) {
+        if (getCircuitState() === 'OPEN') {
           return 'OK';
         }
         try {
           const res = await target.set(key, value, opts);
-          resetCircuit();
+          recordSuccess();
           return res;
         } catch (err: any) {
-          tripCircuit(err);
+          recordFailure(err);
           return 'OK';
         }
       };
@@ -78,15 +92,15 @@ export const redis = new Proxy(rawRedis, {
     if (prop === 'del') {
       return async (...keys: string[]) => {
         keys.forEach(k => localCache.del(k));
-        if (isCircuitOpen()) {
+        if (getCircuitState() === 'OPEN') {
           return keys.length;
         }
         try {
           const res = await target.del(...keys);
-          resetCircuit();
+          recordSuccess();
           return res;
         } catch (err: any) {
-          tripCircuit(err);
+          recordFailure(err);
           return keys.length;
         }
       };
@@ -95,15 +109,15 @@ export const redis = new Proxy(rawRedis, {
     const orig = Reflect.get(target, prop, receiver);
     if (typeof orig === 'function') {
       return async (...args: any[]) => {
-        if (isCircuitOpen()) {
+        if (getCircuitState() === 'OPEN') {
           throw new Error('Upstash circuit open');
         }
         try {
           const res = await orig.apply(target, args);
-          resetCircuit();
+          recordSuccess();
           return res;
         } catch (err: any) {
-          tripCircuit(err);
+          recordFailure(err);
           throw err;
         }
       };

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { signup } from '../actions';
 import { Button } from '@/components/ui/button';
+import { AuthSubmitButton } from '../components/AuthSubmitButton';
 import { AuthSplitLayout } from '../components/AuthSplitLayout';
 import { AlertCircle, ArrowRight, Award } from 'lucide-react';
 
@@ -51,13 +52,9 @@ export default async function SignupPage(props: { searchParams: Promise<{ error?
           <EmailField />
           <PasswordStrengthField />
 
-          <Button
-            type="submit"
-            className="w-full h-11 rounded-xl bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:hover:bg-[#c48b05] dark:text-[#00004E] font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2 mt-4"
-          >
-            <span>Create Scholar Account</span>
-            <ArrowRight className="w-4 h-4" />
-          </Button>
+          <AuthSubmitButton loadingText="Creating your scholar account..." className="mt-4">
+            Create Scholar Account
+          </AuthSubmitButton>
 
           <p className="text-[11px] text-muted-foreground text-center leading-relaxed pt-1">
             By creating an account, you agree to our{' '}
