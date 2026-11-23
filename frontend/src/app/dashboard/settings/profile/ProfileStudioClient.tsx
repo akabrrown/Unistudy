@@ -33,11 +33,13 @@ import {
   Mail,
   Calendar,
   ArrowUpRight,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatAcademicLevel } from '@/lib/utils';
 import { AvatarEditor } from './AvatarEditor';
 import { AcademicSettingsForm } from './AcademicSettingsForm';
+import { CalibrateTutorDialog } from '@/components/chat/CalibrateTutorDialog';
 
 export interface ProfileRecord {
   id: string;
@@ -149,6 +151,7 @@ export function ProfileStudioClient({
     initialProfile.tone_preference || 'academic'
   );
   const [savingPedagogy, setSavingPedagogy] = useState(false);
+  const [isCalibrateOpen, setIsCalibrateOpen] = useState(false);
 
   // VARK Diagnostic State
   const [varkQuestions, setVarkQuestions] = useState<VarkQuestion[]>([]);
@@ -807,9 +810,16 @@ export function ProfileStudioClient({
                   drills, and `/plan` prerequisite roadmaps.
                 </p>
               </div>
-              <span className="rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-mono font-semibold text-primary shrink-0">
-                Mr. Ranedeer Spec
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsCalibrateOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-[#D89A06]/50 bg-[#FEF8E7] dark:bg-white/5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7] transition-all cursor-pointer shadow-2xs"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-[#D89A06]" />
+                  <span>Calibrate Persona &amp; Tone</span>
+                </button>
+              </div>
             </div>
 
             <form onSubmit={(e) => void handleSavePedagogy(e)} className="space-y-4">
@@ -1281,6 +1291,17 @@ export function ProfileStudioClient({
           </div>
         </section>
       )}
+
+      {/* Calibrate AI Study Tutor Dialog */}
+      <CalibrateTutorDialog
+        open={isCalibrateOpen}
+        onOpenChange={setIsCalibrateOpen}
+        onSaved={(updated) => {
+          setTutorName(updated.tutor_name);
+          setTutorPersonality(updated.tutor_personality as any);
+          setTonePreference(updated.tutor_tone as any);
+        }}
+      />
     </div>
   );
 }

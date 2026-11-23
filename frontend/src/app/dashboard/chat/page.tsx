@@ -61,6 +61,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { getSlideThumbnailUrl, isPlaceholderSlideUrl } from '@/lib/images';
 import { cn } from '@/lib/utils';
+import { CalibrateTutorDialog } from '@/components/chat/CalibrateTutorDialog';
 
 interface LectureItem {
   id: string;
@@ -275,6 +276,29 @@ export default function GeneralAiChatPage() {
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<ModelId>('auto');
   const [syncStatus, setSyncStatus] = useState<'synced' | 'saving' | 'offline'>('synced');
+  const [isCalibrateDialogOpen, setIsCalibrateDialogOpen] = useState(false);
+  const [walletCredits, setWalletCredits] = useState<number | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchCredits() {
+      try {
+        const res = await fetch('/api/quota/status', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && typeof data.walletBalance === 'number') {
+            setWalletCredits(data.walletBalance);
+          }
+        }
+      } catch {
+        // Fallback to initial
+      }
+    }
+    fetchCredits();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1251,6 +1275,27 @@ export default function GeneralAiChatPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
+              <Link
+                href="/dashboard/settings/billing"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2.5 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors shadow-2xs"
+                title="Your AI Credit Fuel. Click to view billing and usage."
+              >
+                <span className="text-[#D89A06]">⚡</span>
+                <span>{walletCredits ?? 20} Credits</span>
+              </Link>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCalibrateDialogOpen(true)}
+                className="text-xs font-semibold h-8 border-[#D89A06]/40 text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5"
+                title="Calibrate Tutor Name, Tone & Personality"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5 mr-1 text-[#D89A06]" />
+                <span className="hidden sm:inline">Calibrate Tutor</span>
+                <span className="sm:hidden">Tutor</span>
+              </Button>
+
               <Button
                 variant="outline"
                 size="sm"
@@ -1515,6 +1560,41 @@ export default function GeneralAiChatPage() {
                             ))}
                           </div>
                         )}
+
+                      {/* Interactive Visual Action Chips */}
+                      <div className="px-4 md:px-6 py-2.5 bg-muted/20 border-t border-border/50 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] font-mono font-bold uppercase text-muted-foreground mr-1">
+                          Quick Actions:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleSendMessage('Create 3 high-yield flashcards from this explanation with clear Q&A.')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-card border border-border/80 hover:border-[#D89A06] hover:bg-[#FEF8E7]/50 dark:hover:bg-white/5 text-[11px] font-medium text-foreground transition-all cursor-pointer shadow-2xs active:scale-95"
+                        >
+                          <span>🎴 Make 3 Flashcards</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSendMessage('/test Quiz me on 3 questions testing my understanding of this.')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-card border border-border/80 hover:border-[#D89A06] hover:bg-[#FEF8E7]/50 dark:hover:bg-white/5 text-[11px] font-medium text-foreground transition-all cursor-pointer shadow-2xs active:scale-95"
+                        >
+                          <span>🎯 Quiz Me</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSendMessage('Summarize this into 3 concise high-priority bullet points for rapid revision.')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-card border border-border/80 hover:border-[#D89A06] hover:bg-[#FEF8E7]/50 dark:hover:bg-white/5 text-[11px] font-medium text-foreground transition-all cursor-pointer shadow-2xs active:scale-95"
+                        >
+                          <span>⚡ 3-Bullet Summary</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSendMessage('Simplify this concept step-by-step with an intuitive real-world analogy.')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-card border border-border/80 hover:border-[#D89A06] hover:bg-[#FEF8E7]/50 dark:hover:bg-white/5 text-[11px] font-medium text-foreground transition-all cursor-pointer shadow-2xs active:scale-95"
+                        >
+                          <span>💡 Simplify with Analogy</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1827,6 +1907,12 @@ export default function GeneralAiChatPage() {
           </div>
         </div>
       )}
+
+      {/* Calibrate AI Study Tutor Dialog */}
+      <CalibrateTutorDialog
+        open={isCalibrateDialogOpen}
+        onOpenChange={setIsCalibrateDialogOpen}
+      />
     </div>
   );
 }

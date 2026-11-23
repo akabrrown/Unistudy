@@ -207,6 +207,19 @@ export async function signup(formData: FormData) {
     } catch (refErr) {
       console.warn('Non-fatal referral conversion update error:', refErr);
     }
+
+    // Initialize credit wallet with the promised 20 Free Welcome Bonus AI Credits
+    try {
+      await adminSupabase.from('credit_wallets').upsert({
+        user_id: authData.user.id,
+        balance: 20,
+        total_earned: 20,
+        welcome_bonus_claimed: true,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+    } catch (creditErr) {
+      console.warn('Initial credit wallet provisioning notice:', creditErr);
+    }
   }
 
   revalidatePath('/', 'layout');

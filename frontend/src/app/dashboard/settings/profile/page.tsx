@@ -115,10 +115,25 @@ export default async function ProfileSettingsPage() {
       )
     : 0;
 
-  const walletBalance =
-    walletRes.data && typeof walletRes.data.balance === 'number'
+  let walletBalance =
+    walletRes.data && typeof walletRes.data.balance === 'number' && walletRes.data.balance > 0
       ? walletRes.data.balance
-      : 0;
+      : 20;
+
+  if (!walletRes.data || !walletRes.data.balance) {
+    try {
+      const { getAdminClient } = await import('@/lib/supabase/admin');
+      const admin = getAdminClient();
+      await (admin.from('credit_wallets') as any).upsert({
+        user_id: user.id,
+        balance: 20,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+      walletBalance = 20;
+    } catch {
+      walletBalance = 20;
+    }
+  }
 
   const earnedBadges: string[] = Array.isArray(achievementsRes.data)
     ? achievementsRes.data

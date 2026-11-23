@@ -347,10 +347,16 @@ export default function BillingSettings() {
           .catch(() => null),
       ]);
 
-      const bal =
-        walletRes.data && typeof walletRes.data.balance === 'number'
-          ? walletRes.data.balance
-          : 0;
+      let bal = 0;
+      if (typeof quotaRes?.wallet_balance === 'number' && quotaRes.wallet_balance > 0) {
+        bal = quotaRes.wallet_balance;
+      } else if (walletRes.data && typeof walletRes.data.balance === 'number' && walletRes.data.balance > 0) {
+        bal = walletRes.data.balance;
+      } else if (typeof quotaRes?.wallet_balance === 'number') {
+        bal = quotaRes.wallet_balance;
+      } else {
+        bal = 20; // Default guaranteed welcome bonus
+      }
 
       const items = Array.isArray(logsRes?.items) ? logsRes.items : [];
 

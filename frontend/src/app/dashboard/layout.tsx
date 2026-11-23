@@ -59,8 +59,34 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .limit(1)
     .maybeSingle()
 
+  // Retrieve credit wallet balance with guaranteed 20 Welcome Bonus credits
+  let initialWalletBalance = 20
+  try {
+    const { data: walletData } = await supabase
+      .from('credit_wallets')
+      .select('balance')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (walletData && typeof walletData.balance === 'number' && walletData.balance > 0) {
+      initialWalletBalance = walletData.balance
+    } else {
+      const { getAdminClient } = await import('@/lib/supabase/admin')
+      const admin = getAdminClient()
+      await (admin.from('credit_wallets') as any).upsert({
+        user_id: user.id,
+        balance: 20,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' })
+      initialWalletBalance = 20
+    }
+  } catch (err) {
+    console.warn('[DashboardLayout] Wallet check notice:', err)
+    initialWalletBalance = 20
+  }
+
   return (
-    <DashboardShell profile={profile} latestAnnouncement={latestAnnouncement}>
+    <DashboardShell profile={profile} latestAnnouncement={latestAnnouncement} initialWalletBalance={initialWalletBalance}>
       {children}
     </DashboardShell>
   )

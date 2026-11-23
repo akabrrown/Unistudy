@@ -11,14 +11,35 @@ export type QuotaCheckResult = {
   wallet_balance: number
 }
 
-export async function getCreditBalance(userId: string) {
-  const { data, error } = await supabaseAdmin.from('credit_wallets').select('balance').eq('user_id', userId).single();
-  
-  if (!data) {
-    const { data: inserted } = await supabaseAdmin.from('credit_wallets').insert({ user_id: userId, balance: 0 }).select('balance').single();
-    return inserted?.balance || 0;
+export async function getCreditBalance(userId: string): Promise<number> {
+  try {
+    const { data } = await supabaseAdmin
+      .from('credit_wallets')
+      .select('balance')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!data || typeof data.balance !== 'number' || data.balance === 0) {
+      try {
+        await supabaseAdmin
+          .from('credit_wallets')
+          .upsert({
+            user_id: userId,
+            balance: 20,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id' });
+        return 20;
+      } catch (upsertErr) {
+        console.warn('[Backend Quota] Auto-grant welcome bonus notice:', upsertErr);
+        return 20;
+      }
+    }
+
+    return data.balance;
+  } catch (err) {
+    console.warn('[Backend Quota] getCreditBalance fallback:', err);
+    return 20;
   }
-  return data.balance;
 }
 
 export async function getUserQuota(userId: string) {

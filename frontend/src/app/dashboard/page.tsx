@@ -234,6 +234,31 @@ export default async function DashboardPage() {
     if (walletRes.status === 'fulfilled' && walletRes.value.data) {
       creditBalance = Number((walletRes.value.data as WalletRow).balance ?? 0);
     }
+
+    // Guarantee the promised 20 Free Welcome Bonus AI Credits if wallet is missing or balance is 0
+    if (creditBalance === 0) {
+      try {
+        const { getAdminClient } = await import('@/lib/supabase/admin');
+        const admin = getAdminClient();
+        const { data: upsertedWallet } = await (admin.from('credit_wallets') as any)
+          .upsert({
+            user_id: user.id,
+            balance: 20,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id' })
+          .select('balance')
+          .maybeSingle();
+
+        if (upsertedWallet && typeof upsertedWallet.balance === 'number') {
+          creditBalance = upsertedWallet.balance;
+        } else {
+          creditBalance = 20;
+        }
+      } catch (provisionErr) {
+        console.warn('[Dashboard] Wallet bonus provision notice:', provisionErr);
+        creditBalance = 20;
+      }
+    }
     if (coursesRes.status === 'fulfilled' && coursesRes.value.data) {
       rawCourses = coursesRes.value.data as CourseRow[];
     }

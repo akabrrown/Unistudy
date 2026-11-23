@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -101,6 +101,9 @@ export function OnboardingForm({ studentName = 'UPSA Scholar', userEmail = '' }:
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const formRef = useRef<HTMLFormElement>(null);
+  const isHydratedRef = useRef(false);
+  const STORAGE_KEY = `unistudy_onboarding_draft_${(userEmail || 'guest').toLowerCase().trim()}`;
+
   const [academicData, setAcademicData] = useState({
     institution_id: UPSA_INSTITUTION.id,
     faculty: 'FITCS',
@@ -108,6 +111,63 @@ export function OnboardingForm({ studentName = 'UPSA Scholar', userEmail = '' }:
     degree_programme: '',
     year_of_study: '100',
   });
+
+  // 1. Restore saved onboarding draft on client mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Expiration check: drafts older than 24 hours expire
+        const isExpired = parsed.savedAt && Date.now() - parsed.savedAt > 24 * 60 * 60 * 1000;
+        if (!isExpired) {
+          if (parsed.step && [1, 2, 3].includes(parsed.step)) {
+            setStep(parsed.step as 1 | 2 | 3);
+          }
+          if (parsed.academicData && typeof parsed.academicData === 'object') {
+            setAcademicData((prev) => ({ ...prev, ...parsed.academicData }));
+          }
+          if (parsed.currentProgramme) {
+            setCurrentProgramme(parsed.currentProgramme);
+          }
+          if (parsed.tutorName) {
+            setTutorName(parsed.tutorName);
+          }
+          if (parsed.tutorPersonality) {
+            setTutorPersonality(parsed.tutorPersonality);
+          }
+          if (parsed.tutorTone) {
+            setTutorTone(parsed.tutorTone);
+          }
+        } else {
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      }
+    } catch (err) {
+      console.warn('[Onboarding] Could not restore draft:', err);
+    } finally {
+      isHydratedRef.current = true;
+    }
+  }, [STORAGE_KEY]);
+
+  // 2. Persist progress into localStorage as user modifies any field
+  useEffect(() => {
+    if (!isHydratedRef.current || isSubmitting) return;
+    try {
+      const draft = {
+        step,
+        academicData,
+        currentProgramme,
+        tutorName,
+        tutorPersonality,
+        tutorTone,
+        savedAt: Date.now(),
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+    } catch {
+      // Ignore storage errors / quota
+    }
+  }, [step, academicData, currentProgramme, tutorName, tutorPersonality, tutorTone, isSubmitting, STORAGE_KEY]);
 
   // Step 1 -> Step 2 validation
   const handleProceedToTutor = () => {
@@ -184,6 +244,11 @@ export function OnboardingForm({ studentName = 'UPSA Scholar', userEmail = '' }:
           action={async (formData) => {
             setIsSubmitting(true);
             try {
+              try {
+                localStorage.removeItem(STORAGE_KEY);
+              } catch {
+                // Ignore storage error
+              }
               await completeOnboarding(formData);
             } catch (err) {
               console.error('Onboarding error', err);
@@ -426,15 +491,27 @@ export function OnboardingForm({ studentName = 'UPSA Scholar', userEmail = '' }:
                     </div>
                   </div>
 
-                  {/* Live Tutor Speech Preview */}
-                  <div className="p-3.5 rounded-xl bg-muted/40 border border-border/60 space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#00004E] dark:text-[#D89A06]">
-                      <MessageSquareQuote className="w-3.5 h-3.5" />
-                      <span>Live Dialogue Preview ({tutorName} • {selectedPersonalityMeta.label} • {tutorTone === 'casual' ? 'Casual' : 'Academic'}):</span>
+                  {/* Live Tutor Speech Preview Bubble */}
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#FEF8E7] to-white dark:from-[#00004E]/30 dark:to-card border border-[#D89A06]/40 space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] flex items-center justify-center text-[10px] font-bold shadow-2xs">
+                          {tutorName.charAt(0) || 'A'}
+                        </span>
+                        <span className="text-xs font-bold text-[#00004E] dark:text-white">
+                          {tutorName}
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#D89A06]/15 text-[#D89A06] font-bold">
+                          {selectedPersonalityMeta.label}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-muted-foreground uppercase font-bold">
+                        {tutorTone === 'casual' ? '💬 Casual' : '🎓 Academic'}
+                      </span>
                     </div>
-                    <p className="text-xs text-foreground/90 italic leading-relaxed">
-                      &ldquo;Hello! I am {tutorName}. {tutorTone === 'casual' ? selectedPersonalityMeta.sampleCasual : selectedPersonalityMeta.sampleAcademic}&rdquo;
-                    </p>
+                    <div className="rounded-xl rounded-tl-xs p-3 bg-white dark:bg-card border border-border/80 text-xs text-foreground leading-relaxed shadow-2xs">
+                      &ldquo;{tutorTone === 'casual' ? selectedPersonalityMeta.sampleCasual : selectedPersonalityMeta.sampleAcademic}&rdquo;
+                    </div>
                   </div>
 
                   <div className="pt-4 border-t border-border/60 flex items-center justify-between">

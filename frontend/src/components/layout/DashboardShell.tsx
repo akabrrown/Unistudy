@@ -178,6 +178,7 @@ interface DashboardProfile {
 interface DashboardShellProps {
   profile: DashboardProfile | null;
   latestAnnouncement: { id: string; title: string; body: string } | null;
+  initialWalletBalance?: number;
   children: React.ReactNode;
 }
 
@@ -205,9 +206,32 @@ const subscribeHash = (cb: () => void) => {
 
 const getHashSnapshot = () => (typeof window !== 'undefined' ? window.location.hash || '' : '');
 
-export function DashboardShell({ profile, latestAnnouncement, children }: DashboardShellProps) {
+export function DashboardShell({ profile, latestAnnouncement, initialWalletBalance, children }: DashboardShellProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [walletBalance, setWalletBalance] = useState<number>(initialWalletBalance ?? 20);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function syncWallet() {
+      try {
+        const res = await fetch('/api/quota/status', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && typeof data.walletBalance === 'number') {
+            setWalletBalance(data.walletBalance);
+          }
+        }
+      } catch {
+        // retain balance
+      }
+    }
+    syncWallet();
+    return () => {
+      isMounted = false;
+    };
+  }, [pathname]);
+
   const isCollapsed = useSyncExternalStore(
     subscribeStorage,
     getSidebarCollapsedSnapshot,
@@ -487,9 +511,58 @@ export function DashboardShell({ profile, latestAnnouncement, children }: Dashbo
     </nav>
   );
 
-  // Bottom section: Profile Card, ModelSelector, Sign Out, ThemeToggle
+  // Bottom section: AI Credits Wallet, Profile Card, ModelSelector, Sign Out, ThemeToggle
   const renderBottom = (collapsed: boolean) => (
     <div className="mt-auto border-t border-[#D89A06]/20 dark:border-white/10 pt-3 space-y-2.5">
+      {/* AI Credits Wallet Fuel Card */}
+      {collapsed ? (
+        <div className="flex justify-center mb-1">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Link
+                  href="/dashboard/settings/billing"
+                  className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#00004E]/5 dark:bg-[#D89A06]/10 border border-[#D89A06]/40 hover:border-[#D89A06] text-[#00004E] dark:text-[#D89A06] font-black text-xs transition-all shadow-2xs group"
+                  aria-label="AI Credits Wallet"
+                >
+                  <span className="text-sm text-[#D89A06] group-hover:scale-110 transition-transform">⚡</span>
+                </Link>
+              }
+            />
+            <TooltipContent side="right" sideOffset={12}>
+              <div className="text-xs font-bold">{walletBalance} AI Credits</div>
+              <div className="text-[10px] text-muted-foreground">Click to view billing &amp; usage</div>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      ) : (
+        <Link
+          href="/dashboard/settings/billing"
+          className="flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-[#00004E]/5 via-[#D89A06]/10 to-transparent dark:from-[#D89A06]/15 dark:via-white/5 dark:to-transparent border border-[#D89A06]/35 hover:border-[#D89A06] transition-all group shadow-2xs"
+          title="AI Credits Wallet — Click to view balance & usage"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-[#D89A06] text-[#00004E] flex items-center justify-center font-black text-sm shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+              ⚡
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground group-hover:text-foreground">
+                AI Credit Fuel
+              </div>
+              <div className="text-xs font-black text-[#00004E] dark:text-[#D89A06] flex items-center gap-1.5">
+                <span>{walletBalance} Credits</span>
+                <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">
+                  Active
+                </span>
+              </div>
+            </div>
+          </div>
+          <span className="text-[10px] font-bold text-[#00004E] dark:text-[#D89A06] bg-[#D89A06]/20 group-hover:bg-[#D89A06] group-hover:text-[#00004E] px-2 py-1 rounded-lg border border-[#D89A06]/40 transition-colors shrink-0">
+            Manage
+          </span>
+        </Link>
+      )}
+
       {/* Student Profile Collegiate Card */}
       {collapsed ? (
         <div className="flex justify-center mb-1">

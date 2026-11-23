@@ -36,7 +36,23 @@ export async function GET(req: NextRequest) {
         .limit(300),
     ]);
 
-    const walletBalance = walletRes.data?.balance ?? 0;
+    let walletBalance = typeof walletRes.data?.balance === 'number' ? walletRes.data.balance : 0;
+
+    // Guarantee the promised 20 Free Welcome Bonus AI Credits if never provisioned or balance is 0
+    if (!walletRes.data || walletBalance === 0) {
+      try {
+        const { getAdminClient } = await import('@/lib/supabase/admin');
+        const admin = getAdminClient();
+        await (admin.from('credit_wallets') as any).upsert({
+          user_id: userId,
+          balance: 20,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+        walletBalance = 20;
+      } catch (err) {
+        console.warn('[Quota] Auto-grant welcome bonus notice:', err);
+      }
+    }
     const quota = quotaRes.data || {};
     const logs = logsRes.data || [];
 

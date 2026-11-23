@@ -69,5 +69,48 @@ export async function completeOnboarding(formData: FormData) {
       learning_style: learning_style,
     })
 
+  // Atomically disburse the 20 Free Welcome Bonus AI Credits
+  try {
+    const { data: bonusData, error: bonusError } = await supabase.rpc('claim_welcome_bonus', {
+      p_user_id: user.id,
+    })
+
+    if (bonusError || !bonusData) {
+      // Defensive fallback via service role if RPC is not yet registered in database
+      const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+      const adminSupabase = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+
+      const { data: existingWallet } = await adminSupabase
+        .from('credit_wallets')
+        .select('balance, welcome_bonus_claimed')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (!existingWallet) {
+        await adminSupabase.from('credit_wallets').insert({
+          user_id: user.id,
+          balance: 20,
+          total_earned: 20,
+          welcome_bonus_claimed: true,
+          updated_at: new Date().toISOString(),
+        })
+      } else if (!existingWallet.welcome_bonus_claimed) {
+        await adminSupabase
+          .from('credit_wallets')
+          .update({
+            balance: (existingWallet.balance || 0) + 20,
+            welcome_bonus_claimed: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', user.id)
+      }
+    }
+  } catch (bonusErr) {
+    console.warn('Welcome bonus credit disbursement notice:', bonusErr)
+  }
+
   redirect('/dashboard')
 }

@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { resolveCourseColor } from '@/lib/constants/courses';
 import { DailyMotivationalQuote } from '@/components/DailyMotivationalQuote';
+import { StudyProgressRings } from '@/components/dashboard/StudyProgressRings';
+import { ExamUrgencyRadar } from '@/components/dashboard/ExamUrgencyRadar';
 import { ExamCountdownList } from '@/components/ExamCountdownList';
 import { ExamScheduler } from '@/components/ExamScheduler';
 import { Button } from '@/components/ui/button';
@@ -297,35 +299,44 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
           </div>
         </div>
 
-        {/* Integrated Compact Quote + Quick-Launch Toolkit */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 pt-1 items-stretch">
-          <div className="xl:col-span-4 flex flex-col justify-center">
+        {/* Integrated Visual Bento: Concentric Study Rings + Urgency Radar + Toolkit */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 pt-1 items-stretch">
+          <div className="lg:col-span-5 flex flex-col justify-between gap-2.5">
+            <StudyProgressRings
+              weeklyMinutes={weeklyMinutes}
+              dueCards={dueFlashcards}
+              totalCards={totalFlashcards}
+              creditBalance={creditBalance}
+            />
             <DailyMotivationalQuote compact />
           </div>
 
-          <nav aria-label="Study tools quick launch" className="xl:col-span-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-            {TOOL_DOCK.map((tool) => {
-              const Icon = tool.icon;
-              return (
-                <Link
-                  key={tool.href}
-                  href={tool.href}
-                  className="group flex flex-col justify-between rounded-xl border border-[#D89A06]/20 bg-muted/20 hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5 hover:border-[#D89A06]/60 p-2.5 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-card border border-[#D89A06]/40 group-hover:scale-105 transition-transform shadow-2xs">
-                      <Icon className="h-3.5 w-3.5" strokeWidth={2} />
-                    </span>
-                    <ArrowRight className="h-3 w-3 text-[#D89A06] opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all" strokeWidth={2} />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-[#00004E] dark:text-foreground leading-tight truncate">{tool.label}</div>
-                    <div className="text-[11px] text-muted-foreground leading-tight mt-0.5 truncate">{tool.hint}</div>
-                  </div>
-                </Link>
-              );
-            })}
-          </nav>
+          <div className="lg:col-span-7 flex flex-col justify-between gap-2.5">
+            <ExamUrgencyRadar events={upcomingEvents} />
+            <nav aria-label="Study tools quick launch" className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              {TOOL_DOCK.map((tool) => {
+                const Icon = tool.icon;
+                return (
+                  <Link
+                    key={tool.href}
+                    href={tool.href}
+                    className="group flex flex-col justify-between rounded-xl border border-[#D89A06]/20 bg-muted/20 hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5 hover:border-[#D89A06]/60 p-2.5 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-card border border-[#D89A06]/40 group-hover:scale-105 transition-transform shadow-2xs">
+                        <Icon className="h-3.5 w-3.5" strokeWidth={2} />
+                      </span>
+                      <ArrowRight className="h-3 w-3 text-[#D89A06] opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all" strokeWidth={2} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-[#00004E] dark:text-foreground leading-tight truncate">{tool.label}</div>
+                      <div className="text-[11px] text-muted-foreground leading-tight mt-0.5 truncate">{tool.hint}</div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
         </div>
       </header>
 
@@ -426,12 +437,39 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
         <div className="lg:col-span-8 space-y-5">
           {/* Hero Stream: Resume Studying OR Getting Started */}
           {resumeItem ? (
-            <section className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-5 shadow-xs">
+            <section className="relative overflow-hidden rounded-2xl border-2 border-[#D89A06]/35 bg-card p-5 shadow-xs transition-all hover:border-[#D89A06]">
               <div
-                className="absolute top-0 left-0 bottom-0 w-1.5"
+                className="absolute top-0 left-0 bottom-0 w-2"
                 style={{ backgroundColor: resolveCourseColor(resumeItem.courseColour) }}
               />
-              <div className="pl-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="pl-3 flex flex-col md:flex-row md:items-center justify-between gap-5">
+                {/* Visual Slide Frame Mockup */}
+                <div className="w-full md:w-48 h-32 rounded-xl border border-[#D89A06]/35 bg-gradient-to-br from-[#00004E] via-[#000038] to-[#00002A] p-3 flex flex-col justify-between shrink-0 shadow-sm relative overflow-hidden group">
+                  <div className="flex items-center justify-between z-10">
+                    <span className="text-[10px] font-mono font-bold text-[#D89A06] bg-[#D89A06]/20 px-1.5 py-0.5 rounded border border-[#D89A06]/40">
+                      {resumeItem.courseCode}
+                    </span>
+                    <span className="text-[10px] font-mono text-white/70">
+                      Slide {resumeItem.slideNumber}/{resumeItem.slideCount}
+                    </span>
+                  </div>
+
+                  {/* Visual Slide Deck Preview Geometry */}
+                  <div className="space-y-1.5 z-10 pl-1">
+                    <div className="h-2 w-20 bg-[#D89A06]/70 rounded-full" />
+                    <div className="h-1.5 w-32 bg-white/40 rounded-full" />
+                    <div className="h-1.5 w-24 bg-white/30 rounded-full" />
+                  </div>
+
+                  {/* Bottom Slide Meta */}
+                  <div className="flex items-center justify-between pt-1.5 border-t border-white/10 text-[10px] font-mono text-white/80 z-10">
+                    <span className="truncate max-w-[110px]">{resumeItem.lectureTitle}</span>
+                    <span className="text-[#D89A06] font-bold">
+                      {Math.min(100, Math.round((resumeItem.slideNumber / resumeItem.slideCount) * 100))}%
+                    </span>
+                  </div>
+                </div>
+
                 <div className="space-y-2 min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="inline-flex items-center gap-1 rounded-md bg-[#FEF8E7] dark:bg-[#00004E] border border-[#D89A06]/40 px-2 py-0.5 text-[11px] font-mono font-bold text-[#00004E] dark:text-[#D89A06]">
@@ -457,7 +495,7 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
                     <div className="pt-1 space-y-1.5 max-w-md">
                       <div className="flex items-center justify-between text-xs tabular-nums">
                         <span className="text-muted-foreground">
-                          Slide <strong className="text-foreground">{resumeItem.slideNumber}</strong> of {resumeItem.slideCount}
+                          Deck Progress: <strong className="text-foreground">Slide {resumeItem.slideNumber}</strong> of {resumeItem.slideCount}
                         </span>
                         <span className="font-mono font-bold text-[#00004E] dark:text-[#D89A06]">
                           {Math.min(100, Math.round((resumeItem.slideNumber / resumeItem.slideCount) * 100))}%
@@ -475,13 +513,13 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
                   ) : null}
                 </div>
 
-                <div className="flex sm:flex-row md:flex-col items-stretch sm:items-center md:items-end gap-2 shrink-0">
+                <div className="flex sm:flex-row md:flex-col items-stretch sm:items-center md:items-end gap-2.5 shrink-0">
                   <Link
                     href={`/dashboard/courses/${resumeItem.courseId}/lectures/${resumeItem.lectureId}`}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#00004E] text-white border border-[#D89A06] hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] px-4 py-2.5 text-sm font-bold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#00004E] text-white border border-[#D89A06] hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] px-5 py-2.5 text-sm font-bold transition-all shadow-md cursor-pointer active:scale-[0.98]"
                   >
-                    Continue Deck
-                    <ArrowRight className="h-4 w-4 text-[#D89A06]" strokeWidth={2} />
+                    Resume Deck
+                    <ArrowRight className="h-4 w-4 text-[#D89A06] dark:text-[#00004E]" strokeWidth={2} />
                   </Link>
                   <Link
                     href={`/dashboard/courses/${resumeItem.courseId}/quiz`}
@@ -493,22 +531,22 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
               </div>
             </section>
           ) : (
-            <section className="rounded-2xl border-2 border-[#D89A06]/30 bg-white dark:bg-card p-6 shadow-xs space-y-5">
+            <section className="rounded-2xl border-2 border-[#D89A06]/35 bg-white dark:bg-card p-6 shadow-xs space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-[#00004E] dark:text-[#D89A06] bg-[#FEF8E7] dark:bg-[#00004E] px-2.5 py-0.5 rounded-full border border-[#D89A06]/40">
-                    Getting Started
+                    Quick Start
                   </span>
-                  <h2 className="text-xl font-black tracking-tight text-[#00004E] dark:text-white mt-2">
-                    Build your semester study workspace
+                  <h2 className="text-xl font-black tracking-tight text-[#00004E] dark:text-white mt-1.5">
+                    Activate Your Study Workspace
                   </h2>
-                  <p className="text-sm text-muted-foreground mt-1 max-w-xl">
-                    Add your courses, upload lecture slides, or import past papers to unlock spaced-repetition cards and AI exam feedback.
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Select a tool to jump straight into revision:
                   </p>
                 </div>
                 <Link
                   href="/dashboard/courses?action=new"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#00004E] text-white border border-[#D89A06] hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] px-4 py-2.5 text-sm font-bold transition-all shadow-xs cursor-pointer shrink-0"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#00004E] text-white border border-[#D89A06] hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] px-4 py-2 text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
                 >
                   <FolderPlus className="h-4 w-4" strokeWidth={2} />
                   Create First Course
@@ -518,27 +556,59 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <Link
                   href="/dashboard/courses?action=new"
-                  className="rounded-xl border border-border/70 bg-muted/30 p-3.5 hover:border-primary/40 transition-colors cursor-pointer"
+                  className="group rounded-xl border border-border/80 bg-muted/20 hover:bg-[#FEF8E7]/40 dark:hover:bg-white/5 hover:border-[#D89A06] p-4 transition-all cursor-pointer flex flex-col justify-between"
                 >
-                  <div className="font-mono text-xs font-semibold text-primary mb-1">01 / SYLLABUS &amp; SLIDES</div>
-                  <div className="text-sm font-semibold text-foreground">Create a course</div>
-                  <p className="text-xs text-muted-foreground mt-1">Upload PDFs to auto-extract flashcards, slide summaries, and practice quizzes.</p>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="w-8 h-8 rounded-lg bg-[#00004E] text-[#D89A06] flex items-center justify-center border border-[#D89A06]/40 shadow-xs group-hover:scale-105 transition-transform">
+                      <BookOpen className="w-4 h-4" />
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-[#D89A06] uppercase">01 / Course</span>
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-foreground group-hover:text-[#00004E] dark:group-hover:text-[#D89A06]">Upload Slide Decks</div>
+                    <p className="text-xs text-muted-foreground mt-1">Extract flashcards &amp; summaries from PDF slides.</p>
+                  </div>
+                  <div className="mt-3 flex items-center text-xs font-bold text-[#00004E] dark:text-[#D89A06]">
+                    Get Started &rarr;
+                  </div>
                 </Link>
+
                 <Link
-                  href="/dashboard/past-papers?action=upload"
-                  className="rounded-xl border border-border/70 bg-muted/30 p-3.5 hover:border-primary/40 transition-colors cursor-pointer"
+                  href="/dashboard/past-papers"
+                  className="group rounded-xl border border-border/80 bg-muted/20 hover:bg-[#FEF8E7]/40 dark:hover:bg-white/5 hover:border-[#D89A06] p-4 transition-all cursor-pointer flex flex-col justify-between"
                 >
-                  <div className="font-mono text-xs font-semibold text-primary mb-1">02 / EXAM PREP</div>
-                  <div className="text-sm font-semibold text-foreground">Upload past papers</div>
-                  <p className="text-xs text-muted-foreground mt-1">Attempt timed papers and receive step-by-step AI examiner marking.</p>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="w-8 h-8 rounded-lg bg-[#00004E] text-[#D89A06] flex items-center justify-center border border-[#D89A06]/40 shadow-xs group-hover:scale-105 transition-transform">
+                      <FileCheck2 className="w-4 h-4" />
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-[#D89A06] uppercase">02 / Exam Prep</span>
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-foreground group-hover:text-[#00004E] dark:group-hover:text-[#D89A06]">Solve Past Papers</div>
+                    <p className="text-xs text-muted-foreground mt-1">Practice timed papers with AI marking &amp; grading.</p>
+                  </div>
+                  <div className="mt-3 flex items-center text-xs font-bold text-[#00004E] dark:text-[#D89A06]">
+                    Open Questions &rarr;
+                  </div>
                 </Link>
+
                 <Link
-                  href="/dashboard/calendar?action=add"
-                  className="rounded-xl border border-border/70 bg-muted/30 p-3.5 hover:border-primary/40 transition-colors cursor-pointer"
+                  href="/dashboard/chat"
+                  className="group rounded-xl border border-border/80 bg-muted/20 hover:bg-[#FEF8E7]/40 dark:hover:bg-white/5 hover:border-[#D89A06] p-4 transition-all cursor-pointer flex flex-col justify-between"
                 >
-                  <div className="font-mono text-xs font-semibold text-primary mb-1">03 / TIMELINE</div>
-                  <div className="text-sm font-semibold text-foreground">Schedule exam dates</div>
-                  <p className="text-xs text-muted-foreground mt-1">Track countdowns and generate an adaptive weekly revision timetable.</p>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="w-8 h-8 rounded-lg bg-[#00004E] text-[#D89A06] flex items-center justify-center border border-[#D89A06]/40 shadow-xs group-hover:scale-105 transition-transform">
+                      <BrainCircuit className="w-4 h-4" />
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-[#D89A06] uppercase">03 / Companion</span>
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-foreground group-hover:text-[#00004E] dark:group-hover:text-[#D89A06]">AI Study Tutor</div>
+                    <p className="text-xs text-muted-foreground mt-1">Ask questions, explain formulas &amp; review notes.</p>
+                  </div>
+                  <div className="mt-3 flex items-center text-xs font-bold text-[#00004E] dark:text-[#D89A06]">
+                    Start Chat &rarr;
+                  </div>
                 </Link>
               </div>
             </section>
