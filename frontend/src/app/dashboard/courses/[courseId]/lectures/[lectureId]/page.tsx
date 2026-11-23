@@ -202,6 +202,7 @@ export default function LectureViewer() {
   const lastWheelTimeRef = useRef<number>(0);
   const thumbnailStripRef = useRef<HTMLDivElement>(null);
   const slideContainerRef = useRef<HTMLDivElement>(null);
+  const slideOuterContainerRef = useRef<HTMLDivElement>(null);
 
   // --- Slide Scoped Zoom & Pan State (strictly isolated to slide previewer) ---
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
@@ -253,11 +254,11 @@ export default function LectureViewer() {
     setIsPanning(false);
   }, [slideIndex]);
 
-  // Non-passive event listener on slideContainerRef to intercept Ctrl+Wheel / Pinch-to-zoom
+  // Non-passive event listener on slide preview containers to intercept Ctrl+Wheel / Pinch-to-zoom
   // This GUARANTEES the outer browser and website layout never zooms.
   useEffect(() => {
-    const container = slideContainerRef.current;
-    if (!container) return;
+    const targets = [slideContainerRef.current, slideOuterContainerRef.current].filter(Boolean) as HTMLElement[];
+    if (targets.length === 0) return;
 
     const handleNativeWheel = (e: WheelEvent) => {
       // 1. Pinch or Ctrl/Cmd + Wheel: Zoom slide only and prevent browser whole-page zoom
@@ -283,11 +284,11 @@ export default function LectureViewer() {
       }
     };
 
-    container.addEventListener('wheel', handleNativeWheel, { passive: false });
+    targets.forEach(t => t.addEventListener('wheel', handleNativeWheel, { passive: false }));
     return () => {
-      container.removeEventListener('wheel', handleNativeWheel);
+      targets.forEach(t => t.removeEventListener('wheel', handleNativeWheel));
     };
-  }, []);
+  }, [slidesLoading, loadingData]);
 
   const handleZoomIn = (e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -1078,13 +1079,34 @@ export default function LectureViewer() {
     };
   }, [lectureId]);
 
-  const handleGenerateExplanation = async (targetIndex?: number) => {
+  const handleGenerateExplanation = async (targetIndex?: number, forceFresh: boolean = false) => {
     const idx = typeof targetIndex === 'number' ? targetIndex : slideIndex;
     const targetSlide = slides[idx];
     if (!targetSlide || (!targetSlide.raw_text && !targetSlide.explanation && !targetSlide.image_url)) {
       toast.info('No content or image available on this slide to explain.');
       return;
     }
+
+    const slideId = targetSlide.id || `${lectureId}-${idx}`;
+
+    // Fast-path: 0ms local cache read if already explained and not forced fresh
+    if (!forceFresh) {
+      if (slideExplanations[idx] && !slideExplanations[idx].startsWith('**Error:') && !slideExplanations[idx].includes('AI API returned an error')) {
+        return; // Already active in UI in 0ms!
+      }
+      if (typeof window !== 'undefined') {
+        const localCached = localStorage.getItem(`offline_exp_${slideId}`);
+        if (localCached && !localCached.includes('Showing mock response') && !localCached.includes('AI API returned an error') && !localCached.startsWith('**Error:')) {
+          setSlideExplanations(prev => ({ ...prev, [idx]: localCached }));
+          return;
+        }
+      }
+      if (targetSlide.explanation && targetSlide.explanation !== 'Explanation pending.' && !targetSlide.explanation.startsWith('Text extraction failed')) {
+        setSlideExplanations(prev => ({ ...prev, [idx]: targetSlide.explanation }));
+        return;
+      }
+    }
+
     setLoadingAI(true);
     setSlideExplanations(prev => ({ ...prev, [idx]: '' }));
 
@@ -1532,6 +1554,8 @@ export default function LectureViewer() {
         <div className="flex-1 flex flex-col overflow-hidden border-r border-border">
           {/* Slide display */}
           <div 
+            ref={slideOuterContainerRef}
+            style={{ overscrollBehavior: 'contain', touchAction: 'none' }}
             className="flex-1 flex items-center justify-center p-6 overflow-hidden bg-muted/10 cursor-default"
             onWheel={handleSlideWheel}
           >
@@ -1976,7 +2000,7 @@ export default function LectureViewer() {
               <Button variant="ghost" size="icon-sm" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => setIsYoutubeOpen(true)} title="Find Resources">
                 <PlaySquare size={16} />
               </Button>
-              <Button variant="ghost" size="icon-sm" className="text-blue-500 hover:text-blue-600 hover:bg-blue-50" onClick={() => handleGenerateExplanation(slideIndex)} title="Regenerate Explanation" disabled={loadingAI}>
+              <Button variant="ghost" size="icon-sm" className="text-blue-500 hover:text-blue-600 hover:bg-blue-50" onClick={() => handleGenerateExplanation(slideIndex, true)} title="Regenerate Explanation" disabled={loadingAI}>
                 <RefreshCw size={16} className={loadingAI ? "animate-spin" : ""} />
               </Button>
               <Button variant="ghost" size="icon-sm" className="text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50" onClick={() => setIsChatOpen(true)} title="Ask AI about this slide">
@@ -2019,13 +2043,13 @@ export default function LectureViewer() {
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
                   <DropdownMenuLabel className="text-[10px] tracking-widest uppercase text-muted-foreground">Style</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => { setExplainMode('standard'); handleGenerateExplanation(slideIndex); }} className={explainMode === 'standard' ? 'bg-primary/10 text-primary font-semibold' : ''}>
+                  <DropdownMenuItem onClick={() => { setExplainMode('standard'); handleGenerateExplanation(slideIndex, true); }} className={explainMode === 'standard' ? 'bg-primary/10 text-primary font-semibold' : ''}>
                     Standard
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setExplainMode('story'); handleGenerateExplanation(slideIndex); }} className={explainMode === 'story' ? 'bg-primary/10 text-primary font-semibold' : ''}>
+                  <DropdownMenuItem onClick={() => { setExplainMode('story'); handleGenerateExplanation(slideIndex, true); }} className={explainMode === 'story' ? 'bg-primary/10 text-primary font-semibold' : ''}>
                     Story
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setExplainMode('conceptual'); handleGenerateExplanation(slideIndex); }} className={explainMode === 'conceptual' ? 'bg-primary/10 text-primary font-semibold' : ''}>
+                  <DropdownMenuItem onClick={() => { setExplainMode('conceptual'); handleGenerateExplanation(slideIndex, true); }} className={explainMode === 'conceptual' ? 'bg-primary/10 text-primary font-semibold' : ''}>
                     Conceptual
                   </DropdownMenuItem>
                 </DropdownMenuGroup>

@@ -664,29 +664,7 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
 `;
 
   try {
-    const parts: any[] = [{ text: prompt }];
-
-    if (imageUrl && imageUrl !== 'https://example.com/placeholder.png') {
-      try {
-        const imageRes = await fetch(imageUrl);
-        if (imageRes.ok) {
-          const arrayBuffer = await imageRes.arrayBuffer();
-          const base64 = Buffer.from(arrayBuffer).toString('base64');
-          let mimeType = imageRes.headers.get('content-type') || 'image/png';
-          mimeType = mimeType.split(';')[0];
-          parts.push({
-            inlineData: {
-              data: base64,
-              mimeType: mimeType
-            }
-          });
-        }
-      } catch (err) {
-        console.error("Failed to fetch image for Gemini vision processing:", err);
-      }
-    }
-
-    // Send SSE headers immediately so the browser receives an instant connection
+    // Send SSE headers immediately so the browser receives an instant connection (0-20ms TTFB)
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
@@ -698,6 +676,7 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
     let fullText = '';
 
     // Fast-path 1: Stream from Groq (ultra-low latency ~200ms) using slide text and vision context
+    // This executes IMMEDIATELY without blocking on image download
     if (process.env.GROQ_API_KEY && (cleanSlideText || cleanVisionEx)) {
       try {
         const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -723,9 +702,31 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
       }
     }
 
-    // Path 2: If Groq didn't yield text, stream from Gemini Vision
+    // Path 2: If Groq didn't yield text, prepare Vision parts (on-demand image fetch) and stream from Gemini Vision
     if (!fullText && process.env.GEMINI_API_KEY) {
       try {
+        const parts: any[] = [{ text: prompt }];
+
+        if (imageUrl && imageUrl !== 'https://example.com/placeholder.png') {
+          try {
+            const imageRes = await fetch(imageUrl);
+            if (imageRes.ok) {
+              const arrayBuffer = await imageRes.arrayBuffer();
+              const base64 = Buffer.from(arrayBuffer).toString('base64');
+              let mimeType = imageRes.headers.get('content-type') || 'image/png';
+              mimeType = mimeType.split(';')[0];
+              parts.push({
+                inlineData: {
+                  data: base64,
+                  mimeType: mimeType
+                }
+              });
+            }
+          } catch (err) {
+            console.error("Failed to fetch image for Gemini vision processing:", err);
+          }
+        }
+
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         for (const modelName of GEMINI_VISION_MODELS) {
           try {
