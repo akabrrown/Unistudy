@@ -45,6 +45,7 @@ import {
   FileText,
   Image as ImageIcon,
   Quote,
+  Square,
 } from 'lucide-react';
 import {
   requestPersistentStorage,
@@ -503,6 +504,7 @@ export default function GeneralAiChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isHydratedRef = useRef(false);
 
@@ -1057,9 +1059,12 @@ export default function GeneralAiChatPage() {
         };
       }
 
+      const controller = new AbortController();
+      abortRef.current = controller;
       const res = await fetch('/api/ai/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           feature: 'ai-tutor',
           payload,
@@ -1146,6 +1151,10 @@ export default function GeneralAiChatPage() {
         )
       );
     } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        toast.info('Stopped. Edit your message or send a new one.');
+        return;
+      }
       const msg = err instanceof Error ? err.message : 'Something went wrong';
       toast.error(`AI Error: ${msg}`);
       const errorMessage: ChatMessage = {
@@ -2365,12 +2374,12 @@ export default function GeneralAiChatPage() {
             />
 
             <Button
-              onClick={() => handleSendMessage()}
-              disabled={(!inputPrompt.trim() && pendingAttachments.length === 0) || isLoading}
+              onClick={() => (isLoading ? abortRef.current?.abort() : handleSendMessage())}
+              disabled={!isLoading && !inputPrompt.trim() && pendingAttachments.length === 0}
               className="h-10 w-10 p-0 rounded-xl bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] transition-all shadow-2xs flex-shrink-0 cursor-pointer disabled:opacity-40"
-              title="Send Message (Enter)"
+              title={isLoading ? 'Stop generating' : 'Send Message (Enter)'}
             >
-              <Send className="h-4 w-4" />
+              {isLoading ? <Square className="h-4 w-4 fill-current" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
         </div>
