@@ -62,7 +62,11 @@ async function generateFlashcardsWithAI(slidesInput: SlideFlashcardInput[] | str
         const cards = parseFlashcardsJson(result.response.text())
         if (cards.length > 0) return cards.slice(0, 15)
       } catch (err: unknown) {
-        console.warn(`[Flashcards] Gemini ${modelName} failed:`, err instanceof Error ? err.message : err)
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[Flashcards] Gemini ${modelName} failed:`, msg);
+        if (msg.includes('403') || msg.includes('Permission denied') || msg.includes('ACCESS_DENIED')) {
+          break;
+        }
       }
     }
   }

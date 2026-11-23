@@ -174,6 +174,9 @@ async function tryGemini(
     } catch (mErr: unknown) {
       const msg = mErr instanceof Error ? mErr.message : String(mErr);
       console.warn(`[API /ai/ask] Gemini model ${modelName} failed:`, msg);
+      if (msg.includes('403') || msg.includes('Permission denied') || msg.includes('ACCESS_DENIED')) {
+        break; // API key lacks Generative Language service permission; skip remaining models
+      }
     }
   }
   return null;

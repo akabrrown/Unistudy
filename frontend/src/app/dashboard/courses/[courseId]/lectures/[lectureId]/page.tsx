@@ -1081,7 +1081,7 @@ export default function LectureViewer() {
             prevSlideText: idx > 0 ? (slides[idx - 1]?.raw_text !== 'Text extraction failed.' ? slides[idx - 1]?.raw_text : '') : '',
             nextSlideText: idx < slides.length - 1 ? (slides[idx + 1]?.raw_text !== 'Text extraction failed.' ? slides[idx + 1]?.raw_text : '') : ''
           }),
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(12000),
         });
       } catch (backendErr) {
         console.warn('Backend /ai/explain unreachable, falling back to Next.js /api/ai/explain-slide:', backendErr);
@@ -1089,9 +1089,16 @@ export default function LectureViewer() {
 
       if (!res || !res.ok) {
         // Fast Next.js Server fallback (150-300ms direct execution)
+        const supabaseClient = createClient();
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+
         const fallbackRes = await fetch('/api/ai/explain-slide', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
           body: JSON.stringify({
             slideText: cleanText,
             level,
@@ -1121,20 +1128,25 @@ export default function LectureViewer() {
       if (!reader) throw new Error('No readable stream');
 
       let fullEx = '';
+      let buffer = '';
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        for (const line of chunk.split('\n\n')) {
-          if (!line.startsWith('data: ')) continue;
-          const dataStr = line.slice(6);
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data: ')) continue;
+          const dataStr = trimmed.slice(6);
           if (dataStr === '[DONE]') break;
           try {
             const data = JSON.parse(dataStr);
             fullEx += data;
             setSlideExplanations(prev => ({ ...prev, [idx]: (prev[idx] || '') + data }));
           } catch {
-            // ignore malformed chunks
+            fullEx += dataStr;
+            setSlideExplanations(prev => ({ ...prev, [idx]: (prev[idx] || '') + dataStr }));
           }
         }
       }

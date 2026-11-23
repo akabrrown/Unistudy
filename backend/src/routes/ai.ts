@@ -697,14 +697,12 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
 
     let fullText = '';
 
-    // Fast-path 1: If slide has clean text and NO image, stream from Groq in < 200ms
-    const hasValidImage = Boolean(imageUrl && imageUrl !== 'https://example.com/placeholder.png' && !imageUrl.includes('placeholder'));
-    
-    if (!hasValidImage && process.env.GROQ_API_KEY) {
+    // Fast-path 1: Stream from Groq (ultra-low latency ~200ms) using slide text and vision context
+    if (process.env.GROQ_API_KEY && (cleanSlideText || cleanVisionEx)) {
       try {
         const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
         const groqStream = await groq.chat.completions.create({
-          model: GROQ_SMART_MODELS[0] || 'llama-3.3-70b-versatile',
+          model: GROQ_SMART_MODELS[0] || 'qwen/qwen3.8-27b',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: prompt }
@@ -721,11 +719,11 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
           }
         }
       } catch (groqFastErr) {
-        console.warn('[AI Explain] Groq fast-path notice, falling back to Gemini:', groqFastErr);
+        console.warn('[AI Explain] Groq fast-path notice, trying next provider:', groqFastErr);
       }
     }
 
-    // Path 2: If image is present or Groq didn't yield text, stream from Gemini Vision
+    // Path 2: If Groq didn't yield text, stream from Gemini Vision
     if (!fullText && process.env.GEMINI_API_KEY) {
       try {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -743,6 +741,9 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
             if (fullText) break; // Successful stream
           } catch (modelErr: any) {
             console.warn(`[AI Explain] Gemini model ${modelName} stream notice:`, modelErr?.message || modelErr);
+            if (modelErr?.message?.includes('403') || modelErr?.message?.includes('Permission denied')) {
+              break; // Key lacks permission on service; skip rest of Gemini models immediately
+            }
           }
         }
       } catch (geminiErr: any) {
@@ -750,12 +751,62 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
       }
     }
 
-    // Path 3: Fallback to Groq text completion if needed
+    // Path 3: OpenRouter streaming fallback (meta-llama/llama-3.3-70b-instruct or qwen/qwen-2.5-72b-instruct)
+    if (!fullText && process.env.OPENROUTER_API_KEY) {
+      try {
+        const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: OPENROUTER_CANDIDATE_MODELS[0] || 'meta-llama/llama-3.3-70b-instruct',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: prompt }
+            ],
+            stream: true,
+          }),
+        });
+
+        if (orRes.ok && orRes.body) {
+          const reader = orRes.body.getReader();
+          const decoder = new TextDecoder();
+          let orBuffer = '';
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            orBuffer += decoder.decode(value, { stream: true });
+            const lines = orBuffer.split('\n\n');
+            orBuffer = lines.pop() || '';
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith('data: ')) continue;
+              const dataStr = trimmed.slice(6);
+              if (dataStr === '[DONE]') break;
+              try {
+                const parsed = JSON.parse(dataStr);
+                const delta = parsed.choices?.[0]?.delta?.content || '';
+                if (delta) {
+                  fullText += delta;
+                  res.write(`data: ${JSON.stringify(delta)}\n\n`);
+                }
+              } catch {}
+            }
+          }
+        }
+      } catch (orErr) {
+        console.warn('[AI Explain] OpenRouter streaming error:', orErr);
+      }
+    }
+
+    // Path 4: Secondary Groq attempt
     if (!fullText && process.env.GROQ_API_KEY) {
       try {
         const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
         const groqStream = await groq.chat.completions.create({
-          model: GROQ_SMART_MODELS[0] || 'llama-3.3-70b-versatile',
+          model: GROQ_SMART_MODELS[1] || 'openai/gpt-oss-120b',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: prompt }
@@ -791,10 +842,10 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      res.write(`data: ${JSON.stringify(`\n\n**Note:** *AI API returned an error (${err?.message?.split('.')[0] || 'Quota Exceeded'}). Showing mock response.*\n\nThis is a tailored explanation of the slide content at the **${level}** level.`)}\n\n`);
-      res.write('data: [DONE]\n\n');
-      res.end();
     }
+    res.write(`data: ${JSON.stringify(`\n\n### Slide Overview\n\n${cleanSlideText || 'Please review the slide material.'}`)}\n\n`);
+    res.write('data: [DONE]\n\n');
+    res.end();
   }
   } catch (outerErr: any) {
     console.error("CRITICAL ROUTE ERROR:", outerErr);

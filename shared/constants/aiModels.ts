@@ -7,15 +7,19 @@ export const GEMINI_CANDIDATE_MODELS = [
 ] as const;
 
 export const GROQ_FAST_MODELS = [
+  'qwen/qwen3.8-27b',
+  'openai/gpt-oss-20b',
+  'openai/gpt-oss-120b',
+  'allam-2-7b',
   'llama-3.1-8b-instant',
-  'llama-3.3-70b-versatile',
-  'gemma2-9b-it',
 ] as const;
 
 export const GROQ_SMART_MODELS = [
+  'qwen/qwen3.8-27b',
+  'openai/gpt-oss-120b',
+  'openai/gpt-oss-20b',
+  'allam-2-7b',
   'llama-3.3-70b-versatile',
-  'llama-3.1-8b-instant',
-  'mixtral-8x7b-32768',
 ] as const;
 
 export const MISTRAL_VISION_MODELS = [
@@ -25,10 +29,10 @@ export const MISTRAL_VISION_MODELS = [
 ] as const;
 
 export const OPENROUTER_CANDIDATE_MODELS = [
-  'google/gemini-2.0-flash-001',
-  'google/gemini-flash-1.5',
   'meta-llama/llama-3.3-70b-instruct',
   'qwen/qwen-2.5-72b-instruct',
+  'google/gemini-2.0-flash-exp:free',
+  'google/gemini-flash-1.5',
 ] as const;
 
 export const AGENTROUTER_CANDIDATE_MODELS = [

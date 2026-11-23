@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Groq from 'groq-sdk'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { GROQ_SMART_MODELS, GEMINI_CANDIDATE_MODELS } from '../../../../shared/constants/aiModels'
+import { GROQ_SMART_MODELS, GEMINI_CANDIDATE_MODELS, OPENROUTER_CANDIDATE_MODELS } from '../../../../shared/constants/aiModels'
 
 export async function generateSlideExplanation(
   slideText: string,
@@ -26,12 +26,12 @@ export async function generateSlideExplanation(
     const systemPrompt = 'You are an expert university AI tutor. Explain the slide clearly, concisely, and pedagogically in Markdown. Avoid generic introductions. Highlight key terms in bold.';
     const prompt = `Course: ${courseContext}\nStudent Level: ${level}\n\n${cleanText ? `Slide Content:\n"""\n${cleanText}\n"""\n` : ''}${cleanVision ? `Visual Context:\n"""\n${cleanVision}\n"""\n` : ''}Provide a clear, high-yield explanation in under 250 words.`;
 
-    // 1. Fast path: Direct Groq execution (150-300ms) when text is available
-    if (process.env.GROQ_API_KEY && (!imageUrl || imageUrl.includes('placeholder') || cleanText.length > 20)) {
+    // 1. Fast path: Direct Groq execution (150-300ms)
+    if (process.env.GROQ_API_KEY && (cleanText || cleanVision)) {
       try {
         const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
         const completion = await groq.chat.completions.create({
-          model: GROQ_SMART_MODELS[0] || 'llama-3.3-70b-versatile',
+          model: GROQ_SMART_MODELS[0] || 'qwen/qwen3.8-27b',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: prompt }
@@ -43,11 +43,42 @@ export async function generateSlideExplanation(
           return { explanation: text };
         }
       } catch (groqErr) {
-        console.warn('[actions/explain] Groq direct notice, trying Gemini:', groqErr);
+        console.warn('[actions/explain] Groq direct notice, trying next provider:', groqErr);
       }
     }
 
-    // 2. Direct Gemini execution (Fast multimodal vision & text)
+    // 2. OpenRouter execution (meta-llama/llama-3.3-70b-instruct or qwen/qwen-2.5-72b-instruct)
+    if (process.env.OPENROUTER_API_KEY && (cleanText || cleanVision)) {
+      try {
+        const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: OPENROUTER_CANDIDATE_MODELS[0] || 'meta-llama/llama-3.3-70b-instruct',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.5,
+          }),
+          signal: AbortSignal.timeout(5000),
+        });
+        if (orRes.ok) {
+          const orData = await orRes.json();
+          const text = orData.choices?.[0]?.message?.content?.trim();
+          if (text) {
+            return { explanation: text };
+          }
+        }
+      } catch (orErr) {
+        console.warn('[actions/explain] OpenRouter direct notice:', orErr);
+      }
+    }
+
+    // 3. Direct Gemini execution (Fast multimodal vision & text)
     if (process.env.GEMINI_API_KEY) {
       try {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -80,8 +111,11 @@ export async function generateSlideExplanation(
             if (text) {
               return { explanation: text };
             }
-          } catch (modelErr) {
-            console.warn(`[actions/explain] Gemini ${modelName} notice:`, modelErr);
+          } catch (modelErr: any) {
+            console.warn(`[actions/explain] Gemini ${modelName} notice:`, modelErr?.message || modelErr);
+            if (modelErr?.message?.includes('403') || modelErr?.message?.includes('Permission denied')) {
+              break;
+            }
           }
         }
       } catch (geminiErr) {
@@ -89,7 +123,7 @@ export async function generateSlideExplanation(
       }
     }
 
-    // 3. Backend bridge fallback
+    // 4. Backend bridge fallback
     const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8005';
     try {
       const res = await fetch(`${BACKEND_URL}/api/ai/explain`, {
@@ -99,7 +133,7 @@ export async function generateSlideExplanation(
           'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({ slideText, level, courseContext, visionExplanation, imageUrl }),
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(8000),
       });
 
       if (res.ok) {
