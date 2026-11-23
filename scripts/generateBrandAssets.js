@@ -5,9 +5,43 @@ const sharp = require('sharp');
 // Ensure directories exist
 const brandDir = path.join(__dirname, '../frontend/public/brand');
 const publicDir = path.join(__dirname, '../frontend/public');
+const appDir = path.join(__dirname, '../frontend/src/app');
 const mobileDir = path.join(__dirname, '../mobile/assets');
 
 if (!fs.existsSync(brandDir)) fs.mkdirSync(brandDir, { recursive: true });
+if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
+if (!fs.existsSync(appDir)) fs.mkdirSync(appDir, { recursive: true });
+
+/**
+ * Creates a valid multi-resolution Windows ICO buffer containing PNG frames.
+ * Standard format supported by 100% of modern browsers (Chrome, Edge, Safari, Firefox).
+ * @param {Array<{ buffer: Buffer, width: number, height: number }>} pngBuffers
+ */
+function createIco(pngBuffers) {
+  const count = pngBuffers.length;
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0); // reserved
+  header.writeUInt16LE(1, 2); // ICO type (1 for icon)
+  header.writeUInt16LE(count, 4); // count of images
+
+  let offset = 6 + count * 16;
+  const dirEntries = [];
+  for (const item of pngBuffers) {
+    const entry = Buffer.alloc(16);
+    entry.writeUInt8(item.width >= 256 ? 0 : item.width, 0);
+    entry.writeUInt8(item.height >= 256 ? 0 : item.height, 1);
+    entry.writeUInt8(0, 2); // color count (0 = 256+ colors)
+    entry.writeUInt8(0, 3); // reserved
+    entry.writeUInt16LE(1, 4); // color planes
+    entry.writeUInt16LE(32, 6); // bits per pixel
+    entry.writeUInt32LE(item.buffer.length, 8); // size of image data in bytes
+    entry.writeUInt32LE(offset, 12); // offset of image data
+    dirEntries.push(entry);
+    offset += item.buffer.length;
+  }
+
+  return Buffer.concat([header, ...dirEntries, ...pngBuffers.map((p) => p.buffer)]);
+}
 
 /**
  * Generates the master collegiate emblem SVG group.
@@ -268,32 +302,63 @@ async function generateAll() {
     }
   }
 
-  // Also copy key root public assets
-  fs.writeFileSync(path.join(publicDir, 'logo.svg'), buildPrimarySvg('color'), 'utf8');
-  fs.writeFileSync(path.join(publicDir, 'logo-dark.svg'), buildPrimarySvg('reversed'), 'utf8');
-  fs.writeFileSync(path.join(publicDir, 'favicon.svg'), buildIconSvg('color', false), 'utf8');
+  // Master Favicon & App Icons
+  const iconTileSvg = buildIconSvg('color', true);
+  const iconRawSvg = buildIconSvg('color', false);
 
-  // App & Web icons in public root
-  await sharp(Buffer.from(buildIconSvg('color', false)))
-    .resize(512, 512)
-    .png({ quality: 100 })
-    .toFile(path.join(publicDir, 'icon.png'));
+  // 1. Vector Favicons (.svg)
+  fs.writeFileSync(path.join(publicDir, 'favicon.svg'), iconTileSvg, 'utf8');
+  fs.writeFileSync(path.join(brandDir, 'favicon.svg'), iconTileSvg, 'utf8');
+  fs.writeFileSync(path.join(appDir, 'favicon.svg'), iconTileSvg, 'utf8');
+  fs.writeFileSync(path.join(appDir, 'icon.svg'), iconTileSvg, 'utf8');
 
-  await sharp(Buffer.from(buildIconSvg('color', true)))
+  // 2. Multi-Resolution ICO generation (16x16, 32x32, 48x48)
+  const ico16 = await sharp(Buffer.from(iconTileSvg)).resize(16, 16).png({ quality: 100 }).toBuffer();
+  const ico32 = await sharp(Buffer.from(iconTileSvg)).resize(32, 32).png({ quality: 100 }).toBuffer();
+  const ico48 = await sharp(Buffer.from(iconTileSvg)).resize(48, 48).png({ quality: 100 }).toBuffer();
+
+  const icoBuffer = createIco([
+    { buffer: ico16, width: 16, height: 16 },
+    { buffer: ico32, width: 32, height: 32 },
+    { buffer: ico48, width: 48, height: 48 },
+  ]);
+
+  fs.writeFileSync(path.join(publicDir, 'favicon.ico'), icoBuffer);
+  fs.writeFileSync(path.join(appDir, 'favicon.ico'), icoBuffer);
+  console.log('✅ Generated valid multi-resolution favicon.ico in public/ and src/app/');
+
+  // 3. Apple Touch Icon (180x180)
+  const appleIconBuffer = await sharp(Buffer.from(iconTileSvg))
     .resize(180, 180)
     .png({ quality: 100 })
-    .toFile(path.join(publicDir, 'apple-icon.png'));
+    .toBuffer();
+  fs.writeFileSync(path.join(publicDir, 'apple-icon.png'), appleIconBuffer);
+  fs.writeFileSync(path.join(appDir, 'apple-icon.png'), appleIconBuffer);
+  console.log('✅ Generated apple-icon.png (180x180) in public/ and src/app/');
 
-  // Mobile App Icon
+  // 4. Primary Web & App Icon (512x512)
+  const icon512Buffer = await sharp(Buffer.from(iconTileSvg))
+    .resize(512, 512)
+    .png({ quality: 100 })
+    .toBuffer();
+  fs.writeFileSync(path.join(publicDir, 'icon.png'), icon512Buffer);
+  fs.writeFileSync(path.join(appDir, 'icon.png'), icon512Buffer);
+  console.log('✅ Generated icon.png (512x512) in public/ and src/app/');
+
+  // 5. Root Logos
+  fs.writeFileSync(path.join(publicDir, 'logo.svg'), buildPrimarySvg('color'), 'utf8');
+  fs.writeFileSync(path.join(publicDir, 'logo-dark.svg'), buildPrimarySvg('reversed'), 'utf8');
+
+  // 6. Mobile App Icon (1024x1024)
   if (fs.existsSync(mobileDir)) {
-    await sharp(Buffer.from(buildIconSvg('color', true)))
+    await sharp(Buffer.from(iconTileSvg))
       .resize(1024, 1024)
       .png({ quality: 100 })
       .toFile(path.join(mobileDir, 'icon.png'));
     console.log('✅ Updated mobile/assets/icon.png (1024x1024)');
   }
 
-  console.log(`✅ All brand assets successfully generated in ${brandDir} and ${publicDir}`);
+  console.log(`✅ All brand & favicon assets successfully generated in ${brandDir}, ${publicDir}, and ${appDir}`);
 }
 
 generateAll().catch(err => {

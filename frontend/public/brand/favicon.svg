@@ -1,6 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%" fill="none">
     
-    <g transform="translate(8, 8) scale(1.12)">
+      <rect x="0" y="0" width="128" height="128" rx="28" fill="#00004E" />
+      <rect x="0.5" y="0.5" width="127" height="127" rx="27.5" stroke="#D89A06" stroke-opacity="0.4" stroke-width="1.5" />
+    
+    <g transform="translate(16, 16) scale(0.96)">
       
     <!-- Defs for Gradients & Shadow -->
     <defs>
