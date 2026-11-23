@@ -409,19 +409,14 @@ export function ProfileStudioClient({
 
   return (
     <div className="max-w-[1440px] mx-auto space-y-6 pb-12">
-      {/* Studio Header & Settings Switcher */}
-      <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-border/80 pb-5">
-        <div className="space-y-1.5">
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[11px] font-mono uppercase tracking-wider">
-            <UserIcon className="w-3.5 h-3.5" />
-            Academic Identity · AI Pedagogy · Scholar Dossier
-          </div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            Scholar Profile &amp; Academic Dossier
+      {/* Clean Account & Profile Header (No 'Mr. Ranedeer', 'Dossier', or 4-Card Telemetry Strip) */}
+      <header className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 border-b border-border/80 pb-5">
+        <div className="space-y-1">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+            Student Profile &amp; Tutor Preferences
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl">
-            Manage your university credentials, calibrate your Mr. Ranedeer AI Tutor persona and VARK
-            cognitive modality, and track verified academic milestones.
+            Update your university programme details, customize how your study tutor explains concepts, and view your study milestones.
           </p>
         </div>
 
@@ -454,108 +449,25 @@ export function ProfileStudioClient({
               className="inline-flex items-center gap-1.5 rounded-lg text-muted-foreground hover:text-foreground px-3 py-1.5 text-xs font-semibold transition-colors"
             >
               <History className="w-3.5 h-3.5" />
-              Audit Log
+              Usage History
             </Link>
           </div>
-
-          <button
-            type="button"
-            onClick={handleExportDossier}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card hover:bg-muted px-3.5 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 text-primary" />
-            Export Dossier
-          </button>
         </div>
       </header>
 
-      {/* 4-Tile Scholar Telemetry Strip */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Enrolled Syllabus
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {stats.coursesCount}{' '}
-              <span className="text-xs font-normal text-muted-foreground">courses</span>
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {stats.lecturesCount} lecture decks indexed
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-            <BookOpen className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Quiz Mastery
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {stats.quizCount > 0 ? `${stats.quizAvgScore}%` : '—'}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {stats.quizCount} attempts · {stats.perfectQuizCount} perfect 100%
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
-            <Target className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Retention &amp; Exams
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {stats.flashcardReps.toLocaleString()}{' '}
-              <span className="text-xs font-normal text-muted-foreground">reviews</span>
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {stats.pastPapersCount} timed past papers completed
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
-            <Layers className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Badges &amp; Wallet
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {earnedBadges.length}/{badgeCatalog.length}{' '}
-              <span className="text-xs font-normal text-muted-foreground">badges</span>
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {stats.walletBalance.toLocaleString()} AI compute credits
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-500">
-            <Award className="w-4 h-4" />
-          </div>
-        </div>
-      </section>
-
-      {/* Studio Mode Selector Tabs */}
+      {/* Profile Section Tabs */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3">
         <div className="inline-flex flex-wrap items-center gap-1 rounded-xl border border-border bg-muted/30 p-1">
           {(
             [
-              { id: 'dossier', label: 'Identity & Academic Dossier', icon: GraduationCap },
-              { id: 'pedagogy', label: 'AI Tutor & VARK Modality', icon: Brain },
+              { id: 'dossier', label: 'Academic Profile', icon: GraduationCap },
+              { id: 'pedagogy', label: 'Tutor & Learning Style', icon: Brain },
               {
                 id: 'achievements',
-                label: `Milestone Badges (${earnedBadges.length}/${badgeCatalog.length})`,
+                label: `Study Milestones (${earnedBadges.length}/${badgeCatalog.length})`,
                 icon: Trophy,
               },
-              { id: 'security', label: 'Credentials & Portability', icon: ShieldCheck },
+              { id: 'security', label: 'Account & Security', icon: ShieldCheck },
             ] as const
           ).map((tab) => {
             const Icon = tab.icon;
@@ -1264,10 +1176,10 @@ export function ProfileStudioClient({
               </div>
 
               <div className="rounded-xl border border-border/70 bg-muted/20 p-3.5 text-xs text-muted-foreground space-y-1">
-                <p className="font-semibold text-foreground">Included in Export Archive:</p>
-                <p>• Institutional credentials, handle, degree programme, and semester study goal</p>
-                <p>• Mr. Ranedeer AI Tutor persona, reading depth tier, and VARK learning style</p>
-                <p>• Cumulative quiz accuracy, flashcard repetitions, and unlocked badges</p>
+                <p className="font-semibold text-foreground">Included in Account Backup:</p>
+                <p>• University programme, academic level, and semester study goals</p>
+                <p>• Study tutor explanation preferences and preferred learning style</p>
+                <p>• Quiz scores, flashcard review counts, and earned study badges</p>
               </div>
             </div>
 
@@ -1285,7 +1197,7 @@ export function ProfileStudioClient({
                 className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 text-xs font-semibold transition-colors cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
-                Download Scholar Dossier (.JSON)
+                Download Account Data
               </button>
             </div>
           </div>

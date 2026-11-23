@@ -266,17 +266,13 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
       {/* Row 1: Command Header */}
       <header className="relative overflow-hidden rounded-2xl border-2 border-[#D89A06]/35 bg-white dark:bg-card p-5 md:p-6 shadow-sm space-y-4 before:absolute before:top-0 before:left-0 before:right-0 before:h-1.5 before:bg-gradient-to-r before:from-[#00004E] before:via-[#D89A06] before:to-[#00004E]">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="space-y-1.5 min-w-0">
+          <div className="space-y-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-mono uppercase tracking-wider text-[11px] text-[#00004E] dark:text-[#D89A06] bg-[#FEF8E7] dark:bg-[#00004E] px-2.5 py-0.5 rounded-full border border-[#D89A06]/40 font-bold">
-                UPSA Study Command Center
-              </span>
-              <span aria-hidden="true" className="text-[#D89A06]">/</span>
-              <span className="font-medium text-[#00004E] dark:text-white">{todayLabel}</span>
+              <span className="font-semibold text-[#00004E] dark:text-[#D89A06]">{todayLabel}</span>
               {academicSubtitle ? (
                 <>
-                  <span aria-hidden="true" className="text-[#D89A06]">/</span>
-                  <span className="truncate max-w-xs font-medium text-[#4B526B] dark:text-[#A3A8C2]">{academicSubtitle}</span>
+                  <span aria-hidden="true" className="text-muted-foreground">·</span>
+                  <span className="truncate max-w-md font-medium text-[#4B526B] dark:text-[#A3A8C2]">{academicSubtitle}</span>
                 </>
               ) : null}
             </div>
@@ -354,14 +350,14 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
         </div>
       </header>
 
-      {/* Row 2: 4-Tile KPI Telemetry Strip */}
+      {/* Row 2: Study Summary Strip */}
       <section aria-label="Study metrics" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <Link
           href={primaryReviewHref}
           className="group rounded-xl border border-border/80 bg-card p-4 hover:border-[#D89A06] hover:shadow-xs transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-2xs"
         >
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-mono uppercase tracking-wider text-[11px] font-bold text-[#00004E] dark:text-white">Due Review Queue</span>
+            <span className="font-semibold text-foreground">Flashcards Due Today</span>
             <BrainCircuit className="h-4 w-4 text-[#D89A06]" strokeWidth={2} />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
@@ -369,12 +365,12 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
               {dueFlashcards}
             </span>
             <span className="text-xs text-muted-foreground tabular-nums">
-              / {totalFlashcards} cards
+              of {totalFlashcards} cards
             </span>
           </div>
           <p className="mt-1.5 text-xs text-muted-foreground flex items-center justify-between">
-            <span>{dueFlashcards > 0 ? 'Ready for SM-2 recall' : 'All cards caught up'}</span>
-            <span className="text-[#00004E] dark:text-[#D89A06] font-bold group-hover:underline text-[11px] uppercase tracking-wider">Review &rarr;</span>
+            <span>{dueFlashcards > 0 ? 'Ready for review' : 'All cards caught up'}</span>
+            <span className="text-[#00004E] dark:text-[#D89A06] font-semibold group-hover:underline text-xs">Review &rarr;</span>
           </p>
         </Link>
 
@@ -383,7 +379,7 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
           className="group rounded-xl border border-border/80 bg-card p-4 hover:border-[#D89A06] hover:shadow-xs transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-2xs"
         >
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-mono uppercase tracking-wider text-[11px] font-bold text-[#00004E] dark:text-white">7-Day Focus Time</span>
+            <span className="font-semibold text-foreground">Study Time (7 Days)</span>
             <Clock className="h-4 w-4 text-[#00004E] dark:text-[#D89A06]" strokeWidth={2} />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
@@ -396,7 +392,7 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
           </div>
           <p className="mt-1.5 text-xs text-muted-foreground flex items-center justify-between">
             <span>Weekly study log</span>
-            <span className="text-[#00004E] dark:text-[#D89A06] font-bold group-hover:underline text-[11px] uppercase tracking-wider">Velocity &rarr;</span>
+            <span className="text-[#00004E] dark:text-[#D89A06] font-semibold group-hover:underline text-xs">Details &rarr;</span>
           </p>
         </Link>
 
@@ -405,7 +401,7 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
           className="group rounded-xl border border-border/80 bg-card p-4 hover:border-[#D89A06] hover:shadow-xs transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-2xs"
         >
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-mono uppercase tracking-wider text-[11px] font-bold text-[#00004E] dark:text-white">Exam Readiness</span>
+            <span className="font-semibold text-foreground">Mock &amp; Quiz Average</span>
             <TrendingUp className="h-4 w-4 text-[#D89A06]" strokeWidth={2} />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
@@ -417,8 +413,8 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
             </span>
           </div>
           <p className="mt-1.5 text-xs text-muted-foreground flex items-center justify-between">
-            <span>{avgScorePercent !== null ? 'Past papers & quizzes avg' : 'Complete a quiz or paper'}</span>
-            <span className="text-[#00004E] dark:text-[#D89A06] font-bold group-hover:underline text-[11px] uppercase tracking-wider">Practice &rarr;</span>
+            <span>{avgScorePercent !== null ? 'Past papers & quizzes' : 'Take a quiz or mock'}</span>
+            <span className="text-[#00004E] dark:text-[#D89A06] font-semibold group-hover:underline text-xs">Practice &rarr;</span>
           </p>
         </Link>
 
@@ -427,7 +423,7 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
           className="group rounded-xl border border-border/80 bg-card p-4 hover:border-[#D89A06] hover:shadow-xs transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-2xs"
         >
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-mono uppercase tracking-wider text-[11px] font-bold text-[#00004E] dark:text-white">Next Exam</span>
+            <span className="font-semibold text-foreground">Next Scheduled Exam</span>
             <CalendarIcon className="h-4 w-4 text-[#D89A06]" strokeWidth={2} />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
@@ -435,12 +431,12 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
               {nearestExam ? `${nearestExam.daysLeft}d` : '--'}
             </span>
             <span className="text-xs text-muted-foreground truncate font-medium">
-              {nearestExam ? nearestExam.title : 'No exams queued'}
+              {nearestExam ? nearestExam.title : 'No exams added'}
             </span>
           </div>
           <p className="mt-1.5 text-xs text-muted-foreground flex items-center justify-between">
-            <span>{upcomingEvents.length} upcoming agenda {upcomingEvents.length === 1 ? 'item' : 'items'}</span>
-            <span className="text-[#00004E] dark:text-[#D89A06] font-bold group-hover:underline text-[11px] uppercase tracking-wider">Planner &rarr;</span>
+            <span>{upcomingEvents.length} upcoming {upcomingEvents.length === 1 ? 'event' : 'events'}</span>
+            <span className="text-[#00004E] dark:text-[#D89A06] font-semibold group-hover:underline text-xs">Calendar &rarr;</span>
           </p>
         </Link>
       </section>

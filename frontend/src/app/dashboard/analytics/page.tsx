@@ -314,23 +314,14 @@ export default function AnalyticsPage() {
 
   return (
     <div className="max-w-[1380px] mx-auto pb-12 space-y-5">
-      {/* Studio Command Header */}
-      <header className="rounded-2xl border border-border/80 bg-card p-5 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      {/* Clean Page Header (No 'Cognitive Telemetry Studio' or 'Export JSON') */}
+      <header className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 border-b border-border pb-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-mono uppercase tracking-wider text-[11px] text-primary font-semibold">
-              Cognitive Telemetry Studio
-            </span>
-            <span aria-hidden="true">/</span>
-            <span>Mastery Velocity · Circadian Retention · Cohort Benchmarks</span>
-          </div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <LineChart className="w-6 h-6 text-primary" strokeWidth={1.75} />
-            Analytics &amp; Insights
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+            Study Progress &amp; Performance
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl">
-            Empirical learning velocity, circadian quiz performance windows, confidence-vs-score
-            blind spots, and daily AI compute telemetry.
+            Track your weekly study consistency, quiz accuracy by time of day, and course topics that need extra revision before exams.
           </p>
         </div>
 
@@ -348,18 +339,9 @@ export default function AnalyticsPage() {
 
           <button
             type="button"
-            onClick={handleExportTelemetry}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/40 hover:bg-muted px-3.5 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 text-primary" />
-            Export JSON
-          </button>
-
-          <button
-            type="button"
             onClick={handleManualRefresh}
             disabled={refreshing}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background hover:bg-muted px-3.5 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card hover:bg-muted px-3.5 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer disabled:opacity-50"
           >
             <RefreshCw className={cn('w-3.5 h-3.5', refreshing && 'animate-spin')} />
             Refresh
@@ -367,79 +349,59 @@ export default function AnalyticsPage() {
         </div>
       </header>
 
-      {/* 4-Tile Executive Telemetry Strip */}
+      {/* 4-Tile Summary Strip */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Annual Study Volume
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {heatmapSummary.totalPoints.toLocaleString()}{' '}
-              <span className="text-xs font-normal text-muted-foreground">pts</span>
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {heatmapSummary.activeDays} active days · Peak {heatmapSummary.peakDayPoints} pts/day
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
-            <Calendar className="w-4 h-4" />
-          </div>
+        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5">
+          <p className="text-xs font-semibold text-muted-foreground">
+            Study Activity
+          </p>
+          <p className="text-xl font-bold font-mono tabular-nums text-foreground mt-1">
+            {heatmapSummary.activeDays}{' '}
+            <span className="text-xs font-sans font-normal text-muted-foreground">active days</span>
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {heatmapSummary.totalPoints.toLocaleString()} total study points logged
+          </p>
         </div>
 
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Mastery Velocity
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {velocity?.avgVelocity != null ? `${velocity.avgVelocity}d` : 'Calibrating'}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {velocity?.trend || 'Baseline 3.5d'} · {velocity?.masteredCount || 0} modules mastered
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-            <TrendingUp className="w-4 h-4" />
-          </div>
+        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5">
+          <p className="text-xs font-semibold text-muted-foreground">
+            Average Mastery Pace
+          </p>
+          <p className="text-xl font-bold font-mono tabular-nums text-foreground mt-1">
+            {velocity?.avgVelocity != null ? `${velocity.avgVelocity} days` : 'In Progress'}
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {velocity?.masteredCount || 0} course lectures completed
+          </p>
         </div>
 
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Peak Retention Window
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {topPeakWindow ? topPeakWindow.formattedHour : 'Log 2+ Quizzes'}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {topPeakWindow
-                ? `${topPeakWindow.avg.toFixed(1)}% avg across ${bestTime?.totalAttempts || topPeakWindow.count} quizzes`
-                : `${bestTime?.count || 0} of ${bestTime?.required || 2} quizzes recorded`}
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-500">
-            <Clock className="w-4 h-4" />
-          </div>
+        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5">
+          <p className="text-xs font-semibold text-muted-foreground">
+            Best Study Hours
+          </p>
+          <p className="text-xl font-bold font-mono tabular-nums text-foreground mt-1">
+            {topPeakWindow ? topPeakWindow.formattedHour : 'Complete 2+ Quizzes'}
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {topPeakWindow
+              ? `${topPeakWindow.avg.toFixed(1)}% average score during this window`
+              : `${bestTime?.count || 0} of ${bestTime?.required || 2} quizzes recorded`}
+          </p>
         </div>
 
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Knowledge Calibration
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {blindSpots.length === 0 ? 'Calibrated' : `${blindSpots.length} Blind Spots`}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {blindSpots.length === 0
-                ? 'Confidence matches quiz accuracy'
-                : 'High confidence vs <70% quiz score'}
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
-            <ShieldCheck className="w-4 h-4" />
-          </div>
+        <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5">
+          <p className="text-xs font-semibold text-muted-foreground">
+            Topics to Review
+          </p>
+          <p className="text-xl font-bold font-mono tabular-nums text-foreground mt-1">
+            {blindSpots.length === 0 ? 'On Track' : `${blindSpots.length} Topics`}
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {blindSpots.length === 0
+              ? 'Quiz scores match your study confidence'
+              : 'Scored below 70% on recent practice'}
+          </p>
         </div>
       </section>
 
@@ -447,10 +409,10 @@ export default function AnalyticsPage() {
       <section className="rounded-2xl border border-border/80 bg-card p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="inline-flex flex-wrap rounded-xl border border-border bg-muted/40 p-1 gap-1">
           {[
-            { id: 'all' as const, label: 'All Telemetry' },
-            { id: 'velocity' as const, label: 'Velocity & Benchmarks' },
-            { id: 'retention' as const, label: 'Retention & Blind Spots' },
-            { id: 'quota' as const, label: 'AI Quota & Semester Review' },
+            { id: 'all' as const, label: 'All Insights' },
+            { id: 'velocity' as const, label: 'Course Pace' },
+            { id: 'retention' as const, label: 'Quiz Accuracy & Weak Spots' },
+            { id: 'quota' as const, label: 'Study Credits & Semester Summary' },
           ].map((tab) => (
             <button
               key={tab.id}

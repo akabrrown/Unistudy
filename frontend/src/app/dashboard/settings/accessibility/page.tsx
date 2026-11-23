@@ -449,19 +449,14 @@ export default function AccessibilitySettingsPage() {
         />
       )}
 
-      {/* Studio Header & Navigation */}
-      <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-border/80 pb-6">
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#00004E]/10 dark:bg-[#D89A06]/15 border border-[#00004E]/20 dark:border-[#D89A06]/30 text-[#00004E] dark:text-[#D89A06] text-xs font-mono font-bold uppercase tracking-wider">
-            <Accessibility className="w-3.5 h-3.5 text-[#D89A06]" />
-            Inclusive Design · W3C WCAG 2.2 · Ergonomics Studio
-          </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-3">
-            Accessibility &amp; Assistive Ergonomics
+      {/* Clean Header & Navigation (No 4-Card Telemetry Strip) */}
+      <header className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 border-b border-border/80 pb-5">
+        <div className="space-y-1">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+            Display &amp; Reading Preferences
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl leading-relaxed">
-            Tailor UniStudy to your visual, cognitive, sensory, and motor preferences. All settings apply
-            instantly to global design tokens and persist seamlessly across your sessions.
+            Adjust font style, text size, contrast, line spacing, and motion preferences across your study workspace.
           </p>
         </div>
 
@@ -494,7 +489,7 @@ export default function AccessibilitySettingsPage() {
               className="inline-flex items-center gap-1.5 rounded-lg text-muted-foreground hover:text-foreground px-3 py-1.5 text-xs font-semibold transition-colors"
             >
               <History className="w-3.5 h-3.5" />
-              Audit Log
+              Usage History
             </Link>
           </div>
 
@@ -502,84 +497,13 @@ export default function AccessibilitySettingsPage() {
             type="button"
             onClick={() => void handleResetDefaults()}
             className="inline-flex items-center gap-1.5 rounded-xl border border-border/80 bg-card hover:bg-muted/80 px-3.5 py-2 text-xs font-semibold text-foreground transition-all cursor-pointer shadow-xs active:scale-95"
-            title="Reset all accessibility settings to standard baseline"
+            title="Reset all accessibility settings to defaults"
           >
             <RotateCcw className="w-3.5 h-3.5 text-muted-foreground" />
-            Reset Baseline
+            Reset Defaults
           </button>
         </div>
       </header>
-
-      {/* 4-Tile Assistive Telemetry Strip */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="rounded-xl border border-border/80 bg-card p-4 flex items-center justify-between shadow-xs">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground font-semibold">
-              Contrast &amp; Compliance
-            </p>
-            <p className="text-lg font-extrabold font-mono text-[#00004E] dark:text-[#D89A06] mt-0.5">
-              {telemetry.complianceTier}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {settings.theme === 'dark' ? 'Dark Theme' : 'Light Theme'} · {settings.high_contrast ? 'High Contrast' : 'Standard Contrast'}
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-[#00004E]/10 dark:bg-[#D89A06]/20 border border-[#00004E]/20 dark:border-[#D89A06]/30 flex items-center justify-center text-[#00004E] dark:text-[#D89A06]">
-            <Eye className="w-5 h-5 text-[#D89A06] dark:text-[#D89A06]" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card p-4 flex items-center justify-between shadow-xs">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground font-semibold">
-              Typography Engine
-            </p>
-            <p className="text-lg font-extrabold font-mono text-foreground mt-0.5 truncate max-w-[170px]">
-              {settings.font_family === 'opendyslexic' ? 'OpenDyslexic' : 'Inter Variable'}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {telemetry.textScaleLabel} · {settings.line_spacing === 'double' ? 'Double Leading' : '1.5x Leading'}
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-            <Type className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card p-4 flex items-center justify-between shadow-xs">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground font-semibold">
-              Cognitive &amp; Focus
-            </p>
-            <p className="text-lg font-extrabold font-mono text-foreground mt-0.5">
-              {settings.simplified_mode ? 'Simplified UI' : 'Full Suite'}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {settings.low_bandwidth ? 'Animations Disabled' : 'Smooth Motion'}
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
-            <Brain className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card p-4 flex items-center justify-between shadow-xs">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground font-semibold">
-              Assistive Modifiers
-            </p>
-            <p className="text-lg font-extrabold font-mono text-[#00004E] dark:text-[#D89A06] mt-0.5">
-              {telemetry.activeAccommodations} Active
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5 truncate max-w-[170px]">
-              {telemetry.colorBlindLabel}
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-600 dark:text-sky-400">
-            <Sliders className="w-5 h-5" />
-          </div>
-        </div>
-      </section>
 
       {/* 1-Click W3C Inclusive Presets Bar */}
       <section className="rounded-2xl border border-border/80 bg-card p-5 space-y-3.5 shadow-xs">

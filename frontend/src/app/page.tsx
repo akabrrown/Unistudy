@@ -38,46 +38,39 @@ export default function LandingPage() {
             
             {/* Left Hero Narrative */}
             <div className="lg:col-span-7 space-y-6">
-              {/* Collegiate Seal Pill */}
-              <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[#FEF8E7] dark:bg-[#00004E] border-2 border-[#D89A06] shadow-xs">
-                <GraduationCap className="w-4 h-4 text-[#D89A06] shrink-0" />
-                <span className="text-xs font-bold uppercase tracking-wider text-[#00004E] dark:text-[#D89A06]">
-                  UPSA AI Academic Excellence Suite
-                </span>
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#D89A06] animate-pulse" />
+              {/* Collegiate Eyebrow */}
+              <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#00004E] dark:text-[#D89A06] border-l-2 border-[#D89A06] pl-3">
+                <span>University of Professional Studies, Accra · Study Workspace</span>
               </div>
 
               {/* Main Headline */}
-              <h1 className="text-4xl sm:text-5xl lg:text-[62px] font-black leading-[1.08] tracking-tight text-[#00004E] dark:text-white">
-                Master Your Modules. <br />
-                <span className="relative inline-block bg-gradient-to-r from-[#D89A06] via-[#E8B028] to-[#B88205] bg-clip-text text-transparent">
-                  Excel at UPSA.
-                  <svg className="absolute -bottom-2 left-0 w-full h-3 text-[#D89A06]/40" viewBox="0 0 100 20" preserveAspectRatio="none">
-                    <path d="M0 15 Q 50 0 100 15" stroke="currentColor" strokeWidth="4" fill="none" />
-                  </svg>
+              <h1 className="text-4xl sm:text-5xl lg:text-[60px] font-black leading-[1.06] tracking-tight text-[#00004E] dark:text-white">
+                Master Your Coursework. <br />
+                <span className="text-[#D89A06]">
+                  Walk Into Finals Ready.
                 </span>
               </h1>
 
               {/* Subheading with High Light-Theme Contrast */}
               <p className="text-lg md:text-xl text-[#3A4363] dark:text-[#A3A8C2] leading-relaxed max-w-xl font-normal">
-                Ingest your UPSA lecture slides, syllabus topics, and past exam archives. Get instant slide explanations, formula breakdowns, step-by-step math solver, and AI-graded mock attempts tailored to your degree.
+                Upload your lecturer&apos;s slides, course outlines, and past question papers. Get clear slide-by-slide explanations, timed mock exams with full marking schemes, and step-by-step accounting and math solutions.
               </p>
 
               {/* Action Buttons */}
               <div className="pt-2 flex flex-wrap items-center gap-4">
                 <Link
                   href="/signup"
-                  className="inline-flex items-center justify-center gap-2.5 bg-[#00004E] hover:bg-[#000038] text-white border-2 border-[#D89A06] px-7 py-3.5 rounded-xl font-bold text-sm transition-all duration-200 shadow-[0_10px_30px_rgba(0,0,78,0.22)] hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2.5 bg-[#00004E] hover:bg-[#000038] text-white border-2 border-[#D89A06] px-7 py-3.5 rounded-xl font-bold text-sm transition-all duration-200 shadow-sm cursor-pointer"
                 >
-                  <span>Start Studying for Free</span>
+                  <span>Open Student Workspace</span>
                   <ArrowRight className="w-4 h-4 text-[#D89A06]" />
                 </Link>
 
                 <Link
                   href="/features"
-                  className="inline-flex items-center justify-center gap-2 bg-[#FEF8E7] hover:bg-[#FDF2D0] dark:bg-white/5 dark:hover:bg-white/10 text-[#00004E] dark:text-white border border-[#D89A06]/50 dark:border-white/15 px-6 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200 cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2 bg-white hover:bg-[#FEF8E7] dark:bg-white/5 dark:hover:bg-white/10 text-[#00004E] dark:text-white border border-border px-6 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200 cursor-pointer"
                 >
-                  <span>Explore Academic Tools</span>
+                  <span>See How It Works</span>
                 </Link>
               </div>
 
@@ -85,97 +78,77 @@ export default function LandingPage() {
               <div className="pt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-medium text-[#4B526B] dark:text-[#A3A8C2]">
                 <span className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-[#D89A06]" />
-                  Direct Moodle &amp; Portal Sync
+                  Every Answer Cited to Your Slides
                 </span>
                 <span className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-[#D89A06]" />
-                  Zero Hallucination Grounding
+                  Level 100–400 Past Question Archive
                 </span>
                 <span className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-[#D89A06]" />
-                  Free Forever Student Tier
+                  20 Free Study Credits on Sign-Up
                 </span>
               </div>
             </div>
 
-            {/* Right Hero Interactive Preview Showcase */}
+            {/* Right Hero Authentic Study Workspace Specimen */}
             <div className="lg:col-span-5 relative">
-              {/* Outer Golden Glow Rim */}
-              <div className="relative rounded-2xl p-1 bg-gradient-to-b from-[#D89A06] via-[#00004E]/20 to-[#00004E] shadow-[0_20px_50px_rgba(0,0,78,0.18)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
-                <div className="rounded-[14px] bg-white dark:bg-[#0A0A28] border border-[#D89A06]/30 overflow-hidden">
-                  
-                  {/* Mock Window Top Bar in UPSA Navy */}
-                  <div className="bg-[#00004E] px-4 py-3 flex items-center justify-between text-white border-b border-[#D89A06]/40">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-3 h-3 rounded-full bg-[#D89A06]" />
-                      <div className="w-3 h-3 rounded-full bg-white/30" />
-                      <div className="w-3 h-3 rounded-full bg-white/20" />
-                      <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#D89A06] ml-2">
-                        UPSA · BCPC 208
-                      </span>
-                    </div>
-                    <span className="text-[10px] bg-[#D89A06] text-[#00004E] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      Verified
+              <div className="rounded-2xl bg-white dark:bg-[#0A0A28] border-2 border-[#00004E]/15 dark:border-[#D89A06]/35 shadow-xl overflow-hidden">
+                {/* Authentic Course Header Bar (No Fake macOS Dots) */}
+                <div className="bg-[#00004E] px-5 py-3.5 flex items-center justify-between text-white border-b border-[#D89A06]/40">
+                  <div>
+                    <span className="text-[11px] font-mono font-bold text-[#D89A06] block">
+                      BCPC 208 · CORPORATE FINANCE
+                    </span>
+                    <span className="text-xs font-semibold text-white/90">
+                      Week 4 Lecture Deck · Slide 14 of 42
                     </span>
                   </div>
+                  <span className="text-[11px] bg-white/10 text-white font-medium px-2.5 py-1 rounded-md border border-white/15">
+                    Cited to Slide 14
+                  </span>
+                </div>
 
-                  {/* Mock Deck Body */}
-                  <div className="p-5 space-y-4">
-                    {/* Course Title Strip */}
-                    <div className="flex items-start justify-between gap-3 border-b border-[#D89A06]/20 pb-3">
-                      <div>
-                        <div className="text-xs font-mono uppercase text-[#D89A06] font-bold">
-                          Lecture 04 · Slide 14 of 42
-                        </div>
-                        <h2 className="text-sm font-bold text-[#00004E] dark:text-white mt-0.5">
-                          Working Capital &amp; Cash Conversion Cycle
-                        </h2>
-                      </div>
-                      <span className="shrink-0 p-1.5 rounded-lg bg-[#FEF8E7] dark:bg-white/10 text-[#00004E] dark:text-[#D89A06] border border-[#D89A06]/30">
-                        <Award className="w-4 h-4" />
-                      </span>
+                {/* Live Slide + Worked Exam Question Specimen */}
+                <div className="p-5 space-y-4">
+                  <div>
+                    <h2 className="text-base font-bold text-[#00004E] dark:text-white">
+                      Working Capital &amp; Cash Conversion Cycle (CCC)
+                    </h2>
+                    <p className="text-xs text-[#4B526B] dark:text-[#A3A8C2] mt-1 leading-relaxed">
+                      Measures the time (in days) it takes for a company to convert its investments in inventory and other resources into cash flows from sales.
+                    </p>
+                  </div>
+
+                  {/* Worked Formula Card */}
+                  <div className="p-3.5 rounded-xl bg-[#F8F9FD] dark:bg-white/5 border border-border space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-[#00004E] dark:text-[#D89A06]">
+                      <span>Core Formula (Slide 14)</span>
+                      <span className="font-mono">2023 Final Exam · Q2(b)</span>
                     </div>
+                    <p className="text-xs font-mono text-[#00004E] dark:text-white bg-white dark:bg-[#040416] p-2.5 rounded-lg border border-border/80">
+                      CCC = DIO (45d) + DSO (38d) − DPO (30d) = 53 Days
+                    </p>
+                  </div>
 
-                    {/* Active Recall Key Takeaway Box with UPSA Gold Accent */}
-                    <div className="p-3.5 rounded-xl bg-gradient-to-r from-[#FEF8E7] to-white dark:from-[#00004E]/40 dark:to-white/5 border-l-4 border-l-[#D89A06] border border-[#D89A06]/30">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] uppercase tracking-wider mb-1">
-                        <GraduationCap className="w-3.5 h-3.5 text-[#D89A06]" />
-                        Key Exam Takeaway
-                      </div>
-                      <p className="text-xs text-[#2A314E] dark:text-white/90 leading-relaxed font-mono">
-                        CCC = Days Inventory Outstanding + Days Sales Outstanding - Days Payables Outstanding.
-                      </p>
+                  {/* Linked Past Question Callout */}
+                  <div className="p-3.5 rounded-xl bg-[#FEF8E7]/70 dark:bg-[#00004E]/40 border-l-4 border-l-[#D89A06] space-y-1">
+                    <div className="text-xs font-bold text-[#00004E] dark:text-[#D89A06]">
+                      Examiner&apos;s Marking Note (5 Marks)
                     </div>
+                    <p className="text-xs text-[#2A314E] dark:text-white/90 leading-relaxed">
+                      A shorter or negative CCC indicates stronger liquidity because supplier credit finances operations before cash is tied up.
+                    </p>
+                  </div>
 
-                    {/* 4 Interactive Study Feature Pills */}
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <div className="p-2.5 rounded-lg bg-[#00004E] text-white flex items-center gap-2 shadow-xs">
-                        <Layers className="w-4 h-4 text-[#D89A06] shrink-0" />
-                        <span className="text-[11px] font-bold">Slide Ingestion</span>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-[#FEF8E7] dark:bg-white/5 border border-[#D89A06]/40 text-[#00004E] dark:text-[#D89A06] flex items-center gap-2">
-                        <Target className="w-4 h-4 text-[#D89A06] shrink-0" />
-                        <span className="text-[11px] font-bold">Exam Areas</span>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-[#FEF8E7] dark:bg-white/5 border border-[#D89A06]/40 text-[#00004E] dark:text-[#D89A06] flex items-center gap-2">
-                        <Calculator className="w-4 h-4 text-[#D89A06] shrink-0" />
-                        <span className="text-[11px] font-bold">Math Solver</span>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-[#00004E] text-white flex items-center gap-2 shadow-xs">
-                        <FileText className="w-4 h-4 text-[#D89A06] shrink-0" />
-                        <span className="text-[11px] font-bold">Past Paper Bank</span>
-                      </div>
-                    </div>
-
-                    {/* Bottom Status Ribbon */}
-                    <div className="pt-2 flex items-center justify-between text-xs text-[#5A6484] dark:text-[#A3A8C2] border-t border-[#D89A06]/20">
-                      <span className="flex items-center gap-1.5 font-semibold text-[#00004E] dark:text-white">
-                        <ShieldCheck className="w-4 h-4 text-[#D89A06]" />
-                        96% Mastery Confidence
-                      </span>
-                      <span className="text-[#D89A06] font-mono font-bold">UPSA Spring 2026</span>
-                    </div>
-
+                  {/* Bottom Footer Bar */}
+                  <div className="pt-2 flex items-center justify-between text-xs text-[#5A6484] dark:text-[#A3A8C2] border-t border-border">
+                    <span className="font-medium text-[#00004E] dark:text-white">
+                      Matched with 4 past exam papers (2019–2024)
+                    </span>
+                    <Link href="/signup" className="text-[#00004E] dark:text-[#D89A06] font-bold hover:underline">
+                      Practice Q2(b) &rarr;
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -185,99 +158,120 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 4 Academic Pillars (Bento Grid) with Rich Gold & Navy Card Styling */}
-      <section className="py-20 md:py-28 max-w-7xl mx-auto px-6 sm:px-8">
-        <div className="text-center max-w-3xl mx-auto mb-16 space-y-3">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#FEF8E7] dark:bg-[#00004E] border border-[#D89A06] text-[#00004E] dark:text-[#D89A06] text-xs font-bold uppercase tracking-wider">
-            <Star className="w-3.5 h-3.5 fill-[#D89A06] text-[#D89A06]" />
-            Purpose-Built For University Students
-          </div>
-          <h2 className="text-3xl md:text-5xl font-black tracking-tight text-[#00004E] dark:text-white">
-            Everything You Need to Finish at the Top of Your Class
+      {/* Asymmetric Editorial Study Architecture (Replaces Symmetrical 4-Icon Bento Grid) */}
+      <section className="py-20 md:py-24 max-w-7xl mx-auto px-6 sm:px-8">
+        <div className="max-w-2xl mb-12 space-y-2">
+          <p className="text-xs font-bold uppercase tracking-widest text-[#D89A06]">
+            Built for UPSA Coursework &amp; Examinations
+          </p>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tight text-[#00004E] dark:text-white">
+            Study From Your Lecturer&apos;s Exact Material—Not Generic Web Answers.
           </h2>
-          <p className="text-base md:text-lg text-[#4B526B] dark:text-[#A3A8C2]">
-            Generic chatbots hallucinate. UniStudy AI is anchored directly to your lecturer&apos;s exact slides, formulas, and department marking schemes.
+          <p className="text-base text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">
+            General chatbots guess when asked about specific university modules. UniStudy reads your uploaded PDF slides and past question papers line by line.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Card 1: Slide Decks */}
-          <div className="rounded-2xl border-2 border-[#D89A06]/30 bg-white dark:bg-[#0A0A28] p-6 shadow-sm hover:shadow-md hover:border-[#D89A06] transition-all duration-200 flex flex-col justify-between group">
-            <div className="space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-[#00004E] text-[#D89A06] flex items-center justify-center border border-[#D89A06]/40 group-hover:scale-105 transition-transform">
-                <Layers className="w-6 h-6" />
+        <div className="grid lg:grid-cols-12 gap-6 items-stretch">
+          {/* Left Lead Editorial Showcase (7 columns) */}
+          <div className="lg:col-span-7 rounded-2xl border border-border bg-white dark:bg-[#0A0A28] p-6 md:p-8 flex flex-col justify-between space-y-6 shadow-xs">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#00004E] dark:text-[#D89A06]">
+                  Slide Studio &amp; Exam Topic Matcher
+                </span>
+                <span className="text-xs font-mono text-muted-foreground">PDF · PPTX · Handwritten Notes</span>
               </div>
-              <h3 className="text-lg font-bold text-[#00004E] dark:text-white">
-                Interactive Slide Ingestion
+              <h3 className="text-2xl font-bold text-[#00004E] dark:text-white tracking-tight">
+                Cross-reference 80-slide lecture decks with past exam questions in seconds
               </h3>
               <p className="text-sm text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">
-                Upload 80+ slide PDF decks. Review with visual slide thumbnails, instant section summaries, and active recall Q&amp;A.
+                Paste the revision areas your lecturer mentioned in class. UniStudy scans every slide in your course and every past paper in the archive to show you which slides carry the heaviest exam weight—and flags any topic missing from your notes.
               </p>
             </div>
-            <div className="pt-6 border-t border-[#D89A06]/20 mt-6">
-              <span className="text-xs font-bold text-[#D89A06] uppercase tracking-wider flex items-center gap-1">
-                Visual Decks <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+
+            {/* Concrete Visual Artifact Table Inside Lead Card */}
+            <div className="rounded-xl border border-border bg-[#F8F9FD] dark:bg-[#040416] overflow-hidden text-xs">
+              <div className="grid grid-cols-12 bg-[#00004E] text-white px-4 py-2.5 font-semibold">
+                <div className="col-span-5">Lecturer Revision Topic</div>
+                <div className="col-span-4">Matched Lecture Slides</div>
+                <div className="col-span-3 text-right">Past Exam Hits</div>
+              </div>
+              <div className="divide-y divide-border">
+                <div className="grid grid-cols-12 px-4 py-2.5 items-center">
+                  <div className="col-span-5 font-semibold text-[#00004E] dark:text-white">Capital Budgeting (NPV &amp; IRR)</div>
+                  <div className="col-span-4 text-muted-foreground">Week 6 · Slides 8–24</div>
+                  <div className="col-span-3 text-right font-mono font-bold text-[#00004E] dark:text-[#D89A06]">6 Papers</div>
+                </div>
+                <div className="grid grid-cols-12 px-4 py-2.5 items-center">
+                  <div className="col-span-5 font-semibold text-[#00004E] dark:text-white">Weighted Average Cost of Capital</div>
+                  <div className="col-span-4 text-muted-foreground">Week 8 · Slides 3–19</div>
+                  <div className="col-span-3 text-right font-mono font-bold text-[#00004E] dark:text-[#D89A06]">5 Papers</div>
+                </div>
+                <div className="grid grid-cols-12 px-4 py-2.5 items-center">
+                  <div className="col-span-5 font-semibold text-[#00004E] dark:text-white">Dividend Relevance (Gordon Model)</div>
+                  <div className="col-span-4 text-muted-foreground">Week 10 · Slides 11–27</div>
+                  <div className="col-span-3 text-right font-mono font-bold text-[#00004E] dark:text-[#D89A06]">4 Papers</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-xs text-muted-foreground">
+                Generates one-page printable A4 revision sheets &amp; SM-2 flashcards
               </span>
+              <Link href="/signup" className="text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:underline inline-flex items-center gap-1">
+                Try With Your Slides <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
           </div>
 
-          {/* Card 2: Exam Areas */}
-          <div className="rounded-2xl border-2 border-[#D89A06]/30 bg-white dark:bg-[#0A0A28] p-6 shadow-sm hover:shadow-md hover:border-[#D89A06] transition-all duration-200 flex flex-col justify-between group">
-            <div className="space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-[#FEF8E7] dark:bg-[#00004E] text-[#00004E] dark:text-[#D89A06] flex items-center justify-center border-2 border-[#D89A06] group-hover:scale-105 transition-transform">
-                <Target className="w-6 h-6 text-[#D89A06]" />
+          {/* Right Stacked Column (5 columns) */}
+          <div className="lg:col-span-5 flex flex-col justify-between gap-6">
+            <div className="flex-1 rounded-2xl border border-border bg-white dark:bg-[#0A0A28] p-6 flex flex-col justify-between space-y-4 shadow-xs">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#D89A06]">
+                    Timed Examination Simulator
+                  </span>
+                  <span className="text-xs font-mono text-muted-foreground">Section A &amp; B</span>
+                </div>
+                <h3 className="text-lg font-bold text-[#00004E] dark:text-white">
+                  Real UPSA Past Papers with Sub-Question Grading
+                </h3>
+                <p className="text-sm text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">
+                  Practice authentic past papers under a 120-minute exam clock. Get part-by-part marking for `(a)`, `(b)`, `(i)`, and `(ii)` alongside complete model answers for any question you skip.
+                </p>
               </div>
-              <h3 className="text-lg font-bold text-[#00004E] dark:text-white">
-                Exam Areas of Concentration
-              </h3>
-              <p className="text-sm text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">
-                Paste lecturer exam hints or syllabus chapters. Our AI correlates them against all past papers to pinpoint high-yield exam topics.
-              </p>
+              <div className="pt-3 border-t border-border flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Includes Accounting, Finance, Management, IT &amp; Law</span>
+                <Link href="/signup" className="font-bold text-[#00004E] dark:text-[#D89A06] hover:underline">
+                  Browse Papers &rarr;
+                </Link>
+              </div>
             </div>
-            <div className="pt-6 border-t border-[#D89A06]/20 mt-6">
-              <span className="text-xs font-bold text-[#00004E] dark:text-[#D89A06] uppercase tracking-wider flex items-center gap-1">
-                Targeted Revision <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
-              </span>
-            </div>
-          </div>
 
-          {/* Card 3: Past Papers */}
-          <div className="rounded-2xl border-2 border-[#D89A06]/30 bg-white dark:bg-[#0A0A28] p-6 shadow-sm hover:shadow-md hover:border-[#D89A06] transition-all duration-200 flex flex-col justify-between group">
-            <div className="space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-[#00004E] text-[#D89A06] flex items-center justify-center border border-[#D89A06]/40 group-hover:scale-105 transition-transform">
-                <Award className="w-6 h-6" />
+            <div className="flex-1 rounded-2xl border border-border bg-[#00004E] text-white p-6 flex flex-col justify-between space-y-4 shadow-xs">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#D89A06]">
+                    Quantitative &amp; Graph Solver
+                  </span>
+                  <span className="text-xs font-mono text-white/70">Calculus · Matrices · Stats</span>
+                </div>
+                <h3 className="text-lg font-bold text-white">
+                  Exact Symbolic Math &amp; Coordinate Graph Sheets
+                </h3>
+                <p className="text-sm text-white/80 leading-relaxed">
+                  Solve derivatives, definite integrals, simultaneous linear systems, and plot multi-curve coordinate graphs on interactive millimeter grid paper—or snap a photo of handwritten math notes.
+                </p>
               </div>
-              <h3 className="text-lg font-bold text-[#00004E] dark:text-white">
-                Real UPSA Past Papers
-              </h3>
-              <p className="text-sm text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">
-                Take timed simulated exams. Receive instant grading, rubrics, mark breakdowns, and weakness drills on tricky questions.
-              </p>
-            </div>
-            <div className="pt-6 border-t border-[#D89A06]/20 mt-6">
-              <span className="text-xs font-bold text-[#D89A06] uppercase tracking-wider flex items-center gap-1">
-                Simulated Exams <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
-              </span>
-            </div>
-          </div>
-
-          {/* Card 4: Math & STEM */}
-          <div className="rounded-2xl border-2 border-[#D89A06]/30 bg-white dark:bg-[#0A0A28] p-6 shadow-sm hover:shadow-md hover:border-[#D89A06] transition-all duration-200 flex flex-col justify-between group">
-            <div className="space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-[#FEF8E7] dark:bg-[#00004E] text-[#00004E] dark:text-[#D89A06] flex items-center justify-center border-2 border-[#D89A06] group-hover:scale-105 transition-transform">
-                <Calculator className="w-6 h-6 text-[#D89A06]" />
+              <div className="pt-3 border-t border-white/15 flex items-center justify-between text-xs">
+                <span className="text-white/70">Verified symbolic steps with KaTeX notation</span>
+                <Link href="/signup" className="font-bold text-[#D89A06] hover:underline">
+                  Open Solver &rarr;
+                </Link>
               </div>
-              <h3 className="text-lg font-bold text-[#00004E] dark:text-white">
-                STEM Math &amp; Graph Solver
-              </h3>
-              <p className="text-sm text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">
-                Step-by-step calculus, economics, financial math, and curve plotting powered by MathJS and KaTeX formula rendering.
-              </p>
-            </div>
-            <div className="pt-6 border-t border-[#D89A06]/20 mt-6">
-              <span className="text-xs font-bold text-[#00004E] dark:text-[#D89A06] uppercase tracking-wider flex items-center gap-1">
-                Math Toolkit <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
-              </span>
             </div>
           </div>
         </div>

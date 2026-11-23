@@ -1,144 +1,264 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { MarketingNavbar } from "@/components/layout/MarketingNavbar";
 import { MarketingFooter } from "@/components/layout/MarketingFooter";
-import { CheckCircle, Brain, Zap, BookOpen, Languages, Search, Video, FileText, BarChart, Heart, Target, Layers } from "lucide-react";
+import { CheckCircle, ArrowRight } from "lucide-react";
 
-const tabData = [
-  { // Explain
-    icon: Brain,
-    previewText: "AI Explanation Engine",
-    items: [
-      ["Layered explanations", "Choose depth from ELI5 to expert-level"],
-      ["Contextual examples", "Real-world analogies from your field"],
-      ["Key term highlighting", "Important vocabulary auto-identified"],
-      ["Multilingual translation", "Translate any explanation into 100+ languages"],
-    ]
+const WORKSPACE_TABS = [
+  {
+    id: "slides",
+    label: "1. Slide & Lecture Studio",
+    heading: "Upload 80-page PDF slide decks and get clear, slide-cited breakdowns",
+    summary:
+      "Every explanation points back to the exact slide number in your lecturer's deck so you never study unverified definitions before an exam.",
+    bullets: [
+      ["Slide-by-Slide Explanations", "Switch between simplified intuition, standard exam notes, and worked numerical examples."],
+      ["Lecturer Focus Area Matcher", "Paste the exam hints your lecturer gave in class to see which slides and past questions match each topic."],
+      ["Printable A4 Cheat Sheets", "Condense an entire 12-week course into a clean, two-column printable formula and definition sheet."],
+    ],
+    specimen: {
+      header: "BCPC 208 · Corporate Finance — Week 6, Slide 18",
+      badge: "Cited to Slide 18",
+      title: "Net Present Value (NPV) Decision Rule",
+      formula: "NPV = ∑ [ CF_t / (1 + r)^t ] − C_0",
+      note: "Accept independent projects when NPV > 0. If projects are mutually exclusive, select the alternative with the highest positive NPV even if a smaller project has a higher IRR.",
+      footerLeft: "Matched in 2021, 2022, 2024 End-of-Semester Papers",
+      footerRight: "14 Flashcards Generated",
+    },
   },
-  { // Practice
-    icon: Zap,
-    previewText: "Quiz & Flashcard Engine",
-    items: [
-      ["Auto-generated Quizzes", "Multiple choice and short answer questions"],
-      ["Smart Flashcards", "Spaced repetition algorithms to boost memory"],
-      ["Past Paper Simulator", "Practice under timed, exam-like conditions"],
-      ["Instant Feedback", "Understand exactly why your answer was wrong"],
-    ]
+  {
+    id: "exams",
+    label: "2. Past Paper Simulator",
+    heading: "Practice real UPSA past questions under exam clock conditions",
+    summary:
+      "Attempt Section A (MCQs) and Section B (Theory & Calculations) with sub-part grading for (a), (b), (i), and (ii).",
+    bullets: [
+      ["Official Past Paper Archive", "Search Level 100 to 400 past examination papers by course code, academic year, and semester."],
+      ["Sub-Part Rubric Marking", "Get mark allocations for each sub-question plus a complete worked solution for any question you leave blank."],
+      ["Targeted Weakness Drills", "Topics where you score below 65% are automatically queued into 5-minute revision drills."],
+    ],
+    specimen: {
+      header: "PDBA 111 · Principles of Marketing — First Semester Exam",
+      badge: "120:00 Timed Trial",
+      title: "Question 3(a) · Product Life Cycle Stages (12 Marks)",
+      formula: "Your Score: 10.5 / 12 Marks · Grade A",
+      note: "Examiner Feedback: Strong distinction between Growth and Maturity pricing strategies. To earn the final 1.5 marks in part (ii), state a concrete Ghanaian FMCG example when discussing market saturation.",
+      footerLeft: "Model Answer Included for Part 3(b)",
+      footerRight: "Saved to Revision History",
+    },
   },
-  { // Analyze
-    icon: FileText,
-    previewText: "Document & Video Analysis",
-    items: [
-      ["High-Accuracy Parsing", "Flawlessly reads PDFs, slides, and scanned notes"],
-      ["YouTube Summarizer", "Extract transcripts and summaries from any video link"],
-      ["Essay Grader", "Instant feedback, structural analysis, and scoring"],
-      ["Semantic Search", "Find exact concepts instantly from your entire library"],
-    ]
+  {
+    id: "math",
+    label: "3. Math, Graph & Note Scanner",
+    heading: "Solve symbolic calculus, matrix algebra, and plot WASSCE/University graphs",
+    summary:
+      "Snap a photo of handwritten board notes or type equations directly to get verified symbolic derivations and millimeter-grid coordinate plots.",
+    bullets: [
+      ["Symbolic Calculus & Linear Algebra", "Derivatives, definite integrals, determinants, eigenvalues, and simultaneous equations."],
+      ["Interactive Coordinate Graph Sheet", "Plot multiple quadratic, trigonometric, or linear functions with roots and intersection points labeled."],
+      ["Handwritten Note Digitizer", "Convert notebook photos and whiteboard derivations into clean, editable LaTeX and Markdown notes."],
+    ],
+    specimen: {
+      header: "Quantitative Methods · Symbolic Solver & Graph Sheet",
+      badge: "Exact Symbolic Verify",
+      title: "Simultaneous Equilibrium & Derivative Check",
+      formula: "f(x) = x³ − 6x² + 9x + 2  ⇒  f'(x) = 3(x − 1)(x − 3)",
+      note: "Stationary points verified at (1, 6) [Local Maximum] and (3, 2) [Local Minimum]. Point of inflection confirmed at f''(x) = 0 ⇒ x = 2.",
+      footerLeft: "Plotted on 2mm Coordinate Grid",
+      footerRight: "LaTeX Ready to Copy",
+    },
   },
-  { // Optimize
-    icon: Target,
-    previewText: "Performance & Wellbeing",
-    items: [
-      ["Study Calendar", "AI plans your revision schedule before exams"],
-      ["Performance Analytics", "Track weak points across all your modules"],
-      ["Wellbeing Tracker", "Log your mood and avoid burnout with AI breaks"],
-      ["Summary Sheets", "One-page cheat sheets generated from lengthy lectures"],
-    ]
-  }
+  {
+    id: "essay",
+    label: "4. Essay & Law Rubric Grader",
+    heading: "Draft stronger argumentative, law, and policy essays before submission",
+    summary:
+      "Check your thesis clarity, statutory/textual evidence, sentence density, and argument structure against university marking rubrics.",
+    bullets: [
+      ["4-Pillar University Rubric", "Scored across Thesis & Argument (25%), Evidence & Citations (25%), Structure (25%), and Clarity (25%)."],
+      ["Sentence X-Ray Highlighter", "Highlights overly dense sentences (>35 words) and under-developed paragraphs right inside your draft."],
+      ["Side-by-Side First-Class Exemplar", "Compare your draft paragraph-by-paragraph against a 95%+ honors rewrite on your exact topic."],
+    ],
+    specimen: {
+      header: "Commercial Law & Policy · Essay Rubric Evaluation",
+      badge: "84 / 100 · First Class",
+      title: "Thesis: Strict Liability in Autonomous Transport Collisions",
+      formula: "Thesis: 22/25 · Evidence: 21/25 · Structure: 20/25 · Clarity: 21/25",
+      note: "Strength: Clear contrast between traditional tort negligence and statutory product liability. Revision Tip: Expand Paragraph 3 to address comparative-fault carve-outs when third-party tampering occurs.",
+      footerLeft: "0 Dense Sentences Flagged",
+      footerRight: "Side-by-Side Diff Available",
+    },
+  },
 ];
 
 export default function FeaturesPage() {
   const [activeTab, setActiveTab] = useState(0);
-  const features = ["Explain", "Practice", "Analyze", "Optimize"];
+  const current = WORKSPACE_TABS[activeTab];
 
   return (
     <div className="min-h-screen bg-[#F8F9FD] dark:bg-[#040416] transition-colors" style={{ fontFamily: "Inter, sans-serif" }}>
       <MarketingNavbar />
-      <main className="max-w-7xl mx-auto px-8 py-20">
-        <div className="text-center mb-16">
-          <p className="text-[12px] font-bold tracking-[0.2em] uppercase text-[#D89A06] mb-4">Enterprise-Grade Study Tools</p>
-          <h1 className="text-5xl md:text-6xl font-black text-[#00004E] dark:text-white mb-6 tracking-tight">
-            Powerful Features for Smarter Study
+      <main className="max-w-7xl mx-auto px-6 sm:px-8 py-16 md:py-24 space-y-20">
+        {/* Editorial Page Header */}
+        <div className="max-w-3xl space-y-4">
+          <p className="text-xs font-bold tracking-widest uppercase text-[#D89A06] border-l-2 border-[#D89A06] pl-3">
+            Academic Workspace Capabilities
+          </p>
+          <h1 className="text-4xl md:text-5xl font-black text-[#00004E] dark:text-white tracking-tight leading-tight">
+            Purpose-Built Tools for Lecture Slides, Past Papers, and Quantitative Exams.
           </h1>
-          <p className="text-xl text-[#4B526B] dark:text-[#A3A8C2] max-w-3xl mx-auto leading-relaxed">
-            Everything you need to turn chaotic lecture notes, YouTube videos, and past papers into structured, retained knowledge.
+          <p className="text-lg text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">
+            Explore how each workspace tool connects your course slides to real examination questions without generic chatbot guesswork.
           </p>
         </div>
 
-        <section className="bg-white dark:bg-[#0A0A28] rounded-[32px] border-2 border-[#D89A06]/35 dark:border-white/10 shadow-xl shadow-[#00004E]/5 py-16 px-8 mb-24 overflow-hidden relative">
-          {/* Decorative background blur */}
-          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#D89A06]/10 blur-[120px] rounded-full pointer-events-none" />
-          
-          <div className="max-w-5xl mx-auto relative z-10">
-            <h2 className="text-3xl font-black text-[#00004E] dark:text-white mb-10" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-              The Ultimate Study Suite
-            </h2>
-            <div className="flex gap-3 mb-12 flex-wrap">
-              {features.map((f, i) => (
-                <button key={f} onClick={() => setActiveTab(i)}
-                  className={`px-6 py-2.5 rounded-full text-[15px] font-bold transition-all duration-300 ${
-                    activeTab === i 
-                      ? "bg-[#00004E] text-white border-2 border-[#D89A06] shadow-lg shadow-[#00004E]/25 dark:bg-[#D89A06] dark:text-[#00004E] scale-105" 
-                      : "bg-[#FEF8E7] dark:bg-white/5 border border-[#D89A06]/30 text-[#00004E] dark:text-[#A3A8C2] hover:bg-[#FDF2D0] dark:hover:bg-white/10"
-                  }`}>
-                  {f}
-                </button>
-              ))}
-            </div>
-            
-            <div className="grid md:grid-cols-2 gap-16 items-center min-h-[320px]">
-              <div className="space-y-8 animate-in slide-in-from-left-4 duration-500">
-                {tabData[activeTab].items.map(([title, desc], idx) => (
-                  <div key={title} className="flex gap-4 group">
-                    <div className="w-8 h-8 rounded-full bg-[#00004E] dark:bg-[#00004E] border border-[#D89A06]/50 flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:scale-110 transition-transform">
-                      <CheckCircle size={16} className="text-[#D89A06]" />
-                    </div>
+        {/* Interactive 4-Workspace Specimen Switcher */}
+        <section className="bg-white dark:bg-[#0A0A28] rounded-2xl border border-border shadow-sm p-6 md:p-10 space-y-8">
+          <div className="flex gap-2.5 flex-wrap border-b border-border pb-5">
+            {WORKSPACE_TABS.map((tab, i) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(i)}
+                className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
+                  activeTab === i
+                    ? "bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E]"
+                    : "bg-[#F8F9FD] dark:bg-white/5 text-[#00004E] dark:text-[#A3A8C2] hover:bg-[#FEF8E7] dark:hover:bg-white/10"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid lg:grid-cols-12 gap-10 items-start">
+            {/* Left Explanation Column */}
+            <div className="lg:col-span-6 space-y-6">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-[#00004E] dark:text-white tracking-tight">
+                  {current.heading}
+                </h2>
+                <p className="text-sm text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">
+                  {current.summary}
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {current.bullets.map(([title, desc]) => (
+                  <div key={title} className="flex gap-3.5">
+                    <CheckCircle className="w-4 h-4 text-[#D89A06] shrink-0 mt-1" />
                     <div>
-                      <p className="text-[17px] font-bold text-[#00004E] dark:text-white mb-1.5">{title}</p>
-                      <p className="text-[15px] text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">{desc}</p>
+                      <p className="text-sm font-bold text-[#00004E] dark:text-white">{title}</p>
+                      <p className="text-xs sm:text-sm text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed mt-0.5">{desc}</p>
                     </div>
                   </div>
                 ))}
               </div>
-              
-              <div className="bg-gradient-to-br from-[#FEF8E7]/60 to-white dark:from-[#0E0E32] dark:to-[#0A0A28] rounded-[24px] border-2 border-[#D89A06]/30 shadow-2xl p-10 h-[320px] flex items-center justify-center transition-all animate-in zoom-in-95 duration-500">
-                <div className="text-center space-y-4">
-                  <div className="w-20 h-20 bg-[#00004E] dark:bg-[#00004E]/50 rounded-2xl flex items-center justify-center mx-auto text-[#D89A06] shadow-sm border border-[#D89A06]/40">
-                    {(() => {
-                      const ActiveIcon = tabData[activeTab].icon;
-                      return <ActiveIcon size={36} strokeWidth={2.5} />;
-                    })()}
-                  </div>
-                  <p className="text-[16px] font-bold text-[#00004E] dark:text-[#D89A06] tracking-wide">{tabData[activeTab].previewText}</p>
+
+              <div className="pt-2">
+                <Link
+                  href="/signup"
+                  className="inline-flex items-center gap-2 bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] px-5 py-2.5 rounded-xl text-xs font-bold hover:opacity-95 transition-opacity"
+                >
+                  <span>Open This Tool in Workspace</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Right Authentic Specimen Card (Replaces Empty 320px Icon Box) */}
+            <div className="lg:col-span-6 rounded-2xl border-2 border-[#00004E]/15 dark:border-[#D89A06]/35 bg-[#F8F9FD] dark:bg-[#040416] overflow-hidden shadow-md">
+              <div className="bg-[#00004E] text-white px-5 py-3.5 flex items-center justify-between border-b border-[#D89A06]/40">
+                <span className="text-xs font-mono font-semibold text-white/90 truncate">
+                  {current.specimen.header}
+                </span>
+                <span className="text-[11px] font-bold bg-[#D89A06] text-[#00004E] px-2.5 py-0.5 rounded-md shrink-0">
+                  {current.specimen.badge}
+                </span>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <h3 className="text-base font-bold text-[#00004E] dark:text-white">
+                  {current.specimen.title}
+                </h3>
+
+                <div className="p-3.5 rounded-xl bg-white dark:bg-[#0A0A28] border border-border font-mono text-xs text-[#00004E] dark:text-[#D89A06] font-semibold">
+                  {current.specimen.formula}
+                </div>
+
+                <div className="p-4 rounded-xl bg-[#FEF8E7]/80 dark:bg-[#00004E]/40 border-l-4 border-l-[#D89A06] text-xs text-[#2A314E] dark:text-white/90 leading-relaxed">
+                  {current.specimen.note}
+                </div>
+
+                <div className="pt-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{current.specimen.footerLeft}</span>
+                  <span className="font-semibold text-[#00004E] dark:text-[#D89A06]">{current.specimen.footerRight}</span>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        <div className="grid md:grid-cols-3 gap-8">
-          {[
-            { icon: Layers, title: "AI Note Generation", desc: "Instantly turn unorganized slides and dense PDFs into comprehensive, structured notes." },
-            { icon: Video, title: "YouTube Summarizer", desc: "Paste any educational YouTube link to instantly extract summaries, key points, and study notes." },
-            { icon: Search, title: "Semantic Search", desc: "Ask questions and get answers cited directly from your course materials and notes." },
-            { icon: Languages, title: "Multilingual Translation", desc: "Powered by Microsoft Translator. Study in your native language with zero friction." },
-            { icon: FileText, title: "Essay Grader", desc: "Get instant AI feedback, structural analysis, and improvement suggestions for your essays." },
-            { icon: BarChart, title: "Performance Analytics", desc: "Track your progress, identify weak points across modules, and improve your scores through data." },
-            { icon: Zap, title: "Smart Flashcards", desc: "Auto-generated spaced repetition flashcards that adapt perfectly to your unique memory curve." },
-            { icon: BookOpen, title: "Past Paper Simulator", desc: "Practice under timed, exam-like conditions using questions generated from your curriculum." },
-            { icon: Heart, title: "Wellbeing Tracker", desc: "Log your mood, track your study efforts, and get AI-suggested breaks to prevent burnout." },
-          ].map((feature, i) => (
-            <div key={i} className="group bg-white dark:bg-[#0A0A28] p-8 rounded-[24px] shadow-sm hover:shadow-xl transition-all duration-300 border-2 border-border/80 hover:border-[#D89A06] hover:-translate-y-1">
-              <div className="w-14 h-14 bg-[#00004E] text-[#D89A06] rounded-xl mb-6 flex items-center justify-center border border-[#D89A06]/40 group-hover:scale-110 transition-transform duration-300 shadow-2xs">
-                <feature.icon size={24} strokeWidth={2} />
-              </div>
-              <h3 className="text-[19px] font-bold text-[#00004E] dark:text-white mb-3">{feature.title}</h3>
-              <p className="text-[15px] text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">{feature.desc}</p>
-            </div>
-          ))}
-        </div>
+        {/* Academic Specification Table (Replaces 9 Identical Icon-in-a-Box Cards) */}
+        <section className="space-y-6">
+          <div className="max-w-2xl space-y-1.5">
+            <h2 className="text-2xl md:text-3xl font-black text-[#00004E] dark:text-white tracking-tight">
+              Complete Academic Specification
+            </h2>
+            <p className="text-sm text-[#4B526B] dark:text-[#A3A8C2]">
+              Every module included in your student account across web and offline study sessions.
+            </p>
+          </div>
 
+          <div className="rounded-2xl border border-border bg-white dark:bg-[#0A0A28] overflow-hidden shadow-xs">
+            <div className="grid grid-cols-1 md:grid-cols-12 bg-[#00004E] text-white px-6 py-3.5 text-xs font-bold uppercase tracking-wider">
+              <div className="md:col-span-3">Workspace Tool</div>
+              <div className="md:col-span-5">What It Does For Your Revision</div>
+              <div className="md:col-span-4">Supported Formats &amp; Output</div>
+            </div>
+            <div className="divide-y divide-border text-sm">
+              {[
+                [
+                  "Lecture Slide Studio",
+                  "Breaks down uploaded lecture decks slide by slide with cited definitions, audio read-aloud, and key takeaways.",
+                  "PDF, PPTX, DOCX · Cited Slide Notes",
+                ],
+                [
+                  "Exam Focus Matcher",
+                  "Correlates lecturer focus areas against your slides and past papers to highlight high-probability exam questions.",
+                  "Topic Coverage Map & Gap Practice Drills",
+                ],
+                [
+                  "Past Paper Mock Engine",
+                  "Timed 120-minute trial exams with automatic MCQ scoring and sub-question rubric grading for theory parts.",
+                  "Level 100–400 Past Papers · Worked Model Answers",
+                ],
+                [
+                  "Math & Graph Plotter",
+                  "Solves calculus, matrices, and statistics step by step and plots multi-curve coordinate graphs on millimeter grid paper.",
+                  "Symbolic CAS + 2mm WASSCE/University Grid",
+                ],
+                [
+                  "Handwritten Note Scanner",
+                  "Digitizes photos of handwritten notebook derivations and whiteboard tables into editable LaTeX and Markdown.",
+                  "PNG, JPG, WebP · KaTeX Formula Export",
+                ],
+                [
+                  "SM-2 Flashcards & Quizzes",
+                  "Schedules active-recall flashcard reviews based on your confidence ratings before midterms and finals.",
+                  "Spaced Repetition Deck & Offline Cache",
+                ],
+              ].map(([tool, purpose, output]) => (
+                <div key={tool} className="grid grid-cols-1 md:grid-cols-12 px-6 py-4 gap-2 items-center hover:bg-muted/20 transition-colors">
+                  <div className="md:col-span-3 font-bold text-[#00004E] dark:text-white">{tool}</div>
+                  <div className="md:col-span-5 text-xs sm:text-sm text-[#4B526B] dark:text-[#A3A8C2] leading-relaxed">{purpose}</div>
+                  <div className="md:col-span-4 text-xs font-mono text-[#00004E] dark:text-[#D89A06] font-medium">{output}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
       </main>
       <MarketingFooter />
     </div>

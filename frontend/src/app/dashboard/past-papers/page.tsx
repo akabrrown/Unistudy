@@ -531,18 +531,13 @@ export default function PastPapersDashboard() {
       {/* Command Header */}
       <header className="rounded-2xl border border-border/80 bg-card p-5 md:p-6 shadow-xs space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-mono uppercase tracking-wider text-[11px] text-primary font-semibold">
-                Exam Preparation
-              </span>
-              <span aria-hidden="true">/</span>
-              <span>Course Question Banks &amp; AI Examiner</span>
-            </div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-              <GraduationCap className="w-7 h-7 text-primary" />
-              Past Question Banks
+          <div className="space-y-0.5">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+              Past Examination Papers
             </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Practice official university past papers under timed exam conditions or download original PDFs.
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
@@ -840,34 +835,10 @@ export default function PastPapersDashboard() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                <div className="rounded-xl border border-border/70 bg-muted/25 p-4 space-y-1">
-                  <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
-                    01 / OCR EXTRACTION
-                  </div>
-                  <div className="text-sm font-semibold text-foreground">Auto-split exam questions</div>
-                  <p className="text-xs text-muted-foreground">
-                    Theory, calculation, and structured sub-parts `(a)`, `(b)`, `(i)` are parsed into interactive prompt cards.
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border/70 bg-muted/25 p-4 space-y-1">
-                  <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
-                    02 / TIMED SIMULATION
-                  </div>
-                  <div className="text-sm font-semibold text-foreground">Practice under exam clock</div>
-                  <p className="text-xs text-muted-foreground">
-                    Type answers or skip questions freely—submit anytime for instant marking.
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border/70 bg-muted/25 p-4 space-y-1">
-                  <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
-                    03 / FULL AI EXAMINER
-                  </div>
-                  <div className="text-sm font-semibold text-foreground">Complete solutions for every part</div>
-                  <p className="text-xs text-muted-foreground">
-                    Receive mark breakdowns and worked model answers even for unanswered questions.
-                  </p>
-                </div>
+              <div className="pt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+                <span>• Auto-splits Section A (MCQs) and Section B (Theory &amp; Calculations)</span>
+                <span>• Timed 120-minute trial simulator</span>
+                <span>• Worked model answers for every sub-question (a), (b), (i), (ii)</span>
               </div>
             </div>
           ) : (

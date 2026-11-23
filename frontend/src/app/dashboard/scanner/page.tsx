@@ -475,43 +475,42 @@ export default function NotesScannerPage() {
 
   return (
     <div className="max-w-[1380px] mx-auto pb-12 space-y-5">
-      {/* Studio Command Header */}
-      <header className="rounded-2xl border border-border/80 bg-card p-5 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      {/* Clean Workspace Toolbar Header (No 4-Card Telemetry Strip) */}
+      <header className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 border-b border-border pb-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-mono uppercase tracking-wider text-[11px] text-primary font-semibold">
-              Optical STEM Studio
-            </span>
-            <span aria-hidden="true">/</span>
-            <span>MixTeX LaTeX + GFM Markdown Digitizer</span>
-          </div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <Camera className="w-6 h-6 text-primary" strokeWidth={1.75} />
-            Handwritten Notes &amp; STEM Scanner
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+            Handwritten Notes &amp; Formula Scanner
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl">
-            Convert whiteboard photos, handwritten derivations, and lab tables into editable Markdown
-            and KaTeX-ready LaTeX with zero hallucinated facts.
+            Upload a photo of notebook pages, whiteboard derivations, or tables to convert them into editable notes and formatted math equations.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {transcription && (
+            <div className="inline-flex items-center gap-3 px-3 py-1.5 rounded-lg bg-muted/50 border border-border text-xs text-muted-foreground">
+              <span><strong className="text-foreground font-mono">{latexSnips.length}</strong> formulas</span>
+              <span>·</span>
+              <span><strong className="text-foreground font-mono">{docStats.words}</strong> words</span>
+            </div>
+          )}
+
           <button
             type="button"
             onClick={handleLoadSample}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/40 hover:bg-muted px-3.5 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card hover:bg-muted px-3.5 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer"
           >
             <Sigma className="w-3.5 h-3.5 text-primary" />
-            Load STEM Sample
+            Try Sample Note
           </button>
 
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/15 px-3.5 py-2 text-xs font-semibold text-primary transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] hover:opacity-95 px-4 py-2 text-xs font-bold transition-opacity cursor-pointer"
           >
             <UploadCloud className="w-3.5 h-3.5" />
-            Select Page Image
+            Upload Photo
           </button>
 
           {(file || transcription) && (
@@ -521,90 +520,24 @@ export default function NotesScannerPage() {
               className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background hover:bg-muted px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              Reset
+              Clear
             </button>
           )}
         </div>
       </header>
 
-      {/* 4-Tile Live OCR Telemetry Strip */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Vision Engine
-            </p>
-            <p className="text-sm font-bold text-foreground mt-0.5">MixTeX + Gemini OCR</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Strict T=0.1 Verbatim Mode</p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-            <FileCode2 className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Detected Equations
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {latexSnips.length}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {latexSnips.filter((s) => s.isBlock).length} display ·{' '}
-              {latexSnips.filter((s) => !s.isBlock).length} inline
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
-            <Sigma className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Document Volume
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {docStats.words} <span className="text-xs font-normal text-muted-foreground">words</span>
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {docStats.chars} chars · ~{docStats.readMins} min study
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
-            <FileText className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Session Archive
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {history.length} <span className="text-xs font-normal text-muted-foreground">pages</span>
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Saved in browser storage</p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-500">
-            <Clock className="w-4 h-4" />
-          </div>
-        </div>
-      </section>
-
-      {/* Main 12-Column Side-by-Side Studio Workspace */}
+      {/* Main 12-Column Side-by-Side Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Left Column (5 cols): Source Page Capture, Mode Selector & History */}
         <div className="lg:col-span-5 space-y-4">
           {/* 1. Extraction Mode Selector */}
           <div className="rounded-2xl border border-border/80 bg-card p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">
-                1. OCR Extraction Profile
+              <h2 className="text-xs font-bold text-foreground">
+                What are you scanning?
               </h2>
-              <span className="text-[11px] text-muted-foreground font-mono">
-                KaTeX $ / $$ Normalized
+              <span className="text-[11px] text-muted-foreground">
+                {history.length} saved in history
               </span>
             </div>
 

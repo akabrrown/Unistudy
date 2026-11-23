@@ -559,18 +559,14 @@ export default function BillingSettings() {
         </div>
       )}
 
-      {/* Studio Header & Settings Suite Navigation */}
-      <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-border/80 pb-5">
-        <div className="space-y-1.5">
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[11px] font-mono uppercase tracking-wider">
-            <CreditCard className="w-3.5 h-3.5" />
-            AI Compute Wallet · Live Ledger · Paystack Gateway
-          </div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            Wallet, Credits &amp; Compute Billing
+      {/* Clean Billing Header */}
+      <header className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 border-b border-border/80 pb-5">
+        <div className="space-y-1">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+            Study Credits &amp; Billing
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl">
-            Live visibility into credits used, remaining wallet balances, free daily allowance pools, and real-time inference deductions.
+            View your remaining study credits, free 6-hour passes, and top up via Mobile Money or card.
           </p>
         </div>
 

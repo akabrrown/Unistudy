@@ -552,17 +552,13 @@ export default function CoursesPage() {
       {/* Header + Course Study Tools Dock */}
       <header className="rounded-2xl border border-border/80 bg-card p-5 md:p-6 shadow-xs space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-mono uppercase tracking-wider text-[11px] text-primary font-semibold">
-                Academic Workspace
-              </span>
-              <span aria-hidden="true">/</span>
-              <span>Modules, Slides, Quizzes &amp; Computation Tools</span>
-            </div>
+          <div className="space-y-0.5">
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-              Courses Workspace
+              My Courses
             </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Organize your semester modules, upload lecture slide decks, and practice matched past examination papers.
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
@@ -978,34 +974,10 @@ export default function CoursesPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                <div className="rounded-xl border border-border/70 bg-muted/25 p-4 space-y-1.5">
-                  <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
-                    01 / FOCUS CURRENT TERM
-                  </div>
-                  <div className="text-sm font-semibold text-foreground">Keep active list clean</div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Archive finished modules so your Dashboard Command Center and Timetable stay focused on this semester&apos;s exams.
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border/70 bg-muted/25 p-4 space-y-1.5">
-                  <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
-                    02 / ZERO DATA LOSS
-                  </div>
-                  <div className="text-sm font-semibold text-foreground">Notes &amp; past papers preserved</div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Every slide explanation, SM-2 flashcard deck, and AI past-paper attempt remains safely attached to the archived module.
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border/70 bg-muted/25 p-4 space-y-1.5">
-                  <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
-                    03 / INSTANT RESTORE
-                  </div>
-                  <div className="text-sm font-semibold text-foreground">Re-activate anytime</div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Need to revise a prerequisite before finals? Restore any archived course back into Active Courses with one click.
-                  </p>
-                </div>
+              <div className="pt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+                <span>• Preserves all lecture slide notes and SM-2 flashcards</span>
+                <span>• Keeps graded past paper attempts intact</span>
+                <span>• Restore to your active semester list anytime in one click</span>
               </div>
             </div>
           ) : (
@@ -1124,42 +1096,10 @@ export default function CoursesPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-            <div className="rounded-xl border border-border/70 bg-muted/25 p-4 space-y-1.5">
-              <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
-                01 / LECTURE SLIDES
-              </div>
-              <div className="text-sm font-semibold text-foreground">Upload PDFs &amp; get AI tutor notes</div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Every slide deck is indexed for semantic search, audio explanations, cheat sheets, and in-slide Q&amp;A.
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/70 bg-muted/25 p-4 space-y-1.5">
-              <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
-                02 / ACTIVE RECALL
-              </div>
-              <div className="text-sm font-semibold text-foreground">Auto-generated cards &amp; quizzes</div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Practice SM-2 spaced repetition flashcards and lecture quizzes grounded directly in your course materials.
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/70 bg-muted/25 p-4 space-y-1.5">
-              <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
-                03 / STEM TOOLKIT
-              </div>
-              <div className="text-sm font-semibold text-foreground">Integrated Math &amp; Graph Studio</div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Jump straight to the{' '}
-                <Link href="/dashboard/calculator?tab=solver" className="text-primary hover:underline font-medium">
-                  Math Solver
-                </Link>{' '}
-                or{' '}
-                <Link href="/dashboard/calculator?tab=graph" className="text-primary hover:underline font-medium">
-                  Graph Plotter
-                </Link>{' '}
-                for assignments and coordinate questions.
-              </p>
-            </div>
+          <div className="pt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+            <span>• Upload PDF or PPTX lecture slide decks</span>
+            <span>• Automatically links matching university past question papers</span>
+            <span>• Generates flashcards, quizzes, and printable A4 cheat sheets</span>
           </div>
         </section>
       ) : (

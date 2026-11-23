@@ -591,23 +591,14 @@ export default function EssayGraderPage() {
 
   return (
     <div className="max-w-[1380px] mx-auto pb-12 space-y-5">
-      {/* Studio Command Header */}
-      <header className="rounded-2xl border border-border/80 bg-card p-5 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      {/* Clean Editorial Writing Header (Replaces 4-Card Telemetry Strip) */}
+      <header className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 border-b border-border pb-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-mono uppercase tracking-wider text-[11px] text-primary font-semibold">
-              Academic Evaluation Suite
-            </span>
-            <span aria-hidden="true">/</span>
-            <span>4-Axis Rubric Matrix + Live 100/100 Exemplar Engine</span>
-          </div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <GraduationCap className="w-6 h-6 text-primary" strokeWidth={1.75} />
-            Essay Grader &amp; Exemplar Studio
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+            Essay &amp; Assignment Grader
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl">
-            Evaluate drafts against university rubric criteria (Thesis, Evidence, Structure, Diction),
-            inspect sentence-level readability, and stream a 100/100 honors revision side by side.
+            Check your draft against university marking criteria (Thesis, Evidence, Structure, Clarity), highlight overly dense sentences, and compare against a first-class rewrite.
           </p>
         </div>
 
@@ -618,6 +609,20 @@ export default function EssayGraderPage() {
               Offline
             </div>
           )}
+
+          <div className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-muted/50 border border-border text-xs text-muted-foreground">
+            <span><strong className="text-foreground font-mono">{draftMetrics.words}</strong> words</span>
+            <span>·</span>
+            <span><strong className="text-foreground font-mono">{draftMetrics.avgWordsPerSentence}</strong> w/sent</span>
+            {report && (
+              <>
+                <span>·</span>
+                <span className="font-bold text-[#00004E] dark:text-[#D89A06] font-mono">
+                  {report.score}/100 ({report.grade})
+                </span>
+              </>
+            )}
+          </div>
 
           <input
             ref={fileInputRef}
@@ -630,19 +635,19 @@ export default function EssayGraderPage() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/40 hover:bg-muted px-3.5 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card hover:bg-muted px-3.5 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer"
           >
             <Upload className="w-3.5 h-3.5 text-primary" />
-            Import .TXT / .MD
+            Import Draft
           </button>
 
           <button
             type="button"
             onClick={() => handleLoadSamplePreset()}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/15 px-3.5 py-2 text-xs font-semibold text-primary transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card hover:bg-muted px-3.5 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer"
           >
-            <BookOpen className="w-3.5 h-3.5" />
-            Load Sample Essay
+            <BookOpen className="w-3.5 h-3.5 text-primary" />
+            Try Sample Essay
           </button>
 
           {(prompt || essay || report) && (
@@ -652,93 +657,11 @@ export default function EssayGraderPage() {
               className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background hover:bg-muted px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              Reset
+              Clear
             </button>
           )}
         </div>
       </header>
-
-      {/* 4-Tile Live Writing & Evaluation Telemetry Strip */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Manuscript Volume
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {draftMetrics.words}{' '}
-              <span className="text-xs font-normal text-muted-foreground">words</span>
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {draftMetrics.paragraphs} paras · {draftMetrics.sentences} sentences · ~
-              {draftMetrics.estimatedReadMinutes || 0}m read
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-            <FileText className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Sentence Cadence
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {draftMetrics.avgWordsPerSentence}{' '}
-              <span className="text-xs font-normal text-muted-foreground">words/sent</span>
-            </p>
-            <p className={cn('text-[11px] font-medium mt-0.5', readabilityBadge.tone)}>
-              {readabilityBadge.label}
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
-            <SlidersHorizontal className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              Rubric Standing
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {report ? `${report.score}/100 (${report.grade})` : 'Unscored'}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {loading
-                ? streamStage || 'Evaluating live...'
-                : report
-                ? `${report.strengths.length} strengths · ${report.weaknesses.length} fixes`
-                : promptReady && essayReady
-                ? 'Ready for evaluation'
-                : 'Enter prompt & 50+ char draft'}
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
-            <Award className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/80 bg-card px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              100/100 Exemplar &amp; Archive
-            </p>
-            <p className="text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
-              {perfectWordCount > 0 ? `${perfectWordCount} words` : `${history.length} saved`}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {perfectWordCount > 0
-                ? `${perfectParagraphs.length} paragraphs rewritten`
-                : `${history.length} graded essays in archive`}
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-500">
-            <Clock className="w-4 h-4" />
-          </div>
-        </div>
-      </section>
 
       {/* Discipline Rubric Bar */}
       <section className="rounded-2xl border border-border/80 bg-card p-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
