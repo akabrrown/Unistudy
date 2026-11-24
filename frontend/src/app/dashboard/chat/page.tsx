@@ -1847,14 +1847,16 @@ export default function GeneralAiChatPage() {
       {/* Main Chat Interface */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Top Header & Context Bar */}
-        <header className="flex-shrink-0 bg-card border border-border rounded-2xl p-3 sm:p-4 shadow-xs mb-3 space-y-3">
-          <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-3 min-w-0">
+        <header className="flex-shrink-0 bg-card border border-border rounded-2xl p-3.5 sm:p-4 shadow-xs mb-3 space-y-3">
+          {/* Primary Header Row: Identity & Primary Session Controls */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 min-w-0">
+            {/* Title & Tutor Identity */}
             <div className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0">
               <Button
                 variant="outline"
                 size="icon"
                 onClick={() => setIsHistoryOpen((prev) => !prev)}
-                className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 text-[#00004E] dark:text-[#D89A06] border-border hover:border-[#D89A06]"
+                className="h-9 w-9 shrink-0 text-[#00004E] dark:text-[#D89A06] border-border hover:border-[#D89A06]"
                 title={isHistoryOpen ? 'Collapse chat history' : 'Expand chat history'}
               >
                 {isHistoryOpen ? (
@@ -1864,35 +1866,35 @@ export default function GeneralAiChatPage() {
                 )}
               </Button>
 
-              <UniStudyLogo variant="icon" height={30} className="shrink-0" alt="UniStudy AI Study Tutor" />
+              <UniStudyLogo variant="icon" height={32} className="shrink-0" alt="UniStudy AI Study Tutor" />
 
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <h1
-                    className="text-base sm:text-lg md:text-xl font-black tracking-tight text-[#00004E] dark:text-white truncate"
+                    className="text-base sm:text-lg md:text-xl font-black tracking-tight text-[#00004E] dark:text-white truncate max-w-full sm:max-w-md md:max-w-lg"
                     title={cleanChatTitle(currentSession?.title)}
                   >
                     {cleanChatTitle(currentSession?.title)}
                   </h1>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#D89A06]/20 text-[#8C6404] dark:text-[#D89A06] border border-[#D89A06]/40 uppercase tracking-wide shrink-0 hidden sm:inline-flex items-center">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#D89A06]/20 text-[#8C6404] dark:text-[#D89A06] border border-[#D89A06]/40 uppercase tracking-wide shrink-0 inline-flex items-center">
                     {tutorConfig.name} ({tutorConfig.personality})
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground truncate mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
                   Personalized Tutor {tutorConfig.name} · {tutorConfig.tone === 'casual' ? 'Casual & Relatable' : 'Academic & Scholarly'} · Slide Grounding &amp; Mentoring
                 </p>
               </div>
             </div>
 
-            {/* Model Selector & Action Toolbar */}
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0">
+            {/* Primary Session Controls: Model Engine, Wallet & New Chat */}
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
               {/* Dynamic Model Selector Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger
-                  className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-2 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-3 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors cursor-pointer shadow-2xs"
                 >
                   <activeModelConfig.icon className={cn('h-3.5 w-3.5', activeModelConfig.color)} />
-                  <span className="truncate max-w-[85px] sm:max-w-none">{activeModelConfig.name}</span>
+                  <span>{activeModelConfig.name}</span>
                   <ChevronDown className="h-3 w-3 opacity-60 shrink-0" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-64 p-1.5 space-y-1">
@@ -1945,16 +1947,17 @@ export default function GeneralAiChatPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
+              {/* Dual-Pocket Wallet */}
               <Link
                 href="/dashboard/settings/billing"
-                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2 sm:px-2.5 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors shadow-2xs group"
+                className="inline-flex items-center gap-2 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2.5 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors shadow-2xs group"
                 title={`Dual-Pocket Wallet: ${freePasses ?? 8}/8 Free 6h Passes + ${paidCredits ?? 20} Paid Credits (Never expires)`}
               >
                 <div className="flex items-center gap-1">
                   <span className="text-[#D89A06]">⚡</span>
                   <span>{freePasses ?? 8}/8 Free</span>
                   {secondsUntilRefill !== null && (freePasses ?? 8) < 8 && secondsUntilRefill > 0 && (
-                    <span className="text-[10px] text-muted-foreground font-mono hidden 2xl:inline">
+                    <span className="text-[10px] text-muted-foreground font-mono">
                       ({Math.floor(secondsUntilRefill / 3600)}h {Math.floor((secondsUntilRefill % 3600) / 60)}m)
                     </span>
                   )}
@@ -1967,57 +1970,25 @@ export default function GeneralAiChatPage() {
                 )}
               </Link>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsCalibrateDialogOpen(true)}
-                className="text-xs font-semibold h-8 px-2 sm:px-2.5 border-[#D89A06]/40 text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5"
-                title="Calibrate Tutor Name, Tone & Personality"
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5 sm:mr-1 text-[#D89A06]" />
-                <span className="hidden xl:inline">Calibrate</span>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsMemoryOpen(true)}
-                className="text-xs font-semibold h-8 px-2 sm:px-2.5 border-[#D89A06]/40 text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5"
-                title="See and edit what your tutor remembers"
-              >
-                <Brain className="h-3.5 w-3.5 sm:mr-1 text-[#D89A06]" />
-                <span className="hidden xl:inline">Memory</span>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExportChat}
-                disabled={messages.length === 0}
-                className="text-xs font-semibold h-8 px-2 sm:px-2.5"
-                title="Export as Markdown"
-              >
-                <Download className="h-3.5 w-3.5 sm:mr-1" />
-                <span className="hidden xl:inline">Export</span>
-              </Button>
-
+              {/* Start New Chat Button */}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleStartNewChat}
-                className="text-xs font-semibold h-8 px-2.5 sm:px-3 text-[#00004E] dark:text-[#D89A06] border-[#D89A06]/40 hover:bg-[#FEF8E7]"
+                className="text-xs font-bold h-8 px-3 text-[#00004E] dark:text-[#D89A06] border-[#D89A06]/50 bg-[#FEF8E7]/50 dark:bg-white/5 hover:bg-[#FEF8E7] dark:hover:bg-white/10 shadow-2xs"
                 title="Start a fresh chat"
               >
-                <Plus className="h-3.5 w-3.5 sm:mr-1 text-[#D89A06]" />
-                <span className="hidden sm:inline">New Chat</span>
+                <Plus className="h-3.5 w-3.5 mr-1 text-[#D89A06]" />
+                New Chat
               </Button>
             </div>
           </div>
 
-          {/* Reference Deck Grounding Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-border/60">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          {/* Secondary Workspace Bar: Slide Grounding & Study Tools */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2.5 border-t border-border/60">
+            {/* Left: Active Grounding + Attach/Switch Deck Button */}
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 shrink-0">
                 <Layers className="h-3.5 w-3.5 text-[#D89A06]" />
                 Active Grounding:
               </span>
@@ -2028,25 +1999,25 @@ export default function GeneralAiChatPage() {
                     {activeDeck.courseCode}
                   </span>
                   <span className="text-muted-foreground">/</span>
-                  <span className="font-medium text-foreground break-words">
+                  <span className="font-medium text-foreground truncate max-w-[200px] sm:max-w-xs">
                     {activeDeck.lectureTitle}
                   </span>
                   {typeof activeDeck.slideCount === 'number' && activeDeck.slideCount > 0 && (
-                    <span className="text-[11px] text-muted-foreground font-mono">
+                    <span className="text-[11px] text-muted-foreground font-mono shrink-0">
                       ({activeDeck.slideCount} slides)
                     </span>
                   )}
                   <Link
                     href={`/dashboard/courses/${activeDeck.courseId}/lectures/${activeDeck.lectureId}`}
                     target="_blank"
-                    className="text-muted-foreground hover:text-[#00004E] dark:hover:text-white transition-colors"
+                    className="text-muted-foreground hover:text-[#00004E] dark:hover:text-white transition-colors shrink-0"
                     title="Open Slide Viewer"
                   >
                     <ExternalLink className="h-3 w-3" />
                   </Link>
                   <button
                     onClick={handleDetachDeck}
-                    className="ml-1 p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/20 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    className="ml-1 p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/20 text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
                     title="Detach deck"
                   >
                     <X className="h-3 w-3" />
@@ -2054,21 +2025,58 @@ export default function GeneralAiChatPage() {
                 </div>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted text-xs font-medium text-muted-foreground">
-                  <BookOpen className="h-3 w-3 text-[#D89A06]" />
+                  <BookOpen className="h-3.5 w-3.5 text-[#D89A06]" />
                   General Academic Chat (All subjects &amp; formulas)
                 </span>
               )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsDeckSelectorOpen(true)}
+                className="h-7 text-xs font-bold border-[#D89A06]/40 hover:border-[#D89A06] hover:bg-[#FEF8E7] dark:hover:bg-white/5 text-[#00004E] dark:text-[#D89A06] shrink-0"
+              >
+                <Paperclip className="h-3 w-3 mr-1 text-[#D89A06]" />
+                {activeDeck ? 'Switch Deck' : 'Attach Lecture Deck'}
+              </Button>
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsDeckSelectorOpen(true)}
-              className="h-8 text-xs font-bold border-[#D89A06]/40 hover:border-[#D89A06] hover:bg-[#FEF8E7] dark:hover:bg-white/5 text-[#00004E] dark:text-[#D89A06]"
-            >
-              <Paperclip className="h-3.5 w-3.5 mr-1 text-[#D89A06]" />
-              {activeDeck ? 'Switch Lecture Deck' : 'Attach Lecture Deck'}
-            </Button>
+            {/* Right: Study Features (Calibrate Tutor, Persistent Memory, Export) */}
+            <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCalibrateDialogOpen(true)}
+                className="text-xs font-semibold h-7 px-2.5 border-[#D89A06]/40 text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5"
+                title="Calibrate Tutor Name, Tone & Personality"
+              >
+                <SlidersHorizontal className="h-3 w-3 mr-1 text-[#D89A06]" />
+                <span>Calibrate</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsMemoryOpen(true)}
+                className="text-xs font-semibold h-7 px-2.5 border-[#D89A06]/40 text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5"
+                title="See and edit what your tutor remembers across conversations"
+              >
+                <Brain className="h-3 w-3 mr-1 text-[#D89A06]" />
+                <span>Memory</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportChat}
+                disabled={messages.length === 0}
+                className="text-xs font-semibold h-7 px-2.5"
+                title="Export this conversation as Markdown"
+              >
+                <Download className="h-3 w-3 mr-1" />
+                <span>Export</span>
+              </Button>
+            </div>
           </div>
         </header>
 
