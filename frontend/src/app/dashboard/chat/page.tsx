@@ -1861,85 +1861,17 @@ export default function GeneralAiChatPage() {
               <UniStudyLogo variant="icon" height={28} className="shrink-0 hidden xs:block" alt="UniStudy AI Study Tutor" />
 
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                  <h1
-                    className="text-sm sm:text-base font-black tracking-tight text-[#00004E] dark:text-white truncate whitespace-nowrap"
-                    title={cleanChatTitle(currentSession?.title)}
-                  >
-                    {cleanChatTitle(currentSession?.title)}
-                  </h1>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF8E7] dark:bg-white/10 text-[#8C6404] dark:text-[#D89A06] border border-[#D89A06]/40 uppercase tracking-wide shrink-0 hidden sm:inline-flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#D89A06]" />
-                    {tutorConfig.name} · {tutorConfig.personality}
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground truncate whitespace-nowrap hidden lg:block">
-                  Personalized Tutor {tutorConfig.name} · {tutorConfig.tone === 'casual' ? 'Casual & Relatable' : 'Academic & Scholarly'}
-                </p>
+                <h1
+                  className="text-sm sm:text-base font-black tracking-tight text-[#00004E] dark:text-white truncate whitespace-nowrap"
+                  title={cleanChatTitle(currentSession?.title)}
+                >
+                  {cleanChatTitle(currentSession?.title)}
+                </h1>
               </div>
             </div>
 
             {/* Right: Adaptive Action Toolbar */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              {/* Dynamic Model Selector Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2 sm:px-2.5 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors cursor-pointer shadow-2xs"
-                  title="Select AI Reasoning Engine"
-                >
-                  <activeModelConfig.icon className={cn('h-3.5 w-3.5', activeModelConfig.color)} />
-                  <span className="truncate max-w-[70px] sm:max-w-none">{activeModelConfig.name}</span>
-                  <ChevronDown className="h-3 w-3 opacity-60 shrink-0" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64 p-1.5 space-y-1">
-                  <DropdownMenuLabel className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                    Select AI Reasoning Engine
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {AI_MODELS.map((model) => {
-                    const isSelected = selectedModel === model.id;
-                    const Icon = model.icon;
-                    return (
-                      <DropdownMenuItem
-                        key={model.id}
-                        onClick={() => {
-                          setSelectedModel(model.id);
-                          if (activeSessionId) {
-                            setSessions((prev) =>
-                              prev.map((s) =>
-                                s.id === activeSessionId ? { ...s, selectedModel: model.id } : s
-                              )
-                            );
-                          }
-                          toast.success(`Switched AI Engine to ${model.name}`);
-                        }}
-                        className={cn(
-                          'flex items-start gap-2.5 p-2 rounded-lg cursor-pointer transition-colors',
-                          isSelected
-                            ? 'bg-[#FEF8E7] dark:bg-white/10 border border-[#D89A06]/50'
-                            : 'hover:bg-muted'
-                        )}
-                      >
-                        <div className="mt-0.5 p-1 rounded-md bg-muted shrink-0">
-                          <Icon className={cn('h-3.5 w-3.5', model.color)} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-xs text-foreground">{model.name}</span>
-                            <span className="text-[9px] uppercase font-bold px-1.5 py-0.2 rounded-full bg-muted text-muted-foreground">
-                              {model.badge}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
-                            {model.tagline}
-                          </p>
-                        </div>
-                        {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-1" />}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
 
               {/* Dual-Pocket Wallet Pill */}
               <Link
@@ -2934,6 +2866,66 @@ export default function GeneralAiChatPage() {
               disabled={isLoading}
               className="flex-1 bg-transparent px-2 py-2 text-xs md:text-sm resize-none focus:outline-none placeholder:text-muted-foreground/60 max-h-44 overflow-y-auto leading-relaxed"
             />
+
+            {/* Dynamic Model Selector Dropdown - right beside send button */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2.5 py-2 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors cursor-pointer shadow-2xs shrink-0 h-10"
+                title="Select AI Reasoning Engine"
+              >
+                <activeModelConfig.icon className={cn('h-3.5 w-3.5', activeModelConfig.color)} />
+                <span className="hidden sm:inline font-semibold">{activeModelConfig.name}</span>
+                <ChevronDown className="h-3 w-3 opacity-60 shrink-0" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" side="top" className="w-64 p-1.5 space-y-1 mb-1">
+                <DropdownMenuLabel className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Select AI Reasoning Engine
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {AI_MODELS.map((model) => {
+                  const isSelected = selectedModel === model.id;
+                  const Icon = model.icon;
+                  return (
+                    <DropdownMenuItem
+                      key={model.id}
+                      onClick={() => {
+                        setSelectedModel(model.id);
+                        if (activeSessionId) {
+                          setSessions((prev) =>
+                            prev.map((s) =>
+                              s.id === activeSessionId ? { ...s, selectedModel: model.id } : s
+                            )
+                          );
+                        }
+                        toast.success(`Switched AI Engine to ${model.name}`);
+                      }}
+                      className={cn(
+                        'flex items-start gap-2.5 p-2 rounded-lg cursor-pointer transition-colors',
+                        isSelected
+                          ? 'bg-[#FEF8E7] dark:bg-white/10 border border-[#D89A06]/50'
+                          : 'hover:bg-muted'
+                      )}
+                    >
+                      <div className="mt-0.5 p-1 rounded-md bg-muted shrink-0">
+                        <Icon className={cn('h-3.5 w-3.5', model.color)} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-foreground">{model.name}</span>
+                          <span className="text-[9px] uppercase font-bold px-1.5 py-0.2 rounded-full bg-muted text-muted-foreground">
+                            {model.badge}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                          {model.tagline}
+                        </p>
+                      </div>
+                      {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-1" />}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <Button
               onClick={() => (isLoading ? abortRef.current?.abort() : handleSendMessage())}
