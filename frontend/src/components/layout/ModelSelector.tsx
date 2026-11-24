@@ -81,11 +81,10 @@ export function ModelSelector({ isCollapsed = false }: ModelSelectorProps) {
   }
 
   return (
-    <div className="flex flex-col gap-1 w-full px-2 mb-4">
-      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">AI Model</span>
+    <div className="w-full px-0.5">
       <Select value={selectedTier} onValueChange={(val: any) => setTier(val)}>
-        <SelectTrigger className="w-full h-9 bg-background">
-          <SelectValue placeholder="Select Model Tier" />
+        <SelectTrigger className="w-full h-8 text-xs bg-muted/30 border-border/60 hover:bg-muted/60 transition-colors text-muted-foreground hover:text-foreground cursor-pointer">
+          <SelectValue placeholder="Model Tier" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="fast">
