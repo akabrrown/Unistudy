@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CREDIT_BUNDLES = exports.FREE_DAILY_ALLOWANCES = exports.MODEL_MULTIPLIERS = exports.FEATURE_COSTS = exports.FEATURE_PROVIDER_MAP = exports.PROVIDER_CONFIG = void 0;
+exports.CREDIT_BUNDLES = exports.DUAL_TIER_CONFIG = exports.FREE_DAILY_ALLOWANCES = exports.MODEL_MULTIPLIERS = exports.FEATURE_COSTS = exports.FEATURE_PROVIDER_MAP = exports.PROVIDER_CONFIG = void 0;
 exports.PROVIDER_CONFIG = {
     gemini: { pool_type: 'credit_funded', has_user_quota: true, user_quota_column: 'gemini' },
     groq_70b: { pool_type: 'credit_funded', has_user_quota: true, user_quota_column: 'groq70' },
@@ -91,6 +91,13 @@ exports.FREE_DAILY_ALLOWANCES = {
     groq8: 2000,
     cohere: 0, // Cohere has no free daily allowance, strictly uses credits or fallback if needed
     youtube: 300
+};
+exports.DUAL_TIER_CONFIG = {
+    FREE_PASSES_LIMIT: 8,
+    PRO_PASSES_LIMIT: 25,
+    REFRESH_INTERVAL_HOURS: 6,
+    REFRESH_INTERVAL_MS: 6 * 60 * 60 * 1000,
+    VELOCITY_MAX_PER_MINUTE: 12,
 };
 exports.CREDIT_BUNDLES = {
     starter: { price: 10, credits: 10000 },

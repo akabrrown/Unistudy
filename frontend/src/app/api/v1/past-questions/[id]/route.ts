@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { normalizePastPaperTitle } from '@/lib/past-papers/titleNormalizer';
+import {
+  normalizePastPaperTitle,
+  isUidString,
+  extractCourseCode,
+  resolveDisplayCourseCode,
+} from '@/lib/past-papers/titleNormalizer';
 
 export const dynamic = 'force-dynamic';
-
-function extractCourseCode(name: string): string {
-  if (!name) return 'EXAM';
-  const m = name.match(/([A-Z]{3,4}\s*\d{3})/i);
-  return m ? m[1].toUpperCase().replace(/\s+/, ' ') : 'EXAM';
-}
 
 function parseYear(val: any): number {
   if (typeof val === 'number') return val;
@@ -46,7 +45,36 @@ export async function GET(
           .maybeSingle();
 
         if (paper) {
-          const courseData = Array.isArray(paper.courses) ? paper.courses[0] : paper.courses;
+          let courseData = Array.isArray(paper.courses) ? paper.courses[0] : paper.courses;
+          // If courseData is missing due to RLS, look it up with service role if paper has course_id
+          if (!courseData && paper.course_id) {
+            const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+            const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+            if (serviceKey && supaUrl) {
+              try {
+                const { createClient: createServiceClient } = await import('@supabase/supabase-js');
+                const adminSupa = createServiceClient(supaUrl, serviceKey);
+                const { data: cRecord } = await adminSupa
+                  .from('courses')
+                  .select('id, course_code, title, colour')
+                  .eq('id', paper.course_id)
+                  .maybeSingle();
+                if (cRecord) {
+                  courseData = cRecord;
+                }
+              } catch (_) {}
+            }
+          }
+
+          const safeCode = resolveDisplayCourseCode({
+            courseCode: paper.course_code,
+            joinedCourseCode: courseData?.course_code,
+            normalizedCode: paper.normalized_course_code,
+            paperTitle: paper.title,
+            courseTitle: courseData?.title,
+            fallback: 'EXAM',
+          });
+
           const questions = paper.past_paper_questions || [];
           
           let directPdfUrl: string | null = null;
@@ -63,7 +91,17 @@ export async function GET(
 
           return NextResponse.json({
             ...paper,
-            courses: courseData,
+            course_code: safeCode,
+            normalized_course_code: safeCode.replace(/[^A-Z0-9]/g, ''),
+            courses: courseData ? {
+              ...courseData,
+              course_code: safeCode,
+            } : {
+              id: paper.course_id || null,
+              course_code: safeCode,
+              title: paper.title || 'Past Examination Paper',
+              colour: '#00004E',
+            },
             past_paper_questions: questions,
             download_url: directPdfUrl || `/api/v1/past-questions/download?id=${paper.id}`,
           });
@@ -95,7 +133,7 @@ export async function GET(
             .select('id, course_code, title, colour')
             .eq('user_id', user.id);
 
-          const cleanCodeOnly = detectedCode.replace(/\s+/g, '').toUpperCase();
+          const cleanCodeOnly = (detectedCode || '').replace(/\s+/g, '').toUpperCase();
           matchingCourse = (userCourses || []).find((c) => {
             const cCodeClean = (c.course_code || '').replace(/\s+/g, '').toUpperCase();
             return cCodeClean && (cCodeClean === cleanCodeOnly || cleanTitle.toUpperCase().includes(cCodeClean));
@@ -104,7 +142,12 @@ export async function GET(
       } catch (_) {}
 
       const isMidterm = cleanTitle.toLowerCase().includes('mid') || cleanTitle.toLowerCase().includes('interim');
-      const courseCode = matchingCourse?.course_code || detectedCode;
+      const courseCode = resolveDisplayCourseCode({
+        courseCode: matchingCourse?.course_code,
+        joinedCourseCode: matchingCourse?.course_code,
+        paperTitle: cleanTitle,
+        fallback: detectedCode || 'EXAM',
+      });
 
       return NextResponse.json({
         id: paperId,
@@ -120,7 +163,7 @@ export async function GET(
         source: 'klok',
         courses: matchingCourse ? {
           id: matchingCourse.id,
-          course_code: matchingCourse.course_code,
+          course_code: courseCode,
           title: matchingCourse.title,
           colour: matchingCourse.colour || '#00004E',
         } : {

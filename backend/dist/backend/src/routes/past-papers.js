@@ -11,6 +11,7 @@ const pdf_parse_1 = __importDefault(require("pdf-parse"));
 const safeGroq_1 = require("../lib/ai/safeGroq");
 const aiModels_1 = require("../../../shared/constants/aiModels");
 const pastPaperGrader_1 = require("../../../shared/lib/pastPaperGrader");
+const pastPaperTitle_1 = require("../../../shared/lib/pastPaperTitle");
 const router = (0, express_1.Router)();
 const auth_1 = require("../middleware/auth");
 const quotaGuard_1 = require("../middleware/quotaGuard");
@@ -73,11 +74,19 @@ router.get('/', async (req, res) => {
             });
             const resolvedCourse = matchingUserCourse || courseJoin;
             const questions = p.past_paper_questions || [];
+            const safeCode = (0, pastPaperTitle_1.resolveDisplayCourseCode)({
+                courseCode: p.course_code,
+                joinedCourseCode: resolvedCourse?.course_code,
+                normalizedCode: p.normalized_course_code,
+                paperTitle: p.title,
+                courseTitle: resolvedCourse?.title,
+                fallback: 'EXAM',
+            });
             return {
                 id: p.id,
                 course_id: resolvedCourse?.id || p.course_id,
-                course_code: p.course_code || resolvedCourse?.course_code || 'EXAM',
-                normalized_course_code: p.normalized_course_code || (p.course_code || resolvedCourse?.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
+                course_code: safeCode,
+                normalized_course_code: safeCode.replace(/[^A-Z0-9]/g, ''),
                 title: p.title || `${p.year || ''} ${p.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm Exam'}`,
                 year: p.year || new Date().getFullYear(),
                 exam_type: p.exam_type || 'end-semester',
@@ -86,7 +95,7 @@ router.get('/', async (req, res) => {
                 download_url: `/api/v1/past-questions/download?id=${p.id}`,
                 courses: resolvedCourse ? {
                     id: resolvedCourse.id,
-                    course_code: resolvedCourse.course_code,
+                    course_code: safeCode,
                     title: resolvedCourse.title,
                     colour: resolvedCourse.colour
                 } : null,

@@ -14,26 +14,32 @@ const aiTutor_1 = require("./aiTutor");
     strict_1.default.ok(normalized.includes('$E = mc^2$'));
     strict_1.default.ok(normalized.includes('$$\n\\int_0^1 x^2 dx = \\frac{1}{3}\n$$'));
 });
-(0, node_test_1.default)('buildGroundedTutorPrompt integrates Mr. Ranedeer student personalization and /test or /plan modes cleanly', () => {
-    const prompt = (0, aiTutor_1.buildGroundedTutorPrompt)({
-        tutorName: 'Uni',
-        courseContext: 'Quantum Physics',
-        currentSlideNumber: 3,
-        currentSlideText: 'Photoelectric effect threshold frequency',
+(0, node_test_1.default)('buildGroundedTutorPrompt enforces strict tutor identity, chosen personality mandate and tone', () => {
+    const strictPrompt = (0, aiTutor_1.buildGroundedTutorPrompt)({
+        tutorName: 'Dr. Mensah',
+        tutorPersonality: 'strict',
+        courseContext: 'Corporate Financial Accounting',
+        currentSlideNumber: 5,
+        currentSlideText: 'Depreciation under IAS 16 vs Tax Capital Allowances',
         studentConfig: {
             readingLevel: 'Undergraduate',
-            learningStyle: 'Visual',
-            communicationStyle: 'Socratic',
-            tone: 'Encouraging',
-            reasoningFramework: 'Causal',
-            language: 'en',
+            tone: 'academic',
         },
-        commandMode: 'test',
     });
-    strict_1.default.ok(prompt.includes('Socratic'));
-    strict_1.default.ok(prompt.includes('Causal'));
-    strict_1.default.ok(prompt.includes('Visual'));
-    strict_1.default.match(prompt, /practice questions|assess/i);
-    // Ensure no spammy third-party Discord promotions leaked
-    strict_1.default.equal(/discord\.gg/i.test(prompt), false);
+    strict_1.default.ok(strictPrompt.includes('Dr. Mensah'));
+    strict_1.default.ok(strictPrompt.includes('<tutor_identity>'));
+    strict_1.default.ok(strictPrompt.includes('STRICT & RIGOROUS'));
+    strict_1.default.ok(strictPrompt.includes('ACADEMIC & SCHOLARLY'));
+    strict_1.default.match(strictPrompt, /distinction|precision/i);
+    const casualEmpatheticPrompt = (0, aiTutor_1.buildGroundedTutorPrompt)({
+        tutorName: 'Sophia',
+        tutorPersonality: 'empathetic',
+        courseContext: 'Macroeconomics',
+        studentConfig: {
+            tone: 'casual',
+        },
+    });
+    strict_1.default.ok(casualEmpatheticPrompt.includes('Sophia'));
+    strict_1.default.ok(casualEmpatheticPrompt.includes('EMPATHETIC & CALM'));
+    strict_1.default.ok(casualEmpatheticPrompt.includes('CASUAL & RELATABLE'));
 });

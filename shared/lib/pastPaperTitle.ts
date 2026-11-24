@@ -1,4 +1,101 @@
 /**
+ * UUID detection to prevent internal database UIDs / UUIDs from ever displaying as human course codes.
+ */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const HEX_32_REGEX = /^[0-9a-f]{32}$/i;
+const HEX_8_PREFIX_REGEX = /^[0-9a-f]{8}$/i;
+
+export function isUidString(val: string | null | undefined): boolean {
+  if (!val || typeof val !== 'string') return false;
+  const clean = val.trim();
+  if (UUID_REGEX.test(clean)) return true;
+  if (HEX_32_REGEX.test(clean)) return true;
+  // Check if 8-char hex prefix (from split(/[-_]/)[0] on a UUID), but not a valid course code
+  if (HEX_8_PREFIX_REGEX.test(clean) && !/^[A-Za-z]{4}\d{4}$/i.test(clean)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Extracts a standard academic course code from a title, code, or filename.
+ * Supports Ghanaian university formats:
+ * e.g., "BCPC 208", "PBAC 301", "BBA 101", "CS101", "DCIT 102", "INFT 204", "UGBS 201", "MATH 101"
+ */
+export function extractCourseCode(text: string | null | undefined): string | null {
+  if (!text || typeof text !== 'string') return null;
+  const clean = text.trim();
+  if (isUidString(clean)) return null;
+
+  // Replace underscores and path separators with spaces to ensure clean token boundaries
+  const normalized = clean.replace(/[\\/_]+/g, ' ');
+
+  // Match: 2-5 letters, optional space or hyphen, 3 digits, optional letter
+  const match = normalized.match(/(?:^|[^A-Za-z0-9])([A-Za-z]{2,5})\s*(\d{3}[A-Za-z]?)(?![0-9A-Za-z])/);
+  if (match) {
+    const prefix = match[1].toUpperCase();
+    const number = match[2].toUpperCase();
+    return `${prefix} ${number}`;
+  }
+  return null;
+}
+
+/**
+ * Robustly resolves the user-facing course code, ensuring NO UUID/UID is ever displayed.
+ */
+export function resolveDisplayCourseCode(input: {
+  courseCode?: string | null;
+  joinedCourseCode?: string | null;
+  normalizedCode?: string | null;
+  courseTitle?: string | null;
+  paperTitle?: string | null;
+  fallback?: string;
+}): string {
+  const {
+    courseCode,
+    joinedCourseCode,
+    normalizedCode,
+    courseTitle,
+    paperTitle,
+    fallback = 'EXAM',
+  } = input;
+
+  // 1. Check joinedCourseCode from course relation if not UID
+  if (joinedCourseCode && !isUidString(joinedCourseCode)) {
+    const extracted = extractCourseCode(joinedCourseCode);
+    if (extracted) return extracted;
+    if (joinedCourseCode.trim()) return joinedCourseCode.trim().toUpperCase();
+  }
+
+  // 2. Check courseCode if not UID
+  if (courseCode && !isUidString(courseCode)) {
+    const extracted = extractCourseCode(courseCode);
+    if (extracted) return extracted;
+    if (courseCode.trim()) return courseCode.trim().toUpperCase();
+  }
+
+  // 3. Check normalizedCode (e.g. BCPC208) if not UID
+  if (normalizedCode && !isUidString(normalizedCode)) {
+    const extracted = extractCourseCode(normalizedCode);
+    if (extracted) return extracted;
+  }
+
+  // 4. Extract from paperTitle (e.g. "BCPC 208 - 2024 End of Semester Examination")
+  if (paperTitle) {
+    const extracted = extractCourseCode(paperTitle);
+    if (extracted) return extracted;
+  }
+
+  // 5. Extract from courseTitle (e.g. "Principles of Marketing - PDBA 111")
+  if (courseTitle) {
+    const extracted = extractCourseCode(courseTitle);
+    if (extracted) return extracted;
+  }
+
+  return fallback;
+}
+
+/**
  * Attempts to decode a base64-encoded file path or title.
  * Works universally across both Node.js (Buffer) and browser (atob) runtimes.
  */

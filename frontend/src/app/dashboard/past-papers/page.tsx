@@ -38,7 +38,7 @@ import { ExamFocusDialog } from '@/components/exam-focus/ExamFocusDialog';
 import { MovePaperDialog } from '@/components/past-papers/MovePaperDialog';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { normalizePastPaperTitle } from '@/lib/past-papers/titleNormalizer';
+import { normalizePastPaperTitle, resolveDisplayCourseCode } from '@/lib/past-papers/titleNormalizer';
 
 interface CourseItem {
   id: string;
@@ -489,12 +489,18 @@ export default function PastPapersDashboard() {
 
       if (!q) return true;
       const joined = getCourseJoin(p);
-      const code = (joined?.course_code || p.course_code || '').toLowerCase();
-      const courseTitle = (joined?.title || '').toLowerCase();
+      const safeCode = resolveDisplayCourseCode({
+        courseCode: p.course_code,
+        joinedCourseCode: joined?.course_code || courseById.get(p.course_id || '')?.course_code,
+        normalizedCode: p.normalized_course_code,
+        paperTitle: p.title,
+        courseTitle: joined?.title,
+      }).toLowerCase();
+      const courseTitle = (joined?.title || courseById.get(p.course_id || '')?.title || '').toLowerCase();
       const paperTitle = (p.title || '').toLowerCase();
       const yearStr = p.year ? String(p.year) : '';
       return (
-        code.includes(q) ||
+        safeCode.includes(q) ||
         courseTitle.includes(q) ||
         paperTitle.includes(q) ||
         yearStr.includes(q)
@@ -874,7 +880,14 @@ export default function PastPapersDashboard() {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold bg-primary/10 text-primary">
-                              {courseMeta?.course_code || paper.course_code || 'EXAM'}
+                              {resolveDisplayCourseCode({
+                                courseCode: paper.course_code,
+                                joinedCourseCode: courseMeta?.course_code || courseById.get(paper.course_id || '')?.course_code,
+                                normalizedCode: paper.normalized_course_code,
+                                paperTitle: paper.title,
+                                courseTitle: courseMeta?.title || courseById.get(paper.course_id || '')?.title,
+                                fallback: 'EXAM',
+                              })}
                             </span>
                             <span className="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                               {examLabel}
@@ -1083,7 +1096,12 @@ export default function PastPapersDashboard() {
                             {joinedPaper?.title || 'Past Paper Attempt'}
                           </div>
                           <div className="text-[11px] text-muted-foreground truncate mt-0.5">
-                            {linkedCourse?.course_code || 'Exam'} · {formatShortDate(att.completed_at || att.started_at)}
+                            {resolveDisplayCourseCode({
+                              courseCode: linkedCourse?.course_code,
+                              courseTitle: linkedCourse?.title,
+                              paperTitle: joinedPaper?.title,
+                              fallback: 'Exam',
+                            })} · {formatShortDate(att.completed_at || att.started_at)}
                           </div>
                         </div>
                         <span
@@ -1143,7 +1161,11 @@ export default function PastPapersDashboard() {
                         />
                         <div className="min-w-0">
                           <div className="text-xs font-semibold text-foreground truncate">
-                            {course.course_code || course.title}
+                            {resolveDisplayCourseCode({
+                              courseCode: course.course_code,
+                              courseTitle: course.title,
+                              fallback: course.title || 'Course',
+                            })}
                           </div>
                           <div className="text-[11px] text-muted-foreground font-mono tabular-nums">
                             {count} {count === 1 ? 'paper' : 'papers'}

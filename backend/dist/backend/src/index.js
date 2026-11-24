@@ -100,6 +100,21 @@ app.use('/api/translate', translate_1.default);
 // Global Error Handler
 app.use(errorHandler_1.errorHandler);
 const PORT = Number(env_1.env.PORT) || 8000;
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
     requestLogger_1.logger.info(`Backend server is running on http://0.0.0.0:${PORT} in ${env_1.env.NODE_ENV} mode.`);
 });
+// Graceful drain & signal handling for container orchestrators (Render, Railway, Docker, K8s)
+function gracefulShutdown(signal) {
+    requestLogger_1.logger.info(`Received ${signal}. Draining active HTTP connections...`);
+    server.close(() => {
+        requestLogger_1.logger.info('HTTP server closed successfully. Process exiting.');
+        process.exit(0);
+    });
+    // Force close if connections fail to drain within 10 seconds
+    setTimeout(() => {
+        requestLogger_1.logger.error('Forced shutdown: active connections did not drain in time.');
+        process.exit(1);
+    }, 10_000).unref();
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

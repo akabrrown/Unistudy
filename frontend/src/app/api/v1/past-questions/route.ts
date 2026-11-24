@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { ensurePaperIngested } from '@/lib/past-papers/ingestion';
-import { normalizePastPaperTitle } from '@/lib/past-papers/titleNormalizer';
+import {
+  normalizePastPaperTitle,
+  isUidString,
+  extractCourseCode,
+  resolveDisplayCourseCode,
+} from '@/lib/past-papers/titleNormalizer';
 
 export const dynamic = 'force-dynamic';
 
 const KLOK_BASE_URL = process.env.KLOK_BASE_URL || 'https://kloksearch.vercel.app';
 const KLOK_API_KEY = process.env.KLOK_API_KEY || 'klok_live_ddbeef2ccb5ed98dd45873c1d35060c4';
-
-function extractCourseCode(name: string): string {
-  if (!name) return 'EXAM';
-  const m = name.match(/([A-Z]{3,4}\s*\d{3})/i);
-  return m ? m[1].toUpperCase().replace(/\s+/, ' ') : 'EXAM';
-}
 
 function parseYear(val: any): number {
   if (typeof val === 'number') return val;
@@ -147,7 +146,7 @@ export async function GET(req: NextRequest) {
       const detectedCode = extractCourseCode(cleanTitle);
 
       // Check if this paper matches any of the user's enrolled courses
-      const matchingCourse = findMatchingCourse(userCourses, detectedCode) || findMatchingCourse(userCourses, cleanTitle);
+      const matchingCourse = findMatchingCourse(userCourses, detectedCode || '') || findMatchingCourse(userCourses, cleanTitle);
 
       // In non-global default mode, skip papers that don't match the student's courses
       if (!isGlobalSearch && !matchingCourse && userCourses.length > 0) {
@@ -167,7 +166,12 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      const courseCode = matchingCourse?.course_code || detectedCode;
+      const courseCode = resolveDisplayCourseCode({
+        courseCode: matchingCourse?.course_code,
+        joinedCourseCode: matchingCourse?.course_code,
+        paperTitle: cleanTitle,
+        fallback: detectedCode || 'EXAM',
+      });
       const isMidterm = cleanTitle.toLowerCase().includes('mid') || cleanTitle.toLowerCase().includes('interim');
 
       klokPapers.push({
@@ -185,7 +189,7 @@ export async function GET(req: NextRequest) {
         source: 'klok',
         courses: matchingCourse ? {
           id: matchingCourse.id,
-          course_code: matchingCourse.course_code,
+          course_code: courseCode,
           title: matchingCourse.title,
           colour: matchingCourse.colour || '#00004E',
         } : {
@@ -241,17 +245,66 @@ export async function GET(req: NextRequest) {
       }
 
       if (rawPapers) {
+        // Collect any course IDs that couldn't be loaded via user's private courses or RLS join
+        const missingCourseIds = Array.from(
+          new Set(
+            rawPapers
+              .map((p: any) => p.course_id)
+              .filter((id: any) => Boolean(id) && !userCourses.some((c: any) => c.id === id))
+          )
+        );
+
+        let extraCoursesMap = new Map<string, any>();
+        if (missingCourseIds.length > 0) {
+          const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+          const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+          if (serviceKey && supaUrl) {
+            try {
+              const { createClient: createServiceClient } = await import('@supabase/supabase-js');
+              const adminSupa = createServiceClient(supaUrl, serviceKey);
+              const { data: extraCourses } = await adminSupa
+                .from('courses')
+                .select('id, course_code, title, colour')
+                .in('id', missingCourseIds);
+              if (extraCourses) {
+                for (const ec of extraCourses) {
+                  extraCoursesMap.set(ec.id, ec);
+                }
+              }
+            } catch (adminErr) {
+              console.warn('[API /api/v1/past-questions] Admin courses fetch notice:', adminErr);
+            }
+          }
+        }
+
         localPapers = rawPapers.map((p: any) => {
           const courseJoin = Array.isArray(p.courses) ? p.courses[0] : p.courses;
-          const matchingCourse = userCourses.find((c) => c.id === p.course_id);
+          const matchingCourse = userCourses.find((c) => c.id === p.course_id) || extraCoursesMap.get(p.course_id);
           const resolvedCourse = matchingCourse || courseJoin;
           const questions = p.past_paper_questions || [];
+
+          const safeCode = resolveDisplayCourseCode({
+            courseCode: p.course_code,
+            joinedCourseCode: resolvedCourse?.course_code,
+            normalizedCode: p.normalized_course_code,
+            paperTitle: p.title,
+            courseTitle: resolvedCourse?.title,
+            fallback: 'EXAM',
+          });
+
+          // Self-heal background update if the record was previously stored with a raw UUID in course_code
+          if (isUidString(p.course_code) && safeCode !== 'EXAM') {
+            void supabase.from('past_papers').update({
+              course_code: safeCode,
+              normalized_course_code: safeCode.replace(/[^A-Z0-9]/g, ''),
+            }).eq('id', p.id);
+          }
 
           return {
             id: p.id,
             course_id: resolvedCourse?.id || p.course_id,
-            course_code: p.course_code || resolvedCourse?.course_code || 'EXAM',
-            normalized_course_code: p.normalized_course_code || (p.course_code || resolvedCourse?.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
+            course_code: safeCode,
+            normalized_course_code: safeCode.replace(/[^A-Z0-9]/g, ''),
             title: p.title || `${p.year || ''} ${p.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm Exam'}`,
             year: p.year || new Date().getFullYear(),
             exam_type: p.exam_type || 'end-semester',
@@ -260,12 +313,12 @@ export async function GET(req: NextRequest) {
             download_url: `/api/v1/past-questions/download?id=${p.id}`,
             courses: resolvedCourse ? {
               id: resolvedCourse.id,
-              course_code: resolvedCourse.course_code,
+              course_code: safeCode,
               title: resolvedCourse.title,
-              colour: resolvedCourse.colour,
+              colour: resolvedCourse.colour || '#00004E',
             } : {
-              id: null,
-              course_code: p.course_code || 'EXAM',
+              id: p.course_id || null,
+              course_code: safeCode,
               title: p.title || 'Past Examination Paper',
               colour: '#00004E',
               isCentral: true,

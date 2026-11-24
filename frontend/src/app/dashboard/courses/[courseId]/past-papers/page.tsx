@@ -10,7 +10,7 @@ import { FileText, ArrowRight, AlertTriangle, DownloadCloud, ArrowLeft, RefreshC
 import { CourseUploadPastPaperButton } from '@/components/past-papers/CourseUploadPastPaperButton';
 import { DeletePastPaperButton } from '@/components/past-papers/DeletePastPaperButton';
 import { EmptyState } from '@/components/ui/empty-state';
-import { normalizePastPaperTitle } from '@/lib/past-papers/titleNormalizer';
+import { normalizePastPaperTitle, resolveDisplayCourseCode } from '@/lib/past-papers/titleNormalizer';
 
 interface CourseMeta {
   id: string;
@@ -95,7 +95,17 @@ export default function CoursePastPapersPage() {
         }
         const { data: pastPapers } = await papersQuery.order('year', { ascending: false });
         if (Array.isArray(pastPapers)) {
-          dbPapers = pastPapers;
+          dbPapers = pastPapers.map((p: any) => ({
+            ...p,
+            course_code: resolveDisplayCourseCode({
+              courseCode: p.course_code,
+              joinedCourseCode: courseData?.course_code,
+              normalizedCode: p.normalized_course_code,
+              paperTitle: p.title,
+              courseTitle: courseData?.title,
+              fallback: courseData?.course_code || 'EXAM',
+            }),
+          }));
         }
       } catch (dbErr) {
         console.warn('[CoursePastPapersPage] DB papers query notice:', dbErr);
@@ -130,7 +140,14 @@ export default function CoursePastPapersPage() {
             klokPapers = filtered.map((item: any) => ({
               id: String(item.id),
               course_id: courseId,
-              course_code: courseData?.course_code || item.course_code || 'EXAM',
+              course_code: resolveDisplayCourseCode({
+                courseCode: item.course_code,
+                joinedCourseCode: courseData?.course_code,
+                normalizedCode: item.normalized_course_code,
+                paperTitle: item.title || item.name,
+                courseTitle: courseData?.title,
+                fallback: courseData?.course_code || 'EXAM',
+              }),
               title: normalizePastPaperTitle(item.title || item.name),
               year: Number(item.year) || new Date().getFullYear(),
               exam_type: item.exam_type || 'end-semester',
@@ -269,7 +286,13 @@ export default function CoursePastPapersPage() {
                     <div className="space-y-1.5 min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
-                          {paper.course_code || course?.course_code || 'EXAM'}
+                          {resolveDisplayCourseCode({
+                            courseCode: paper.course_code,
+                            joinedCourseCode: course?.course_code,
+                            paperTitle: paper.title,
+                            courseTitle: course?.title,
+                            fallback: course?.course_code || 'EXAM',
+                          })}
                         </span>
                         <span className="text-xs font-semibold px-2 py-0.5 rounded bg-muted text-muted-foreground">
                           {paper.exam_type === 'end-semester' ? 'Final Examination' : 'Mid-Semester Exam'}

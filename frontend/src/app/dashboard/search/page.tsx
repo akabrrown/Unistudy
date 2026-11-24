@@ -138,7 +138,7 @@ function SearchResultsContent() {
               </h2>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {results.past_papers.map((p: any) => (
-                  <Link href={`/dashboard/past-papers/viewer/${p.past_paper_id}`} key={p.id}>
+                  <Link href={`/dashboard/past-papers/${p.past_paper_id}`} key={p.id}>
                     <div className="group bg-card border border-border hover:border-green-500/50 rounded-xl p-4 transition-all h-full flex flex-col cursor-pointer hover:shadow-lg hover:shadow-green-500/5">
                       <div className="text-sm font-medium text-foreground line-clamp-4">
                         {p.text_content}

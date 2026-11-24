@@ -16,7 +16,11 @@ import { FolderInput, Check, Loader2, BookOpen, AlertCircle } from 'lucide-react
 import { resolveCourseColor } from '@/lib/constants/courses';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { normalizePastPaperTitle } from '@/lib/past-papers/titleNormalizer';
+import {
+  normalizePastPaperTitle,
+  resolveDisplayCourseCode,
+  isUidString,
+} from '@/lib/past-papers/titleNormalizer';
 
 export interface CourseOption {
   id: string;
@@ -29,6 +33,7 @@ export interface PaperToMove {
   id: string;
   title: string | null;
   course_code?: string | null;
+  normalized_course_code?: string | null;
   course_id?: string | null;
   courses?: any;
 }
@@ -64,11 +69,20 @@ export function MovePaperDialog({
   if (!paper) return null;
 
   const currentCourseMeta = Array.isArray(paper.courses) ? paper.courses[0] : paper.courses;
+  const safeCode = resolveDisplayCourseCode({
+    courseCode: paper.course_code,
+    joinedCourseCode: currentCourseMeta?.course_code,
+    normalizedCode: paper.normalized_course_code,
+    paperTitle: paper.title,
+    courseTitle: currentCourseMeta?.title,
+    fallback: '',
+  });
+
   const currentCourseDisplay =
-    currentCourseMeta && !currentCourseMeta.isCentral
-      ? `${currentCourseMeta.course_code || ''} — ${currentCourseMeta.title || ''}`
-      : paper.course_code
-      ? `${paper.course_code} (Unassigned)`
+    currentCourseMeta && !currentCourseMeta.isCentral && safeCode
+      ? `${safeCode} — ${currentCourseMeta.title || ''}`
+      : safeCode
+      ? `${safeCode} (Unassigned)`
       : 'Unassigned';
 
   const handleMove = async (e: React.FormEvent) => {

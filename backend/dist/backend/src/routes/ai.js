@@ -50,6 +50,7 @@ router.use(rateLimit_1.rateLimit);
 router.use((0, expensiveGuard_1.protectExpensiveEndpoint)({ maxPerMinute: 12, maxConcurrent: 2 }));
 router.use((0, expensiveGuard_1.deduplicateInFlightRequests)({ methods: ['GET', 'POST'] }));
 const multer_1 = __importDefault(require("multer"));
+const groq_sdk_1 = __importDefault(require("groq-sdk"));
 const generative_ai_1 = require("@google/generative-ai");
 const mathjs_1 = require("mathjs");
 const aiModels_1 = require("../../../shared/constants/aiModels");
@@ -336,16 +337,18 @@ router.post('/ask', async (req, res) => {
     }
     // Fetch user settings
     let userSettings = null;
+    let userProfile = null;
     try {
         const { supabaseAsUser } = await Promise.resolve().then(() => __importStar(require('../lib/supabase')));
         const supabase = supabaseAsUser(req.user.jwt);
-        const { data } = await supabase
-            .from('user_settings')
-            .select('*')
-            .eq('user_id', req.user.id)
-            .single();
-        if (data)
-            userSettings = data;
+        const [settingsRes, profileRes] = await Promise.all([
+            supabase.from('user_settings').select('*').eq('user_id', req.user.id).maybeSingle(),
+            supabase.from('profiles').select('tutor_name, tutor_personality, degree_programme, faculty').eq('id', req.user.id).maybeSingle(),
+        ]);
+        if (settingsRes.data)
+            userSettings = settingsRes.data;
+        if (profileRes.data)
+            userProfile = profileRes.data;
     }
     catch (err) {
         console.error('Failed to fetch user settings for AI:', err);
@@ -356,6 +359,17 @@ router.post('/ask', async (req, res) => {
     let enrichedPayload = {
         ...payload,
         temperature: payload.temperature ?? (feature === 'chat_message' ? 0.55 : undefined),
+    };
+    const isTutorRequest = feature === 'chat_message' || feature === 'ai-tutor';
+    const resolvedTutorName = payload.tutorName || userSettings?.ai_tutor_name || userProfile?.tutor_name || 'Alex';
+    const resolvedTutorPersonality = payload.tutorPersonality || userSettings?.ai_personality || userProfile?.tutor_personality || 'encouraging';
+    const resolvedTutorTone = payload.tutorTone || userSettings?.ai_tone || 'academic';
+    const defaultStudentConfig = {
+        personality: resolvedTutorPersonality,
+        readingLevel: userSettings?.ai_reading_level || 'undergraduate',
+        tone: resolvedTutorTone,
+        learningStyle: userSettings?.learning_style || 'active',
+        language: userSettings?.language || 'English',
     };
     let groundingSources = [];
     if (parsedGrounding?.success) {
@@ -374,19 +388,35 @@ router.post('/ask', async (req, res) => {
         enrichedPayload = {
             ...enrichedPayload,
             systemPrompt: (0, aiTutor_1.buildGroundedTutorPrompt)({
-                tutorName: userSettings?.ai_tutor_name || undefined,
+                tutorName: resolvedTutorName,
+                tutorPersonality: resolvedTutorPersonality,
                 courseContext: g.courseContext,
                 currentSlideNumber: g.currentSlideNumber,
                 currentSlideText: g.currentSlideText,
                 currentSlideExplanation: g.currentSlideExplanation,
                 retrievedChunks: chunks,
-                studentConfig: g.studentConfig ?? {
-                    readingLevel: userSettings?.ai_reading_level || undefined,
-                    tone: userSettings?.ai_tone || undefined,
-                    learningStyle: userSettings?.learning_style || undefined,
-                    language: userSettings?.language || undefined,
-                },
+                studentConfig: g.studentConfig ?? defaultStudentConfig,
                 commandMode: g.commandMode ?? (0, aiTutor_1.detectTutorCommandMode)(String(latestQ)),
+            }),
+        };
+    }
+    else if (isTutorRequest) {
+        const rawMsgs = Array.isArray(payload.messages) ? payload.messages : [];
+        const latestQ = [...rawMsgs].reverse().find((m) => m?.role === 'user')?.content ||
+            payload.prompt ||
+            '';
+        const courseContext = userProfile?.degree_programme
+            ? `${userProfile.degree_programme} · Faculty of ${userProfile.faculty || 'Academic Studies'}`
+            : 'University Degree Studies';
+        enrichedPayload = {
+            ...enrichedPayload,
+            systemPrompt: (0, aiTutor_1.buildGroundedTutorPrompt)({
+                tutorName: resolvedTutorName,
+                tutorPersonality: resolvedTutorPersonality,
+                courseContext,
+                retrievedChunks: [],
+                studentConfig: defaultStudentConfig,
+                commandMode: (0, aiTutor_1.detectTutorCommandMode)(String(latestQ)),
             }),
         };
     }
@@ -611,110 +641,174 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
 - Do not introduce yourself, do not apologize, and do not say "Here is an explanation." Just start the explanation immediately.
 `;
         try {
-            const parts = [{ text: prompt }];
-            if (imageUrl && imageUrl !== 'https://example.com/placeholder.png') {
-                try {
-                    const imageRes = await fetch(imageUrl);
-                    if (imageRes.ok) {
-                        const arrayBuffer = await imageRes.arrayBuffer();
-                        const base64 = Buffer.from(arrayBuffer).toString('base64');
-                        let mimeType = imageRes.headers.get('content-type') || 'image/png';
-                        mimeType = mimeType.split(';')[0];
-                        parts.push({
-                            inlineData: {
-                                data: base64,
-                                mimeType: mimeType
-                            }
-                        });
-                    }
-                }
-                catch (err) {
-                    console.error("Failed to fetch image for Gemini vision processing:", err);
-                }
+            // Send SSE headers immediately so the browser receives an instant connection (0-20ms TTFB)
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache, no-transform');
+            res.setHeader('Connection', 'keep-alive');
+            res.setHeader('X-Accel-Buffering', 'no');
+            if (typeof res.flushHeaders === 'function') {
+                res.flushHeaders();
             }
             let fullText = '';
-            try {
-                const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-                const result = await callWithFallback(genAI, GEMINI_VISION_MODELS, model => model.generateContent({ contents: [{ role: 'user', parts }] }));
-                fullText = result.response.text();
-            }
-            catch (geminiErr) {
-                // 1. Try OpenRouter Vision if image is present and OPENROUTER_API_KEY is configured
-                let openRouterSuccess = false;
-                const openRouterKey = process.env.OPENROUTER_API_KEY;
-                if (imageUrl && imageUrl !== 'https://example.com/placeholder.png' && openRouterKey) {
-                    try {
-                        console.log('Gemini vision failed, calling OpenRouter Vision fallback for slide image...');
-                        const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${openRouterKey}`,
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                model: aiModels_1.OPENROUTER_CANDIDATE_MODELS[0],
-                                max_tokens: 1200,
-                                messages: [
-                                    {
-                                        role: 'user',
-                                        content: [
-                                            { type: 'text', text: prompt },
-                                            { type: 'image_url', image_url: { url: imageUrl } }
-                                        ]
-                                    }
-                                ]
-                            })
-                        });
-                        if (orRes.ok) {
-                            const orData = await orRes.json();
-                            const text = orData.choices?.[0]?.message?.content;
-                            if (text) {
-                                fullText = text;
-                                openRouterSuccess = true;
-                                console.log('OpenRouter Vision fallback succeeded for slide explanation!');
-                            }
+            // Fast-path 1: Stream from Groq (ultra-low latency ~200ms) using slide text and vision context
+            // This executes IMMEDIATELY without blocking on image download
+            if (process.env.GROQ_API_KEY && (cleanSlideText || cleanVisionEx)) {
+                try {
+                    const groq = new groq_sdk_1.default({ apiKey: process.env.GROQ_API_KEY });
+                    const groqStream = await groq.chat.completions.create({
+                        model: aiModels_1.GROQ_SMART_MODELS[0] || 'qwen/qwen3.8-27b',
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: prompt }
+                        ],
+                        stream: true,
+                        temperature: 0.5,
+                    });
+                    for await (const chunk of groqStream) {
+                        const delta = chunk.choices[0]?.delta?.content || '';
+                        if (delta) {
+                            fullText += delta;
+                            res.write(`data: ${JSON.stringify(delta)}\n\n`);
                         }
-                        else {
-                            const orErrText = await orRes.text().catch(() => '');
-                            console.warn('OpenRouter Vision fallback responded with error:', orRes.status, orErrText);
-                        }
-                    }
-                    catch (orErr) {
-                        console.warn('OpenRouter Vision fallback network error:', orErr);
                     }
                 }
-                // 2. Fall back to Groq text LLM if OpenRouter didn't produce text
-                if (!openRouterSuccess) {
-                    console.log(`Falling back to Groq (${aiModels_1.GROQ_SMART_MODELS[0]})...`);
-                    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                catch (groqFastErr) {
+                    console.warn('[AI Explain] Groq fast-path notice, trying next provider:', groqFastErr);
+                }
+            }
+            // Path 2: If Groq didn't yield text, prepare Vision parts (on-demand image fetch) and stream from Gemini Vision
+            if (!fullText && process.env.GEMINI_API_KEY) {
+                try {
+                    const parts = [{ text: prompt }];
+                    if (imageUrl && imageUrl !== 'https://example.com/placeholder.png') {
+                        try {
+                            const imageRes = await fetch(imageUrl);
+                            if (imageRes.ok) {
+                                const arrayBuffer = await imageRes.arrayBuffer();
+                                const base64 = Buffer.from(arrayBuffer).toString('base64');
+                                let mimeType = imageRes.headers.get('content-type') || 'image/png';
+                                mimeType = mimeType.split(';')[0];
+                                parts.push({
+                                    inlineData: {
+                                        data: base64,
+                                        mimeType: mimeType
+                                    }
+                                });
+                            }
+                        }
+                        catch (err) {
+                            console.error("Failed to fetch image for Gemini vision processing:", err);
+                        }
+                    }
+                    const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+                    for (const modelName of GEMINI_VISION_MODELS) {
+                        try {
+                            const model = genAI.getGenerativeModel({ model: modelName });
+                            const streamResult = await model.generateContentStream({ contents: [{ role: 'user', parts }] });
+                            for await (const chunk of streamResult.stream) {
+                                const chunkText = chunk.text();
+                                if (chunkText) {
+                                    fullText += chunkText;
+                                    res.write(`data: ${JSON.stringify(chunkText)}\n\n`);
+                                }
+                            }
+                            if (fullText)
+                                break; // Successful stream
+                        }
+                        catch (modelErr) {
+                            console.warn(`[AI Explain] Gemini model ${modelName} stream notice:`, modelErr?.message || modelErr);
+                            if (modelErr?.message?.includes('403') || modelErr?.message?.includes('Permission denied')) {
+                                break; // Key lacks permission on service; skip rest of Gemini models immediately
+                            }
+                        }
+                    }
+                }
+                catch (geminiErr) {
+                    console.warn('[AI Explain] Gemini vision streaming notice:', geminiErr?.message || geminiErr);
+                }
+            }
+            // Path 3: OpenRouter streaming fallback (meta-llama/llama-3.3-70b-instruct or qwen/qwen-2.5-72b-instruct)
+            if (!fullText && process.env.OPENROUTER_API_KEY) {
+                try {
+                    const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                         method: 'POST',
                         headers: {
-                            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-                            'Content-Type': 'application/json'
+                            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                            'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
-                            model: aiModels_1.GROQ_SMART_MODELS[0],
+                            model: aiModels_1.OPENROUTER_CANDIDATE_MODELS[0] || 'meta-llama/llama-3.3-70b-instruct',
                             messages: [
                                 { role: 'system', content: systemPrompt },
                                 { role: 'user', content: prompt }
-                            ]
-                        })
+                            ],
+                            stream: true,
+                        }),
                     });
-                    if (groqRes.ok) {
-                        const groqData = await groqRes.json();
-                        fullText = groqData.choices?.[0]?.message?.content || '';
-                    }
-                    else {
-                        const errBody = await groqRes.json().catch(() => ({}));
-                        console.error('Groq fallback also failed:', errBody);
-                        throw geminiErr;
+                    if (orRes.ok && orRes.body) {
+                        const reader = orRes.body.getReader();
+                        const decoder = new TextDecoder();
+                        let orBuffer = '';
+                        while (true) {
+                            const { value, done } = await reader.read();
+                            if (done)
+                                break;
+                            orBuffer += decoder.decode(value, { stream: true });
+                            const lines = orBuffer.split('\n\n');
+                            orBuffer = lines.pop() || '';
+                            for (const line of lines) {
+                                const trimmed = line.trim();
+                                if (!trimmed.startsWith('data: '))
+                                    continue;
+                                const dataStr = trimmed.slice(6);
+                                if (dataStr === '[DONE]')
+                                    break;
+                                try {
+                                    const parsed = JSON.parse(dataStr);
+                                    const delta = parsed.choices?.[0]?.delta?.content || '';
+                                    if (delta) {
+                                        fullText += delta;
+                                        res.write(`data: ${JSON.stringify(delta)}\n\n`);
+                                    }
+                                }
+                                catch { }
+                            }
+                        }
                     }
                 }
+                catch (orErr) {
+                    console.warn('[AI Explain] OpenRouter streaming error:', orErr);
+                }
             }
-            res.setHeader('Content-Type', 'text/event-stream');
-            res.setHeader('Cache-Control', 'no-cache');
-            res.setHeader('Connection', 'keep-alive');
-            res.write(`data: ${JSON.stringify(fullText)}\n\n`);
+            // Path 4: Secondary Groq attempt
+            if (!fullText && process.env.GROQ_API_KEY) {
+                try {
+                    const groq = new groq_sdk_1.default({ apiKey: process.env.GROQ_API_KEY });
+                    const groqStream = await groq.chat.completions.create({
+                        model: aiModels_1.GROQ_SMART_MODELS[1] || 'openai/gpt-oss-120b',
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: prompt }
+                        ],
+                        stream: true,
+                        temperature: 0.5,
+                    });
+                    for await (const chunk of groqStream) {
+                        const delta = chunk.choices[0]?.delta?.content || '';
+                        if (delta) {
+                            fullText += delta;
+                            res.write(`data: ${JSON.stringify(delta)}\n\n`);
+                        }
+                    }
+                }
+                catch (groqFallbackErr) {
+                    console.error('[AI Explain] Groq final fallback error:', groqFallbackErr);
+                }
+            }
+            if (!fullText) {
+                fullText = `### Explanation (Slide ${slideNumber || 'Overview'})\n\n${cleanSlideText || 'Please review the slide material. If math or diagrams are present, make sure the slide image is clear.'}`;
+                res.write(`data: ${JSON.stringify(fullText)}\n\n`);
+            }
             res.write('data: [DONE]\n\n');
             res.end();
             (0, quota_1.consumeUserQuota)(req.user.id, 'slide_explanation', req.body?.model_tier || req.headers?.['x-model-tier'] || 'default').catch(console.error);
@@ -725,10 +819,10 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
                 res.setHeader('Content-Type', 'text/event-stream');
                 res.setHeader('Cache-Control', 'no-cache');
                 res.setHeader('Connection', 'keep-alive');
-                res.write(`data: ${JSON.stringify(`\n\n**Note:** *AI API returned an error (${err?.message?.split('.')[0] || 'Quota Exceeded'}). Showing mock response.*\n\nThis is a tailored explanation of the slide content at the **${level}** level.`)}\n\n`);
-                res.write('data: [DONE]\n\n');
-                res.end();
             }
+            res.write(`data: ${JSON.stringify(`\n\n### Slide Overview\n\n${cleanSlideText || 'Please review the slide material.'}`)}\n\n`);
+            res.write('data: [DONE]\n\n');
+            res.end();
         }
     }
     catch (outerErr) {

@@ -14,6 +14,7 @@ import {
     type PastPaperAnswerInput,
     type PastPaperGradeItem,
 } from '../../../shared/lib/pastPaperGrader';
+import { resolveDisplayCourseCode } from '../../../shared/lib/pastPaperTitle';
 
 const router = Router();
 
@@ -88,11 +89,20 @@ router.get('/', async (req: any, res) => {
             const resolvedCourse = matchingUserCourse || courseJoin;
             const questions = p.past_paper_questions || [];
 
+            const safeCode = resolveDisplayCourseCode({
+                courseCode: p.course_code,
+                joinedCourseCode: resolvedCourse?.course_code,
+                normalizedCode: p.normalized_course_code,
+                paperTitle: p.title,
+                courseTitle: resolvedCourse?.title,
+                fallback: 'EXAM',
+            });
+
             return {
                 id: p.id,
                 course_id: resolvedCourse?.id || p.course_id,
-                course_code: p.course_code || resolvedCourse?.course_code || 'EXAM',
-                normalized_course_code: p.normalized_course_code || (p.course_code || resolvedCourse?.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
+                course_code: safeCode,
+                normalized_course_code: safeCode.replace(/[^A-Z0-9]/g, ''),
                 title: p.title || `${p.year || ''} ${p.exam_type === 'end-semester' ? 'Final Exam' : 'Midterm Exam'}`,
                 year: p.year || new Date().getFullYear(),
                 exam_type: p.exam_type || 'end-semester',
@@ -101,7 +111,7 @@ router.get('/', async (req: any, res) => {
                 download_url: `/api/v1/past-questions/download?id=${p.id}`,
                 courses: resolvedCourse ? {
                     id: resolvedCourse.id,
-                    course_code: resolvedCourse.course_code,
+                    course_code: safeCode,
                     title: resolvedCourse.title,
                     colour: resolvedCourse.colour
                 } : null,

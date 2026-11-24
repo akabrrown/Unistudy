@@ -1,1 +1,7 @@
-export { normalizePastPaperTitle, tryDecodeBase64Path } from '../../../../shared/lib/pastPaperTitle';
+export {
+  normalizePastPaperTitle,
+  tryDecodeBase64Path,
+  isUidString,
+  extractCourseCode,
+  resolveDisplayCourseCode,
+} from '../../../../shared/lib/pastPaperTitle';
