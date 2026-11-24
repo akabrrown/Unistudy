@@ -323,21 +323,26 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
 
           <div className="lg:col-span-7 flex flex-col justify-between gap-2.5">
             <ExamUrgencyRadar events={upcomingEvents} />
-            <nav aria-label="Study tools quick launch" className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            <nav aria-label="Study tools quick launch" className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               {TOOL_DOCK.map((tool) => {
                 const Icon = tool.icon;
                 return (
                   <Link
                     key={tool.href}
                     href={tool.href}
-                    className="group flex items-center gap-2 rounded-xl border border-[#D89A06]/25 bg-muted/20 hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5 hover:border-[#D89A06]/60 px-2.5 py-2 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
+                    className="group flex items-center gap-2.5 rounded-xl border border-[#D89A06]/25 bg-muted/20 hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5 hover:border-[#D89A06]/60 p-2.5 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
                   >
-                    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-card border border-[#D89A06]/40 group-hover:scale-105 transition-transform shadow-2xs">
-                      <Icon className="h-3.5 w-3.5" strokeWidth={2} />
+                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-card border border-[#D89A06]/40 group-hover:scale-105 transition-transform shadow-2xs">
+                      <Icon className="h-4 w-4" strokeWidth={2} />
                     </span>
-                    <span className="text-xs font-bold text-[#00004E] dark:text-foreground leading-tight truncate">
-                      {tool.label}
-                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-[#00004E] dark:text-foreground leading-tight whitespace-nowrap">
+                        {tool.label}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground truncate">
+                        {tool.hint}
+                      </div>
+                    </div>
                   </Link>
                 );
               })}
