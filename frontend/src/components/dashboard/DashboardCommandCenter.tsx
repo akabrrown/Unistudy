@@ -693,7 +693,7 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
                                 ) : null}
                               </div>
                               <Link
-                                href={`/dashboard/lectures?courseId=${course.id}`}
+                                href={`/dashboard/courses/${course.id}`}
                                 className="mt-1 block text-base font-bold text-foreground hover:text-primary transition-colors line-clamp-1 cursor-pointer"
                               >
                                 {course.title || 'Untitled Course'}

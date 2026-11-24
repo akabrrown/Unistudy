@@ -184,68 +184,116 @@ export default function ExamAttempt() {
 
   const mcqQuestions = questions.filter(q => q.isMcq)
   const theoryQuestions = questions.filter(q => !q.isMcq)
+  const answeredCount = Object.keys(answers).filter(k => !!answers[k]).length
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-20">
-      {/* Sticky Header Timer */}
-      <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border py-4 -mx-4 px-4 sm:mx-0 sm:px-0 flex justify-between items-center">
+    <div className="space-y-8 max-w-4xl mx-auto pb-24">
+      {/* Sticky Header Examination Timer */}
+      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/80 py-3.5 -mx-4 px-4 sm:mx-0 sm:px-0 flex justify-between items-center shadow-xs">
         <div>
-          <h2 className="text-xl font-bold">Exam in Progress</h2>
-          <p className="text-sm text-muted-foreground">Keep your eyes on the clock.</p>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#D89A06] bg-[#FEF8E7] dark:bg-white/5 px-2 py-0.5 rounded border border-[#D89A06]/30">
+              EXAMINATION SIMULATION
+            </span>
+            <span className="text-xs text-muted-foreground font-mono">
+              {answeredCount} / {questions.length} Attempted
+            </span>
+          </div>
+          <h2 className="text-base font-bold text-foreground mt-0.5">Timed Candidate Paper</h2>
         </div>
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-full font-mono text-lg font-bold shadow-sm ${timeLeft < 300 ? 'bg-destructive/10 text-destructive border border-destructive/20 animate-pulse' : 'bg-muted border border-border'}`}>
-          <Clock className="w-5 h-5" />
+
+        <div className={`flex items-center gap-2 px-4 py-1.5 rounded-xl font-mono text-base font-bold border transition-colors ${
+          timeLeft < 300 
+            ? 'bg-rose-500/10 text-rose-600 border-rose-500/30 animate-pulse' 
+            : 'bg-[#00004E] text-[#D89A06] dark:bg-white/10 dark:text-[#D89A06] border-[#D89A06]/30'
+        }`}>
+          <Clock className="w-4 h-4 text-[#D89A06]" />
           {formatTime(timeLeft)}
         </div>
       </div>
 
-      <div className="space-y-8">
+      {/* Official University Examination Paper Header */}
+      <header className="rounded-2xl border border-border/80 bg-card p-6 md:p-8 space-y-4 shadow-xs text-center">
+        <div className="space-y-1">
+          <span className="font-mono text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
+            OFFICIAL UNIVERSITY EXAMINATION ARCHIVE
+          </span>
+          <h1 className="text-xl md:text-2xl font-black text-[#00004E] dark:text-white uppercase tracking-tight">
+            FINAL / MID-SEMESTER EXAMINATION
+          </h1>
+          <p className="text-xs font-mono text-muted-foreground">
+            Course Examination Paper · Duration: 2 Hours (120 Minutes)
+          </p>
+        </div>
+
+        {/* Candidate Instructions */}
+        <div className="rounded-xl border border-[#D89A06]/30 bg-[#FEF8E7]/40 dark:bg-white/5 p-4 text-left space-y-1.5 text-xs">
+          <div className="font-bold text-[#00004E] dark:text-[#D89A06] uppercase tracking-wide text-[11px]">
+            Instructions to Candidates:
+          </div>
+          <ul className="list-disc list-inside space-y-1 text-muted-foreground leading-relaxed">
+            <li>Answer ALL questions in Section A (Multiple Choice Questions) directly on the interactive answer sheet.</li>
+            <li>For Section B (Theory &amp; Essay Questions), provide complete derivations, formulas, and explanations.</li>
+            <li>Workings for numerical computations must be clearly stated in the answer box.</li>
+          </ul>
+        </div>
+      </header>
+
+      <div className="space-y-10">
         {mcqQuestions.length > 0 && (
-          <div className="space-y-6">
-            <h3 className="text-xl font-bold text-foreground border-b border-border pb-2">Multiple Choice Questions</h3>
+          <section className="space-y-5">
+            <div className="flex items-center justify-between pb-2 border-b border-border/80">
+              <h3 className="text-base font-bold text-foreground uppercase tracking-wide">
+                SECTION A: OBJECTIVE QUESTIONS ({mcqQuestions.length} Questions)
+              </h3>
+              <span className="font-mono text-xs text-muted-foreground">1 Mark Each</span>
+            </div>
+
             {mcqQuestions.map((q, idx) => (
-              <Card key={q.id} className="border-border shadow-sm">
-                <CardHeader className="bg-muted/10 border-b border-border pb-4">
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg">Question {q.question_number}</CardTitle>
-                    <span className="text-sm font-semibold bg-primary/10 text-primary px-3 py-1 rounded-full">
-                      {q.marks_available} Marks
+              <Card key={q.id} className="border-border/80 rounded-2xl shadow-xs overflow-hidden">
+                <CardHeader className="bg-muted/30 border-b border-border/60 py-3.5 px-5">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-sm font-bold font-mono">
+                      QUESTION {q.question_number}
+                    </CardTitle>
+                    <span className="text-[11px] font-mono font-bold text-[#D89A06] bg-[#FEF8E7] dark:bg-white/5 px-2 py-0.5 rounded border border-[#D89A06]/30">
+                      [{q.marks_available} Mark]
                     </span>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-6">
+                <CardContent className="p-5 md:p-6 space-y-4">
                   {(() => {
                     const { stem, options } = parseMcqContent(q.text_content.replace(/<br\s*\/?>/gi, '\n'))
                     return (
                       <>
                         {stem && (
-                          <div className="prose prose-sm dark:prose-invert max-w-none mb-5 whitespace-pre-wrap [&_table]:border-collapse [&_table]:w-full [&_table]:border [&_table]:border-border [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:p-2 [&_td]:border [&_td]:border-border [&_td]:p-2">
+                          <div className="prose prose-sm dark:prose-invert max-w-none text-foreground font-medium leading-relaxed whitespace-pre-wrap [&_table]:border-collapse [&_table]:w-full [&_table]:border [&_table]:border-border [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:p-2 [&_td]:border [&_td]:border-border [&_td]:p-2">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>{stem}</ReactMarkdown>
                           </div>
                         )}
 
                         {options.length > 0 && (
-                          <div className="space-y-3">
+                          <div className="space-y-2.5 pt-2">
                             {options.map(opt => {
                               const isSelected = answers[q.id] === opt.letter;
                               return (
                                 <div
                                   key={opt.letter}
                                   onClick={() => handleAnswerChange(q.id, opt.letter)}
-                                  className={`flex items-start gap-4 rounded-xl border p-4 text-sm cursor-pointer transition-all ${
+                                  className={`flex items-start gap-3.5 rounded-xl border p-3.5 text-xs sm:text-sm cursor-pointer transition-all ${
                                     isSelected
-                                      ? 'border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20'
-                                      : 'border-border bg-card hover:border-primary/40 hover:bg-muted/10'
+                                      ? 'border-[#00004E] dark:border-[#D89A06] bg-[#FEF8E7]/50 dark:bg-white/5 shadow-2xs'
+                                      : 'border-border/80 bg-card hover:border-[#D89A06]/60 hover:bg-muted/20'
                                   }`}
                                 >
-                                  <div className={`shrink-0 flex h-7 w-7 items-center justify-center rounded-full font-bold text-xs border ${
+                                  <div className={`shrink-0 flex h-6 w-6 items-center justify-center rounded-lg font-mono font-bold text-xs border ${
                                     isSelected
-                                      ? 'bg-primary text-primary-foreground border-primary'
+                                      ? 'bg-[#00004E] text-[#D89A06] border-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E]'
                                       : 'bg-muted text-muted-foreground border-border'
                                   }`}>
                                     {opt.letter}
                                   </div>
-                                  <div className="text-foreground/90 leading-relaxed pt-0.5">{opt.text}</div>
+                                  <div className="text-foreground leading-relaxed pt-0.5">{opt.text}</div>
                                 </div>
                               );
                             })}
@@ -257,39 +305,47 @@ export default function ExamAttempt() {
                 </CardContent>
               </Card>
             ))}
-          </div>
+          </section>
         )}
 
         {theoryQuestions.length > 0 && (
-          <div className="space-y-6 mt-12">
-            <h3 className="text-xl font-bold text-foreground border-b border-border pb-2">Theory & Essay Questions</h3>
-            {theoryQuestions.map((q, idx) => (
-              <Card key={q.id} className="border-border shadow-sm">
-                <CardHeader className="bg-muted/10 border-b border-border pb-4">
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg">Question {q.question_number}</CardTitle>
-                    <span className="text-sm font-semibold bg-primary/10 text-primary px-3 py-1 rounded-full">
-                      {q.marks_available} Marks
+          <section className="space-y-5">
+            <div className="flex items-center justify-between pb-2 border-b border-border/80">
+              <h3 className="text-base font-bold text-foreground uppercase tracking-wide">
+                SECTION B: THEORY &amp; CALCULATIONS ({theoryQuestions.length} Questions)
+              </h3>
+              <span className="font-mono text-xs text-muted-foreground">Show Detailed Workings</span>
+            </div>
+
+            {theoryQuestions.map((q) => (
+              <Card key={q.id} className="border-border/80 rounded-2xl shadow-xs overflow-hidden">
+                <CardHeader className="bg-muted/30 border-b border-border/60 py-3.5 px-5">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-sm font-bold font-mono">
+                      QUESTION {q.question_number}
+                    </CardTitle>
+                    <span className="text-[11px] font-mono font-bold text-[#D89A06] bg-[#FEF8E7] dark:bg-white/5 px-2 py-0.5 rounded border border-[#D89A06]/30">
+                      [{q.marks_available || 10} Marks]
                     </span>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="prose prose-sm dark:prose-invert max-w-none mb-6 whitespace-pre-wrap [&_table]:border-collapse [&_table]:w-full [&_table]:border [&_table]:border-border [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:p-2 [&_td]:border [&_td]:border-border [&_td]:p-2">
+                <CardContent className="p-5 md:p-6 space-y-4">
+                  <div className="prose prose-sm dark:prose-invert max-w-none text-foreground font-medium leading-relaxed whitespace-pre-wrap [&_table]:border-collapse [&_table]:w-full [&_table]:border [&_table]:border-border [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:p-2 [&_td]:border [&_td]:border-border [&_td]:p-2">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {q.text_content.replace(/<br\s*\/?>/gi, '\n')}
                     </ReactMarkdown>
                   </div>
                   
-                  <div className="space-y-3">
-                    <label className="text-sm font-medium text-muted-foreground flex items-center justify-between">
-                      Your Answer
-                      <Button variant="ghost" size="sm" className="h-8 gap-2 text-xs">
-                        <UploadCloud className="w-3 h-3" /> Upload Handwriting
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold">
+                      <span>Candidate Written Solution</span>
+                      <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-[#00004E] dark:text-[#D89A06] cursor-pointer">
+                        <UploadCloud className="w-3.5 h-3.5" /> Scan Handwriting
                       </Button>
-                    </label>
+                    </div>
                     <Textarea 
-                      placeholder="Type your detailed answer here. (You can explicitly label your answers for sub-parts like a, b, etc.)"
-                      className="min-h-[250px] font-mono text-sm resize-y"
+                      placeholder="Type your structured solution here. Clearly label sub-questions (e.g., (a), (b), (i), (ii)) and show step-by-step arithmetic."
+                      className="min-h-[220px] font-mono text-xs leading-relaxed resize-y rounded-xl border-border/80 p-3.5"
                       value={answers[q.id] || ''}
                       onChange={(e) => handleAnswerChange(q.id, e.target.value)}
                     />
@@ -297,13 +353,20 @@ export default function ExamAttempt() {
                 </CardContent>
               </Card>
             ))}
-          </div>
+          </section>
         )}
       </div>
 
-      <div className="flex justify-end pt-6 border-t border-border mt-10">
-        <Button onClick={handleSubmit} disabled={submitting || questions.length === 0} size="lg" className="px-8 shadow-lg shadow-primary/20">
-          {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</> : <><Check className="w-4 h-4 mr-2" /> Submit Exam</>}
+      <div className="flex items-center justify-between pt-6 border-t border-border/80 mt-10">
+        <span className="text-xs text-muted-foreground">
+          {answeredCount} of {questions.length} questions answered
+        </span>
+        <Button 
+          onClick={handleSubmit} 
+          disabled={submitting || questions.length === 0} 
+          className="bg-[#00004E] text-white hover:bg-[#00003E] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] px-8 h-10 font-bold shadow-md cursor-pointer text-xs"
+        >
+          {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting for AI Marking...</> : <><Check className="w-4 h-4 mr-2" /> Finish &amp; Submit Paper</>}
         </Button>
       </div>
     </div>

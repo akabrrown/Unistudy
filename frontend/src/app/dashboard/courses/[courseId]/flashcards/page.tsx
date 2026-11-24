@@ -44,6 +44,37 @@ export default function FlashcardsPage() {
   const [translatedFront, setTranslatedFront] = useState('')
   const [translatedBack, setTranslatedBack] = useState('')
 
+  // Anki / FSRS Keyboard Navigation
+  useEffect(() => {
+    if (!reviewMode || dueCards.length === 0) return;
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.code === 'Space' || e.code === 'Enter') {
+        e.preventDefault();
+        setIsFlipped((prev) => !prev);
+      } else if (isFlipped && !submittingRating) {
+        if (e.key === '1') {
+          e.preventDefault();
+          void handleRating('again');
+        } else if (e.key === '2') {
+          e.preventDefault();
+          void handleRating('hard');
+        } else if (e.key === '3') {
+          e.preventDefault();
+          void handleRating('good');
+        } else if (e.key === '4') {
+          e.preventDefault();
+          void handleRating('easy');
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [reviewMode, dueCards.length, isFlipped, submittingRating, currentCardIndex]);
+
   useEffect(() => {
     fetchData()
   }, [courseId])
@@ -272,20 +303,39 @@ export default function FlashcardsPage() {
 
   if (reviewMode && dueCards.length > 0) {
     const card = dueCards[currentCardIndex]
+    const progressPercent = Math.round(((currentCardIndex + 1) / dueCards.length) * 100);
+
     return (
-      <div className="p-8 max-w-3xl mx-auto h-[calc(100vh-theme(spacing.16))] flex flex-col">
-        <div className="flex items-center justify-between mb-8">
-          <Button variant="ghost" onClick={() => setReviewMode(false)}>
-            <ChevronLeft size={16} className="mr-2" /> Exit Review
-          </Button>
-          <div className="text-sm font-semibold text-muted-foreground">
-            Card {currentCardIndex + 1} of {dueCards.length}
+      <div className="p-4 md:p-8 max-w-3xl mx-auto min-h-[calc(100vh-theme(spacing.16))] flex flex-col justify-between">
+        {/* Anki Academic Header Toolbar */}
+        <div className="space-y-3 mb-6">
+          <div className="flex items-center justify-between">
+            <Button variant="ghost" size="sm" onClick={() => setReviewMode(false)} className="text-xs font-semibold cursor-pointer">
+              <ChevronLeft size={16} className="mr-1" /> Exit Review
+            </Button>
+            <div className="flex items-center gap-3">
+              <span className="hidden sm:inline-flex items-center gap-1 font-mono text-[11px] text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border/60">
+                <kbd className="font-bold text-foreground">Space</kbd> flip · <kbd className="font-bold text-foreground">1-4</kbd> grade
+              </span>
+              <span className="font-mono text-xs font-bold text-foreground">
+                {currentCardIndex + 1} / {dueCards.length}
+              </span>
+            </div>
+          </div>
+
+          {/* Minimal 2px Progress Bar */}
+          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-[#00004E] via-[#D89A06] to-[#10B981] transition-all duration-300"
+              style={{ width: `${progressPercent}%` }}
+            />
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center">
+        {/* 3D Flip Card */}
+        <div className="flex-1 flex flex-col items-center justify-center my-auto">
           <div 
-            className="w-full aspect-[4/3] max-h-[500px] relative cursor-pointer group"
+            className="w-full aspect-[4/3] max-h-[460px] relative cursor-pointer group"
             style={{ perspective: '1000px' }}
             onClick={() => !isFlipped && setIsFlipped(true)}
           >
@@ -296,35 +346,35 @@ export default function FlashcardsPage() {
                 transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' 
               }}
             >
-              {/* Front */}
+              {/* Front (Question) */}
               <div 
-                className="absolute inset-0 bg-card border-2 border-border rounded-3xl p-10 flex flex-col items-center justify-center text-center shadow-lg hover:border-primary/50 transition-colors"
+                className="absolute inset-0 bg-card border-2 border-border/90 rounded-3xl p-8 md:p-10 flex flex-col items-center justify-center text-center shadow-md hover:border-[#D89A06]/60 transition-colors"
                 style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
               >
                 <div className="absolute top-4 right-4">
-                  <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-primary" onClick={(e) => playAudio(card.front, e)}>
-                    <Volume2 className="w-5 h-5" />
+                  <Button variant="ghost" size="icon" className="rounded-full text-muted-foreground hover:text-[#00004E] dark:hover:text-[#D89A06]" onClick={(e) => playAudio(card.front, e)}>
+                    <Volume2 className="w-4 h-4" />
                   </Button>
                 </div>
                 <div className="absolute top-4 left-4 flex gap-2">
-                  <Button variant="ghost" size="sm" className="rounded-full text-muted-foreground hover:text-primary" onClick={handleTranslate} disabled={translating}>
-                    {translating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Languages className="w-4 h-4" />}
+                  <Button variant="ghost" size="sm" className="rounded-full text-muted-foreground hover:text-[#00004E] dark:hover:text-[#D89A06]" onClick={handleTranslate} disabled={translating}>
+                    {translating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Languages className="w-3.5 h-3.5" />}
                   </Button>
                 </div>
-                <span className="text-xs font-bold uppercase tracking-widest text-primary mb-6">Question</span>
-                <h3 className="text-2xl font-bold text-foreground leading-relaxed">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#D89A06] mb-5">QUESTION</span>
+                <h3 className="text-xl md:text-2xl font-bold text-foreground leading-relaxed max-w-lg">
                   {translatedFront || card.front}
                 </h3>
                 {!isFlipped && (
-                  <p className="mt-8 text-sm font-medium text-muted-foreground animate-pulse flex items-center gap-2">
-                    <RotateCcw size={14} /> Click to flip
+                  <p className="mt-8 text-xs font-semibold text-muted-foreground animate-pulse flex items-center gap-1.5">
+                    <RotateCcw size={13} /> Click card or press <kbd className="font-mono bg-muted px-1.5 py-0.5 rounded border border-border">Space</kbd> to reveal answer
                   </p>
                 )}
               </div>
               
-              {/* Back */}
+              {/* Back (Answer) */}
               <div 
-                className="absolute inset-0 bg-primary text-primary-foreground rounded-3xl p-10 flex flex-col items-center justify-center text-center shadow-xl"
+                className="absolute inset-0 bg-[#00004E] text-white rounded-3xl p-8 md:p-10 flex flex-col items-center justify-center text-center shadow-xl border border-[#D89A06]/40"
                 style={{ 
                   backfaceVisibility: 'hidden', 
                   WebkitBackfaceVisibility: 'hidden', 
@@ -332,47 +382,79 @@ export default function FlashcardsPage() {
                 }}
               >
                 <div className="absolute top-4 right-4">
-                  <Button variant="ghost" size="icon" className="rounded-full text-primary-foreground/70 hover:text-white hover:bg-white/20" onClick={(e) => playAudio(card.back, e)}>
-                    <Volume2 className="w-5 h-5" />
+                  <Button variant="ghost" size="icon" className="rounded-full text-white/70 hover:text-white hover:bg-white/20" onClick={(e) => playAudio(card.back, e)}>
+                    <Volume2 className="w-4 h-4" />
                   </Button>
                 </div>
                 <div className="absolute top-4 left-4 flex gap-2">
-                  <Button variant="ghost" size="sm" className="rounded-full text-primary-foreground/70 hover:text-white hover:bg-white/20" onClick={handleTranslate} disabled={translating}>
-                    {translating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Languages className="w-4 h-4" />}
+                  <Button variant="ghost" size="sm" className="rounded-full text-white/70 hover:text-white hover:bg-white/20 text-xs" onClick={handleTranslate} disabled={translating}>
+                    {translating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Languages className="w-3.5 h-3.5" />}
                   </Button>
-                  <Button variant="ghost" size="sm" className="rounded-full text-primary-foreground/70 hover:text-white hover:bg-white/20" onClick={handleGenerateMnemonics} disabled={mnemonicsLoading}>
-                    {mnemonicsLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Lightbulb className="w-4 h-4 mr-2" />}
-                    Mnemonics
+                  <Button variant="ghost" size="sm" className="rounded-full text-white/70 hover:text-white hover:bg-white/20 text-xs" onClick={handleGenerateMnemonics} disabled={mnemonicsLoading}>
+                    {mnemonicsLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Lightbulb className="w-3.5 h-3.5 mr-1.5 text-[#D89A06]" />}
+                    Mnemonic
                   </Button>
                 </div>
-                <span className="text-xs font-bold uppercase tracking-widest text-primary-foreground/70 mb-6">Answer</span>
-                <div className="text-xl font-medium leading-relaxed whitespace-pre-wrap">{translatedBack || card.back}</div>
+                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#D89A06] mb-5">OFFICIAL ANSWER</span>
+                <div className="text-lg md:text-xl font-medium leading-relaxed whitespace-pre-wrap max-w-lg">{translatedBack || card.back}</div>
                 
                 {mnemonicsData && (
-                  <div className="mt-8 text-left text-sm bg-black/10 p-4 rounded-xl w-full max-w-sm">
-                    <p><strong>Acronym:</strong> {mnemonicsData.acronym}</p>
-                    <p className="my-2"><strong>Sentence:</strong> {mnemonicsData.sentence}</p>
-                    <p><strong>Rhyme:</strong> {mnemonicsData.rhyme}</p>
+                  <div className="mt-6 text-left text-xs bg-black/30 border border-white/10 p-3.5 rounded-xl w-full max-w-md">
+                    {mnemonicsData.acronym ? <p><strong>Acronym:</strong> {mnemonicsData.acronym}</p> : null}
+                    {mnemonicsData.sentence ? <p className="my-1.5"><strong>Sentence:</strong> {mnemonicsData.sentence}</p> : null}
+                    {mnemonicsData.rhyme ? <p><strong>Rhyme:</strong> {mnemonicsData.rhyme}</p> : null}
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          <div className={`mt-12 w-full transition-all duration-300 ${isFlipped ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
-            <p className="text-center text-sm font-semibold text-muted-foreground mb-4">How hard was it to remember?</p>
-            <div className="flex items-center justify-center gap-4">
-              <Button size="lg" variant="destructive" onClick={() => handleRating('again')} disabled={submittingRating} className="w-32 font-bold">
-                Again (1m)
+          {/* Anki FSRS SM-2 Rating Controls */}
+          <div className={`mt-8 w-full transition-all duration-300 ${isFlipped ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+            <p className="text-center text-xs font-semibold text-muted-foreground mb-3">Recall Difficulty (FSRS SM-2)</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 max-w-lg mx-auto">
+              <Button
+                size="default"
+                variant="outline"
+                onClick={() => handleRating('again')}
+                disabled={submittingRating}
+                className="flex flex-col items-center py-2.5 h-auto border-rose-500/40 hover:bg-rose-500/10 hover:border-rose-500 cursor-pointer text-xs"
+              >
+                <span className="font-mono text-[10px] text-rose-500 font-bold">[1] Again</span>
+                <span className="font-mono text-[11px] font-black text-foreground">&lt; 10 min</span>
               </Button>
-              <Button size="lg" variant="secondary" onClick={() => handleRating('hard')} disabled={submittingRating} className="w-32 font-bold bg-orange-500/10 text-orange-600 hover:bg-orange-500/20">
-                Hard
+
+              <Button
+                size="default"
+                variant="outline"
+                onClick={() => handleRating('hard')}
+                disabled={submittingRating}
+                className="flex flex-col items-center py-2.5 h-auto border-amber-500/40 hover:bg-amber-500/10 hover:border-amber-500 cursor-pointer text-xs"
+              >
+                <span className="font-mono text-[10px] text-amber-500 font-bold">[2] Hard</span>
+                <span className="font-mono text-[11px] font-black text-foreground">1 Day</span>
               </Button>
-              <Button size="lg" variant="secondary" onClick={() => handleRating('good')} disabled={submittingRating} className="w-32 font-bold bg-blue-500/10 text-blue-600 hover:bg-blue-500/20">
-                Good
+
+              <Button
+                size="default"
+                variant="outline"
+                onClick={() => handleRating('good')}
+                disabled={submittingRating}
+                className="flex flex-col items-center py-2.5 h-auto border-[#00004E]/40 dark:border-blue-500/40 hover:bg-[#00004E]/10 dark:hover:bg-blue-500/10 hover:border-[#00004E] cursor-pointer text-xs"
+              >
+                <span className="font-mono text-[10px] text-[#00004E] dark:text-blue-400 font-bold">[3] Good</span>
+                <span className="font-mono text-[11px] font-black text-foreground">3 Days</span>
               </Button>
-              <Button size="lg" variant="default" onClick={() => handleRating('easy')} disabled={submittingRating} className="w-32 font-bold bg-green-500 text-white hover:bg-green-600">
-                Easy
+
+              <Button
+                size="default"
+                variant="outline"
+                onClick={() => handleRating('easy')}
+                disabled={submittingRating}
+                className="flex flex-col items-center py-2.5 h-auto border-emerald-500/40 hover:bg-emerald-500/10 hover:border-emerald-500 cursor-pointer text-xs"
+              >
+                <span className="font-mono text-[10px] text-emerald-500 font-bold">[4] Easy</span>
+                <span className="font-mono text-[11px] font-black text-foreground">7 Days</span>
               </Button>
             </div>
           </div>
