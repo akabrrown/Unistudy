@@ -263,8 +263,8 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
 
   return (
     <div className="max-w-[1380px] mx-auto pb-12 space-y-5">
-      {/* Row 1: Command Header */}
-      <header className="relative overflow-hidden rounded-2xl border-2 border-[#D89A06]/35 bg-white dark:bg-card p-5 md:p-6 shadow-sm space-y-4 before:absolute before:top-0 before:left-0 before:right-0 before:h-1.5 before:bg-gradient-to-r before:from-[#00004E] before:via-[#D89A06] before:to-[#00004E]">
+      {/* Row 1: Command Header - Linear Bento Standard */}
+      <header className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-5 md:p-6 shadow-xs space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="space-y-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -407,16 +407,16 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
         <div className="lg:col-span-8 space-y-5">
           {/* Hero Stream: Resume Studying OR Getting Started */}
           {resumeItem ? (
-            <section className="relative overflow-hidden rounded-2xl border-2 border-[#D89A06]/35 bg-card p-5 shadow-xs transition-all hover:border-[#D89A06]">
+            <section className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-5 shadow-xs transition-all hover:border-[#00004E]/50 dark:hover:border-[#D89A06]/50">
               <div
                 className="absolute top-0 left-0 bottom-0 w-2"
                 style={{ backgroundColor: resolveCourseColor(resumeItem.courseColour) }}
               />
               <div className="pl-3 flex flex-col md:flex-row md:items-center justify-between gap-5">
                 {/* Visual Slide Frame Mockup */}
-                <div className="w-full md:w-48 h-32 rounded-xl border border-[#D89A06]/35 bg-gradient-to-br from-[#00004E] via-[#000038] to-[#00002A] p-3 flex flex-col justify-between shrink-0 shadow-sm relative overflow-hidden group">
+                <div className="w-full md:w-48 h-32 rounded-xl border border-border/80 bg-slate-900 p-3 flex flex-col justify-between shrink-0 shadow-sm relative overflow-hidden group">
                   <div className="flex items-center justify-between z-10">
-                    <span className="text-[10px] font-mono font-bold text-[#D89A06] bg-[#D89A06]/20 px-1.5 py-0.5 rounded border border-[#D89A06]/40">
+                    <span className="text-[10px] font-mono font-semibold text-[#D89A06] bg-black/40 px-1.5 py-0.5 rounded border border-white/10">
                       {resumeItem.courseCode}
                     </span>
                     <span className="text-[10px] font-mono text-white/70">
@@ -426,9 +426,9 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
 
                   {/* Visual Slide Deck Preview Geometry */}
                   <div className="space-y-1.5 z-10 pl-1">
-                    <div className="h-2 w-20 bg-[#D89A06]/70 rounded-full" />
-                    <div className="h-1.5 w-32 bg-white/40 rounded-full" />
-                    <div className="h-1.5 w-24 bg-white/30 rounded-full" />
+                    <div className="h-1.5 w-20 bg-[#D89A06]/80 rounded-full" />
+                    <div className="h-1.5 w-32 bg-white/30 rounded-full" />
+                    <div className="h-1.5 w-24 bg-white/20 rounded-full" />
                   </div>
 
                   {/* Bottom Slide Meta */}
@@ -442,7 +442,7 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
 
                 <div className="space-y-2 min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-md bg-[#FEF8E7] dark:bg-[#00004E] border border-[#D89A06]/40 px-2 py-0.5 text-[11px] font-mono font-bold text-[#00004E] dark:text-[#D89A06]">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono font-semibold tracking-wider uppercase text-muted-foreground border border-border/60">
                       RESUME STUDYING
                     </span>
                     <span className="text-xs font-mono font-semibold text-muted-foreground">
@@ -501,10 +501,10 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
               </div>
             </section>
           ) : (
-            <section className="rounded-2xl border-2 border-[#D89A06]/35 bg-white dark:bg-card p-6 shadow-xs space-y-5">
+            <section className="rounded-2xl border border-border/80 bg-card p-6 shadow-xs space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-[#00004E] dark:text-[#D89A06] bg-[#FEF8E7] dark:bg-[#00004E] px-2.5 py-0.5 rounded-full border border-[#D89A06]/40">
+                  <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted px-2.5 py-0.5 rounded border border-border/60">
                     Quick Start
                   </span>
                   <h2 className="text-xl font-black tracking-tight text-[#00004E] dark:text-white mt-1.5">

@@ -1556,11 +1556,10 @@ export default function LectureViewer() {
           <div 
             ref={slideOuterContainerRef}
             style={{ overscrollBehavior: 'contain', touchAction: 'none' }}
-            className="flex-1 flex items-center justify-center p-6 overflow-hidden bg-muted/10 cursor-default"
+            className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-hidden bg-slate-900/5 dark:bg-black/40 cursor-default"
             onWheel={handleSlideWheel}
           >
-            <div ref={slideContainerRef} className="w-full max-w-3xl aspect-video rounded-2xl border border-border shadow-md flex items-center justify-center relative overflow-hidden bg-card">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 opacity-50" />
+            <div ref={slideContainerRef} className="w-full max-w-4xl aspect-video rounded-xl border border-border shadow-sm flex items-center justify-center relative overflow-hidden bg-card">
               {(() => {
                 const currentKey = slideKey(currentSlide, slideIndex);
                 const rawSlideImg = currentSlide?.image_url && !isPlaceholderSlideUrl(currentSlide.image_url)
@@ -2089,32 +2088,32 @@ export default function LectureViewer() {
                   </div>
 
                   {/* AI Tutor Interactive Bridge Card */}
-                  <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 via-card to-card p-4 space-y-3.5 shadow-xs">
+                  <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3 shadow-2xs">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-muted text-foreground flex items-center justify-center font-bold shrink-0">
                           <Bot className="w-4 h-4" />
                         </div>
                         <div>
-                          <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5 flex-wrap">
-                            <span>Continue with {settings?.ai_tutor_name || 'AI Tutor'}</span>
-                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-600 font-semibold border border-emerald-500/20">
-                              Slide {slideIndex + 1} Grounded
+                          <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
+                            <span>Continue with Tutor</span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                              Slide {slideIndex + 1}
                             </span>
                           </h4>
                           <p className="text-[11px] text-muted-foreground">
-                            Ask follow-up questions strictly anchored to this slide &amp; explanation
+                            Ask follow-up questions anchored to this slide
                           </p>
                         </div>
                       </div>
                       <Button
                         size="sm"
-                        variant="secondary"
+                        variant="outline"
                         onClick={() => setIsChatOpen(true)}
-                        className="h-7 text-xs gap-1 border border-emerald-500/30 hover:border-emerald-500 text-emerald-700 dark:text-emerald-300 shrink-0"
+                        className="h-7 text-xs gap-1 border-border/80 text-foreground shrink-0"
                       >
                         <MessageCircle size={13} />
-                        Open Tutor
+                        Ask Tutor
                       </Button>
                     </div>
 

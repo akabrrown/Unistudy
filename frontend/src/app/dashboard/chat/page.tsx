@@ -1837,174 +1837,129 @@ export default function GeneralAiChatPage() {
 
       {/* Main Chat Interface */}
       <main className="flex-1 flex flex-col min-w-0">
-        {/* Top Header & Context Bar */}
-        <header className="flex-shrink-0 bg-card border border-border rounded-2xl p-2.5 sm:p-3 shadow-xs mb-3 space-y-2">
-          {/* Main Top Tier: Title, Persona & Actions */}
-          <div className="flex items-center justify-between gap-2.5 min-w-0">
-            {/* Left: History Toggle, Crest, Title & Persona */}
-            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setIsHistoryOpen((prev) => !prev)}
-                className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 text-[#00004E] dark:text-[#D89A06] border-border hover:border-[#D89A06] hover:bg-[#FEF8E7] dark:hover:bg-white/5 transition-colors cursor-pointer"
-                title={isHistoryOpen ? 'Collapse chat history' : 'Expand chat history'}
-                aria-label={isHistoryOpen ? 'Collapse chat history' : 'Expand chat history'}
+        {/* Top Header & Context Bar - Human Craft Minimalist Bar */}
+        <header className="flex-shrink-0 border-b border-border/70 bg-card/60 backdrop-blur-md px-3 sm:px-4 py-2 mb-2 flex items-center justify-between gap-3 rounded-xl">
+          {/* Left: History Toggle, Title & Source Breadcrumb */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsHistoryOpen((prev) => !prev)}
+              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              title={isHistoryOpen ? 'Collapse chat history' : 'Expand chat history'}
+              aria-label={isHistoryOpen ? 'Collapse chat history' : 'Expand chat history'}
+            >
+              {isHistoryOpen ? (
+                <PanelLeftClose className="h-4 w-4" />
+              ) : (
+                <PanelLeftOpen className="h-4 w-4" />
+              )}
+            </Button>
+
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <h1
+                className="text-sm font-semibold tracking-tight text-foreground truncate max-w-[200px] sm:max-w-[280px]"
+                title={cleanChatTitle(currentSession?.title)}
               >
-                {isHistoryOpen ? (
-                  <PanelLeftClose className="h-4 w-4" />
-                ) : (
-                  <PanelLeftOpen className="h-4 w-4" />
-                )}
-              </Button>
+                {cleanChatTitle(currentSession?.title)}
+              </h1>
 
-              <UniStudyLogo variant="icon" height={28} className="shrink-0 hidden xs:block" alt="UniStudy AI Study Tutor" />
-
-              <div className="min-w-0 flex-1">
-                <h1
-                  className="text-sm sm:text-base font-black tracking-tight text-[#00004E] dark:text-white truncate whitespace-nowrap"
-                  title={cleanChatTitle(currentSession?.title)}
-                >
-                  {cleanChatTitle(currentSession?.title)}
-                </h1>
-              </div>
-            </div>
-
-            {/* Right: Adaptive Action Toolbar */}
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-
-              {/* Dual-Pocket Wallet Pill */}
-              <Link
-                href="/dashboard/settings/billing"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2 sm:px-2.5 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors shadow-2xs group"
-                title={`Dual-Pocket Wallet: ${freePasses ?? 8}/8 Free 6h Passes + ${paidCredits ?? 20} Paid Credits (Never expires)`}
-              >
-                <div className="flex items-center gap-1">
-                  <span className="text-[#D89A06]">⚡</span>
-                  <span>{freePasses ?? 8}/8 Free</span>
-                  {secondsUntilRefill !== null && (freePasses ?? 8) < 8 && secondsUntilRefill > 0 && (
-                    <span className="text-[10px] text-muted-foreground font-mono hidden xl:inline">
-                      ({Math.floor(secondsUntilRefill / 3600)}h {Math.floor((secondsUntilRefill % 3600) / 60)}m)
-                    </span>
-                  )}
-                </div>
-                {(paidCredits ?? 0) > 0 && (
-                  <div className="flex items-center gap-1 border-l border-[#D89A06]/30 pl-1.5">
-                    <span className="text-xs">🪙</span>
-                    <span>{paidCredits}</span>
-                  </div>
-                )}
-              </Link>
-
-              {/* Utility Tools: Calibrate, Memory, Export */}
-              <div className="flex items-center rounded-xl border border-border bg-muted/30 p-0.5">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsCalibrateDialogOpen(true)}
-                  className="h-7 px-2 text-xs font-semibold text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7] dark:hover:bg-white/10"
-                  title="Calibrate Tutor Name, Tone & Personality"
-                  aria-label="Calibrate Tutor"
-                >
-                  <SlidersHorizontal className="h-3.5 w-3.5 xl:mr-1 text-[#D89A06]" />
-                  <span className="hidden xl:inline">Calibrate</span>
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsMemoryOpen(true)}
-                  className="h-7 px-2 text-xs font-semibold text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7] dark:hover:bg-white/10"
-                  title="See and edit what your tutor remembers"
-                  aria-label="Tutor Memory"
-                >
-                  <Brain className="h-3.5 w-3.5 xl:mr-1 text-[#D89A06]" />
-                  <span className="hidden xl:inline">Memory</span>
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleExportChat}
-                  disabled={messages.length === 0}
-                  className="h-7 px-2 text-xs font-semibold text-foreground hover:bg-muted"
-                  title="Export chat as Markdown"
-                  aria-label="Export Chat"
-                >
-                  <Download className="h-3.5 w-3.5 xl:mr-1 text-muted-foreground" />
-                  <span className="hidden xl:inline">Export</span>
-                </Button>
-              </div>
-
-              {/* Primary Action: New Chat */}
-              <Button
-                size="sm"
-                onClick={handleStartNewChat}
-                className="h-8 px-2.5 sm:px-3 text-xs font-bold bg-[#00004E] text-white hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#c48a04] shadow-xs cursor-pointer"
-                title="Start a fresh chat"
-              >
-                <Plus className="h-3.5 w-3.5 sm:mr-1" />
-                <span className="hidden sm:inline">New Chat</span>
-              </Button>
-            </div>
-          </div>
-
-          {/* Unified Grounding & Context Ribbon */}
-          <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/60 text-xs">
-            {/* Left: Active Grounding Status Chip */}
-            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
-              <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider shrink-0 flex items-center gap-1">
-                <Layers className="h-3 w-3 text-[#D89A06]" />
-                Grounding:
-              </span>
-
+              {/* NotebookLM-style subtle source breadcrumb */}
               {activeDeck ? (
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-[#FEF8E7] dark:bg-white/10 border border-[#D89A06]/50 text-xs font-semibold text-[#00004E] dark:text-[#D89A06] min-w-0 max-w-full">
-                  <span className="font-bold text-[#8C6404] dark:text-[#D89A06] shrink-0">
-                    {activeDeck.courseCode}
-                  </span>
-                  <span className="text-muted-foreground shrink-0">/</span>
-                  <span className="font-medium text-foreground truncate max-w-[140px] sm:max-w-[240px] md:max-w-[380px]">
-                    {activeDeck.lectureTitle}
-                  </span>
-                  {typeof activeDeck.slideCount === 'number' && activeDeck.slideCount > 0 && (
-                    <span className="text-[10px] text-muted-foreground font-mono shrink-0 hidden sm:inline">
-                      ({activeDeck.slideCount} slides)
-                    </span>
-                  )}
-                  <Link
-                    href={`/dashboard/courses/${activeDeck.courseId}/lectures/${activeDeck.lectureId}`}
-                    target="_blank"
-                    className="text-muted-foreground hover:text-[#00004E] dark:hover:text-white transition-colors shrink-0 p-0.5"
-                    title="Open Slide Viewer in new tab"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                  </Link>
+                <div className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-muted/60 text-xs text-muted-foreground border border-border/50 max-w-sm truncate">
+                  <BookOpen className="h-3 w-3 text-muted-foreground shrink-0" />
+                  <span className="font-semibold text-foreground shrink-0">{activeDeck.courseCode}</span>
+                  <span className="opacity-40">/</span>
+                  <span className="truncate">{activeDeck.lectureTitle}</span>
                   <button
                     onClick={handleDetachDeck}
-                    className="p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/20 text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
+                    className="p-0.5 hover:text-foreground transition-colors cursor-pointer ml-1 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10 rounded"
                     title="Detach lecture deck"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </div>
-              ) : (
-                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-muted/60 text-xs text-muted-foreground truncate">
-                  <BookOpen className="h-3 w-3 text-[#D89A06] shrink-0" />
-                  <span className="truncate">General Academic (All subjects &amp; formulas)</span>
-                </div>
-              )}
+              ) : null}
             </div>
+          </div>
 
-            {/* Right: Attach / Switch Deck Button */}
+          {/* Right: Adaptive Action Toolbar */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Attach / Switch Deck Button */}
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsDeckSelectorOpen(true)}
-              className="h-7 px-2 sm:px-2.5 text-xs font-bold border-[#D89A06]/40 hover:border-[#D89A06] hover:bg-[#FEF8E7] dark:hover:bg-white/5 text-[#00004E] dark:text-[#D89A06] shrink-0"
+              className="h-7 px-2.5 text-xs font-medium border-border/80 hover:bg-muted text-foreground shrink-0"
             >
-              <Paperclip className="h-3 w-3 mr-1 text-[#D89A06]" />
+              <Paperclip className="h-3 w-3 mr-1.5 text-muted-foreground" />
               <span>{activeDeck ? 'Switch Deck' : 'Attach Deck'}</span>
+            </Button>
+
+            {/* Wallet Pill - subtle, quiet */}
+            <Link
+              href="/dashboard/settings/billing"
+              className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border/50"
+              title={`Dual-Pocket Wallet: ${freePasses ?? 8}/8 Free 6h Passes + ${paidCredits ?? 20} Paid Credits (Never expires)`}
+            >
+              <span className="text-[#D89A06]">⚡</span>
+              <span>{freePasses ?? 8}/8 Free</span>
+              {(paidCredits ?? 0) > 0 && (
+                <span className="border-l border-border/60 pl-1.5 ml-0.5 text-foreground font-mono">
+                  🪙 {paidCredits}
+                </span>
+              )}
+            </Link>
+
+            {/* Utility Tools: Calibrate, Memory, Export */}
+            <div className="flex items-center rounded-lg border border-border/60 bg-muted/30 p-0.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsCalibrateDialogOpen(true)}
+                className="h-7 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+                title="Calibrate Tutor Name, Tone & Personality"
+                aria-label="Calibrate Tutor"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5 xl:mr-1 text-muted-foreground" />
+                <span className="hidden xl:inline">Calibrate</span>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsMemoryOpen(true)}
+                className="h-7 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+                title="See and edit what your tutor remembers"
+                aria-label="Tutor Memory"
+              >
+                <Brain className="h-3.5 w-3.5 xl:mr-1 text-muted-foreground" />
+                <span className="hidden xl:inline">Memory</span>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleExportChat}
+                disabled={messages.length === 0}
+                className="h-7 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+                title="Export chat as Markdown"
+                aria-label="Export Chat"
+              >
+                <Download className="h-3.5 w-3.5 xl:mr-1 text-muted-foreground" />
+                <span className="hidden xl:inline">Export</span>
+              </Button>
+            </div>
+
+            {/* Primary Action: New Chat */}
+            <Button
+              size="sm"
+              onClick={handleStartNewChat}
+              className="h-7 px-2.5 sm:px-3 text-xs font-semibold bg-[#00004E] text-white hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#c48a04] shadow-xs cursor-pointer"
+              title="Start a fresh chat"
+            >
+              <Plus className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">New Chat</span>
             </Button>
           </div>
         </header>
@@ -2211,55 +2166,46 @@ export default function GeneralAiChatPage() {
                       )}
                     </>
                   ) : (
-                    <div className="w-full rounded-2xl border border-border/80 border-l-[4px] border-l-[#D89A06] bg-card text-foreground shadow-xs overflow-hidden transition-all duration-200">
-                      {/* Tutor Header Card Banner */}
-                      <div className="flex items-center justify-between px-4 md:px-5 py-2.5 bg-[#00004E]/[0.03] dark:bg-white/[0.03] border-b border-border/60">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <UniStudyLogo variant="icon" height={26} className="shrink-0" alt="UniStudy AI Tutor" />
-                          <div className="min-w-0 flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-xs text-[#00004E] dark:text-white">
-                              UniStudy AI Tutor
-                            </span>
-                            {message.modelUsed && (
-                              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#FEF8E7] text-[#00004E] border border-[#D89A06]/40 dark:bg-white/10 dark:text-[#D89A06]">
-                                {message.modelUsed}
-                              </span>
-                            )}
-                            {message.referencedDeck ? (
-                              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-muted text-muted-foreground truncate max-w-[200px]">
-                                {message.referencedDeck.courseCode} · {message.referencedDeck.lectureTitle}
-                              </span>
-                            ) : null}
+                    <div className="w-full rounded-2xl border border-border/70 bg-card text-foreground shadow-2xs overflow-hidden transition-all duration-200">
+                      {/* Quiet Header: Course Grounding if present */}
+                      {message.referencedDeck && (
+                        <div className="flex items-center justify-between px-4 md:px-5 py-2 bg-muted/20 border-b border-border/50 text-[11px] text-muted-foreground">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <BookOpen className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <span className="font-semibold text-foreground">{message.referencedDeck.courseCode}</span>
+                            <span className="opacity-40">·</span>
+                            <span className="truncate">{message.referencedDeck.lectureTitle}</span>
                           </div>
+                          {message.modelUsed && (
+                            <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">
+                              {message.modelUsed}
+                            </span>
+                          )}
                         </div>
+                      )}
 
-                        {/* Actions Toolbar */}
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleSpeak(message.id, message.content)}
-                            className={cn(
-                              'p-1.5 rounded-lg text-xs transition-colors cursor-pointer',
-                              speakingMessageId === message.id
-                                ? 'text-[#D89A06] bg-[#FEF8E7] dark:bg-white/10 animate-pulse'
-                                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                            )}
-                            title={
-                              speakingMessageId === message.id
-                                ? 'Stop reading'
-                                : 'Read explanation aloud'
-                            }
-                          >
-                            {speakingMessageId === message.id ? (
-                              <VolumeX className="h-3.5 w-3.5" />
-                            ) : (
-                              <Volume2 className="h-3.5 w-3.5" />
-                            )}
-                          </button>
+                      {/* Enriched Content Body */}
+                      <div
+                        id={`msg-body-${message.id}`}
+                        onClick={handleMessageBodyClick}
+                        className="p-4 md:p-6 text-xs md:text-sm leading-relaxed"
+                      >
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                          components={markdownComponents}
+                        >
+                          {formatContentWithSlideLinks(message.content, message.referencedDeck)}
+                        </ReactMarkdown>
+                      </div>
+
+                      {/* Quiet Action Toolbar at Bottom */}
+                      <div className="flex items-center justify-between px-4 md:px-5 py-2 border-t border-border/50 bg-muted/15 text-muted-foreground text-xs">
+                        <div className="flex items-center gap-1 flex-wrap">
                           <button
                             type="button"
                             onClick={() => handleCopyMessage(message.id, message.content)}
-                            className="p-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
                             title="Copy response"
                           >
                             {copiedMessageId === message.id ? (
@@ -2270,20 +2216,46 @@ export default function GeneralAiChatPage() {
                           </button>
                           <button
                             type="button"
+                            onClick={() => handleSpeak(message.id, message.content)}
+                            className={cn(
+                              'p-1.5 rounded-md transition-colors cursor-pointer',
+                              speakingMessageId === message.id
+                                ? 'text-[#D89A06] bg-[#FEF8E7] dark:bg-white/10 animate-pulse'
+                                : 'hover:text-foreground hover:bg-muted'
+                            )}
+                            title={speakingMessageId === message.id ? 'Stop reading' : 'Read aloud'}
+                          >
+                            {speakingMessageId === message.id ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRegenerate(message.id)}
+                            disabled={isLoading}
+                            className="p-1.5 rounded-md hover:text-foreground hover:bg-muted transition-colors cursor-pointer disabled:opacity-40"
+                            title="Regenerate response"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleQuoteMessage(message.content)}
-                            className="p-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                            className="p-1.5 rounded-md hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
                             title="Ask about this answer"
                           >
                             <Quote className="h-3.5 w-3.5" />
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleRegenerate(message.id)}
-                            disabled={isLoading}
-                            className="p-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer disabled:opacity-40"
-                            title="Regenerate response"
+                            onClick={() =>
+                              setFlashcardSource({
+                                text: message.content,
+                                lectureId: message.referencedDeck?.lectureId,
+                              })
+                            }
+                            className="p-1.5 rounded-md hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                            title="Save as flashcards"
                           >
-                            <RefreshCw className="h-3.5 w-3.5" />
+                            <Layers className="h-3.5 w-3.5" />
                           </button>
                           <FeedbackButtons
                             sessionId={activeSessionId || ''}
@@ -2305,90 +2277,19 @@ export default function GeneralAiChatPage() {
                               )
                             }
                           />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setFlashcardSource({
-                                text: message.content,
-                                lectureId: message.referencedDeck?.lectureId,
-                              })
-                            }
-                            className="p-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                            title="Save as flashcards"
-                          >
-                            <Layers className="h-3.5 w-3.5" />
-                          </button>
-                          <span className="relative inline-flex">
-                            <button
-                              type="button"
-                              onClick={() => setExportMenuId((cur) => (cur === message.id ? null : message.id))}
-                              className="p-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                              title="Share or export this answer"
-                              aria-haspopup="menu"
-                              aria-expanded={exportMenuId === message.id}
-                            >
-                              <Share2 className="h-3.5 w-3.5" />
-                            </button>
-                            {exportMenuId === message.id && (
-                              <div
-                                role="menu"
-                                className="absolute top-full right-0 mt-1 z-20 w-44 rounded-xl border border-border bg-card shadow-lg p-1.5"
-                              >
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  onClick={() => void handleCopyLink(message)}
-                                  className="w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg text-xs hover:bg-[#FEF8E7] dark:hover:bg-white/10 cursor-pointer"
-                                >
-                                  <Copy className="h-3.5 w-3.5" /> Copy as text
-                                </button>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  onClick={() => handleExportMarkdown(message)}
-                                  className="w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg text-xs hover:bg-[#FEF8E7] dark:hover:bg-white/10 cursor-pointer"
-                                >
-                                  <FileDown className="h-3.5 w-3.5" /> Download .md
-                                </button>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  onClick={() => handleExportPdf(message)}
-                                  className="w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg text-xs hover:bg-[#FEF8E7] dark:hover:bg-white/10 cursor-pointer"
-                                >
-                                  <Printer className="h-3.5 w-3.5" /> Print / save PDF
-                                </button>
-                              </div>
-                            )}
-                          </span>
-                          <span className="text-[11px] text-muted-foreground ml-1 font-mono">
-                            {new Date(message.timestamp).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-mono text-muted-foreground/60">
+                            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
                       </div>
 
-                      {/* Enriched Content Body */}
-                      <div
-                        id={`msg-body-${message.id}`}
-                        onClick={handleMessageBodyClick}
-                        className="p-4 md:p-6 text-xs md:text-sm leading-relaxed"
-                      >
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm, remarkMath]}
-                          rehypePlugins={[rehypeKatex]}
-                          components={markdownComponents}
-                        >
-                          {formatContentWithSlideLinks(message.content, message.referencedDeck)}
-                        </ReactMarkdown>
-                      </div>
-
                       {message.sources && message.sources.length > 0 && (
-                        <div className="px-4 md:px-6 py-3 border-t border-border/70 flex flex-wrap items-center gap-2">
-                          <span className="text-[11px] font-bold text-muted-foreground flex items-center gap-1.5">
-                            <Globe className="h-3.5 w-3.5 text-[#D89A06]" />
+                        <div className="px-4 md:px-6 py-2.5 border-t border-border/60 flex flex-wrap items-center gap-2 bg-muted/10">
+                          <span className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+                            <Globe className="h-3.5 w-3.5 text-muted-foreground" />
                             Web sources:
                           </span>
                           {message.sources.map((src, srcIdx) => {
@@ -2502,13 +2403,12 @@ export default function GeneralAiChatPage() {
 
           {/* Live streaming reply */}
           {isLoading && streamingText.trim().length > 0 && (
-            <div className="w-full max-w-4xl mr-auto rounded-2xl border border-border/80 border-l-[4px] border-l-[#D89A06] bg-card shadow-xs overflow-hidden">
-              <div className="flex items-center gap-2.5 px-4 md:px-5 py-2.5 bg-[#00004E]/[0.03] dark:bg-white/[0.03] border-b border-border/60">
-                <UniStudyLogo variant="icon" height={26} className="shrink-0" alt="UniStudy AI Tutor" />
-                <span className="font-bold text-xs text-[#00004E] dark:text-white">UniStudy AI Tutor</span>
+            <div className="w-full max-w-4xl mr-auto rounded-2xl border border-border/70 bg-card shadow-2xs overflow-hidden">
+              <div className="flex items-center gap-2 px-4 md:px-5 py-2 bg-muted/20 border-b border-border/50 text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">Thinking...</span>
                 <span className="inline-flex gap-1" aria-hidden="true">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#D89A06] animate-pulse" />
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#D89A06] animate-pulse [animation-delay:0.2s]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#00004E] dark:bg-[#D89A06] animate-pulse" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#00004E] dark:bg-[#D89A06] animate-pulse [animation-delay:0.2s]" />
                 </span>
               </div>
               <div className="p-4 md:p-6 text-xs md:text-sm leading-relaxed" aria-live="polite">
@@ -2525,27 +2425,27 @@ export default function GeneralAiChatPage() {
 
           {/* Loading Indicator */}
           {isLoading && streamingText.trim().length === 0 && (
-            <div className="w-full max-w-4xl mr-auto rounded-2xl border border-border border-l-4 border-l-[#D89A06] bg-card p-4 md:p-5 flex items-center gap-3.5 shadow-2xs">
-              <div className="h-8 w-8 rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] flex items-center justify-center font-bold shadow-2xs shrink-0">
+            <div className="w-full max-w-4xl mr-auto rounded-2xl border border-border/70 bg-card p-4 md:p-5 flex items-center gap-3.5 shadow-2xs">
+              <div className="h-8 w-8 rounded-lg bg-muted text-muted-foreground flex items-center justify-center font-bold shrink-0">
                 <GraduationCap className="h-4 w-4" />
               </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-xs text-[#00004E] dark:text-white">
-                    UniStudy AI Tutor ({activeModelConfig.name})
+                  <span className="font-semibold text-xs text-foreground">
+                    {activeModelConfig.name}
                   </span>
                   <span className="text-[10px] text-muted-foreground font-medium">
                     · Analyzing material
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="h-2 w-2 rounded-full bg-[#00004E] dark:bg-[#D89A06] animate-bounce" />
-                  <div className="h-2 w-2 rounded-full bg-[#00004E] dark:bg-[#D89A06] animate-bounce [animation-delay:0.15s]" />
-                  <div className="h-2 w-2 rounded-full bg-[#00004E] dark:bg-[#D89A06] animate-bounce [animation-delay:0.3s]" />
+                  <div className="h-1.5 w-1.5 rounded-full bg-[#00004E] dark:bg-[#D89A06] animate-bounce" />
+                  <div className="h-1.5 w-1.5 rounded-full bg-[#00004E] dark:bg-[#D89A06] animate-bounce [animation-delay:0.15s]" />
+                  <div className="h-1.5 w-1.5 rounded-full bg-[#00004E] dark:bg-[#D89A06] animate-bounce [animation-delay:0.3s]" />
                   <span className="text-xs text-muted-foreground ml-2 font-medium">
                     {activeDeck
                       ? `Retrieving slide knowledge for "${activeDeck.lectureTitle}"...`
-                      : 'Synthesizing academic derivation...'}
+                      : 'Synthesizing response...'}
                   </span>
                 </div>
               </div>
@@ -2713,10 +2613,10 @@ export default function GeneralAiChatPage() {
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-              'relative flex items-end gap-2 bg-card border-2 rounded-2xl p-2 transition-all shadow-xs',
+              'relative flex items-end gap-2 bg-card border rounded-2xl p-2 transition-all shadow-xs',
               isDraggingOver
                 ? 'border-[#D89A06] bg-[#FEF8E7]/40 dark:bg-white/5 ring-2 ring-[#D89A06]/30'
-                : 'border-border focus-within:border-[#D89A06]'
+                : 'border-border/80 focus-within:border-[#00004E] dark:focus-within:border-[#D89A06] focus-within:ring-1 focus-within:ring-[#00004E]/20 dark:focus-within:ring-[#D89A06]/20'
             )}
           >
             {/* Hidden File Input */}
