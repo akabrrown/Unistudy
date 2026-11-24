@@ -46,7 +46,24 @@ import {
   Image as ImageIcon,
   Quote,
   Square,
+  Brain,
+  Globe,
+  Mic,
+  MicOff,
+  Share2,
+  FileDown,
+  Printer,
+  Play,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
+import { StreamAskError, streamAsk, stripProtocolTags, type AskFinalPayload } from '@/lib/chat/streamAsk';
+import { useSpeechInput } from '@/components/chat/useSpeechInput';
+import { MemoryDialog } from '@/components/chat/MemoryDialog';
+import { FeedbackButtons } from '@/components/chat/FeedbackButtons';
+import { SaveFlashcardsDialog } from '@/components/chat/SaveFlashcardsDialog';
+import { ContextMeter, CONTEXT_TOKEN_LIMIT, estimateTokens } from '@/components/chat/ContextMeter';
+import { downloadAnswerMarkdown, printAnswerAsPdf } from '@/lib/chat/exportAnswer';
 import {
   requestPersistentStorage,
   saveSessionsToIndexedDB,
@@ -115,6 +132,12 @@ interface ChatMessage {
   attachment?: ChatAttachment | null;
   attachments?: ChatAttachment[];
   quotedText?: string;
+  followups?: string[];
+  sources?: Array<{ title: string; uri: string }>;
+  feedback?: 'up' | 'down';
+  isSummary?: boolean;
+  branches?: ChatMessage[][];
+  branchIndex?: number;
   citations?: number[];
   modelUsed?: string;
   provider?: string;
@@ -211,9 +234,43 @@ const COMMAND_SHORTCUTS = [
 
 function CodeBlock({ className, children }: { className?: string; children: React.ReactNode }) {
   const [copied, setCopied] = useState(false);
+  const [runState, setRunState] = useState<'idle' | 'loading' | 'done'>('idle');
+  const [runOutput, setRunOutput] = useState('');
   const codeString = String(children).replace(/\n$/, '');
   const langMatch = className?.match(/language-(\w+)/);
   const lang = langMatch ? langMatch[1] : 'code';
+  const isPython = lang === 'python' || lang === 'py';
+
+  const onRun = async () => {
+    setRunState('loading');
+    setRunOutput('');
+    try {
+      const w = window as unknown as { loadPyodide?: (cfg: { indexURL: string }) => Promise<any>; __pyodide?: any };
+      if (!w.__pyodide) {
+        if (!w.loadPyodide) {
+          await new Promise<void>((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js';
+            s.onload = () => resolve();
+            s.onerror = () => reject(new Error('Could not load the Python runtime'));
+            document.head.appendChild(s);
+          });
+        }
+        w.__pyodide = await w.loadPyodide!({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/' });
+      }
+      const py = w.__pyodide;
+      let out = '';
+      py.setStdout({ batched: (line: string) => (out += `${line}\n`) });
+      py.setStderr({ batched: (line: string) => (out += `${line}\n`) });
+      const result = await py.runPythonAsync(codeString);
+      if (result !== undefined && result !== null) out += `${String(result)}\n`;
+      setRunOutput(out.trimEnd() || '(no output)');
+    } catch (err) {
+      setRunOutput(err instanceof Error ? err.message : 'Run failed');
+    } finally {
+      setRunState('done');
+    }
+  };
 
   const onCopy = async () => {
     try {
@@ -230,27 +287,49 @@ function CodeBlock({ className, children }: { className?: string; children: Reac
     <div className="my-3.5 rounded-xl overflow-hidden border border-border bg-[#0B1021] text-slate-100 shadow-sm font-mono text-xs not-prose">
       <div className="px-3.5 py-1.5 bg-[#070A15] border-b border-border/40 text-[11px] text-slate-400 flex items-center justify-between">
         <span className="font-bold uppercase tracking-wider text-[#D89A06]">{lang}</span>
-        <button
-          onClick={onCopy}
-          className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-white transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-white/10"
-          title="Copy code"
-        >
-          {copied ? (
-            <>
-              <Check className="h-3 w-3 text-emerald-400" />
-              <span className="text-emerald-400 font-medium">Copied</span>
-            </>
-          ) : (
-            <>
-              <Copy className="h-3 w-3" />
-              <span>Copy</span>
-            </>
+        <div className="flex items-center gap-1">
+          {isPython && (
+            <button
+              type="button"
+              onClick={() => void onRun()}
+              disabled={runState === 'loading'}
+              className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-white/10 disabled:opacity-50"
+              title="Run in your browser (Python runtime downloads on first run)"
+            >
+              <Play className="h-3 w-3" />
+              <span>{runState === 'loading' ? 'Running…' : 'Run'}</span>
+            </button>
           )}
-        </button>
+          <button
+            onClick={onCopy}
+            className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-white transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-white/10"
+            title="Copy code"
+          >
+            {copied ? (
+              <>
+                <Check className="h-3 w-3 text-emerald-400" />
+                <span className="text-emerald-400 font-medium">Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3" />
+                <span>Copy</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
       <pre className="p-4 overflow-x-auto leading-relaxed scrollbar-thin">
         <code>{codeString}</code>
       </pre>
+      {runState !== 'idle' && (
+        <div className="border-t border-border/40 bg-black/30 px-4 py-2.5">
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">Output</div>
+          <pre className="whitespace-pre-wrap break-words text-slate-200">
+            {runState === 'loading' ? 'Starting Python…' : runOutput}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }
@@ -261,6 +340,18 @@ function formatContentWithSlideLinks(content: string, deck?: ReferencedDeck | nu
     /\[Slide\s+(\d+)\]/gi,
     (_match, num) => `[Slide ${num}](/dashboard/courses/${deck.courseId}/lectures/${deck.lectureId}?slide=${num})`
   );
+}
+
+function cleanChatTitle(raw?: string | null): string {
+  if (!raw) return 'AI Study Tutor & Assistant';
+  const clean = raw
+    .replace(/^(\/test|\/plan|\/explain|\/summary)\s*/i, '')
+    .replace(/<!\s*DOCTYPE[^>]*>/gi, '')
+    .replace(/<\/?[a-z0-9_-]+[^>]*>/gi, ' ')
+    .replace(/&[a-z0-9#]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return clean || 'AI Study Tutor & Assistant';
 }
 
 function createNewSession(referencedDeck?: ReferencedDeck | null, modelId = 'auto'): ConversationSession {
@@ -311,6 +402,14 @@ export default function GeneralAiChatPage() {
   const [isRefPickerOpen, setIsRefPickerOpen] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingMessageText, setEditingMessageText] = useState('');
+  const [streamingText, setStreamingText] = useState('');
+  const streamBufferRef = useRef('');
+  const [webSearchOn, setWebSearchOn] = useState(false);
+  const [isMemoryOpen, setIsMemoryOpen] = useState(false);
+  const [flashcardSource, setFlashcardSource] = useState<{ text: string; lectureId?: string } | null>(null);
+  const [exportMenuId, setExportMenuId] = useState<string | null>(null);
+  const [interimSpeech, setInterimSpeech] = useState('');
+  const [isCompacting, setIsCompacting] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [previewModalImage, setPreviewModalImage] = useState<{ src: string; alt: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -954,7 +1053,13 @@ export default function GeneralAiChatPage() {
   // Submit message
   const handleSendMessage = async (
     textToSend?: string,
-    opts?: { baseMessages?: ChatMessage[]; attachments?: ChatAttachment[]; quote?: string | null }
+    opts?: {
+      baseMessages?: ChatMessage[];
+      attachments?: ChatAttachment[];
+      quote?: string | null;
+      branches?: ChatMessage[][];
+      branchIndex?: number;
+    }
   ) => {
     const rawText = (textToSend ?? inputPrompt).trim();
     const attachmentsToSend = opts?.attachments ?? pendingAttachments.map((a) => ({ ...a }));
@@ -978,6 +1083,8 @@ export default function GeneralAiChatPage() {
       timestamp: new Date().toISOString(),
       referencedDeck: activeDeck ? { ...activeDeck } : null,
       attachments: attachmentsToSend,
+      branches: opts?.branches,
+      branchIndex: opts?.branchIndex,
     };
 
     const newMessages = [...baseMessages, userMessage];
@@ -985,13 +1092,7 @@ export default function GeneralAiChatPage() {
     // Auto-generate title from the first student message
     const isFirstUserMessage = baseMessages.length === 0;
     const computedTitle = isFirstUserMessage
-      ? (rawText || attachmentsToSend[0]?.name || 'Study Session')
-          .replace(/^(\/test|\/plan|\/explain|\/summary)\s*/i, '')
-          .replace(/<!DOCTYPE[^>]*>/gi, '')
-          .replace(/<\/?[a-z][^>]*>/gi, ' ')
-          .replace(/\s+/g, ' ')
-          .trim()
-          .slice(0, 100) || 'Study Session'
+      ? cleanChatTitle(rawText || attachmentsToSend[0]?.name || 'Study Session').slice(0, 60)
       : currentSession?.title || 'Study Session';
 
     // Update current session with user message immediately
@@ -1019,15 +1120,22 @@ export default function GeneralAiChatPage() {
     setIsLoading(true);
 
     try {
-      const historyForApi = newMessages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      const historyForApi: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+      let charBudget = CONTEXT_TOKEN_LIMIT * 4;
+      for (let i = newMessages.length - 1; i >= 0; i--) {
+        const m = newMessages[i];
+        const len = m.content.length;
+        if (historyForApi.length > 0 && charBudget - len < 0) break;
+        charBudget -= len;
+        historyForApi.unshift({ role: m.role, content: m.content });
+      }
 
       const payload: Record<string, any> = {
         messages: historyForApi,
         temperature: 0.55,
         model: selectedModel,
+        stream: true,
+        webSearch: webSearchOn,
         tutorName: tutorConfig.name,
         tutorPersonality: tutorConfig.personality,
         tutorTone: tutorConfig.tone,
@@ -1061,19 +1169,30 @@ export default function GeneralAiChatPage() {
 
       const controller = new AbortController();
       abortRef.current = controller;
-      const res = await fetch('/api/ai/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          feature: 'ai-tutor',
-          payload,
-        }),
-      });
+      streamBufferRef.current = '';
+      setStreamingText('');
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        if (res.status === 402 || errJson.code === 'INSUFFICIENT_CREDITS') {
+      let data: AskFinalPayload;
+      try {
+        data = await streamAsk(
+          { feature: 'ai-tutor', payload },
+          {
+            signal: controller.signal,
+            onDelta: (chunk) => {
+              streamBufferRef.current += chunk;
+              setStreamingText(streamBufferRef.current);
+            },
+            onReset: () => {
+              streamBufferRef.current = '';
+              setStreamingText('');
+            },
+          }
+        );
+      } catch (streamErr) {
+        if (
+          streamErr instanceof StreamAskError &&
+          (streamErr.status === 402 || streamErr.code === 'INSUFFICIENT_CREDITS')
+        ) {
           setWalletCredits(0);
           if (typeof window !== 'undefined') {
             window.dispatchEvent(
@@ -1084,10 +1203,8 @@ export default function GeneralAiChatPage() {
           }
           toast.error('You have 0 AI Credits remaining. Please top up in Billing to continue.');
         }
-        throw new Error(errJson.error || `Server responded with status ${res.status}`);
+        throw streamErr;
       }
-
-      const data = await res.json();
 
       // Instantly synchronize live deducted credits across the entire application
       if (typeof data.remainingCredits === 'number') {
@@ -1137,7 +1254,15 @@ export default function GeneralAiChatPage() {
         citations: citedNumbers,
         modelUsed: data.modelUsed || selectedModel,
         provider: data.provider || 'assistant',
+        followups: data.followups && data.followups.length > 0 ? data.followups : undefined,
+        sources: data.sources && data.sources.length > 0 ? data.sources : undefined,
       };
+
+      if (data.memorySaved && data.memorySaved.length > 0) {
+        toast.success(`Remembered: ${data.memorySaved[0]}`, {
+          description: 'Manage what your tutor remembers from the Memory button.',
+        });
+      }
 
       setSessions((prev) =>
         prev.map((s) =>
@@ -1152,6 +1277,24 @@ export default function GeneralAiChatPage() {
       );
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') {
+        const partial = stripProtocolTags(streamBufferRef.current).trim();
+        if (partial) {
+          const partialMessage: ChatMessage = {
+            id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            role: 'assistant',
+            content: `${partial}\n\n*Response stopped.*`,
+            timestamp: new Date().toISOString(),
+            referencedDeck: activeDeck ? { ...activeDeck } : null,
+            modelUsed: selectedModel,
+          };
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === activeSessionId
+                ? { ...s, messages: [...s.messages, partialMessage], updatedAt: new Date().toISOString() }
+                : s
+            )
+          );
+        }
         toast.info('Stopped. Edit your message or send a new one.');
         return;
       }
@@ -1176,6 +1319,9 @@ export default function GeneralAiChatPage() {
         )
       );
     } finally {
+      streamBufferRef.current = '';
+      setStreamingText('');
+      abortRef.current = null;
       setIsLoading(false);
       setTimeout(() => textareaRef.current?.focus(), 50);
     }
@@ -1205,14 +1351,170 @@ export default function GeneralAiChatPage() {
     const edited = editingMessageText.trim();
     if (idx < 0 || !edited) return;
     const original = messages[idx];
+    const tail = messages.slice(idx).map((m, i) => (i === 0 ? { ...m, branches: undefined, branchIndex: undefined } : m));
+    const variants: ChatMessage[][] = original.branches ? [...original.branches] : [];
+    variants[original.branchIndex ?? 0] = tail;
+    const newIndex = variants.length;
+    variants.push([]);
     setEditingMessageId(null);
     setEditingMessageText('');
     void handleSendMessage(edited, {
       baseMessages: messages.slice(0, idx),
       attachments: getMessageAttachments(original),
       quote: null,
+      branches: variants,
+      branchIndex: newIndex,
     });
   };
+
+  const handleSwitchBranch = (messageId: string, delta: -1 | 1) => {
+    if (isLoading) return;
+    const idx = messages.findIndex((m) => m.id === messageId);
+    if (idx < 0) return;
+    const msg = messages[idx];
+    if (!msg.branches) return;
+    const variants = [...msg.branches];
+    const current = msg.branchIndex ?? 0;
+    variants[current] = messages.slice(idx).map((m, i) => (i === 0 ? { ...m, branches: undefined, branchIndex: undefined } : m));
+    const target = current + delta;
+    if (target < 0 || target >= variants.length || variants[target].length === 0) return;
+    const newTail = [...variants[target]];
+    newTail[0] = { ...newTail[0], branches: variants, branchIndex: target };
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === activeSessionId
+          ? { ...s, messages: [...messages.slice(0, idx), ...newTail], updatedAt: new Date().toISOString() }
+          : s
+      )
+    );
+  };
+
+  const contextTokens = useMemo(
+    () => messages.reduce((sum, m) => sum + estimateTokens(m.content), 0),
+    [messages]
+  );
+
+  const handleCompactContext = async () => {
+    if (isLoading || isCompacting || messages.length < 6) return;
+    let cut = messages.length - 4;
+    while (cut > 0 && messages[cut].role !== 'user') cut--;
+    if (cut < 2) {
+      toast.info('Not enough earlier turns to summarise yet.');
+      return;
+    }
+    const older = messages.slice(0, cut);
+    setIsCompacting(true);
+    try {
+      const transcript = older
+        .map((m) => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.content.slice(0, 1800)}`)
+        .join('\n\n')
+        .slice(0, 30000);
+      const final = await streamAsk({
+        feature: 'chat-utility',
+        payload: {
+          temperature: 0.2,
+          systemPrompt:
+            'Summarise this tutoring conversation in under 350 words. Keep: topics covered, key definitions and formulas, conclusions reached, unresolved questions, and what the student struggled with. Use short bullet points. Plain markdown, no preamble.',
+          messages: [{ role: 'user', content: transcript }],
+        },
+      });
+      const summary = stripProtocolTags(final.result?.choices?.[0]?.message?.content || '').trim();
+      if (!summary) throw new Error('The summary came back empty.');
+      const summaryMessage: ChatMessage = {
+        id: `msg-summary-${Date.now()}`,
+        role: 'assistant',
+        content: `**Summary of earlier conversation**\n\n${summary}`,
+        timestamp: new Date().toISOString(),
+        isSummary: true,
+        modelUsed: final.modelUsed,
+      };
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === activeSessionId
+            ? { ...s, messages: [summaryMessage, ...messages.slice(cut)], updatedAt: new Date().toISOString() }
+            : s
+        )
+      );
+      if (typeof final.remainingCredits === 'number') {
+        setWalletCredits(final.remainingCredits);
+        if (typeof final.freePasses === 'number') setFreePasses(final.freePasses);
+        if (typeof final.paidCredits === 'number') setPaidCredits(final.paidCredits);
+        window.dispatchEvent(
+          new CustomEvent('unistudy-credits-changed', {
+            detail: {
+              balance: final.remainingCredits,
+              freePasses: final.freePasses,
+              paidCredits: final.paidCredits,
+              secondsUntilRefill: final.secondsUntilRefill,
+            },
+          })
+        );
+      }
+      toast.success('Earlier turns summarised');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not summarise the conversation');
+    } finally {
+      setIsCompacting(false);
+    }
+  };
+
+  const speech = useSpeechInput({
+    onFinalText: (t) => setInputPrompt((prev) => (prev ? `${prev} ${t}` : t)),
+    onInterim: setInterimSpeech,
+    onError: (m) => toast.error(m),
+  });
+
+  const handleCopyLink = async (message: ChatMessage) => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      toast.success('Answer copied as text');
+    } catch {
+      toast.error('Could not copy');
+    }
+    setExportMenuId(null);
+  };
+
+  const handleExportMarkdown = (message: ChatMessage) => {
+    downloadAnswerMarkdown(currentSession?.title || 'Tutor answer', message.content);
+    setExportMenuId(null);
+  };
+
+  const handleExportPdf = (message: ChatMessage) => {
+    const el = document.getElementById(`msg-body-${message.id}`);
+    const ok = printAnswerAsPdf(currentSession?.title || 'Tutor answer', el?.innerHTML || '');
+    if (!ok) toast.error('Allow pop-ups to export as PDF');
+    setExportMenuId(null);
+  };
+
+  const handleMessageBodyClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const katexEl = target.closest('.katex-display, .katex');
+    if (!katexEl) return;
+    const tex = katexEl.querySelector('annotation[encoding="application/x-tex"]')?.textContent;
+    if (!tex) return;
+    navigator.clipboard
+      .writeText(tex)
+      .then(() => toast.success('LaTeX copied'))
+      .catch(() => toast.error('Could not copy LaTeX'));
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        handleStartNewChat();
+      } else if (mod && e.key === '/') {
+        e.preventDefault();
+        textareaRef.current?.focus();
+      } else if (e.key === 'Escape' && abortRef.current) {
+        abortRef.current.abort();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions, activeSessionId]);
 
   const handleQuoteMessage = (content: string) => {
     const clean = content.replace(/\s+/g, ' ').trim();
@@ -1222,6 +1524,15 @@ export default function GeneralAiChatPage() {
 
   // Handle enter key to send
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'ArrowUp' && !inputPrompt && !isLoading) {
+      const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+      if (lastUser) {
+        e.preventDefault();
+        setEditingMessageId(lastUser.id);
+        setEditingMessageText(lastUser.content);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
@@ -1484,7 +1795,7 @@ export default function GeneralAiChatPage() {
                               isActive ? 'text-[#00004E] dark:text-[#D89A06]' : 'text-foreground'
                             )}
                           >
-                            {s.title}
+                            {cleanChatTitle(s.title)}
                           </span>
 
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -1536,14 +1847,14 @@ export default function GeneralAiChatPage() {
       {/* Main Chat Interface */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Top Header & Context Bar */}
-        <header className="flex-shrink-0 bg-card border border-border rounded-2xl p-4 shadow-xs mb-3 space-y-3">
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-            <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
+        <header className="flex-shrink-0 bg-card border border-border rounded-2xl p-3 sm:p-4 shadow-xs mb-3 space-y-3">
+          <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-3 min-w-0">
+            <div className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0">
               <Button
                 variant="outline"
                 size="icon"
                 onClick={() => setIsHistoryOpen((prev) => !prev)}
-                className="h-9 w-9 shrink-0 text-[#00004E] dark:text-[#D89A06] border-border hover:border-[#D89A06]"
+                className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 text-[#00004E] dark:text-[#D89A06] border-border hover:border-[#D89A06]"
                 title={isHistoryOpen ? 'Collapse chat history' : 'Expand chat history'}
               >
                 {isHistoryOpen ? (
@@ -1553,33 +1864,36 @@ export default function GeneralAiChatPage() {
                 )}
               </Button>
 
-              <UniStudyLogo variant="icon" height={32} className="shrink-0" alt="UniStudy AI Study Tutor" />
+              <UniStudyLogo variant="icon" height={30} className="shrink-0" alt="UniStudy AI Study Tutor" />
 
-              <div className="flex-1 min-w-0 space-y-0.5">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-lg md:text-xl font-black tracking-tight text-[#00004E] dark:text-white break-words leading-snug">
-                    {currentSession?.title || 'AI Study Tutor & Assistant'}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h1
+                    className="text-base sm:text-lg md:text-xl font-black tracking-tight text-[#00004E] dark:text-white truncate"
+                    title={cleanChatTitle(currentSession?.title)}
+                  >
+                    {cleanChatTitle(currentSession?.title)}
                   </h1>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#D89A06]/20 text-[#8C6404] dark:text-[#D89A06] border border-[#D89A06]/40 uppercase tracking-wide shrink-0">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#D89A06]/20 text-[#8C6404] dark:text-[#D89A06] border border-[#D89A06]/40 uppercase tracking-wide shrink-0 hidden sm:inline-flex items-center">
                     {tutorConfig.name} ({tutorConfig.personality})
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
+                <p className="text-xs text-muted-foreground truncate mt-0.5">
                   Personalized Tutor {tutorConfig.name} · {tutorConfig.tone === 'casual' ? 'Casual & Relatable' : 'Academic & Scholarly'} · Slide Grounding &amp; Mentoring
                 </p>
               </div>
             </div>
 
             {/* Model Selector & Action Toolbar */}
-            <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0">
               {/* Dynamic Model Selector Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-3 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors cursor-pointer shadow-2xs"
                 >
                   <activeModelConfig.icon className={cn('h-3.5 w-3.5', activeModelConfig.color)} />
-                  <span>{activeModelConfig.name}</span>
-                  <ChevronDown className="h-3 w-3 opacity-60" />
+                  <span className="truncate max-w-[85px] sm:max-w-none">{activeModelConfig.name}</span>
+                  <ChevronDown className="h-3 w-3 opacity-60 shrink-0" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-64 p-1.5 space-y-1">
                   <DropdownMenuLabel className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
@@ -1633,14 +1947,14 @@ export default function GeneralAiChatPage() {
 
               <Link
                 href="/dashboard/settings/billing"
-                className="inline-flex items-center gap-2 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2.5 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors shadow-2xs group"
+                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2 sm:px-2.5 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors shadow-2xs group"
                 title={`Dual-Pocket Wallet: ${freePasses ?? 8}/8 Free 6h Passes + ${paidCredits ?? 20} Paid Credits (Never expires)`}
               >
                 <div className="flex items-center gap-1">
                   <span className="text-[#D89A06]">⚡</span>
                   <span>{freePasses ?? 8}/8 Free</span>
                   {secondsUntilRefill !== null && (freePasses ?? 8) < 8 && secondsUntilRefill > 0 && (
-                    <span className="text-[10px] text-muted-foreground font-mono hidden md:inline">
+                    <span className="text-[10px] text-muted-foreground font-mono hidden 2xl:inline">
                       ({Math.floor(secondsUntilRefill / 3600)}h {Math.floor((secondsUntilRefill % 3600) / 60)}m)
                     </span>
                   )}
@@ -1657,12 +1971,22 @@ export default function GeneralAiChatPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setIsCalibrateDialogOpen(true)}
-                className="text-xs font-semibold h-8 border-[#D89A06]/40 text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5"
+                className="text-xs font-semibold h-8 px-2 sm:px-2.5 border-[#D89A06]/40 text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5"
                 title="Calibrate Tutor Name, Tone & Personality"
               >
-                <SlidersHorizontal className="h-3.5 w-3.5 mr-1 text-[#D89A06]" />
-                <span className="hidden sm:inline">Calibrate Tutor</span>
-                <span className="sm:hidden">Tutor</span>
+                <SlidersHorizontal className="h-3.5 w-3.5 sm:mr-1 text-[#D89A06]" />
+                <span className="hidden xl:inline">Calibrate</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsMemoryOpen(true)}
+                className="text-xs font-semibold h-8 px-2 sm:px-2.5 border-[#D89A06]/40 text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5"
+                title="See and edit what your tutor remembers"
+              >
+                <Brain className="h-3.5 w-3.5 sm:mr-1 text-[#D89A06]" />
+                <span className="hidden xl:inline">Memory</span>
               </Button>
 
               <Button
@@ -1670,22 +1994,22 @@ export default function GeneralAiChatPage() {
                 size="sm"
                 onClick={handleExportChat}
                 disabled={messages.length === 0}
-                className="text-xs font-semibold h-8"
+                className="text-xs font-semibold h-8 px-2 sm:px-2.5"
                 title="Export as Markdown"
               >
-                <Download className="h-3.5 w-3.5 mr-1" />
-                Export
+                <Download className="h-3.5 w-3.5 sm:mr-1" />
+                <span className="hidden xl:inline">Export</span>
               </Button>
 
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleStartNewChat}
-                className="text-xs font-semibold h-8 text-[#00004E] dark:text-[#D89A06] border-[#D89A06]/40 hover:bg-[#FEF8E7]"
+                className="text-xs font-semibold h-8 px-2.5 sm:px-3 text-[#00004E] dark:text-[#D89A06] border-[#D89A06]/40 hover:bg-[#FEF8E7]"
                 title="Start a fresh chat"
               >
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                New Chat
+                <Plus className="h-3.5 w-3.5 sm:mr-1 text-[#D89A06]" />
+                <span className="hidden sm:inline">New Chat</span>
               </Button>
             </div>
           </div>
@@ -1919,6 +2243,33 @@ export default function GeneralAiChatPage() {
                           >
                             <Quote className="h-3.5 w-3.5" />
                           </button>
+                          {message.branches && message.branches.length > 1 && (
+                            <span className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground font-mono">
+                              <button
+                                type="button"
+                                onClick={() => handleSwitchBranch(message.id, -1)}
+                                disabled={isLoading || (message.branchIndex ?? 0) === 0}
+                                className="p-1 rounded hover:bg-muted disabled:opacity-30 cursor-pointer"
+                                title="Previous version"
+                              >
+                                <ChevronLeft className="h-3.5 w-3.5" />
+                              </button>
+                              {(message.branchIndex ?? 0) + 1}/{message.branches.length}
+                              <button
+                                type="button"
+                                onClick={() => handleSwitchBranch(message.id, 1)}
+                                disabled={
+                                  isLoading ||
+                                  (message.branchIndex ?? 0) >= message.branches.length - 1 ||
+                                  message.branches[(message.branchIndex ?? 0) + 1]?.length === 0
+                                }
+                                className="p-1 rounded hover:bg-muted disabled:opacity-30 cursor-pointer"
+                                title="Next version"
+                              >
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              </button>
+                            </span>
+                          )}
                         </div>
                       )}
                     </>
@@ -1997,6 +2348,82 @@ export default function GeneralAiChatPage() {
                           >
                             <RefreshCw className="h-3.5 w-3.5" />
                           </button>
+                          <FeedbackButtons
+                            sessionId={activeSessionId || ''}
+                            messageId={message.id}
+                            modelUsed={message.modelUsed}
+                            initialRating={message.feedback}
+                            onRated={(rating) =>
+                              setSessions((prev) =>
+                                prev.map((s) =>
+                                  s.id === activeSessionId
+                                    ? {
+                                        ...s,
+                                        messages: s.messages.map((m) =>
+                                          m.id === message.id ? { ...m, feedback: rating } : m
+                                        ),
+                                      }
+                                    : s
+                                )
+                              )
+                            }
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setFlashcardSource({
+                                text: message.content,
+                                lectureId: message.referencedDeck?.lectureId,
+                              })
+                            }
+                            className="p-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                            title="Save as flashcards"
+                          >
+                            <Layers className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="relative inline-flex">
+                            <button
+                              type="button"
+                              onClick={() => setExportMenuId((cur) => (cur === message.id ? null : message.id))}
+                              className="p-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                              title="Share or export this answer"
+                              aria-haspopup="menu"
+                              aria-expanded={exportMenuId === message.id}
+                            >
+                              <Share2 className="h-3.5 w-3.5" />
+                            </button>
+                            {exportMenuId === message.id && (
+                              <div
+                                role="menu"
+                                className="absolute top-full right-0 mt-1 z-20 w-44 rounded-xl border border-border bg-card shadow-lg p-1.5"
+                              >
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => void handleCopyLink(message)}
+                                  className="w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg text-xs hover:bg-[#FEF8E7] dark:hover:bg-white/10 cursor-pointer"
+                                >
+                                  <Copy className="h-3.5 w-3.5" /> Copy as text
+                                </button>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => handleExportMarkdown(message)}
+                                  className="w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg text-xs hover:bg-[#FEF8E7] dark:hover:bg-white/10 cursor-pointer"
+                                >
+                                  <FileDown className="h-3.5 w-3.5" /> Download .md
+                                </button>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => handleExportPdf(message)}
+                                  className="w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg text-xs hover:bg-[#FEF8E7] dark:hover:bg-white/10 cursor-pointer"
+                                >
+                                  <Printer className="h-3.5 w-3.5" /> Print / save PDF
+                                </button>
+                              </div>
+                            )}
+                          </span>
                           <span className="text-[11px] text-muted-foreground ml-1 font-mono">
                             {new Date(message.timestamp).toLocaleTimeString([], {
                               hour: '2-digit',
@@ -2007,7 +2434,11 @@ export default function GeneralAiChatPage() {
                       </div>
 
                       {/* Enriched Content Body */}
-                      <div className="p-4 md:p-6 text-xs md:text-sm leading-relaxed">
+                      <div
+                        id={`msg-body-${message.id}`}
+                        onClick={handleMessageBodyClick}
+                        className="p-4 md:p-6 text-xs md:text-sm leading-relaxed"
+                      >
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm, remarkMath]}
                           rehypePlugins={[rehypeKatex]}
@@ -2016,6 +2447,35 @@ export default function GeneralAiChatPage() {
                           {formatContentWithSlideLinks(message.content, message.referencedDeck)}
                         </ReactMarkdown>
                       </div>
+
+                      {message.sources && message.sources.length > 0 && (
+                        <div className="px-4 md:px-6 py-3 border-t border-border/70 flex flex-wrap items-center gap-2">
+                          <span className="text-[11px] font-bold text-muted-foreground flex items-center gap-1.5">
+                            <Globe className="h-3.5 w-3.5 text-[#D89A06]" />
+                            Web sources:
+                          </span>
+                          {message.sources.map((src, srcIdx) => {
+                            let host = src.uri;
+                            try {
+                              host = new URL(src.uri).hostname.replace(/^www\./, '');
+                            } catch {}
+                            return (
+                              <a
+                                key={`${src.uri}-${srcIdx}`}
+                                href={src.uri}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 max-w-[220px] px-2 py-1 rounded-lg bg-muted/50 border border-border text-[11px] font-medium text-foreground hover:border-[#D89A06] transition-colors"
+                                title={src.title}
+                              >
+                                <span className="font-mono text-[10px] text-muted-foreground">{srcIdx + 1}</span>
+                                <span className="truncate">{src.title || host}</span>
+                                <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       {/* Referenced Slides Ribbon */}
                       {message.citations &&
@@ -2037,6 +2497,27 @@ export default function GeneralAiChatPage() {
                                 Slide {slideNum}
                                 <ExternalLink className="h-3 w-3" />
                               </Link>
+                            ))}
+                          </div>
+                        )}
+
+                      {message.followups &&
+                        message.followups.length > 0 &&
+                        !isLoading &&
+                        message.id === messages[messages.length - 1]?.id && (
+                          <div className="px-4 md:px-6 py-3 border-t border-border/50 flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] font-mono font-bold uppercase text-muted-foreground">
+                              Ask next:
+                            </span>
+                            {message.followups.map((q, qIdx) => (
+                              <button
+                                key={`${q}-${qIdx}`}
+                                type="button"
+                                onClick={() => void handleSendMessage(q)}
+                                className="text-left px-3 py-1.5 rounded-full bg-card border border-[#D89A06]/50 hover:bg-[#FEF8E7] dark:hover:bg-white/10 text-[11px] font-medium text-[#00004E] dark:text-[#D89A06] transition-all cursor-pointer active:scale-95"
+                              >
+                                {q}
+                              </button>
                             ))}
                           </div>
                         )}
@@ -2082,8 +2563,31 @@ export default function GeneralAiChatPage() {
             })
           )}
 
+          {/* Live streaming reply */}
+          {isLoading && streamingText.trim().length > 0 && (
+            <div className="w-full max-w-4xl mr-auto rounded-2xl border border-border/80 border-l-[4px] border-l-[#D89A06] bg-card shadow-xs overflow-hidden">
+              <div className="flex items-center gap-2.5 px-4 md:px-5 py-2.5 bg-[#00004E]/[0.03] dark:bg-white/[0.03] border-b border-border/60">
+                <UniStudyLogo variant="icon" height={26} className="shrink-0" alt="UniStudy AI Tutor" />
+                <span className="font-bold text-xs text-[#00004E] dark:text-white">UniStudy AI Tutor</span>
+                <span className="inline-flex gap-1" aria-hidden="true">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#D89A06] animate-pulse" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#D89A06] animate-pulse [animation-delay:0.2s]" />
+                </span>
+              </div>
+              <div className="p-4 md:p-6 text-xs md:text-sm leading-relaxed" aria-live="polite">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                  components={markdownComponents}
+                >
+                  {stripProtocolTags(streamingText)}
+                </ReactMarkdown>
+              </div>
+            </div>
+          )}
+
           {/* Loading Indicator */}
-          {isLoading && (
+          {isLoading && streamingText.trim().length === 0 && (
             <div className="w-full max-w-4xl mr-auto rounded-2xl border border-border border-l-4 border-l-[#D89A06] bg-card p-4 md:p-5 flex items-center gap-3.5 shadow-2xs">
               <div className="h-8 w-8 rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] flex items-center justify-center font-bold shadow-2xs shrink-0">
                 <GraduationCap className="h-4 w-4" />
@@ -2133,6 +2637,19 @@ export default function GeneralAiChatPage() {
               </button>
             </div>
           )}
+
+          {speech.isListening && interimSpeech && (
+            <p className="px-2 text-[11px] italic text-muted-foreground" aria-live="polite">
+              Listening: {interimSpeech}
+            </p>
+          )}
+
+          <ContextMeter
+            usedTokens={contextTokens}
+            canCompact={messages.length >= 6}
+            isBusy={isLoading || isCompacting}
+            onCompact={() => void handleCompactContext()}
+          />
 
           {/* Interactive Command Shortcut Toolbar */}
           <div className="flex items-center gap-2 px-1 flex-wrap">
@@ -2355,6 +2872,46 @@ export default function GeneralAiChatPage() {
               )}
             </div>
 
+            {/* Web search toggle */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setWebSearchOn((v) => !v)}
+              disabled={isLoading}
+              aria-pressed={webSearchOn}
+              className={cn(
+                'h-10 w-10 p-0 rounded-xl shrink-0 cursor-pointer transition-all',
+                webSearchOn
+                  ? 'bg-[#00004E] text-white border border-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E]'
+                  : 'text-muted-foreground hover:text-[#00004E] hover:bg-[#FEF8E7] dark:hover:text-[#D89A06] dark:hover:bg-white/10'
+              )}
+              title={webSearchOn ? 'Web search on: answers cite live sources' : 'Turn on web search'}
+            >
+              <Globe className="h-4 w-4" />
+            </Button>
+
+            {/* Voice input */}
+            {speech.isSupported && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={speech.toggle}
+                disabled={isLoading}
+                aria-pressed={speech.isListening}
+                className={cn(
+                  'h-10 w-10 p-0 rounded-xl shrink-0 cursor-pointer transition-all',
+                  speech.isListening
+                    ? 'bg-red-500/10 text-red-600 border border-red-500/50 animate-pulse'
+                    : 'text-muted-foreground hover:text-[#00004E] hover:bg-[#FEF8E7] dark:hover:text-[#D89A06] dark:hover:bg-white/10'
+                )}
+                title={speech.isListening ? 'Stop dictation' : 'Dictate your question'}
+              >
+                {speech.isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </Button>
+            )}
+
             <textarea
               ref={textareaRef}
               value={inputPrompt}
@@ -2384,6 +2941,14 @@ export default function GeneralAiChatPage() {
           </div>
         </div>
       </main>
+
+      <MemoryDialog open={isMemoryOpen} onClose={() => setIsMemoryOpen(false)} />
+      <SaveFlashcardsDialog
+        open={flashcardSource !== null}
+        sourceText={flashcardSource?.text || ''}
+        lectureId={flashcardSource?.lectureId}
+        onClose={() => setFlashcardSource(null)}
+      />
 
       {/* Slide Deck Selector Modal */}
       {isDeckSelectorOpen && (

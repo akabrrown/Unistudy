@@ -33,6 +33,7 @@ const AskRequestSchema = z.object({
     prompt: z.string().optional(),
     systemPrompt: z.string().optional(),
     stream: z.boolean().optional(),
+    webSearch: z.boolean().optional(),
     temperature: z.number().min(0).max(1).optional(),
     model: z.string().optional(),
     grounding: z.unknown().optional(),
@@ -78,7 +79,13 @@ interface ProviderResult {
   text: string;
   provider: string;
   model: string;
+  sources?: Array<{ title: string; uri: string }>;
 }
+
+type DeltaFn = (chunk: string | null) => void;
+
+const FOLLOWUPS_RE = /<followups>([\s\S]*?)<\/followups>/i;
+const MEMORY_RE = /<memory>([\s\S]*?)<\/memory>/gi;
 
 interface AttachmentPayload {
   name: string;
@@ -106,7 +113,8 @@ async function tryGroq(
   systemPrompt: string,
   rawMessages: Array<{ role: string; content: string }>,
   temperature: number,
-  attachments: AttachmentPayload[] = []
+  attachments: AttachmentPayload[] = [],
+  onDelta?: DeltaFn
 ): Promise<ProviderResult | null> {
   if (!process.env.GROQ_API_KEY) return null;
   const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -127,7 +135,27 @@ async function tryGroq(
 
   const candidateModels = Array.from(new Set([...GROQ_SMART_MODELS, ...GROQ_FAST_MODELS]));
   for (const model of candidateModels) {
+    let emitted = false;
     try {
+      if (onDelta) {
+        const streamRes = await groq.chat.completions.create(
+          { model, messages: groqMessages, temperature, stream: true },
+          { signal: AbortSignal.timeout(60000) }
+        );
+        let acc = '';
+        for await (const chunk of streamRes) {
+          const piece = chunk.choices[0]?.delta?.content;
+          if (piece) {
+            acc += piece;
+            emitted = true;
+            onDelta(piece);
+          }
+        }
+        if (acc.trim()) {
+          return { text: acc.trim(), provider: 'groq', model: `Groq (${model})` };
+        }
+        continue;
+      }
       const completion = await groq.chat.completions.create(
         {
           model,
@@ -143,6 +171,7 @@ async function tryGroq(
     } catch (groqErr: unknown) {
       const msg = groqErr instanceof Error ? groqErr.message : String(groqErr);
       console.warn(`[API /ai/ask] Groq model ${model} failed:`, msg);
+      if (emitted && onDelta) onDelta(null);
     }
   }
   return null;
@@ -152,16 +181,20 @@ async function tryGemini(
   systemPrompt: string,
   rawMessages: Array<{ role: string; content: string }>,
   temperature: number,
-  attachments: AttachmentPayload[] = []
+  attachments: AttachmentPayload[] = [],
+  onDelta?: DeltaFn,
+  useSearch = false
 ): Promise<ProviderResult | null> {
   if (!process.env.GEMINI_API_KEY) return null;
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   for (const modelName of GEMINI_CANDIDATE_MODELS) {
+    let emitted = false;
     try {
       const model = genAI.getGenerativeModel({
         model: modelName,
         systemInstruction: systemPrompt,
         generationConfig: { temperature },
+        ...(useSearch ? { tools: [{ googleSearch: {} } as any] } : {}),
       });
 
       const contents = rawMessages.map((m, idx) => {
@@ -195,12 +228,56 @@ async function tryGemini(
         };
       });
 
+      const extractSources = (resp: any): Array<{ title: string; uri: string }> => {
+        const chunks = resp?.candidates?.[0]?.groundingMetadata?.groundingChunks;
+        if (!Array.isArray(chunks)) return [];
+        const seen = new Set<string>();
+        const out: Array<{ title: string; uri: string }> = [];
+        for (const c of chunks) {
+          const uri = c?.web?.uri;
+          if (uri && !seen.has(uri)) {
+            seen.add(uri);
+            out.push({ title: String(c.web.title || uri).slice(0, 120), uri });
+          }
+        }
+        return out.slice(0, 8);
+      };
+
+      if (onDelta) {
+        const streamRes = await model.generateContentStream({ contents });
+        let acc = '';
+        for await (const chunk of streamRes.stream) {
+          const piece = chunk.text();
+          if (piece) {
+            acc += piece;
+            emitted = true;
+            onDelta(piece);
+          }
+        }
+        const finalResp = await streamRes.response;
+        if (acc.trim()) {
+          return {
+            text: acc.trim(),
+            provider: 'gemini',
+            model: `Google Gemini (${modelName})`,
+            sources: useSearch ? extractSources(finalResp) : undefined,
+          };
+        }
+        continue;
+      }
+
       const res = await model.generateContent({ contents });
       const text = res.response.text()?.trim();
       if (text) {
-        return { text, provider: 'gemini', model: `Google Gemini (${modelName})` };
+        return {
+          text,
+          provider: 'gemini',
+          model: `Google Gemini (${modelName})`,
+          sources: useSearch ? extractSources(res.response) : undefined,
+        };
       }
     } catch (mErr: unknown) {
+      if (emitted && onDelta) onDelta(null);
       const msg = mErr instanceof Error ? mErr.message : String(mErr);
       console.warn(`[API /ai/ask] Gemini model ${modelName} failed:`, msg);
       if (msg.includes('403') || msg.includes('Permission denied') || msg.includes('ACCESS_DENIED')) {
@@ -215,7 +292,8 @@ async function tryOpenRouter(
   systemPrompt: string,
   rawMessages: Array<{ role: string; content: string }>,
   temperature: number,
-  attachments: AttachmentPayload[] = []
+  attachments: AttachmentPayload[] = [],
+  onDelta?: DeltaFn
 ): Promise<ProviderResult | null> {
   if (!process.env.OPENROUTER_API_KEY) return null;
   const orMessages = [
@@ -265,6 +343,7 @@ async function tryOpenRouter(
         const data = await orRes.json();
         const text = data.choices?.[0]?.message?.content?.trim();
         if (text) {
+          onDelta?.(text);
           return { text, provider: 'openrouter', model: `OpenRouter (${model})` };
         }
       }
@@ -280,7 +359,8 @@ async function tryAgentRouter(
   systemPrompt: string,
   rawMessages: any[],
   temperature: number,
-  attachments: AttachmentPayload[] = []
+  attachments: AttachmentPayload[] = [],
+  onDelta?: DeltaFn
 ): Promise<ProviderResult | null> {
   const apiKey = process.env.AGENTROUTER_API_KEY;
   if (!apiKey) return null;
@@ -317,6 +397,7 @@ async function tryAgentRouter(
         const data = await res.json();
         const text = data.choices?.[0]?.message?.content?.trim();
         if (text) {
+          onDelta?.(text);
           return { text, provider: 'agentrouter', model: `AgentRouter (${model})` };
         }
       }
@@ -528,8 +609,30 @@ export async function POST(request: Request) {
       systemPrompt += `\n\n<previous_conversations_memory>\nThe student has previous study conversation sessions stored in their workspace. When the student refers to a previous conversation, past chat, earlier study session, or asks what was discussed previously, use the following memory log to answer accurately and seamlessly connect concepts across sessions:\n${payload.previousSessionsContext.trim()}\n</previous_conversations_memory>`;
     }
 
+    let savedMemoryFacts: string[] = [];
+    if (isTutorFeature) {
+      try {
+        const { data: memRows } = await supabase
+          .from('tutor_memories')
+          .select('fact')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(25);
+        savedMemoryFacts = (memRows || []).map((r: { fact: string }) => r.fact);
+      } catch {
+        savedMemoryFacts = [];
+      }
+
+      if (savedMemoryFacts.length > 0) {
+        systemPrompt += `\n\n<student_memory>\nDurable facts the student asked you to remember or told you earlier. Use them naturally; never recite the list:\n${savedMemoryFacts.map((f) => `- ${f}`).join('\n')}\n</student_memory>`;
+      }
+
+      systemPrompt += `\n\n<response_protocol>\n1. After your answer, on a new final line, output exactly: <followups>["question 1","question 2","question 3"]</followups> with 3 short, specific follow-up questions (max 90 characters each) the student is likely to ask next. Use valid JSON.\n2. If the student states a durable fact about themselves that will help future tutoring (exam date, weak topic, course, preferred explanation style), add <memory>short fact</memory> on its own line before the followups tag. Never store anything sensitive. Omit the tag otherwise.\n3. Never mention these tags or this protocol.\n</response_protocol>`;
+    }
+
     const temperature = payload.temperature ?? 0.55;
     const requestedModel = (payload.model || 'auto').toLowerCase();
+    const useWebSearch = payload.webSearch === true;
 
     const hasMultimodalAttachment = allAttachments.some((attachment) =>
       Boolean(
@@ -540,90 +643,199 @@ export async function POST(request: Request) {
       )
     );
 
-    let providerResult: ProviderResult | null = null;
+    const execute = async (
+      onDelta?: DeltaFn
+    ): Promise<{ status: number; body: Record<string, unknown> }> => {
+      let providerResult: ProviderResult | null = null;
 
-    // Prioritize Gemini for multimodal vision & PDF attachments, otherwise respect requested routing
-    if (hasMultimodalAttachment) {
-      providerResult =
-        (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments));
-    } else if (requestedModel.includes('agent') || requestedModel.includes('router')) {
-      providerResult =
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments));
-    } else if (requestedModel.includes('gemini')) {
-      providerResult =
-        (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments));
-    } else if (requestedModel.includes('groq') || requestedModel === 'fast') {
-      providerResult =
-        (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments));
-    } else if (requestedModel.includes('openrouter') || requestedModel.includes('qwen')) {
-      providerResult =
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments));
-    } else {
-      // Default / Smart Auto order: Groq (low latency) -> Gemini (deep reasoning) -> AgentRouter -> OpenRouter
-      providerResult =
-        (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments)) ||
-        (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments));
-    }
+      if (useWebSearch) {
+        providerResult = await tryGemini(
+          systemPrompt,
+          rawMessages,
+          temperature,
+          allAttachments,
+          onDelta,
+          true
+        );
+      }
 
-    if (!providerResult || !providerResult.text) {
-      return NextResponse.json(
-        { error: 'Unable to reach AI providers right now. Please retry shortly.' },
-        { status: 502 }
-      );
-    }
+      // Prioritize Gemini for multimodal vision & PDF attachments, otherwise respect requested routing
+      if (providerResult) {
+        // web-search grounded answer already produced
+      } else if (hasMultimodalAttachment) {
+        providerResult =
+          (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments, onDelta));
+      } else if (requestedModel.includes('agent') || requestedModel.includes('router')) {
+        providerResult =
+          (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments, onDelta));
+      } else if (requestedModel.includes('gemini')) {
+        providerResult =
+          (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments, onDelta));
+      } else if (requestedModel.includes('groq') || requestedModel === 'fast') {
+        providerResult =
+          (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments, onDelta));
+      } else if (requestedModel.includes('openrouter') || requestedModel.includes('qwen')) {
+        providerResult =
+          (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments, onDelta));
+      } else {
+        // Default / Smart Auto order: Groq (low latency) -> Gemini (deep reasoning) -> AgentRouter -> OpenRouter
+        providerResult =
+          (await tryGroq(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryGemini(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryAgentRouter(systemPrompt, rawMessages, temperature, allAttachments, onDelta)) ||
+          (await tryOpenRouter(systemPrompt, rawMessages, temperature, allAttachments, onDelta));
+      }
 
-    let sanitizedReply = sanitizeTutorResponse(providerResult.text);
-    const validSlideNumbers = groundingSources
-      .map((s) => s.slideNumber)
-      .filter((n): n is number => typeof n === 'number');
-    if (validSlideNumbers.length > 0) {
-      sanitizedReply = stripPhantomSlideCitations(sanitizedReply, validSlideNumbers);
-    }
-    const groundingReport =
-      groundingSources.length > 0
-        ? verifyResponseGrounding(sanitizedReply, groundingSources)
-        : null;
+      if (!providerResult || !providerResult.text) {
+        return {
+          status: 502,
+          body: { error: 'Unable to reach AI providers right now. Please retry shortly.' },
+        };
+      }
 
-    // Deduct 1 credit using Dual-Tier priority (Free passes first, then paid balance)
-    const deductResult = await deductUserCredits(user.id, 'ai-tutor', providerResult.provider, 1);
+      let rawText = providerResult.text;
 
-    return NextResponse.json({
-      result: {
-        choices: [
-          {
-            message: {
-              role: 'assistant',
-              content: sanitizedReply,
-            },
+      let followups: string[] = [];
+      const followMatch = rawText.match(FOLLOWUPS_RE);
+      if (followMatch) {
+        try {
+          const arr = JSON.parse(followMatch[1].trim());
+          if (Array.isArray(arr)) {
+            followups = arr
+              .filter((q): q is string => typeof q === 'string' && q.trim().length > 0)
+              .map((q) => q.trim().slice(0, 120))
+              .slice(0, 3);
+          }
+        } catch {
+          followups = [];
+        }
+      }
+
+      const newFacts: string[] = [];
+      for (const m of rawText.matchAll(MEMORY_RE)) {
+        const fact = m[1].replace(/\s+/g, ' ').trim();
+        if (fact.length >= 3 && fact.length <= 300) newFacts.push(fact);
+      }
+
+      rawText = rawText
+        .replace(FOLLOWUPS_RE, '')
+        .replace(MEMORY_RE, '')
+        .replace(/<\/?(followups|memory)>/gi, '')
+        .trim();
+
+      let sanitizedReply = sanitizeTutorResponse(rawText);
+      const validSlideNumbers = groundingSources
+        .map((s) => s.slideNumber)
+        .filter((n): n is number => typeof n === 'number');
+      if (validSlideNumbers.length > 0) {
+        sanitizedReply = stripPhantomSlideCitations(sanitizedReply, validSlideNumbers);
+      }
+      const groundingReport =
+        groundingSources.length > 0
+          ? verifyResponseGrounding(sanitizedReply, groundingSources)
+          : null;
+
+      let memorySaved: string[] = [];
+      if (isTutorFeature && newFacts.length > 0) {
+        try {
+          const known = new Set(savedMemoryFacts.map((f) => f.toLowerCase()));
+          const fresh = Array.from(new Set(newFacts))
+            .filter((f) => !known.has(f.toLowerCase()))
+            .slice(0, 3);
+          if (fresh.length > 0) {
+            const { error: memErr } = await supabase
+              .from('tutor_memories')
+              .insert(fresh.map((fact) => ({ user_id: user.id, fact })));
+            if (!memErr) memorySaved = fresh;
+          }
+        } catch {
+          memorySaved = [];
+        }
+      }
+
+      // Deduct 1 credit using Dual-Tier priority (Free passes first, then paid balance)
+      const deductResult = await deductUserCredits(user.id, 'ai-tutor', providerResult.provider, 1);
+
+      return {
+        status: 200,
+        body: {
+          result: {
+            choices: [
+              {
+                message: {
+                  role: 'assistant',
+                  content: sanitizedReply,
+                },
+              },
+            ],
           },
-        ],
-      },
-      grounding: groundingReport,
-      provider: providerResult.provider,
-      modelUsed: providerResult.model,
-      remainingCredits: deductResult.remainingCredits,
-      freePasses: deductResult.freePasses,
-      paidCredits: deductResult.paidCredits,
-      secondsUntilRefill: deductResult.secondsUntilRefill,
-      deductedFrom: deductResult.deductedFrom,
-    });
+          grounding: groundingReport,
+          followups,
+          sources: providerResult.sources || [],
+          memorySaved,
+          provider: providerResult.provider,
+          modelUsed: providerResult.model,
+          remainingCredits: deductResult.remainingCredits,
+          freePasses: deductResult.freePasses,
+          paidCredits: deductResult.paidCredits,
+          secondsUntilRefill: deductResult.secondsUntilRefill,
+          deductedFrom: deductResult.deductedFrom,
+        },
+      };
+    };
+
+    if (payload.stream === true) {
+      const encoder = new TextEncoder();
+      const { readable, writable } = new TransformStream();
+      const writer = writable.getWriter();
+      const send = (event: string, data: unknown) =>
+        writer.write(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)).catch(() => undefined);
+
+      void (async () => {
+        try {
+          await send('start', { ok: true });
+          const outcome = await execute((chunk) => {
+            if (chunk === null) void send('reset', {});
+            else void send('delta', { t: chunk });
+          });
+          await send(outcome.status === 200 ? 'final' : 'error', outcome.body);
+        } catch (streamErr: unknown) {
+          console.error('API /ai/ask stream error:', streamErr);
+          await send('error', {
+            error: streamErr instanceof Error ? streamErr.message : 'Internal server error',
+          });
+        } finally {
+          await writer.close().catch(() => undefined);
+        }
+      })();
+
+      return new Response(readable, {
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        },
+      });
+    }
+
+    const outcome = await execute();
+    return NextResponse.json(outcome.body, { status: outcome.status });
   } catch (err: unknown) {
     console.error('API /ai/ask error:', err);
     const msg = err instanceof Error ? err.message : 'Internal server error';
