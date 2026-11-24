@@ -178,11 +178,11 @@ export default function PastPapersDashboard() {
     }
 
     const [coursesRes, papersRes, attemptsRes] = await Promise.allSettled([
-      fetch(`/api/courses?t=${Date.now()}`, { cache: 'no-store' })
+      fetch('/api/courses')
         .then((r) => (r.ok ? r.json() : apiFetch('/courses')))
         .catch(() => apiFetch('/courses'))
         .catch(() => []),
-      fetch(`/api/v1/past-questions?t=${Date.now()}`, { cache: 'no-store' })
+      fetch('/api/v1/past-questions')
         .then((r) => (r.ok ? r.json() : []))
         .catch(() => apiFetch('/v1/past-questions'))
         .catch(() => []),

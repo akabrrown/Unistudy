@@ -49,7 +49,16 @@ function findMatchingCourse(userCourses: any[], codeOrTitle: string): any | null
   return null;
 }
 
+const klokCache = new Map<string, { data: any[]; expiresAt: number }>();
+const KLOK_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes in-memory TTL
+
 async function fetchKlokPapers(query?: string): Promise<any[]> {
+  const cacheKey = (query || '').toLowerCase().trim();
+  const cached = klokCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.data;
+  }
+
   try {
     const url = new URL('/api/v1/past-questions', KLOK_BASE_URL);
     if (query) {
@@ -63,10 +72,16 @@ async function fetchKlokPapers(query?: string): Promise<any[]> {
     });
     if (!res.ok) return [];
     const data = await res.json();
-    return data.items || (Array.isArray(data) ? data : []);
+    const items = data.items || (Array.isArray(data) ? data : []);
+
+    klokCache.set(cacheKey, {
+      data: items,
+      expiresAt: Date.now() + KLOK_CACHE_TTL_MS,
+    });
+    return items;
   } catch (err: any) {
     console.warn(`[fetchKlokPapers] failed for query "${query}":`, err.message);
-    return [];
+    return cached ? cached.data : [];
   }
 }
 

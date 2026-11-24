@@ -58,6 +58,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { StreamAskError, streamAsk, stripProtocolTags, type AskFinalPayload } from '@/lib/chat/streamAsk';
+import { cleanChatTitle } from '@/lib/chat/chatTitle';
 import { useSpeechInput } from '@/components/chat/useSpeechInput';
 import { MemoryDialog } from '@/components/chat/MemoryDialog';
 import { FeedbackButtons } from '@/components/chat/FeedbackButtons';
@@ -342,17 +343,7 @@ function formatContentWithSlideLinks(content: string, deck?: ReferencedDeck | nu
   );
 }
 
-function cleanChatTitle(raw?: string | null): string {
-  if (!raw) return 'AI Study Tutor & Assistant';
-  const clean = raw
-    .replace(/^(\/test|\/plan|\/explain|\/summary)\s*/i, '')
-    .replace(/<!\s*DOCTYPE[^>]*>/gi, '')
-    .replace(/<\/?[a-z0-9_-]+[^>]*>/gi, ' ')
-    .replace(/&[a-z0-9#]+;/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return clean || 'AI Study Tutor & Assistant';
-}
+
 
 function createNewSession(referencedDeck?: ReferencedDeck | null, modelId = 'auto'): ConversationSession {
   return {
@@ -1092,7 +1083,7 @@ export default function GeneralAiChatPage() {
     // Auto-generate title from the first student message
     const isFirstUserMessage = baseMessages.length === 0;
     const computedTitle = isFirstUserMessage
-      ? cleanChatTitle(rawText || attachmentsToSend[0]?.name || 'Study Session').slice(0, 60)
+      ? cleanChatTitle(rawText || attachmentsToSend[0]?.name || 'Study Session', 55)
       : currentSession?.title || 'Study Session';
 
     // Update current session with user message immediately
@@ -1847,15 +1838,18 @@ export default function GeneralAiChatPage() {
       {/* Main Chat Interface */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Top Header & Context Bar */}
-        <header className="flex-shrink-0 bg-card border border-border rounded-2xl p-3 sm:p-4 shadow-xs mb-3 space-y-3">
-          <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-3 min-w-0">
-            <div className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0">
+        <header className="flex-shrink-0 bg-card border border-border rounded-2xl p-2.5 sm:p-3 shadow-xs mb-3 space-y-2">
+          {/* Main Top Tier: Title, Persona & Actions */}
+          <div className="flex items-center justify-between gap-2.5 min-w-0">
+            {/* Left: History Toggle, Crest, Title & Persona */}
+            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
               <Button
                 variant="outline"
                 size="icon"
                 onClick={() => setIsHistoryOpen((prev) => !prev)}
-                className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 text-[#00004E] dark:text-[#D89A06] border-border hover:border-[#D89A06]"
+                className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 text-[#00004E] dark:text-[#D89A06] border-border hover:border-[#D89A06] hover:bg-[#FEF8E7] dark:hover:bg-white/5 transition-colors cursor-pointer"
                 title={isHistoryOpen ? 'Collapse chat history' : 'Expand chat history'}
+                aria-label={isHistoryOpen ? 'Collapse chat history' : 'Expand chat history'}
               >
                 {isHistoryOpen ? (
                   <PanelLeftClose className="h-4 w-4" />
@@ -1864,35 +1858,37 @@ export default function GeneralAiChatPage() {
                 )}
               </Button>
 
-              <UniStudyLogo variant="icon" height={30} className="shrink-0" alt="UniStudy AI Study Tutor" />
+              <UniStudyLogo variant="icon" height={28} className="shrink-0 hidden xs:block" alt="UniStudy AI Study Tutor" />
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 min-w-0">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                   <h1
-                    className="text-base sm:text-lg md:text-xl font-black tracking-tight text-[#00004E] dark:text-white truncate"
+                    className="text-sm sm:text-base font-black tracking-tight text-[#00004E] dark:text-white truncate whitespace-nowrap"
                     title={cleanChatTitle(currentSession?.title)}
                   >
                     {cleanChatTitle(currentSession?.title)}
                   </h1>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#D89A06]/20 text-[#8C6404] dark:text-[#D89A06] border border-[#D89A06]/40 uppercase tracking-wide shrink-0 hidden sm:inline-flex items-center">
-                    {tutorConfig.name} ({tutorConfig.personality})
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF8E7] dark:bg-white/10 text-[#8C6404] dark:text-[#D89A06] border border-[#D89A06]/40 uppercase tracking-wide shrink-0 hidden sm:inline-flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#D89A06]" />
+                    {tutorConfig.name} · {tutorConfig.personality}
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground truncate mt-0.5">
-                  Personalized Tutor {tutorConfig.name} · {tutorConfig.tone === 'casual' ? 'Casual & Relatable' : 'Academic & Scholarly'} · Slide Grounding &amp; Mentoring
+                <p className="text-[11px] text-muted-foreground truncate whitespace-nowrap hidden lg:block">
+                  Personalized Tutor {tutorConfig.name} · {tutorConfig.tone === 'casual' ? 'Casual & Relatable' : 'Academic & Scholarly'}
                 </p>
               </div>
             </div>
 
-            {/* Model Selector & Action Toolbar */}
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0">
+            {/* Right: Adaptive Action Toolbar */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               {/* Dynamic Model Selector Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger
-                  className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2 sm:px-2.5 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors cursor-pointer shadow-2xs"
+                  title="Select AI Reasoning Engine"
                 >
                   <activeModelConfig.icon className={cn('h-3.5 w-3.5', activeModelConfig.color)} />
-                  <span className="truncate max-w-[85px] sm:max-w-none">{activeModelConfig.name}</span>
+                  <span className="truncate max-w-[70px] sm:max-w-none">{activeModelConfig.name}</span>
                   <ChevronDown className="h-3 w-3 opacity-60 shrink-0" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-64 p-1.5 space-y-1">
@@ -1945,16 +1941,17 @@ export default function GeneralAiChatPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
+              {/* Dual-Pocket Wallet Pill */}
               <Link
                 href="/dashboard/settings/billing"
-                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2 sm:px-2.5 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors shadow-2xs group"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2 sm:px-2.5 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors shadow-2xs group"
                 title={`Dual-Pocket Wallet: ${freePasses ?? 8}/8 Free 6h Passes + ${paidCredits ?? 20} Paid Credits (Never expires)`}
               >
                 <div className="flex items-center gap-1">
                   <span className="text-[#D89A06]">⚡</span>
                   <span>{freePasses ?? 8}/8 Free</span>
                   {secondsUntilRefill !== null && (freePasses ?? 8) < 8 && secondsUntilRefill > 0 && (
-                    <span className="text-[10px] text-muted-foreground font-mono hidden 2xl:inline">
+                    <span className="text-[10px] text-muted-foreground font-mono hidden xl:inline">
                       ({Math.floor(secondsUntilRefill / 3600)}h {Math.floor((secondsUntilRefill % 3600) / 60)}m)
                     </span>
                   )}
@@ -1962,112 +1959,120 @@ export default function GeneralAiChatPage() {
                 {(paidCredits ?? 0) > 0 && (
                   <div className="flex items-center gap-1 border-l border-[#D89A06]/30 pl-1.5">
                     <span className="text-xs">🪙</span>
-                    <span>{paidCredits} Paid</span>
+                    <span>{paidCredits}</span>
                   </div>
                 )}
               </Link>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsCalibrateDialogOpen(true)}
-                className="text-xs font-semibold h-8 px-2 sm:px-2.5 border-[#D89A06]/40 text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5"
-                title="Calibrate Tutor Name, Tone & Personality"
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5 sm:mr-1 text-[#D89A06]" />
-                <span className="hidden xl:inline">Calibrate</span>
-              </Button>
+              {/* Utility Tools: Calibrate, Memory, Export */}
+              <div className="flex items-center rounded-xl border border-border bg-muted/30 p-0.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsCalibrateDialogOpen(true)}
+                  className="h-7 px-2 text-xs font-semibold text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7] dark:hover:bg-white/10"
+                  title="Calibrate Tutor Name, Tone & Personality"
+                  aria-label="Calibrate Tutor"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5 xl:mr-1 text-[#D89A06]" />
+                  <span className="hidden xl:inline">Calibrate</span>
+                </Button>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsMemoryOpen(true)}
-                className="text-xs font-semibold h-8 px-2 sm:px-2.5 border-[#D89A06]/40 text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5"
-                title="See and edit what your tutor remembers"
-              >
-                <Brain className="h-3.5 w-3.5 sm:mr-1 text-[#D89A06]" />
-                <span className="hidden xl:inline">Memory</span>
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsMemoryOpen(true)}
+                  className="h-7 px-2 text-xs font-semibold text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7] dark:hover:bg-white/10"
+                  title="See and edit what your tutor remembers"
+                  aria-label="Tutor Memory"
+                >
+                  <Brain className="h-3.5 w-3.5 xl:mr-1 text-[#D89A06]" />
+                  <span className="hidden xl:inline">Memory</span>
+                </Button>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExportChat}
-                disabled={messages.length === 0}
-                className="text-xs font-semibold h-8 px-2 sm:px-2.5"
-                title="Export as Markdown"
-              >
-                <Download className="h-3.5 w-3.5 sm:mr-1" />
-                <span className="hidden xl:inline">Export</span>
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleExportChat}
+                  disabled={messages.length === 0}
+                  className="h-7 px-2 text-xs font-semibold text-foreground hover:bg-muted"
+                  title="Export chat as Markdown"
+                  aria-label="Export Chat"
+                >
+                  <Download className="h-3.5 w-3.5 xl:mr-1 text-muted-foreground" />
+                  <span className="hidden xl:inline">Export</span>
+                </Button>
+              </div>
 
+              {/* Primary Action: New Chat */}
               <Button
-                variant="outline"
                 size="sm"
                 onClick={handleStartNewChat}
-                className="text-xs font-semibold h-8 px-2.5 sm:px-3 text-[#00004E] dark:text-[#D89A06] border-[#D89A06]/40 hover:bg-[#FEF8E7]"
+                className="h-8 px-2.5 sm:px-3 text-xs font-bold bg-[#00004E] text-white hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#c48a04] shadow-xs cursor-pointer"
                 title="Start a fresh chat"
               >
-                <Plus className="h-3.5 w-3.5 sm:mr-1 text-[#D89A06]" />
+                <Plus className="h-3.5 w-3.5 sm:mr-1" />
                 <span className="hidden sm:inline">New Chat</span>
               </Button>
             </div>
           </div>
 
-          {/* Reference Deck Grounding Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-border/60">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <Layers className="h-3.5 w-3.5 text-[#D89A06]" />
-                Active Grounding:
+          {/* Unified Grounding & Context Ribbon */}
+          <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/60 text-xs">
+            {/* Left: Active Grounding Status Chip */}
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+              <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider shrink-0 flex items-center gap-1">
+                <Layers className="h-3 w-3 text-[#D89A06]" />
+                Grounding:
               </span>
 
               {activeDeck ? (
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-[#FEF8E7] dark:bg-white/10 border border-[#D89A06]/60 text-xs font-semibold text-[#00004E] dark:text-[#D89A06] shadow-2xs">
-                  <span className="font-bold text-[#8C6404] dark:text-[#D89A06]">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-[#FEF8E7] dark:bg-white/10 border border-[#D89A06]/50 text-xs font-semibold text-[#00004E] dark:text-[#D89A06] min-w-0 max-w-full">
+                  <span className="font-bold text-[#8C6404] dark:text-[#D89A06] shrink-0">
                     {activeDeck.courseCode}
                   </span>
-                  <span className="text-muted-foreground">/</span>
-                  <span className="font-medium text-foreground break-words">
+                  <span className="text-muted-foreground shrink-0">/</span>
+                  <span className="font-medium text-foreground truncate max-w-[140px] sm:max-w-[240px] md:max-w-[380px]">
                     {activeDeck.lectureTitle}
                   </span>
                   {typeof activeDeck.slideCount === 'number' && activeDeck.slideCount > 0 && (
-                    <span className="text-[11px] text-muted-foreground font-mono">
+                    <span className="text-[10px] text-muted-foreground font-mono shrink-0 hidden sm:inline">
                       ({activeDeck.slideCount} slides)
                     </span>
                   )}
                   <Link
                     href={`/dashboard/courses/${activeDeck.courseId}/lectures/${activeDeck.lectureId}`}
                     target="_blank"
-                    className="text-muted-foreground hover:text-[#00004E] dark:hover:text-white transition-colors"
-                    title="Open Slide Viewer"
+                    className="text-muted-foreground hover:text-[#00004E] dark:hover:text-white transition-colors shrink-0 p-0.5"
+                    title="Open Slide Viewer in new tab"
                   >
                     <ExternalLink className="h-3 w-3" />
                   </Link>
                   <button
                     onClick={handleDetachDeck}
-                    className="ml-1 p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/20 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                    title="Detach deck"
+                    className="p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/20 text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
+                    title="Detach lecture deck"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </div>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted text-xs font-medium text-muted-foreground">
-                  <BookOpen className="h-3 w-3 text-[#D89A06]" />
-                  General Academic Chat (All subjects &amp; formulas)
-                </span>
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-muted/60 text-xs text-muted-foreground truncate">
+                  <BookOpen className="h-3 w-3 text-[#D89A06] shrink-0" />
+                  <span className="truncate">General Academic (All subjects &amp; formulas)</span>
+                </div>
               )}
             </div>
 
+            {/* Right: Attach / Switch Deck Button */}
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsDeckSelectorOpen(true)}
-              className="h-8 text-xs font-bold border-[#D89A06]/40 hover:border-[#D89A06] hover:bg-[#FEF8E7] dark:hover:bg-white/5 text-[#00004E] dark:text-[#D89A06]"
+              className="h-7 px-2 sm:px-2.5 text-xs font-bold border-[#D89A06]/40 hover:border-[#D89A06] hover:bg-[#FEF8E7] dark:hover:bg-white/5 text-[#00004E] dark:text-[#D89A06] shrink-0"
             >
-              <Paperclip className="h-3.5 w-3.5 mr-1 text-[#D89A06]" />
-              {activeDeck ? 'Switch Lecture Deck' : 'Attach Lecture Deck'}
+              <Paperclip className="h-3 w-3 mr-1 text-[#D89A06]" />
+              <span>{activeDeck ? 'Switch Deck' : 'Attach Deck'}</span>
             </Button>
           </div>
         </header>
