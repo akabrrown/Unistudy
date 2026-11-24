@@ -48,6 +48,7 @@ import { bulkDeleteLectures } from '@/app/actions/lectures';
 import { ExamFocusDialog } from '@/components/exam-focus/ExamFocusDialog';
 import { UploadLectureDialog } from '@/components/courses/UploadLectureDialog';
 import { DeleteLectureButton } from '@/components/courses/DeleteLectureButton';
+import { CollegiateLibraryIllustration } from '@/components/illustrations';
 import { isPlaceholderSlideUrl, getSlideThumbnailUrl } from '@/lib/images';
 
 interface LectureItem {
@@ -105,7 +106,7 @@ function SlideDeckCover({
   const showImage = Boolean(thumbnailSrc && !hasError);
 
   return (
-    <div className="relative block w-full aspect-[16/9] bg-muted/40 overflow-hidden">
+    <div className="relative block w-full aspect-[16/9] bg-gradient-to-br from-slate-900 to-[#00004E] overflow-hidden group">
       {showImage ? (
         <Image
           src={thumbnailSrc}
@@ -117,16 +118,36 @@ function SlideDeckCover({
           onError={() => setHasError(true)}
         />
       ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground/60 bg-muted/20">
-          <FileText className="w-10 h-10" strokeWidth={1.2} />
-          <span className="text-[10px] font-mono uppercase tracking-wider">
-            {processing ? 'Processing...' : 'No Preview'}
-          </span>
+        <div className="absolute inset-0 flex flex-col justify-between p-3.5 text-white/90 bg-slate-950/90 relative overflow-hidden">
+          {/* Subtle collegiate grid pattern */}
+          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#D89A06_1px,transparent_1px)] [background-size:12px_12px]" />
+
+          <div className="flex items-center justify-between z-10">
+            <span className="text-[10px] font-mono font-bold text-[#D89A06] bg-black/50 px-2 py-0.5 rounded border border-[#D89A06]/30">
+              SLIDE DECK
+            </span>
+            {processing ? (
+              <span className="text-[10px] font-mono text-[#D89A06] animate-pulse">Processing...</span>
+            ) : (
+              <span className="text-[10px] font-mono text-white/60">Specimen</span>
+            )}
+          </div>
+
+          <div className="space-y-1.5 z-10 my-auto">
+            <div className="h-1.5 w-16 bg-[#D89A06]/70 rounded-full" />
+            <div className="h-1.5 w-28 bg-white/25 rounded-full" />
+            <div className="h-1.5 w-20 bg-white/15 rounded-full" />
+          </div>
+
+          <div className="flex items-center justify-between z-10 pt-1.5 border-t border-white/10 text-[10px] font-mono text-white/70">
+            <span className="truncate max-w-[140px] font-medium">{title || 'Lecture Slides'}</span>
+            <span className="text-[#D89A06] font-bold">{(slideCount ?? 0) > 0 ? `${slideCount} slides` : 'Ready'}</span>
+          </div>
         </div>
       )}
-      {!processing && (slideCount ?? 0) > 0 && (
+      {!processing && (slideCount ?? 0) > 0 && showImage && (
         <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 bg-black/70 text-white text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md backdrop-blur-sm z-10">
-          <Layers className="w-3 h-3" />
+          <Layers className="w-3 h-3 text-[#D89A06]" />
           {slideCount}
         </span>
       )}
@@ -658,21 +679,19 @@ export default function LecturesHubPage() {
           <p className="text-xs text-muted-foreground">Loading course lectures...</p>
         </div>
       ) : filteredLectures.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-12 text-center space-y-4 bg-card">
-          <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
-            <BookOpen className="w-6 h-6" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-base font-bold text-foreground">
+        <div className="rounded-2xl border border-border/80 bg-card p-8 md:p-12 text-center space-y-5 shadow-xs flex flex-col items-center">
+          <CollegiateLibraryIllustration className="w-56 h-36" />
+          <div className="space-y-1.5 max-w-md">
+            <h3 className="text-lg font-bold text-foreground">
               {courses.length === 0
                 ? 'No courses created yet'
                 : activeCourse
-                  ? `No lectures uploaded for ${activeCourse.course_code || activeCourse.title}`
-                  : 'No lectures found'}
+                  ? `No lecture decks uploaded for ${activeCourse.course_code || activeCourse.title}`
+                  : 'No lecture decks found'}
             </h3>
-            <p className="text-xs text-muted-foreground max-w-md mx-auto">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               {courses.length === 0
-                ? 'Create your first course to upload PDF slide decks, generate flashcards, and use AI lecture tutoring.'
+                ? 'Create your first course to upload presentation slides, generate flashcards, and activate AI slide tutoring.'
                 : 'Upload your presentation slides (PDF) to automatically extract text, summaries, and interactive flashcards.'}
             </p>
           </div>
@@ -695,7 +714,7 @@ export default function LecturesHubPage() {
                 variant="default"
                 size="sm"
                 onClick={() => router.push('/dashboard/courses?action=new')}
-                className="bg-primary text-primary-foreground text-xs"
+                className="bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] text-white text-xs px-4 h-9 font-bold cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5 mr-1" />
                 Create First Course

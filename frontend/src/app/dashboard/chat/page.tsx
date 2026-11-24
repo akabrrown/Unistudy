@@ -9,6 +9,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { toast } from 'sonner';
 import { UniStudyLogo } from '@/components/brand/UniStudyLogo';
+import { StudyTutorDeskIllustration } from '@/components/illustrations';
 import {
   BrainCircuit,
   Send,
@@ -1967,17 +1968,17 @@ export default function GeneralAiChatPage() {
         {/* Main Chat Message Area */}
         <div className="flex-1 bg-card border border-border rounded-2xl p-4 md:p-6 overflow-y-auto space-y-5 shadow-xs relative">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto py-8 space-y-5">
-              <div className="flex justify-center mb-1">
-                <UniStudyLogo variant="icon" height={56} className="shrink-0" alt="UniStudy AI Study Tutor" />
+            <div className="h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto py-6 space-y-4">
+              <div className="flex justify-center mb-0.5">
+                <StudyTutorDeskIllustration className="w-52 h-40 text-foreground" />
               </div>
 
-              <div className="space-y-1.5">
-                <h2 className="text-xl font-black text-[#00004E] dark:text-white">
-                  How can I assist your studies today?
+              <div className="space-y-1">
+                <h2 className="text-xl font-bold tracking-tight text-foreground">
+                  How can I assist your coursework today?
                 </h2>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  I am your 24/7 UPSA AI tutor running on <strong className="text-foreground">{activeModelConfig.name}</strong>. Ask any university problem, select a command shortcut, or attach lecture slides.
+                <p className="text-xs text-muted-foreground leading-relaxed max-w-sm mx-auto">
+                  Ask any university problem, select a command shortcut, or attach lecture slides for grounded citations.
                 </p>
               </div>
 

@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Rating } from '@/lib/utils/sm2'
 import { useSettings } from '@/contexts/SettingsContext'
 import { toast } from 'sonner'
+import { FlashcardStackIllustration } from '@/components/illustrations'
 import {
   getCachedFlashcardsFast,
   setCachedFlashcardsFast,
@@ -398,73 +399,96 @@ export default function FlashcardsPage() {
         </div>
 
         {allDue.length > 0 && (
-          <Button size="lg" onClick={() => startReview()} className="font-bold shadow-lg shadow-primary/20">
-            <PlayCircle size={18} className="mr-2" />
+          <Button size="lg" onClick={() => startReview()} className="font-bold bg-[#00004E] text-white hover:bg-[#00003E] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] shadow-md cursor-pointer">
+            <PlayCircle size={18} className="mr-2 text-[#D89A06] dark:text-[#00004E]" />
             Review {allDue.length} Due Cards
           </Button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {lectures.map(lec => {
-          const lecCards = flashcards.filter(c => c.lecture_id === lec.id)
-          const due = lecCards.filter(c => new Date(c.next_review) <= new Date())
-          
-          return (
-            <div key={lec.id} className="p-6 rounded-xl border border-border bg-card flex flex-col relative">
-              <div className="flex justify-between items-start gap-2">
-                <div className="overflow-hidden">
-                  <h3 className="font-bold text-lg mb-1 truncate">{lec.title}</h3>
-                  <p className="text-sm text-muted-foreground mb-4">Week {lec.week}</p>
+      {lectures.length === 0 ? (
+        <div className="rounded-2xl border border-border/80 bg-card p-8 md:p-12 text-center space-y-5 shadow-xs flex flex-col items-center">
+          <FlashcardStackIllustration className="w-56 h-36" />
+          <div className="space-y-1.5 max-w-md">
+            <h3 className="text-lg font-bold text-foreground">
+              No Lecture Decks Uploaded Yet
+            </h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Upload course presentation slides to automatically extract definitions, formulas, and spaced repetition (SM-2) flashcard decks.
+            </p>
+          </div>
+          <Link
+            href={`/dashboard/courses/${courseId}`}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#00004E] text-white hover:bg-[#00003E] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] px-5 py-2.5 text-xs font-bold transition-all shadow-xs cursor-pointer"
+          >
+            <Layers className="w-4 h-4 mr-1 text-[#D89A06] dark:text-[#00004E]" />
+            Go to Course Lectures &amp; Upload Slides
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {lectures.map(lec => {
+            const lecCards = flashcards.filter(c => c.lecture_id === lec.id)
+            const due = lecCards.filter(c => new Date(c.next_review) <= new Date())
+            
+            return (
+              <div key={lec.id} className="p-6 rounded-2xl border border-border/80 bg-card flex flex-col justify-between shadow-xs hover:border-[#D89A06]/50 transition-colors">
+                <div className="flex justify-between items-start gap-2">
+                  <div className="overflow-hidden">
+                    <span className="text-[10px] font-mono font-bold text-[#D89A06] uppercase tracking-wider">
+                      Week {lec.week || 1}
+                    </span>
+                    <h3 className="font-bold text-base text-foreground mt-1 mb-1 truncate">{lec.title}</h3>
+                  </div>
+                  <div className="flex gap-2">
+                    {lecCards.length > 0 && (
+                      <Button variant="ghost" size="icon-sm" title="Regenerate Flashcards" onClick={() => handleGenerate(lec.id)} disabled={generatingFor === lec.id} className="text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7] dark:hover:bg-white/5">
+                        <RefreshCw size={15} className={generatingFor === lec.id ? "animate-spin" : ""} />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex gap-2">
+                
+                <div className="mt-6 space-y-4 pt-3 border-t border-border/60">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-muted-foreground">Total Cards:</span>
+                    <span className="font-mono font-bold text-foreground">{lecCards.length}</span>
+                  </div>
                   {lecCards.length > 0 && (
-                    <Button variant="ghost" size="icon-sm" title="Regenerate Flashcards" onClick={() => handleGenerate(lec.id)} disabled={generatingFor === lec.id} className="text-blue-500 hover:text-blue-600 hover:bg-blue-50">
-                      <RefreshCw size={16} className={generatingFor === lec.id ? "animate-spin" : ""} />
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-[#D89A06]">Due for Review:</span>
+                      <span className="font-mono font-bold text-[#D89A06] bg-[#FEF8E7] dark:bg-white/5 px-2 py-0.5 rounded-md border border-[#D89A06]/30">{due.length}</span>
+                    </div>
+                  )}
+                  
+                  {lecCards.length === 0 ? (
+                    <Button 
+                      className="w-full text-xs font-bold cursor-pointer" 
+                      variant="secondary"
+                      onClick={() => handleGenerate(lec.id)}
+                      disabled={generatingFor === lec.id}
+                    >
+                      {generatingFor === lec.id ? (
+                        <><Loader2 size={15} className="mr-2 animate-spin" /> Generating Cards...</>
+                      ) : (
+                        <><Layers size={15} className="mr-2 text-[#D89A06]" /> Generate Flashcards</>
+                      )}
+                    </Button>
+                  ) : (
+                    <Button 
+                      className="w-full text-xs font-bold bg-[#00004E] text-white hover:bg-[#00003E] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] cursor-pointer" 
+                      disabled={due.length === 0}
+                      onClick={() => startReview(lec.id)}
+                    >
+                      {due.length === 0 ? 'All Cards Reviewed' : `Review ${due.length} Cards`}
                     </Button>
                   )}
                 </div>
               </div>
-              
-              <div className="mt-auto space-y-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-muted-foreground">Total Cards:</span>
-                  <span className="font-bold">{lecCards.length}</span>
-                </div>
-                {lecCards.length > 0 && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-orange-500">Due for Review:</span>
-                    <span className="font-bold text-orange-600 bg-orange-500/10 px-2 py-0.5 rounded-full">{due.length}</span>
-                  </div>
-                )}
-                
-                {lecCards.length === 0 ? (
-                  <Button 
-                    className="w-full" 
-                    variant="secondary"
-                    onClick={() => handleGenerate(lec.id)}
-                    disabled={generatingFor === lec.id}
-                  >
-                    {generatingFor === lec.id ? (
-                      <><Loader2 size={16} className="mr-2 animate-spin" /> Generating...</>
-                    ) : (
-                      <><Layers size={16} className="mr-2" /> Generate Cards</>
-                    )}
-                  </Button>
-                ) : (
-                  <Button 
-                    className="w-full font-bold" 
-                    disabled={due.length === 0}
-                    onClick={() => startReview(lec.id)}
-                  >
-                    Review Lecture
-                  </Button>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

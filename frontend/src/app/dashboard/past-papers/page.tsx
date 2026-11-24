@@ -36,6 +36,7 @@ import { UploadModal } from '@/components/past-papers/UploadModal';
 import { MoodleSyncModal } from '@/components/past-papers/MoodleSyncModal';
 import { ExamFocusDialog } from '@/components/exam-focus/ExamFocusDialog';
 import { MovePaperDialog } from '@/components/past-papers/MovePaperDialog';
+import { ExamArchiveIllustration } from '@/components/illustrations';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { normalizePastPaperTitle, resolveDisplayCourseCode } from '@/lib/past-papers/titleNormalizer';
@@ -806,45 +807,39 @@ export default function PastPapersDashboard() {
               ))}
             </div>
           ) : filteredPapers.length === 0 ? (
-            <div className="rounded-2xl border border-border/80 bg-card p-6 md:p-8 shadow-xs space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border/60">
-                <div className="flex items-start gap-4">
-                  <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                    <BookOpen className="w-6 h-6 text-primary" />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-bold text-foreground">
-                      {papers.length === 0
-                        ? 'Upload your first past question paper'
-                        : 'No past papers match these filters'}
-                    </h3>
-                    <p className="text-sm text-muted-foreground max-w-lg">
-                      {papers.length === 0
-                        ? 'Upload any exam PDF or scanned past question paper. UniStudy extracts every question and sub-part for timed practice and AI Examiner marking.'
-                        : 'Clear your course, year, exam type, or search filter to view uploaded papers.'}
-                    </p>
-                  </div>
-                </div>
-
-                {papers.length === 0 ? (
-                  <Button
-                    onClick={() => handleOpenUpload(selectedCourseFilter || undefined)}
-                    className="bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white shrink-0 cursor-pointer"
-                  >
-                    <Upload className="w-4 h-4 mr-1.5" />
-                    Upload Paper PDF
-                  </Button>
-                ) : (
-                  <Button variant="outline" onClick={clearAllFilters} className="shrink-0 cursor-pointer">
-                    Reset Filters
-                  </Button>
-                )}
+            <div className="rounded-2xl border border-border/80 bg-card p-6 md:p-10 shadow-xs flex flex-col items-center text-center space-y-5">
+              <ExamArchiveIllustration className="w-56 h-36" />
+              <div className="space-y-1.5 max-w-md">
+                <h3 className="text-lg font-bold text-foreground">
+                  {papers.length === 0
+                    ? 'Official Exam Archive is Empty'
+                    : 'No past papers match these filters'}
+                </h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {papers.length === 0
+                    ? 'Upload past examination papers or mid-semester quizzes. UniStudy extracts every question, sub-part, and marking rubric for timed simulation.'
+                    : 'Try clearing your course, year, or exam type filters to view archived papers.'}
+                </p>
               </div>
 
-              <div className="pt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
-                <span>• Auto-splits Section A (MCQs) and Section B (Theory &amp; Calculations)</span>
+              {papers.length === 0 ? (
+                <Button
+                  onClick={() => handleOpenUpload(selectedCourseFilter || undefined)}
+                  className="bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white shrink-0 cursor-pointer px-6 h-10 shadow-xs"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload First Examination Paper
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={clearAllFilters} className="shrink-0 cursor-pointer">
+                  Reset Filters
+                </Button>
+              )}
+
+              <div className="pt-4 border-t border-border/60 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+                <span>• Section A (MCQs) &amp; Section B (Theory)</span>
                 <span>• Timed 120-minute trial simulator</span>
-                <span>• Worked model answers for every sub-question (a), (b), (i), (ii)</span>
+                <span>• AI Examiner grading against official rubrics</span>
               </div>
             </div>
           ) : (

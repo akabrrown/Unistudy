@@ -44,6 +44,7 @@ import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api/client';
 import { UploadLectureDialog } from '@/components/courses/UploadLectureDialog';
 import { ExamFocusDialog } from '@/components/exam-focus/ExamFocusDialog';
+import { CollegiateLibraryIllustration } from '@/components/illustrations';
 import { cn } from '@/lib/utils';
 
 interface LectureSummary {
@@ -1052,31 +1053,27 @@ export default function CoursesPage() {
         </section>
       ) : displayedList.length === 0 ? (
         /* ACTIVE COURSES EMPTY STATE */
-        <section className="rounded-2xl border border-border/80 bg-card p-6 md:p-8 shadow-xs space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-border/60">
-            <div className="flex items-start gap-4">
-              <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                <FolderOpen className="w-6 h-6 text-primary" />
-              </div>
-              <div className="space-y-1">
-                <h2 className="text-lg font-bold text-foreground">
-                  {activeCourses.length === 0
-                    ? 'Build your first course workspace'
-                    : 'No active courses match your current filters'}
-                </h2>
-                <p className="text-sm text-muted-foreground max-w-lg">
-                  {activeCourses.length === 0
-                    ? 'Create a course for each module you are taking this semester to organize lecture slides, generate SM-2 flashcards, take quizzes, and practice past papers.'
-                    : 'Clear your search or semester filter to view all active courses.'}
-                </p>
-              </div>
-            </div>
+        <section className="rounded-2xl border border-border/80 bg-card p-6 md:p-10 shadow-xs text-center flex flex-col items-center justify-center space-y-4">
+          <CollegiateLibraryIllustration className="w-48 h-36 text-foreground" />
+          <div className="space-y-1 max-w-md mx-auto">
+            <h2 className="text-lg font-bold tracking-tight text-foreground">
+              {activeCourses.length === 0
+                ? 'Build your first course workspace'
+                : 'No active courses match your filters'}
+            </h2>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {activeCourses.length === 0
+                ? 'Create a course module to organize lecture slides, flashcards, quizzes, and practice university past papers.'
+                : 'Clear your search query or semester filter to view all active courses.'}
+            </p>
+          </div>
 
+          <div className="pt-2">
             {activeCourses.length === 0 ? (
               <Button
                 type="button"
                 onClick={() => handleCourseDialogChange(true)}
-                className="bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white shrink-0 cursor-pointer"
+                className="bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white shadow-xs cursor-pointer"
               >
                 <Plus className="w-4 h-4 mr-1.5" />
                 Create First Course
@@ -1089,17 +1086,11 @@ export default function CoursesPage() {
                   setSearchQuery('');
                   setSemesterFilter('all');
                 }}
-                className="shrink-0 cursor-pointer"
+                className="cursor-pointer text-xs"
               >
                 Reset Filters
               </Button>
             )}
-          </div>
-
-          <div className="pt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
-            <span>• Upload PDF or PPTX lecture slide decks</span>
-            <span>• Automatically links matching university past question papers</span>
-            <span>• Generates flashcards, quizzes, and printable A4 cheat sheets</span>
           </div>
         </section>
       ) : (

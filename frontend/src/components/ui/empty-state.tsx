@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 
 export interface EmptyStateProps {
   icon?: LucideIcon;
+  illustration?: React.ReactNode;
   badge?: string;
   title: string;
   description: string;
@@ -27,6 +28,7 @@ export interface EmptyStateProps {
 
 export function EmptyState({
   icon: Icon = BookOpenCheck,
+  illustration,
   badge,
   title,
   description,
@@ -44,17 +46,28 @@ export function EmptyState({
       {/* Ambient Collegiate Glow */}
       <div className="absolute inset-0 bg-radial from-primary/5 via-transparent to-transparent pointer-events-none" />
 
-      {/* Decorative Icon Well */}
-      <div className="relative mb-4 flex items-center justify-center">
-        <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shadow-xs text-primary transition-transform hover:scale-105 duration-200">
-          <Icon className="w-8 h-8" />
+      {/* Decorative Visual / Illustration Well */}
+      {illustration ? (
+        <div className="relative mb-5 flex items-center justify-center">
+          {illustration}
+          {badge && (
+            <span className="absolute -top-1 -right-2 px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded-full bg-[#D89A06] text-slate-950 shadow-xs">
+              {badge}
+            </span>
+          )}
         </div>
-        {badge && (
-          <span className="absolute -top-2 -right-2 px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded-full bg-[#D89A06] text-slate-950 shadow-xs">
-            {badge}
-          </span>
-        )}
-      </div>
+      ) : (
+        <div className="relative mb-4 flex items-center justify-center">
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shadow-xs text-primary transition-transform hover:scale-105 duration-200">
+            <Icon className="w-8 h-8" />
+          </div>
+          {badge && (
+            <span className="absolute -top-2 -right-2 px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded-full bg-[#D89A06] text-slate-950 shadow-xs">
+              {badge}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Editorial Content */}
       <h3 className="text-lg font-bold text-foreground tracking-tight max-w-sm mb-1.5">
