@@ -77,6 +77,10 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { format, formatDistanceToNow } from 'date-fns'
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader'
+import { AdminMetricCard } from '@/components/admin/AdminMetricCard'
+import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
+import { CopyableId } from '@/components/ui/copyable-id'
 
 export interface AnnouncementItem {
   id: string
@@ -140,7 +144,7 @@ const BROADCAST_TEMPLATES = [
     target: 'tier:pro',
     icon: Bell,
     tag: 'Feature Upgrade',
-    color: 'border-plum-500/20 bg-plum-500/5 text-plum-700 dark:text-plum-400'
+    color: 'border-[#00004E]/20 bg-[#00004E]/5 text-[#00004E] dark:text-[#D89A06]'
   },
   {
     id: 'campus-midterms',
@@ -523,119 +527,78 @@ export function AnnouncementsClient({
   return (
     <div className="space-y-6 max-w-7xl pb-16">
       {/* 1. Header & Actions Strip */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-5">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
-            <span>Administration</span>
-            <span>/</span>
-            <span className="text-foreground font-semibold">Communications & Broadcasts</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <Radio className="w-6 h-6 text-[var(--color-plum-500)]" />
-            Broadcast Console & Announcement Deck
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            Orchestrate multi-channel system announcements, campus bulletins, and email blasts across the UniStudy student network with live audience simulation.
-          </p>
-        </div>
+      <AdminPageHeader
+        title="Broadcast Console & Announcements"
+        count={stats.totalBroadcasts}
+        subtitle="Orchestrate multi-channel system announcements, campus bulletins, and email blasts across the UniStudy student network."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchAnnouncements()}
+              disabled={refreshing}
+              className="h-8 text-xs gap-1.5"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              className="h-8 text-xs gap-1.5"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export</span>
+            </Button>
+            <Button
+              onClick={handleOpenCreate}
+              className="h-8 text-xs gap-1.5 bg-[#00004E] hover:bg-[#00004E]/90 dark:bg-[#D89A06] dark:hover:bg-[#D89A06]/90 text-white dark:text-[#00004E] font-semibold shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Broadcast</span>
+            </Button>
+          </>
+        }
+      />
 
-        <div className="flex items-center gap-2.5 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchAnnouncements()}
-            disabled={refreshing}
-            className="h-9 gap-1.5"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            className="h-9 gap-1.5"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Export</span>
-          </Button>
-
-          <Button
-            onClick={handleOpenCreate}
-            className="h-9 gap-1.5 bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white dark:text-[#00004E] font-semibold shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Broadcast</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* 2. Top Metric KPI Cards (5 Command Stats) */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
-        <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Broadcasts</span>
-            <Radio className="w-4 h-4 text-[var(--color-plum-500)]" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">{stats.totalBroadcasts}</div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span className="text-emerald-600 dark:text-emerald-400 font-medium">Platform-wide</span>
-            <span>history</span>
-          </div>
-        </Card>
-
-        <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Active Banners</span>
-            <LayoutTemplate className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            {stats.activeBanners}
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
-          </div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span>Currently live on dashboard</span>
-          </div>
-        </Card>
-
-        <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Audience Reach</span>
-            <Users className="w-4 h-4 text-blue-500" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">{stats.totalStudents}</div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span className="text-blue-600 dark:text-blue-400 font-medium">{stats.paidStudents} Pro</span>
-            <span>&bull;</span>
-            <span>{stats.freeStudents} Free</span>
-          </div>
-        </Card>
-
-        <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Email Blasts</span>
-            <Mail className="w-4 h-4 text-primary" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">{stats.emailCount}</div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span className="text-muted-foreground">Via Resend transactional</span>
-          </div>
-        </Card>
-
-        <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all col-span-2 md:col-span-1">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Critical Alerts</span>
-            <AlertTriangle className="w-4 h-4 text-red-500" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">{stats.criticalCount}</div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span className="text-red-600 dark:text-red-400 font-medium">Incident & maintenance</span>
-          </div>
-        </Card>
+      {/* 2. Top Metric KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <AdminMetricCard
+          label="Total Broadcasts"
+          value={stats.totalBroadcasts}
+          subtext="Platform-wide history"
+          icon={Radio}
+        />
+        <AdminMetricCard
+          label="Active Banners"
+          value={stats.activeBanners}
+          subtext="Currently live on dashboard"
+          delta={stats.activeBanners > 0 ? 'Live' : 'Idle'}
+          deltaTone={stats.activeBanners > 0 ? 'positive' : 'neutral'}
+          icon={LayoutTemplate}
+        />
+        <AdminMetricCard
+          label="Audience Reach"
+          value={stats.totalStudents}
+          subtext={`${stats.paidStudents} Pro · ${stats.freeStudents} Free`}
+          icon={Users}
+        />
+        <AdminMetricCard
+          label="Email Blasts"
+          value={stats.emailCount}
+          subtext="Transactional email logs"
+          icon={Mail}
+        />
+        <AdminMetricCard
+          label="Critical Alerts"
+          value={stats.criticalCount}
+          subtext="Incident & maintenance"
+          delta={stats.criticalCount > 0 ? 'Urgent' : 'Clear'}
+          deltaTone={stats.criticalCount > 0 ? 'negative' : 'positive'}
+          icon={AlertTriangle}
+        />
       </div>
 
       {/* 3. Preset Templates Shelf (Fast 1-Click Launchers) */}
@@ -643,7 +606,7 @@ export function AnnouncementsClient({
         <CardHeader className="py-3.5 px-5 border-b border-border/50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <BookmarkPlus className="w-4 h-4 text-[var(--color-plum-500)]" />
+              <BookmarkPlus className="w-4 h-4 text-[#00004E] dark:text-[#D89A06]" />
               <CardTitle className="text-sm font-semibold">Standard Operations Templates</CardTitle>
               <Badge variant="secondary" className="text-[10px] py-0 px-1.5 h-4">
                 1-Click Preset
@@ -771,7 +734,7 @@ export function AnnouncementsClient({
                       ? 'bg-red-600 text-white'
                       : selectedPreview.type === 'email'
                       ? 'bg-blue-600 text-white'
-                      : 'bg-[var(--color-plum-500)] text-white dark:text-[#00004E]'
+                      : 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E]'
                   }`}
                 >
                   <div className="flex items-start sm:items-center gap-3 min-w-0">
@@ -1085,7 +1048,7 @@ export function AnnouncementsClient({
             <Card
               key={item.id}
               className={`p-4 border transition-all hover:shadow-md cursor-pointer flex flex-col justify-between ${
-                selectedPreview?.id === item.id ? 'border-[var(--color-plum-500)] ring-1 ring-[var(--color-plum-500)]/20' : 'border-border/70'
+                selectedPreview?.id === item.id ? 'border-[#00004E] dark:border-[#D89A06] ring-1 ring-[#00004E]/20' : 'border-border/70'
               }`}
               onClick={() => setSelectedPreview(item)}
             >
@@ -1174,7 +1137,7 @@ export function AnnouncementsClient({
           <div>
             <SheetHeader className="pb-4 border-b border-border">
               <SheetTitle className="text-lg font-bold flex items-center gap-2">
-                <Radio className="w-5 h-5 text-[var(--color-plum-500)]" />
+                <Radio className="w-5 h-5 text-[#00004E] dark:text-[#D89A06]" />
                 {editingItem ? 'Edit Broadcast Dispatch' : 'Compose New Platform Broadcast'}
               </SheetTitle>
               <SheetDescription className="text-xs">
@@ -1194,11 +1157,11 @@ export function AnnouncementsClient({
                     onClick={() => setComposerType('banner')}
                     className={`p-3 rounded-lg border text-left transition-all flex items-start gap-2.5 ${
                       composerType === 'banner'
-                        ? 'border-[var(--color-plum-500)] bg-[var(--color-plum-500)]/5 text-foreground'
+                        ? 'border-[#00004E] dark:border-[#D89A06] bg-[#00004E]/5 dark:bg-white/5 text-foreground'
                         : 'border-border hover:bg-muted/30 text-muted-foreground'
                     }`}
                   >
-                    <LayoutTemplate className="w-4 h-4 text-[var(--color-plum-500)] shrink-0 mt-0.5" />
+                    <LayoutTemplate className="w-4 h-4 text-[#00004E] dark:text-[#D89A06] shrink-0 mt-0.5" />
                     <div>
                       <div className="text-xs font-semibold text-foreground">Top Banner</div>
                       <div className="text-[11px] text-muted-foreground leading-tight">Persistent dashboard alert</div>
@@ -1413,7 +1376,7 @@ export function AnnouncementsClient({
                       ? 'bg-red-600'
                       : composerType === 'email'
                       ? 'bg-blue-600'
-                      : 'bg-[var(--color-plum-500)]'
+                      : 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E]'
                   }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -1451,7 +1414,7 @@ export function AnnouncementsClient({
               size="sm"
               onClick={handleSaveAnnouncement}
               disabled={isSubmitting || !composerTitle.trim() || !composerBody.trim()}
-              className="bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white dark:text-[#00004E] font-semibold gap-1.5 shadow-sm"
+              className="bg-[#00004E] hover:bg-[#00004E]/90 dark:bg-[#D89A06] dark:hover:bg-[#D89A06]/90 text-white dark:text-[#00004E] font-semibold gap-1.5 shadow-sm"
             >
               <Send className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Launching...' : editingItem ? 'Save Changes' : 'Dispatch Broadcast'}</span>
@@ -1505,40 +1468,16 @@ export function AnnouncementsClient({
       </Dialog>
 
       {/* 9. Delete Confirmation Dialog */}
-      <Dialog open={!!deleteId} onOpenChange={open => !open && setDeleteId(null)}>
-        <DialogContent className="sm:max-w-[420px]">
-          <DialogHeader>
-            <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 flex items-center justify-center mb-2">
-              <Trash2 className="w-5 h-5" />
-            </div>
-            <DialogTitle className="text-base font-bold">Retract & Delete Announcement?</DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
-              This will immediately remove the announcement banner from all student dashboards. Past email broadcasts already sent to student inboxes cannot be retracted.
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogFooter className="gap-2 sm:gap-0 pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setDeleteId(null)}
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={confirmDelete}
-              disabled={isDeleting}
-              className="gap-1.5"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>{isDeleting ? 'Deleting...' : 'Delete Announcement'}</span>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmActionDialog
+        isOpen={Boolean(deleteId)}
+        onClose={() => setDeleteId(null)}
+        onConfirm={confirmDelete}
+        title="Retract & Delete Announcement?"
+        description="This will immediately remove the announcement banner from all student dashboards. Past email broadcasts already sent to student inboxes cannot be retracted."
+        confirmText="Delete Announcement"
+        variant="destructive"
+        isLoading={isDeleting}
+      />
     </div>
   )
 }

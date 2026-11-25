@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { analyzeEssayDraftMetrics } from '../../../../../shared/lib/essayGrader';
+import { RadialRing } from '@/components/ui/sparkline';
 import { cn } from '@/lib/utils';
 
 interface GradingReport {
@@ -793,7 +794,7 @@ export default function EssayGraderPage() {
                       </span>
                     </div>
                     <span className="font-mono text-muted-foreground">
-                      Hemingway Syntax Inspector
+                      Sentence Length X-Ray
                     </span>
                   </div>
 
@@ -1080,7 +1081,7 @@ export default function EssayGraderPage() {
                   </h3>
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     Submit your prompt and draft on the left (or load one of the 4 academic
-                    discipline samples above) to receive a 4-axis Turnitin-style rubric breakdown
+                    discipline samples above) to receive a 4-axis university rubric breakdown
                     plus a live-streamed 100/100 model revision.
                   </p>
                 </div>
@@ -1095,18 +1096,17 @@ export default function EssayGraderPage() {
               </div>
             ) : outputTab === 'rubric' ? (
               <div className="flex-1 space-y-4 overflow-y-auto pr-1">
-                {/* Score Banner + 4-Axis Rubric Bars */}
+                {/* Score Banner + 4-Axis SVG Rubric Diamond Radar */}
                 <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-2xl border-2 border-primary bg-background flex flex-col items-center justify-center shrink-0">
-                        <span className="text-2xl font-bold text-primary leading-none">
-                          {report.grade}
-                        </span>
-                        <span className="text-[10px] font-mono text-muted-foreground mt-1">
-                          GRADE
-                        </span>
-                      </div>
+                      <RadialRing
+                        value={report.score}
+                        size={64}
+                        strokeWidth={5}
+                        color={report.score >= 75 ? '#10B981' : '#D89A06'}
+                        label={report.grade}
+                      />
                       <div>
                         <div className="flex items-baseline gap-2">
                           <span className="text-2xl font-bold font-mono tabular-nums text-foreground">
@@ -1132,39 +1132,90 @@ export default function EssayGraderPage() {
                     </button>
                   </div>
 
-                  {/* 4-Axis Progress Bars */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/70">
-                    {[
-                      { label: 'Thesis & Argument', value: report.thesis_score ?? report.score },
-                      { label: 'Evidence & Rigor', value: report.evidence_score ?? report.score },
-                      { label: 'Structure & Flow', value: report.structure_score ?? report.score },
-                      { label: 'Grammar & Diction', value: report.grammar_score ?? report.score },
-                    ].map((axis) => (
-                      <div
-                        key={axis.label}
-                        className="rounded-xl border border-border/70 bg-background/70 p-2.5 space-y-1.5"
-                      >
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-medium text-foreground">{axis.label}</span>
-                          <span className="font-mono font-bold tabular-nums text-foreground">
-                            {axis.value}%
-                          </span>
+                  {/* 4-Axis SVG Diamond Radar + Bars */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center pt-3 border-t border-border/70">
+                    <div className="sm:col-span-5 flex items-center justify-center">
+                      {(() => {
+                        const t = ((report.thesis_score ?? report.score) / 100) * 52;
+                        const ev = ((report.evidence_score ?? report.score) / 100) * 52;
+                        const st = ((report.structure_score ?? report.score) / 100) * 52;
+                        const gr = ((report.grammar_score ?? report.score) / 100) * 52;
+                        const poly = `80,${80 - t} ${80 + ev},80 80,${80 + st} ${80 - gr},80`;
+                        return (
+                          <svg viewBox="0 0 160 160" className="w-36 h-36">
+                            <polygon
+                              points="80,28 132,80 80,132 28,80"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeOpacity="0.18"
+                              strokeWidth="1"
+                            />
+                            <polygon
+                              points="80,54 106,80 80,106 54,80"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeOpacity="0.12"
+                              strokeWidth="1"
+                            />
+                            <line x1="80" y1="28" x2="80" y2="132" stroke="currentColor" strokeOpacity="0.14" />
+                            <line x1="28" y1="80" x2="132" y2="80" stroke="currentColor" strokeOpacity="0.14" />
+                            <polygon
+                              points={poly}
+                              fill="#D89A06"
+                              fillOpacity="0.24"
+                              stroke="#D89A06"
+                              strokeWidth="2"
+                            />
+                            <text x="80" y="18" textAnchor="middle" className="fill-muted-foreground text-[9px] font-mono">
+                              Thesis
+                            </text>
+                            <text x="146" y="83" textAnchor="middle" className="fill-muted-foreground text-[9px] font-mono">
+                              Evid
+                            </text>
+                            <text x="80" y="148" textAnchor="middle" className="fill-muted-foreground text-[9px] font-mono">
+                              Struct
+                            </text>
+                            <text x="14" y="83" textAnchor="middle" className="fill-muted-foreground text-[9px] font-mono">
+                              Clarity
+                            </text>
+                          </svg>
+                        );
+                      })()}
+                    </div>
+
+                    <div className="sm:col-span-7 grid grid-cols-1 gap-2">
+                      {[
+                        { label: 'Thesis & Argument', value: report.thesis_score ?? report.score },
+                        { label: 'Evidence & Rigor', value: report.evidence_score ?? report.score },
+                        { label: 'Structure & Flow', value: report.structure_score ?? report.score },
+                        { label: 'Grammar & Diction', value: report.grammar_score ?? report.score },
+                      ].map((axis) => (
+                        <div
+                          key={axis.label}
+                          className="rounded-xl border border-border/70 bg-background/70 px-3 py-2 space-y-1"
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-medium text-foreground">{axis.label}</span>
+                            <span className="font-mono font-bold tabular-nums text-foreground">
+                              {axis.value}%
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className={cn(
+                                'h-full rounded-full transition-all duration-300',
+                                axis.value >= 85
+                                  ? 'bg-emerald-500'
+                                  : axis.value >= 70
+                                  ? 'bg-[#00004E] dark:bg-[#D89A06]'
+                                  : 'bg-amber-500'
+                              )}
+                              style={{ width: `${Math.min(100, Math.max(0, axis.value))}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className={cn(
-                              'h-full rounded-full transition-all duration-300',
-                              axis.value >= 85
-                                ? 'bg-emerald-500'
-                                : axis.value >= 70
-                                ? 'bg-primary'
-                                : 'bg-amber-500'
-                            )}
-                            style={{ width: `${Math.min(100, Math.max(0, axis.value))}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
 

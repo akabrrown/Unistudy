@@ -36,7 +36,11 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { motion } from 'motion/react';
+import { SPRING_SNAPPY, useAppReducedMotion } from '@/lib/motion';
 import { cn, formatAcademicLevel } from '@/lib/utils';
+import { CopyableId } from '@/components/ui/copyable-id';
+import { RadialRing } from '@/components/ui/sparkline';
 import { AvatarEditor } from './AvatarEditor';
 import { AcademicSettingsForm } from './AcademicSettingsForm';
 import { CalibrateTutorDialog } from '@/components/chat/CalibrateTutorDialog';
@@ -160,6 +164,8 @@ export function ProfileStudioClient({
   const [submittingVark, setSubmittingVark] = useState(false);
 
   const [copiedId, setCopiedId] = useState(false);
+  const [loadingVark, setLoadingVark] = useState(true);
+  const reducedMotion = useAppReducedMotion();
 
   useEffect(() => {
     let active = true;
@@ -170,7 +176,10 @@ export function ProfileStudioClient({
           setVarkQuestions(data.questions);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (active) setLoadingVark(false);
+      });
     return () => {
       active = false;
     };
@@ -389,10 +398,10 @@ export function ProfileStudioClient({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `unistudy-scholar-dossier-${profile.username || 'profile'}.json`;
+    a.download = `unistudy-profile-${profile.username || 'backup'}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success('Exported Scholar Dossier JSON');
+    toast.success('Account data exported as JSON');
   };
 
   const handleCopyScholarId = async () => {
@@ -471,34 +480,41 @@ export function ProfileStudioClient({
             ] as const
           ).map((tab) => {
             const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors cursor-pointer',
-                  activeTab === tab.id
-                    ? 'bg-background text-foreground shadow-xs border border-border/60'
+                  'relative inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors cursor-pointer',
+                  isActive
+                    ? 'text-foreground'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                <Icon className="w-3.5 h-3.5 text-primary" />
-                {tab.label}
+                {isActive && (
+                  <motion.span
+                    layoutId="profile-studio-active-tab"
+                    transition={reducedMotion ? { duration: 0 } : SPRING_SNAPPY}
+                    className="absolute inset-0 rounded-lg bg-background shadow-xs border border-border/60"
+                  />
+                )}
+                <Icon className="relative z-10 w-3.5 h-3.5 text-primary" />
+                <span className="relative z-10">{tab.label}</span>
               </button>
             );
           })}
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
-          <span>Dossier Completeness:</span>
-          <span className="font-bold text-primary">{completeness.pct}%</span>
-          <div className="w-24 h-2 rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${completeness.pct}%` }}
-            />
-          </div>
+        <div className="flex items-center gap-2.5 text-xs font-mono text-muted-foreground tabular-nums">
+          <span>Profile Completeness</span>
+          <RadialRing
+            percent={completeness.pct}
+            size={34}
+            strokeWidth={3.5}
+            label={`${completeness.pct}%`}
+          />
         </div>
       </div>
 
@@ -645,12 +661,12 @@ export function ProfileStudioClient({
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-muted-foreground flex items-center gap-1.5">
                       <Brain className="w-3.5 h-3.5" />
-                      Cognitive Modality
+                      Learning Style
                     </span>
                     <span className="font-mono font-semibold text-primary capitalize">
                       {profile.learning_style
                         ? profile.learning_style.replace('_', '/')
-                        : 'Uncalibrated'}
+                        : 'Not set'}
                     </span>
                   </div>
                 </div>
@@ -669,11 +685,11 @@ export function ProfileStudioClient({
               </div>
             </div>
 
-            {/* Profile Completeness Audit */}
+            {/* Profile Completeness Checklist */}
             <div className="rounded-2xl border border-border/80 bg-card p-5 space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-foreground">Dossier Readiness Audit</h3>
-                <span className="text-xs font-mono font-bold text-primary">
+                <h3 className="text-sm font-bold text-foreground">Profile Completeness</h3>
+                <span className="text-xs font-mono font-bold text-primary tabular-nums">
                   {completeness.completedCount}/{completeness.total}
                 </span>
               </div>
@@ -706,30 +722,30 @@ export function ProfileStudioClient({
         </section>
       )}
 
-      {/* TAB 2: AI TUTOR PEDAGOGY & VARK MODALITY DIAGNOSTIC */}
+      {/* TAB 2: TUTOR STYLE & VARK LEARNING DIAGNOSTIC */}
       {activeTab === 'pedagogy' && (
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left 6 Cols: Mr. Ranedeer AI Tutor Pedagogy Configurator */}
+          {/* Left 6 Cols: Study Tutor Style Configurator */}
           <div className="lg:col-span-6 rounded-2xl border border-border/80 bg-card p-5 md:p-6 space-y-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-base font-bold text-foreground flex items-center gap-2">
                   <Bot className="w-4 h-4 text-primary" />
-                  AI Tutor Pedagogy Calibration
+                  Tutor Style &amp; Depth
                 </h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Configure how your lecture AI Tutor structures explanations, `/test` practice
-                  drills, and `/plan` prerequisite roadmaps.
+                  Choose how your study tutor structures explanations, `/test` practice drills, and
+                  `/plan` study roadmaps.
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsCalibrateOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-[#D89A06]/50 bg-[#FEF8E7] dark:bg-white/5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7] transition-all cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/40 hover:bg-muted text-xs font-semibold text-foreground transition-colors cursor-pointer"
                 >
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-[#D89A06]" />
-                  <span>Calibrate Persona &amp; Tone</span>
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
+                  <span>Advanced Tutor Options</span>
                 </button>
               </div>
             </div>
@@ -737,21 +753,21 @@ export function ProfileStudioClient({
             <form onSubmit={(e) => void handleSavePedagogy(e)} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground block">
-                  AI Tutor Designation / Name
+                  Tutor Name
                 </label>
                 <input
                   type="text"
                   value={tutorName}
                   onChange={(e) => setTutorName(e.target.value)}
                   maxLength={30}
-                  placeholder="e.g. Uni, Prof. Euler, Athena"
+                  placeholder="e.g. Uni, Prof. Mensah, Athena"
                   className="w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground block">
-                  Pedagogical Demeanor
+                  Teaching Style
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {(
@@ -835,12 +851,12 @@ export function ProfileStudioClient({
 
               <div className="space-y-1.5">
                 <label className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground block">
-                  Discourse Register
+                  Writing Tone
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {(
                     [
-                      { id: 'academic', label: 'Formal Academic Register' },
+                      { id: 'academic', label: 'Formal Academic' },
                       { id: 'casual', label: 'Conversational Study Partner' },
                     ] as const
                   ).map((t) => (
@@ -866,7 +882,7 @@ export function ProfileStudioClient({
                   href="/dashboard/settings/accessibility"
                   className="text-xs text-primary hover:underline inline-flex items-center gap-1"
                 >
-                  Open Full Accessibility &amp; Font Suite
+                  Open Display &amp; Font Preferences
                   <ArrowUpRight className="w-3.5 h-3.5" />
                 </Link>
                 <button
@@ -875,23 +891,23 @@ export function ProfileStudioClient({
                   className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  {savingPedagogy ? 'Saving...' : 'Save AI Pedagogy'}
+                  {savingPedagogy ? 'Saving...' : 'Save Tutor Style'}
                 </button>
               </div>
             </form>
           </div>
 
-          {/* Right 6 Cols: Interactive VARK Cognitive Modality Diagnostic */}
+          {/* Right 6 Cols: Interactive VARK Learning Style Diagnostic + 4-Axis SVG Radar */}
           <div className="lg:col-span-6 rounded-2xl border border-border/80 bg-card p-5 md:p-6 space-y-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-base font-bold text-foreground flex items-center gap-2">
                   <Brain className="w-4 h-4 text-emerald-500" />
-                  VARK Cognitive Learning Diagnostic
+                  VARK Learning Style Quiz
                 </h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Answer 5 rapid study-preference scenarios to calibrate your primary cognitive
-                  modality (Visual, Auditory, Reading/Writing, or Kinaesthetic).
+                  Answer 5 study-preference scenarios to tailor explanations to Visual, Auditory,
+                  Reading/Writing, or Kinaesthetic strengths.
                 </p>
               </div>
               {currentLearningStyleMeta && (
@@ -906,59 +922,130 @@ export function ProfileStudioClient({
               )}
             </div>
 
-            {currentLearningStyleMeta && (
-              <div
-                className={cn(
-                  'rounded-xl border p-3.5 flex items-start gap-3',
-                  currentLearningStyleMeta.color
-                )}
-              >
-                <currentLearningStyleMeta.icon className="w-5 h-5 shrink-0 mt-0.5" />
-                <div className="space-y-0.5">
-                  <p className="text-xs font-bold text-foreground">
-                    Active Profile: {currentLearningStyleMeta.label}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {currentLearningStyleMeta.description}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
-              {varkQuestions.map((q, idx) => (
-                <div
-                  key={q.id}
-                  className="rounded-xl border border-border/70 bg-muted/15 p-3.5 space-y-2.5"
-                >
-                  <p className="text-xs font-bold text-foreground">
-                    <span className="font-mono text-primary mr-1.5">Q{idx + 1}.</span>
-                    {q.q}
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    {q.options.map((opt) => {
-                      const selected = varkAnswers[String(q.id)] === opt.style;
-                      return (
-                        <button
-                          key={opt.style}
-                          type="button"
-                          onClick={() =>
-                            setVarkAnswers((prev) => ({ ...prev, [String(q.id)]: opt.style }))
-                          }
-                          className={cn(
-                            'rounded-lg border px-2.5 py-2 text-left text-xs transition-colors cursor-pointer',
-                            selected
-                              ? 'border-primary bg-primary/15 text-foreground font-semibold'
-                              : 'border-border bg-background hover:bg-muted/50 text-muted-foreground hover:text-foreground'
-                          )}
-                        >
-                          {opt.a}
-                        </button>
-                      );
-                    })}
+            {(currentLearningStyleMeta || varkCounts) && (() => {
+              const rawV = varkCounts?.visual ?? (profile.learning_style === 'visual' ? 4 : 2);
+              const rawA = varkCounts?.auditory ?? (profile.learning_style === 'auditory' ? 4 : 2);
+              const rawR = varkCounts?.reading_writing ?? (profile.learning_style === 'reading_writing' ? 4 : 2);
+              const rawK = varkCounts?.kinaesthetic ?? (profile.learning_style === 'kinaesthetic' ? 4 : 2);
+              const cx = 80;
+              const cy = 80;
+              const maxR = 54;
+              const norm = (n: number) => Math.max(0.22, Math.min(1, n / 5));
+              const pts = [
+                `${cx},${cy - maxR * norm(rawV)}`,
+                `${cx + maxR * norm(rawA)},${cy}`,
+                `${cx},${cy + maxR * norm(rawR)}`,
+                `${cx - maxR * norm(rawK)},${cy}`,
+              ].join(' ');
+              return (
+                <div className="rounded-xl border border-border/70 bg-muted/15 p-4 flex flex-col sm:flex-row items-center gap-4">
+                  <svg
+                    width="160"
+                    height="160"
+                    viewBox="0 0 160 160"
+                    className="shrink-0 overflow-visible"
+                    aria-label="4-axis VARK learning modality radar"
+                  >
+                    {[0.35, 0.7, 1].map((ring) => (
+                      <polygon
+                        key={ring}
+                        points={`${cx},${cy - maxR * ring} ${cx + maxR * ring},${cy} ${cx},${cy + maxR * ring} ${cx - maxR * ring},${cy}`}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1"
+                        className="text-border"
+                      />
+                    ))}
+                    <line x1={cx} y1={cy - maxR} x2={cx} y2={cy + maxR} stroke="currentColor" strokeWidth="1" className="text-border/70" />
+                    <line x1={cx - maxR} y1={cy} x2={cx + maxR} y2={cy} stroke="currentColor" strokeWidth="1" className="text-border/70" />
+                    <polygon
+                      points={pts}
+                      fill="#D89A06"
+                      fillOpacity="0.22"
+                      stroke="#D89A06"
+                      strokeWidth="2"
+                      strokeLinejoin="round"
+                    />
+                    <text x={cx} y={16} textAnchor="middle" className="fill-foreground text-[9px] font-mono font-bold">
+                      Visual ({rawV})
+                    </text>
+                    <text x={154} y={cy + 3} textAnchor="end" className="fill-foreground text-[9px] font-mono font-bold">
+                      Aud ({rawA})
+                    </text>
+                    <text x={cx} y={152} textAnchor="middle" className="fill-foreground text-[9px] font-mono font-bold">
+                      Read ({rawR})
+                    </text>
+                    <text x={6} y={cy + 3} textAnchor="start" className="fill-foreground text-[9px] font-mono font-bold">
+                      Kin ({rawK})
+                    </text>
+                  </svg>
+                  <div className="space-y-1.5 text-left flex-1">
+                    {currentLearningStyleMeta && (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <currentLearningStyleMeta.icon className="w-4 h-4 text-primary shrink-0" />
+                          <span className="text-xs font-bold text-foreground">
+                            {currentLearningStyleMeta.label}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {currentLearningStyleMeta.description}
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
-              ))}
+              );
+            })()}
+
+            <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
+              {loadingVark ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="rounded-xl border border-border/60 p-4 space-y-2.5 animate-pulse">
+                      <div className="h-3.5 w-3/4 rounded bg-muted" />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="h-8 rounded-lg bg-muted/70" />
+                        <div className="h-8 rounded-lg bg-muted/70" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                varkQuestions.map((q, idx) => (
+                  <div
+                    key={q.id}
+                    className="rounded-xl border border-border/70 bg-muted/15 p-3.5 space-y-2.5"
+                  >
+                    <p className="text-xs font-bold text-foreground">
+                      <span className="font-mono text-primary mr-1.5">Q{idx + 1}.</span>
+                      {q.q}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {q.options.map((opt) => {
+                        const selected = varkAnswers[String(q.id)] === opt.style;
+                        return (
+                          <button
+                            key={opt.style}
+                            type="button"
+                            onClick={() =>
+                              setVarkAnswers((prev) => ({ ...prev, [String(q.id)]: opt.style }))
+                            }
+                            className={cn(
+                              'rounded-lg border px-2.5 py-2 text-left text-xs transition-colors cursor-pointer',
+                              selected
+                                ? 'border-primary bg-primary/15 text-foreground font-semibold'
+                                : 'border-border bg-background hover:bg-muted/50 text-muted-foreground hover:text-foreground'
+                            )}
+                          >
+                            {opt.a}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
             {varkCounts && (
@@ -1112,7 +1199,7 @@ export function ProfileStudioClient({
         </section>
       )}
 
-      {/* TAB 4: CREDENTIALS, SECURITY & PORTABILITY */}
+      {/* TAB 4: ACCOUNT, SECURITY & DATA EXPORT */}
       {activeTab === 'security' && (
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-6 rounded-2xl border border-border/80 bg-card p-6 space-y-4">
@@ -1122,37 +1209,40 @@ export function ProfileStudioClient({
               </div>
               <div>
                 <h2 className="text-base font-bold text-foreground">
-                  Session &amp; Row-Level Security Status
+                  Account &amp; Session Security
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Supabase GoTrue JWT authentication with strict per-record RLS isolation.
+                  Your courses, notes, and attempts are isolated to your student account.
                 </p>
               </div>
             </div>
 
             <div className="space-y-2.5 pt-2 text-xs">
-              <div className="rounded-xl border border-border/70 bg-muted/20 p-3 flex items-center justify-between">
-                <span className="text-muted-foreground">Account UUID</span>
-                <span className="font-mono text-foreground">{profile.id}</span>
+              <div className="rounded-xl border border-border/70 bg-muted/20 p-3 flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Account ID</span>
+                <CopyableId value={profile.id} truncateLength={10} toastMessage="Account ID copied" />
               </div>
               <div className="rounded-xl border border-border/70 bg-muted/20 p-3 flex items-center justify-between">
-                <span className="text-muted-foreground">Primary Authentication Email</span>
+                <span className="text-muted-foreground">Verified Email</span>
                 <span className="font-mono text-foreground">{profile.email || 'Verified'}</span>
               </div>
               <div className="rounded-xl border border-border/70 bg-muted/20 p-3 flex items-center justify-between">
-                <span className="text-muted-foreground">Access Role</span>
+                <span className="text-muted-foreground">Account Role</span>
                 <span className="font-mono uppercase font-bold text-primary">
                   {profile.role || 'student'}
                 </span>
               </div>
               <div className="rounded-xl border border-border/70 bg-muted/20 p-3 flex items-center justify-between">
-                <span className="text-muted-foreground">Wallet Credit Balance</span>
+                <span className="text-muted-foreground">Study Credits</span>
                 <Link
                   href="/dashboard/settings/billing"
-                  className="font-mono font-bold text-primary hover:underline inline-flex items-center gap-1"
+                  className="font-mono font-bold text-primary hover:underline inline-flex items-center gap-1 tabular-nums"
                 >
                   <Coins className="w-3.5 h-3.5" />
-                  {stats.walletBalance.toLocaleString()} credits
+                  {(stats.walletBalance > 500
+                    ? (stats.walletBalance / 100).toFixed(2).replace(/\.00$/, '')
+                    : String(stats.walletBalance))}{' '}
+                  credits
                 </Link>
               </div>
             </div>
@@ -1166,11 +1256,10 @@ export function ProfileStudioClient({
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-foreground">
-                    Scholar Data Portability (JSON Export)
+                    Account Data Export (JSON)
                   </h2>
                   <p className="text-xs text-muted-foreground">
-                    Download a complete machine-readable snapshot of your academic profile, AI
-                    pedagogy calibration, and milestone records.
+                    Download a portable copy of your academic profile, tutor settings, and study milestones.
                   </p>
                 </div>
               </div>

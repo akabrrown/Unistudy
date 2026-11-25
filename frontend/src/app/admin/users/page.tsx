@@ -44,8 +44,15 @@ import {
   Calendar,
   X,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { AdminMetricCard } from '@/components/admin/AdminMetricCard';
+import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog';
+import { CopyableId } from '@/components/ui/copyable-id';
 import { apiFetch } from '@/lib/api/client';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -81,6 +88,17 @@ export default function AdminUsersPage() {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 25;
+
+  // Confirmation Dialog State
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
 
   const computeStats = (userList: any[]) => ({
     total: userList.length,
@@ -216,13 +234,13 @@ export default function AdminUsersPage() {
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to permanently delete this user account? This cannot be undone.')) return;
+  const executeDeleteUser = async (userId: string) => {
     setUpdating(true);
     try {
       await apiFetch(`/admin/users/${userId}`, { method: 'DELETE' });
       toast.success('User account permanently deleted');
       setSelectedUser(null);
+      setConfirmDialog(null);
       await fetchUsers();
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete user');
@@ -231,10 +249,18 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleDeleteUser = (userId: string) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Permanently delete user account?',
+      description: 'This permanently removes the user account, enrolled course records, and authentication credentials. This action cannot be undone.',
+      confirmLabel: 'Delete Account',
+      onConfirm: () => executeDeleteUser(userId),
+    });
+  };
+
   // Batch Handlers
-  const handleBatchRole = async (role: 'student' | 'admin' | 'suspended') => {
-    if (selectedUserIds.length === 0) return;
-    if (role === 'suspended' && !confirm(`Suspend ${selectedUserIds.length} selected accounts?`)) return;
+  const executeBatchRole = async (role: 'student' | 'admin' | 'suspended') => {
     setBatchActionLoading(true);
     try {
       await apiFetch('/admin/users/batch-role', {
@@ -243,12 +269,28 @@ export default function AdminUsersPage() {
       });
       toast.success(`Updated role to ${role} for ${selectedUserIds.length} users`);
       setSelectedUserIds([]);
+      setConfirmDialog(null);
       await fetchUsers();
     } catch (err: any) {
       toast.error(err.message || 'Batch role update failed');
     } finally {
       setBatchActionLoading(false);
     }
+  };
+
+  const handleBatchRole = async (role: 'student' | 'admin' | 'suspended') => {
+    if (selectedUserIds.length === 0) return;
+    if (role === 'suspended') {
+      setConfirmDialog({
+        open: true,
+        title: `Suspend ${selectedUserIds.length} selected accounts?`,
+        description: 'Suspended accounts lose access to student dashboards and AI endpoints immediately until unsuspended.',
+        confirmLabel: 'Suspend Accounts',
+        onConfirm: () => executeBatchRole('suspended'),
+      });
+      return;
+    }
+    await executeBatchRole(role);
   };
 
   const handleBatchPlan = async (plan: 'free' | 'pro' | 'ultra') => {
@@ -403,11 +445,29 @@ export default function AdminUsersPage() {
     toast.success(`Exported ${listToExport.length} accounts to CSV`);
   };
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [cohortTab, searchTerm, facultyFilter, planFilter, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedUsers.length / PAGE_SIZE));
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredAndSortedUsers.slice(start, start + PAGE_SIZE);
+  }, [filteredAndSortedUsers, currentPage]);
+
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground font-mono">Synchronizing directory register...</p>
+      <div className="space-y-6 max-w-[1500px] mx-auto pb-12">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-9 w-64 rounded-lg" />
+          <Skeleton className="h-9 w-44 rounded-lg" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-[460px] rounded-xl" />
       </div>
     );
   }
@@ -415,131 +475,80 @@ export default function AdminUsersPage() {
   return (
     <div className="space-y-6 max-w-[1500px] mx-auto pb-12">
       {/* Header Section */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border/60 pb-5">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <Badge variant="outline" className="text-xs uppercase font-mono tracking-wider text-muted-foreground">
-              Directory & Access Control
-            </Badge>
-            <span className="text-xs text-muted-foreground">•</span>
-            <span className="text-xs font-mono text-muted-foreground">
-              {filteredAndSortedUsers.length} of {stats.total} accounts displayed
-            </span>
-          </div>
-          <h1 className="text-3xl font-extrabold tracking-tight">User Management</h1>
-          <p className="text-muted-foreground text-sm max-w-2xl mt-0.5">
-            Manage student & administrator credentials, academic affiliations, subscription tiers, and security policies.
-          </p>
-        </div>
+      <AdminPageHeader
+        title="User Directory"
+        count={stats.total}
+        subtitle="Manage student and administrator credentials, academic affiliations, subscription tiers, and account policies."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportUsersCsv(false)}
+              className="h-9 gap-2 text-xs font-medium cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export CSV
+            </Button>
 
-        <div className="flex items-center gap-2.5">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => exportUsersCsv(false)}
-            className="h-9 gap-2 text-xs font-medium"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export Directory CSV
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchUsers(true)}
-            disabled={refreshing}
-            className="h-9 gap-2 text-xs font-medium"
-          >
-            <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
-            Sync
-          </Button>
-        </div>
-      </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchUsers(true)}
+              disabled={refreshing}
+              className="h-9 gap-2 text-xs font-medium cursor-pointer"
+            >
+              <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
+              Sync
+            </Button>
+          </>
+        }
+      />
 
       {/* Cohort Stats Ribbon */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Card
+        <AdminMetricCard
+          label="Total Users"
+          value={stats.total}
+          subtext="All registrations"
+          icon={Users}
+          active={cohortTab === 'all'}
           onClick={() => setCohortTab('all')}
-          className={cn(
-            "p-4 cursor-pointer transition-all hover:border-primary/50 relative overflow-hidden",
-            cohortTab === 'all' ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "bg-card"
-          )}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Users</span>
-            <Users className="w-4 h-4 text-muted-foreground" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight">{stats.total}</div>
-          <p className="text-[11px] text-muted-foreground mt-1">All platform registrations</p>
-        </Card>
-
-        <Card
+        />
+        <AdminMetricCard
+          label="Students"
+          value={stats.students}
+          subtext={`${stats.total > 0 ? Math.round((stats.students / stats.total) * 100) : 0}% of accounts`}
+          icon={GraduationCap}
+          active={cohortTab === 'students'}
           onClick={() => setCohortTab('students')}
-          className={cn(
-            "p-4 cursor-pointer transition-all hover:border-slate-400 relative overflow-hidden",
-            cohortTab === 'students' ? "border-slate-500 bg-slate-500/10 ring-1 ring-slate-500/20" : "bg-card"
-          )}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Students</span>
-            <GraduationCap className="w-4 h-4 text-primary" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight">{stats.students}</div>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            {stats.total > 0 ? Math.round((stats.students / stats.total) * 100) : 0}% of student body
-          </p>
-        </Card>
-
-        <Card
+        />
+        <AdminMetricCard
+          label="Admins"
+          value={stats.admins}
+          subtext="Privileged access"
+          icon={Shield}
+          active={cohortTab === 'admins'}
           onClick={() => setCohortTab('admins')}
-          className={cn(
-            "p-4 cursor-pointer transition-all hover:border-[#D89A06]/50 relative overflow-hidden",
-            cohortTab === 'admins' ? "border-[#D89A06] bg-[#D89A06]/10 ring-1 ring-[#D89A06]/20" : "bg-card"
-          )}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Admins</span>
-            <Shield className="w-4 h-4 text-[#D89A06]" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-[#D89A06]">
-            {stats.admins}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">Full privileged access</p>
-        </Card>
-
-        <Card
+        />
+        <AdminMetricCard
+          label="Pro & Ultra"
+          value={stats.paid}
+          subtext="Active paid plans"
+          deltaTone="positive"
+          icon={Crown}
+          active={cohortTab === 'paid'}
           onClick={() => setCohortTab('paid')}
-          className={cn(
-            "p-4 cursor-pointer transition-all hover:border-emerald-500/50 relative overflow-hidden",
-            cohortTab === 'paid' ? "border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500/20" : "bg-card"
-          )}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pro & Ultra</span>
-            <Crown className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-emerald-600 dark:text-emerald-400">
-            {stats.paid}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">Active paid tier members</p>
-        </Card>
-
-        <Card
+        />
+        <AdminMetricCard
+          label="Suspended"
+          value={stats.suspended}
+          subtext="Restricted access"
+          deltaTone={stats.suspended > 0 ? 'negative' : 'neutral'}
+          icon={Ban}
+          active={cohortTab === 'suspended'}
           onClick={() => setCohortTab('suspended')}
-          className={cn(
-            "p-4 cursor-pointer transition-all hover:border-rose-500/50 relative overflow-hidden",
-            cohortTab === 'suspended' ? "border-rose-500 bg-rose-500/10 ring-1 ring-rose-500/20" : "bg-card"
-          )}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Suspended</span>
-            <Ban className="w-4 h-4 text-rose-500" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-rose-600 dark:text-rose-400">
-            {stats.suspended}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">Restricted accounts</p>
-        </Card>
+        />
       </div>
 
       {/* Control Deck: Search, Filters, Cohort Segment */}
@@ -746,7 +755,7 @@ export default function AdminUsersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
-              {filteredAndSortedUsers.map((user) => {
+              {paginatedUsers.map((user) => {
                 const isSelected = selectedUserIds.includes(user.id);
                 const activeSub = Array.isArray(user.subscriptions)
                   ? user.subscriptions.find((s: any) => s.status === 'active')
@@ -880,7 +889,7 @@ export default function AdminUsersPage() {
                             User Operations
                           </DropdownMenuLabel>
                           <DropdownMenuItem onClick={() => handleOpenUser(user)} className="gap-2">
-                            <ArrowUpRight className="w-3.5 h-3.5" /> View Dossier
+                            <ArrowUpRight className="w-3.5 h-3.5" /> View Account
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleCopy(user.id, 'User ID')} className="gap-2">
                             <Copy className="w-3.5 h-3.5" /> Copy UID
@@ -967,9 +976,39 @@ export default function AdminUsersPage() {
             </tbody>
           </table>
         </div>
+        {filteredAndSortedUsers.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border/60 text-xs text-muted-foreground">
+            <span className="tabular-nums">
+              Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredAndSortedUsers.length)} of {filteredAndSortedUsers.length} accounts
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="h-8 px-2.5 text-xs gap-1 cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" /> Previous
+              </Button>
+              <span className="font-mono font-medium text-foreground tabular-nums px-1">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="h-8 px-2.5 text-xs gap-1 cursor-pointer"
+              >
+                Next <ChevronRight className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
-      {/* Deepened User Profile Dossier Drawer */}
+      {/* Account Profile Drawer */}
       <Sheet open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
         <SheetContent className="w-full sm:max-w-xl md:max-w-2xl overflow-y-auto bg-background p-0 border-l border-border flex flex-col">
           {selectedUser && (
@@ -1022,17 +1061,8 @@ export default function AdminUsersPage() {
                 {/* UID pill & created info */}
                 <div className="flex items-center justify-between gap-2 mt-4 pt-3 border-t border-border/50 text-[11px] text-muted-foreground">
                   <div className="flex items-center gap-1.5 font-mono">
-                    <span>UID: {selectedUser.id}</span>
-                    <button
-                      onClick={() => handleCopy(selectedUser.id, 'User ID')}
-                      className="hover:text-foreground text-muted-foreground"
-                    >
-                      {copiedId === selectedUser.id ? (
-                        <Check className="w-3 h-3 text-emerald-500" />
-                      ) : (
-                        <Copy className="w-3 h-3" />
-                      )}
-                    </button>
+                    <span>UID:</span>
+                    <CopyableId value={selectedUser.id} truncateLength={12} toastMessage="User ID copied" />
                   </div>
                   <span>
                     Joined {format(new Date(selectedUser.created_at), 'MMM d, yyyy (p)')}
@@ -1318,6 +1348,16 @@ export default function AdminUsersPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      <ConfirmActionDialog
+        open={!!confirmDialog?.open}
+        onOpenChange={(open) => !open && setConfirmDialog(null)}
+        title={confirmDialog?.title || ''}
+        description={confirmDialog?.description || ''}
+        confirmLabel={confirmDialog?.confirmLabel || 'Confirm'}
+        loading={updating || batchActionLoading}
+        onConfirm={() => confirmDialog?.onConfirm()}
+      />
     </div>
   );
 }

@@ -1,9 +1,8 @@
 import Link from 'next/link';
 import { signup } from '../actions';
-import { Button } from '@/components/ui/button';
 import { AuthSubmitButton } from '../components/AuthSubmitButton';
 import { AuthSplitLayout } from '../components/AuthSplitLayout';
-import { AlertCircle, ArrowRight, Award } from 'lucide-react';
+import { AlertCircle, Award } from 'lucide-react';
 
 import { EmailField } from './components/EmailField';
 import { UsernameField } from './components/UsernameField';
@@ -15,22 +14,22 @@ export default async function SignupPage(props: { searchParams: Promise<{ error?
 
   return (
     <AuthSplitLayout
-      badge="Join the UPSA Cohort"
-      title="Unlock Your Academic Potential"
-      description="Create your student account to access AI study decks, intelligent past paper grading, and 20 free complimentary AI study credits."
+      badge="UPSA Student Cohort"
+      title="Start Your UPSA Study Workspace"
+      description="Organize semester lecture slides, practice past papers under exam timing, and receive 20 starter study credits."
     >
       <div className="space-y-6">
         {/* Header */}
         <div className="space-y-2 text-left">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#D89A06]/15 text-[#D89A06] dark:text-[#D89A06] text-[11px] font-bold">
-            <Award className="w-3 h-3" />
-            <span>Includes 20 Free AI Study Credits</span>
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#00004E] text-white dark:bg-[#D89A06]/15 dark:text-[#D89A06] text-[11px] font-semibold">
+            <Award className="w-3.5 h-3.5 text-[#D89A06] shrink-0" />
+            <span className="tabular-nums">20 Starter Study Credits Included</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
             Create Your Account
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Enter your student details to activate your UPSA scholar workspace.
+            Enter your student details to set up your courses and study tools.
           </p>
         </div>
 
@@ -52,8 +51,8 @@ export default async function SignupPage(props: { searchParams: Promise<{ error?
           <EmailField />
           <PasswordStrengthField />
 
-          <AuthSubmitButton loadingText="Creating your scholar account..." className="mt-4">
-            Create Scholar Account
+          <AuthSubmitButton loadingText="Creating account..." className="mt-4">
+            Create Account
           </AuthSubmitButton>
 
           <p className="text-[11px] text-muted-foreground text-center leading-relaxed pt-1">
@@ -69,7 +68,7 @@ export default async function SignupPage(props: { searchParams: Promise<{ error?
         </form>
 
         {/* Footer Toggle */}
-        <div className="pt-4 border-t border-border/60 text-center">
+        <div className="pt-4 border-t border-border/50 text-center">
           <p className="text-xs sm:text-sm text-muted-foreground">
             Already have an account?{' '}
             <Link

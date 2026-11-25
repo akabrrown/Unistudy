@@ -1,12 +1,11 @@
 import Link from 'next/link';
 import { login } from '../actions';
-import { Button } from '@/components/ui/button';
 import { AuthSubmitButton } from '../components/AuthSubmitButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
 import { AuthSplitLayout } from '../components/AuthSplitLayout';
-import { AlertCircle, Lock, Mail, ArrowRight } from 'lucide-react';
+import { AlertCircle, Lock, Mail } from 'lucide-react';
 
 export default async function LoginPage(props: { searchParams: Promise<{ error?: string }> }) {
   const searchParams = await props.searchParams;
@@ -14,17 +13,17 @@ export default async function LoginPage(props: { searchParams: Promise<{ error?:
   return (
     <AuthSplitLayout
       badge="UPSA Student Portal"
-      title="Master Your Courses with Grounded AI"
-      description="Access your personalized course decks, past examination papers, and real-time Socratic AI tutoring calibrated directly to your syllabus."
+      title="Resume Your Semester Coursework"
+      description="Open your lecture slides, spaced-repetition flashcards, and timed past examination papers in one workspace."
     >
       <div className="space-y-6">
         {/* Header */}
-        <div className="space-y-2 text-left">
+        <div className="space-y-1.5 text-left">
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
             Sign In to UniStudy
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Enter your university email and password to resume your study sessions.
+            Enter your university email and password to continue studying.
           </p>
         </div>
 
@@ -80,15 +79,15 @@ export default async function LoginPage(props: { searchParams: Promise<{ error?:
             </div>
           </div>
 
-          <AuthSubmitButton loadingText="Signing in to UniStudy...">
+          <AuthSubmitButton loadingText="Signing in...">
             Sign In
           </AuthSubmitButton>
         </form>
 
         {/* Footer Toggle */}
-        <div className="pt-4 border-t border-border/60 text-center">
+        <div className="pt-4 border-t border-border/50 text-center">
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Don&apos;t have a scholar account?{' '}
+            New to UniStudy?{' '}
             <Link
               href="/signup"
               className="font-bold text-[#00004E] dark:text-[#D89A06] hover:underline transition-colors"

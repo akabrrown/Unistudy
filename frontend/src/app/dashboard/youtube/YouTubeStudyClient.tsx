@@ -399,114 +399,63 @@ export function YouTubeStudyClient({
             </button>
           </form>
 
-          {/* Filter Pills Row: Mode, Duration, Sort */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-            <div className="space-y-1">
-              <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <Layers className="w-3 h-3 text-primary" />
-                Pedagogical Format
-              </label>
-              <div className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-muted/30 p-1">
-                {(
-                  [
-                    { id: 'lecture', label: 'Full Lecture' },
-                    { id: 'tutorial', label: 'Tutorial' },
-                    { id: 'exam', label: 'Exam Prep' },
-                    { id: 'raw', label: 'Exact Query' },
-                  ] as const
-                ).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      setAcademicMode(item.id);
-                      if (searchQuery.trim()) {
-                        void executeSearch(searchQuery, item.id, durationFilter, sortOrder);
-                      }
-                    }}
-                    className={cn(
-                      'rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors cursor-pointer',
-                      academicMode === item.id
-                        ? 'bg-background text-foreground shadow-xs border border-border/60'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
+          {/* Compact Single-Row Filter Strip so Video Cards Appear Above the Fold */}
+          <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
+            <div className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/30 px-2.5 py-1.5">
+              <Layers className="w-3.5 h-3.5 text-[#00004E] dark:text-[#D89A06]" />
+              <select
+                value={academicMode}
+                onChange={(e) => {
+                  const next = e.target.value as SearchAcademicMode;
+                  setAcademicMode(next);
+                  if (searchQuery.trim()) void executeSearch(searchQuery, next, durationFilter, sortOrder);
+                }}
+                aria-label="Lecture Format"
+                className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
+              >
+                <option value="lecture">Full Lecture</option>
+                <option value="tutorial">Tutorial</option>
+                <option value="exam">Exam Prep</option>
+                <option value="raw">Exact Query</option>
+              </select>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3 text-emerald-500" />
-                Lecture Duration
-              </label>
-              <div className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-muted/30 p-1">
-                {(
-                  [
-                    { id: 'any', label: 'Any Length' },
-                    { id: 'long', label: 'Long (>20m)' },
-                    { id: 'medium', label: 'Mid (4–20m)' },
-                    { id: 'short', label: 'Brief (<4m)' },
-                  ] as const
-                ).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      setDurationFilter(item.id);
-                      if (searchQuery.trim()) {
-                        void executeSearch(searchQuery, academicMode, item.id, sortOrder);
-                      }
-                    }}
-                    className={cn(
-                      'rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors cursor-pointer',
-                      durationFilter === item.id
-                        ? 'bg-background text-foreground shadow-xs border border-border/60'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
+            <div className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/30 px-2.5 py-1.5">
+              <Clock className="w-3.5 h-3.5 text-emerald-500" />
+              <select
+                value={durationFilter}
+                onChange={(e) => {
+                  const next = e.target.value as SearchDuration;
+                  setDurationFilter(next);
+                  if (searchQuery.trim()) void executeSearch(searchQuery, academicMode, next, sortOrder);
+                }}
+                aria-label="Lecture Duration"
+                className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
+              >
+                <option value="any">Any Length</option>
+                <option value="long">Long (&gt;20m)</option>
+                <option value="medium">Mid (4–20m)</option>
+                <option value="short">Brief (&lt;4m)</option>
+              </select>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <Filter className="w-3 h-3 text-amber-500" />
-                Ranking Order
-              </label>
-              <div className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-muted/30 p-1">
-                {(
-                  [
-                    { id: 'relevance', label: 'Relevance' },
-                    { id: 'viewCount', label: 'Most Viewed' },
-                    { id: 'rating', label: 'Top Rated' },
-                    { id: 'date', label: 'Newest' },
-                  ] as const
-                ).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      setSortOrder(item.id);
-                      if (searchQuery.trim()) {
-                        void executeSearch(searchQuery, academicMode, durationFilter, item.id);
-                      }
-                    }}
-                    className={cn(
-                      'rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors cursor-pointer',
-                      sortOrder === item.id
-                        ? 'bg-background text-foreground shadow-xs border border-border/60'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
+            <div className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/30 px-2.5 py-1.5">
+              <Filter className="w-3.5 h-3.5 text-[#D89A06]" />
+              <select
+                value={sortOrder}
+                onChange={(e) => {
+                  const next = e.target.value as SearchOrder;
+                  setSortOrder(next);
+                  if (searchQuery.trim()) void executeSearch(searchQuery, academicMode, durationFilter, next);
+                }}
+                aria-label="Sort Order"
+                className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
+              >
+                <option value="relevance">Relevance</option>
+                <option value="viewCount">Most Viewed</option>
+                <option value="rating">Top Rated</option>
+                <option value="date">Newest</option>
+              </select>
             </div>
           </div>
 

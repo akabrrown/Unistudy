@@ -2,14 +2,13 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Building2, ShieldCheck, GraduationCap, CheckCircle2, RotateCcw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
-import { 
-  UPSA_INSTITUTION, 
-  UPSA_FACULTIES, 
-  getProgressionLevelsForProgramme, 
-  getProgrammeDetails 
+import {
+  UPSA_INSTITUTION,
+  UPSA_FACULTIES,
+  getProgressionLevelsForProgramme,
+  getProgrammeDetails,
 } from '@/lib/constants/upsa';
 
 interface InstitutionSelectProps {
@@ -24,7 +23,6 @@ interface InstitutionSelectProps {
 }
 
 export function InstitutionSelect({
-  initialInstitution,
   initialFaculty,
   initialLevel,
   showLevel = true,
@@ -43,14 +41,12 @@ export function InstitutionSelect({
 
   const [isManualOverride, setIsManualOverride] = useState(false);
 
-  // Sync with initialFaculty prop when changed from parent
   useEffect(() => {
     if (initialFaculty && !matchedDetails) {
       setSelectedFaculty(initialFaculty);
     }
   }, [initialFaculty, matchedDetails]);
 
-  // Automatically sync faculty whenever a known programme is chosen
   useEffect(() => {
     if (matchedDetails?.facultyCode) {
       setSelectedFaculty(matchedDetails.facultyCode);
@@ -72,14 +68,17 @@ export function InstitutionSelect({
     return progressionLevels[0]?.value || 100;
   });
 
-  // Sync with initialLevel prop when changed from parent
   useEffect(() => {
-    if (parsedInitialLevel && parsedInitialLevel !== selectedLevel && progressionLevels.some((l) => l.value === parsedInitialLevel)) {
+    if (
+      parsedInitialLevel &&
+      parsedInitialLevel !== selectedLevel &&
+      progressionLevels.some((l) => l.value === parsedInitialLevel)
+    ) {
       setSelectedLevel(parsedInitialLevel);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parsedInitialLevel, progressionLevels]);
 
-  // Whenever the programme changes, ensure the selected level remains valid for that tier
   useEffect(() => {
     if (!progressionLevels.some((l) => l.value === selectedLevel)) {
       const fallback = progressionLevels[0]?.value || 100;
@@ -103,43 +102,32 @@ export function InstitutionSelect({
   };
 
   const currentFaculty = UPSA_FACULTIES.find((f) => f.code === selectedFaculty) || UPSA_FACULTIES[0];
-  const currentLevelLabel = progressionLevels.find((l) => l.value === selectedLevel)?.label || `Level ${selectedLevel}`;
+  const currentLevelLabel =
+    progressionLevels.find((l) => l.value === selectedLevel)?.label || `Level ${selectedLevel}`;
 
   return (
     <div className="space-y-4">
       {/* ── Verified UPSA Institutional Anchor ── */}
-      <div className="p-3.5 rounded-xl border border-primary/30 bg-primary/5 space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-              <Building2 className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <span>Academic Institution</span>
-                <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30 font-semibold">
-                  Exclusive Campus
-                </Badge>
-              </div>
-              <h3 className="text-sm font-bold text-foreground">
-                {UPSA_INSTITUTION.name} ({UPSA_INSTITUTION.abbreviation})
-              </h3>
-            </div>
+      <div className="p-3.5 rounded-xl border border-border/70 bg-muted/20 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="p-2 rounded-lg bg-[#00004E]/10 text-[#00004E] dark:bg-[#D89A06]/15 dark:text-[#D89A06] shrink-0">
+            <Building2 className="w-4 h-4" />
           </div>
-          <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md font-mono">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Verified</span>
+          <div className="min-w-0">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+              Campus Institution
+            </div>
+            <h3 className="text-xs sm:text-sm font-bold text-foreground truncate">
+              {UPSA_INSTITUTION.name} ({UPSA_INSTITUTION.abbreviation})
+            </h3>
           </div>
         </div>
-
-        <div className="text-[11px] text-muted-foreground flex items-center gap-2 pt-1 border-t border-primary/10 font-mono">
-          <span>Portal: {UPSA_INSTITUTION.portalUrl.replace('https://', '')}</span>
-          <span>•</span>
-          <span>Motto: &ldquo;{UPSA_INSTITUTION.motto}&rdquo;</span>
+        <div className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
+          <ShieldCheck className="w-3.5 h-3.5" />
+          <span>Verified</span>
         </div>
       </div>
 
-      {/* Hidden inputs to pass UPSA canonical info */}
       {includeHiddenInputs && (
         <>
           <input type="hidden" name="institution_id" value={UPSA_INSTITUTION.id} />
@@ -149,15 +137,13 @@ export function InstitutionSelect({
 
       {/* ── Auto-Matched Faculty vs Manual Selector ── */}
       {matchedDetails && !isManualOverride ? (
-        <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-2 transition-all">
+        <div className="p-3.5 rounded-xl border border-emerald-500/25 bg-emerald-500/5 transition-all">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-start gap-2.5">
-              <div className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 mt-0.5">
-                <CheckCircle2 className="w-4 h-4" />
-              </div>
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
               <div>
-                <div className="text-[10px] font-mono uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-                  <span>Faculty &amp; Department (Auto-Matched)</span>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-semibold">
+                  Faculty Matched
                 </div>
                 <h4 className="text-xs font-bold text-foreground mt-0.5">
                   {currentFaculty.name} ({currentFaculty.code})
@@ -173,7 +159,7 @@ export function InstitutionSelect({
             <button
               type="button"
               onClick={() => setIsManualOverride(true)}
-              className="text-[10px] font-mono text-muted-foreground hover:text-foreground underline transition-colors shrink-0 pt-0.5"
+              className="text-[11px] font-medium text-muted-foreground hover:text-foreground underline transition-colors shrink-0"
             >
               Change
             </button>
@@ -187,12 +173,11 @@ export function InstitutionSelect({
           )}
         </div>
       ) : (
-        /* Manual Faculty Selector Fallback */
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="faculty_select" className="text-xs font-semibold flex items-center gap-1.5">
-              <GraduationCap className="w-3.5 h-3.5 text-primary" />
-              Select Your UPSA Faculty / School
+              <GraduationCap className="w-3.5 h-3.5 text-[#00004E] dark:text-[#D89A06]" />
+              UPSA Faculty / School
             </Label>
             {matchedDetails && (
               <button
@@ -202,24 +187,24 @@ export function InstitutionSelect({
                   setIsManualOverride(false);
                   onFacultyChange?.(matchedDetails.facultyCode, matchedDetails.department);
                 }}
-                className="text-[10px] font-mono text-[#D89A06] hover:underline inline-flex items-center gap-1"
+                className="text-[10px] font-mono text-[#00004E] dark:text-[#D89A06] hover:underline inline-flex items-center gap-1"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Re-sync with programme</span>
               </button>
             )}
           </div>
-          <Select
-            value={selectedFaculty}
-            onValueChange={handleFacultySelect}
-          >
-            <SelectTrigger id="faculty_select" className="w-full h-12 text-xs bg-background/60 hover:bg-background border-primary/20 px-3.5">
+          <Select value={selectedFaculty} onValueChange={handleFacultySelect}>
+            <SelectTrigger
+              id="faculty_select"
+              className="w-full h-11 text-xs rounded-xl bg-background border-border/80 px-3.5"
+            >
               <div className="flex items-center gap-2 min-w-0 text-left">
                 <span className="font-bold text-foreground text-xs shrink-0">
                   {currentFaculty.shortName}
                 </span>
                 <span className="text-[11px] text-muted-foreground truncate hidden sm:inline">
-                  • {currentFaculty.name}
+                  · {currentFaculty.name}
                 </span>
               </div>
             </SelectTrigger>
@@ -228,20 +213,20 @@ export function InstitutionSelect({
               side="bottom"
               sideOffset={6}
               align="start"
-              className="w-[var(--anchor-width)] min-w-[340px] sm:min-w-[460px] max-w-[calc(100vw-2rem)] p-1.5 rounded-xl border border-primary/20 shadow-2xl bg-popover/98 backdrop-blur-md z-50 max-h-[320px] overflow-y-auto"
+              className="w-[var(--anchor-width)] min-w-[320px] sm:min-w-[440px] max-w-[calc(100vw-2rem)] p-1.5 rounded-xl border border-border/80 shadow-xl bg-popover z-50 max-h-[320px] overflow-y-auto"
             >
               {UPSA_FACULTIES.map((fac) => (
                 <SelectItem
                   key={fac.code}
                   value={fac.code}
-                  className="text-xs py-2 px-3 rounded-lg cursor-pointer my-0.5 focus:bg-primary/10 focus:text-foreground data-[state=checked]:bg-primary/10 transition-colors"
+                  className="text-xs py-2 px-3 rounded-lg cursor-pointer my-0.5"
                 >
                   <div className="flex flex-col min-w-0 gap-0.5 pr-6 w-full text-left">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-foreground text-xs leading-snug">
                         {fac.shortName}
                       </span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-semibold">
+                      <span className="text-[10px] font-mono text-muted-foreground">
                         {fac.code}
                       </span>
                     </div>
@@ -269,42 +254,38 @@ export function InstitutionSelect({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="level_select" className="text-xs font-semibold">
-              Academic Progression Level
+              Academic Level
             </Label>
-            <span className="text-[10px] font-mono text-muted-foreground">
-              {progressionLevels.length} Stages for this tier
+            <span className="text-[10px] font-mono tabular-nums text-muted-foreground">
+              {progressionLevels.length} Levels
             </span>
           </div>
-          <Select
-            value={String(selectedLevel)}
-            onValueChange={handleLevelSelect}
-          >
-            <SelectTrigger id="level_select" className="w-full h-11 text-xs bg-background/60 hover:bg-background border-primary/20 px-3.5">
-              <span className="font-semibold text-foreground text-xs">
-                {currentLevelLabel}
-              </span>
+          <Select value={String(selectedLevel)} onValueChange={handleLevelSelect}>
+            <SelectTrigger
+              id="level_select"
+              className="w-full h-11 text-xs rounded-xl bg-background border-border/80 px-3.5"
+            >
+              <span className="font-semibold text-foreground text-xs">{currentLevelLabel}</span>
             </SelectTrigger>
             <SelectContent
               alignItemWithTrigger={false}
               side="bottom"
               sideOffset={6}
               align="start"
-              className="w-[var(--anchor-width)] min-w-[240px] p-1.5 rounded-xl border border-primary/20 shadow-xl bg-popover/98 backdrop-blur-md z-50"
+              className="w-[var(--anchor-width)] min-w-[240px] p-1.5 rounded-xl border border-border/80 shadow-xl bg-popover z-50"
             >
               {progressionLevels.map((lvl) => (
                 <SelectItem
                   key={lvl.value}
                   value={String(lvl.value)}
-                  className="text-xs py-2 px-3 rounded-lg cursor-pointer my-0.5 focus:bg-primary/10"
+                  className="text-xs py-2 px-3 rounded-lg cursor-pointer my-0.5"
                 >
                   <span className="font-medium text-foreground">{lvl.label}</span>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          {includeHiddenInputs && (
-            <input type="hidden" name="year_of_study" value={selectedLevel} />
-          )}
+          {includeHiddenInputs && <input type="hidden" name="year_of_study" value={selectedLevel} />}
         </div>
       )}
     </div>

@@ -1,23 +1,25 @@
-'use client'
+'use client';
 
-import { useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { Loader2 } from 'lucide-react'
+import { useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function PastPaperAttemptRedirectPage() {
-  const params = useParams()
-  const router = useRouter()
+  const params = useParams<{ courseId?: string; paperId?: string }>();
+  const router = useRouter();
 
   useEffect(() => {
     if (params?.paperId) {
-      router.replace(`/dashboard/past-papers/${params.paperId}`)
+      const query = params?.courseId ? `?courseId=${encodeURIComponent(params.courseId)}` : '';
+      router.replace(`/dashboard/past-papers/${encodeURIComponent(params.paperId)}${query}`);
     }
-  }, [params?.paperId, router])
+  }, [params?.courseId, params?.paperId, router]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      <p className="text-muted-foreground text-sm">Opening past paper exam...</p>
+    <div className="max-w-4xl mx-auto py-8 space-y-5">
+      <Skeleton className="h-8 w-56 rounded-lg" />
+      <Skeleton className="h-28 w-full rounded-2xl" />
+      <Skeleton className="h-80 w-full rounded-2xl" />
     </div>
-  )
+  );
 }

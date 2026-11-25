@@ -36,6 +36,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { AdminMetricCard } from '@/components/admin/AdminMetricCard';
+import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog';
 
 const DEFAULT_RECOMMENDED_SETTINGS: Record<string, string> = {
   MAINTENANCE_MODE: 'false',
@@ -84,6 +87,8 @@ export default function SettingsClient({ initialSettings, initialAuditLogs = [] 
   const [auditLogs, setAuditLogs] = useState<any[]>(initialAuditLogs);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('flags');
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+  const [confirmMaintenanceOpen, setConfirmMaintenanceOpen] = useState(false);
 
   // Compute dirty unsaved keys
   const dirtyKeys = useMemo(() => {
@@ -104,7 +109,17 @@ export default function SettingsClient({ initialSettings, initialAuditLogs = [] 
   };
 
   const handleToggleChange = (key: string, checked: boolean) => {
+    if (key === 'MAINTENANCE_MODE' && checked) {
+      setConfirmMaintenanceOpen(true);
+      return;
+    }
     setSettings((prev) => ({ ...prev, [key]: checked ? 'true' : 'false' }));
+  };
+
+  const confirmMaintenanceAction = () => {
+    setSettings((prev) => ({ ...prev, MAINTENANCE_MODE: 'true' }));
+    setConfirmMaintenanceOpen(false);
+    toast.warning('Maintenance mode enabled. Click "Save Changes" to lock the live platform.');
   };
 
   // Save changes via API
@@ -152,8 +167,12 @@ export default function SettingsClient({ initialSettings, initialAuditLogs = [] 
   };
 
   const handleResetDefaults = () => {
-    if (!confirm('Reset all settings to recommended production baseline?')) return;
+    setConfirmResetOpen(true);
+  };
+
+  const confirmResetAction = () => {
     setSettings({ ...DEFAULT_RECOMMENDED_SETTINGS });
+    setConfirmResetOpen(false);
     toast.info('Loaded default recommended settings (click Save Changes to apply)');
   };
 
@@ -185,12 +204,14 @@ export default function SettingsClient({ initialSettings, initialAuditLogs = [] 
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border/60 pb-5">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <Badge variant="outline" className="text-xs uppercase font-mono tracking-wider text-muted-foreground">
+      <AdminPageHeader
+        title="Platform Settings"
+        description="Configure system-wide feature flags, free tier quota limits, monetization rules, and AI fallback thresholds."
+        badge={
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase font-mono tracking-wider text-muted-foreground">
               Platform Governance • Global Config
-            </Badge>
+            </span>
             <span className="text-xs text-muted-foreground">•</span>
             <span className="text-xs font-mono text-muted-foreground">
               v2.5 Production Core
@@ -201,50 +222,46 @@ export default function SettingsClient({ initialSettings, initialAuditLogs = [] 
               </Badge>
             )}
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Platform Settings</h1>
-          <p className="text-muted-foreground text-sm max-w-2xl mt-0.5">
-            Configure system-wide feature flags, free tier quota limits, monetization rules, and AI fallback thresholds.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {isDirty && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleDiscardChanges}
-              disabled={saving}
-              className="h-9 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <RotateCcw className="w-3.5 h-3.5" /> Discard
-            </Button>
-          )}
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportJson}
-            className="h-9 gap-2 text-xs font-medium"
-          >
-            <Download className="w-3.5 h-3.5" /> Export JSON
-          </Button>
-
-          <Button
-            variant="default"
-            size="sm"
-            onClick={handleSaveAll}
-            disabled={!isDirty || saving}
-            className="h-9 gap-2 text-xs font-semibold shadow-sm"
-          >
-            {saving ? (
-              <Activity className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Save className="w-3.5 h-3.5" />
+        }
+        actions={
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {isDirty && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDiscardChanges}
+                disabled={saving}
+                className="h-9 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Discard
+              </Button>
             )}
-            Save Changes {isDirty && `(${dirtyKeys.length})`}
-          </Button>
-        </div>
-      </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportJson}
+              className="h-9 gap-2 text-xs font-medium"
+            >
+              <Download className="w-3.5 h-3.5" /> Export JSON
+            </Button>
+
+            <Button
+              size="sm"
+              onClick={handleSaveAll}
+              disabled={!isDirty || saving}
+              className="h-9 gap-2 text-xs font-semibold shadow-xs bg-[#00004E] hover:bg-[#00004E]/90 text-white dark:bg-[#D89A06] dark:hover:bg-[#D89A06]/90 dark:text-[#00004E]"
+            >
+              {saving ? (
+                <Activity className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Save className="w-3.5 h-3.5" />
+              )}
+              Save Changes {isDirty && `(${dirtyKeys.length})`}
+            </Button>
+          </div>
+        }
+      />
 
       {/* Emergency Maintenance Mode Banner */}
       {isMaintenanceActive && (
@@ -275,72 +292,45 @@ export default function SettingsClient({ initialSettings, initialAuditLogs = [] 
 
       {/* KPI Ribbon (5 High-Density Cards) */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Card className={cn(
-          "p-4 relative overflow-hidden transition-all",
-          isMaintenanceActive ? "border-rose-500/50 bg-rose-500/5" : "bg-card"
-        )}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Platform State</span>
-            <Server className={cn("w-4 h-4", isMaintenanceActive ? "text-rose-500" : "text-emerald-500")} />
-          </div>
-          <div className={cn(
-            "text-2xl font-bold font-mono tracking-tight",
-            isMaintenanceActive ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
-          )}>
-            {isMaintenanceActive ? 'Locked' : 'Online'}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            {isMaintenanceActive ? 'Maintenance active' : 'Normal student traffic'}
-          </p>
-        </Card>
+        <AdminMetricCard
+          label="Platform State"
+          value={isMaintenanceActive ? 'Locked' : 'Online'}
+          subtext={isMaintenanceActive ? 'Maintenance active' : 'Normal student traffic'}
+          icon={Server}
+          tone={isMaintenanceActive ? 'danger' : 'success'}
+        />
 
-        <Card className="p-4 bg-card relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Active Modules</span>
-            <Sliders className="w-4 h-4 text-primary" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight">
-            {activeFlagsCount} <span className="text-sm font-normal text-muted-foreground font-sans">/ 8</span>
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">Global feature flags</p>
-        </Card>
+        <AdminMetricCard
+          label="Active Modules"
+          value={`${activeFlagsCount} / 8`}
+          subtext="Global feature flags"
+          icon={Sliders}
+          tone="default"
+        />
 
-        <Card className="p-4 bg-card relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Free Tier AI</span>
-            <Zap className="w-4 h-4 text-amber-500" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-amber-600 dark:text-amber-400">
-            {settings['FREE_AI_CALLS_PER_DAY'] || '30'}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">Requests / user / day</p>
-        </Card>
+        <AdminMetricCard
+          label="Free Tier AI"
+          value={settings['FREE_AI_CALLS_PER_DAY'] || '30'}
+          subtext="Requests / user / day"
+          icon={Zap}
+          tone="warning"
+        />
 
-        <Card className="p-4 bg-card relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Subscription Base</span>
-            <CreditCard className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-foreground">
-            {settings['CURRENCY_SYMBOL'] || 'GH₵'}{settings['PRICE_PRO'] || '49'}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            Ultra: {settings['CURRENCY_SYMBOL'] || 'GH₵'}{settings['PRICE_ULTRA'] || '99'} / mo
-          </p>
-        </Card>
+        <AdminMetricCard
+          label="Subscription Base"
+          value={`${settings['CURRENCY_SYMBOL'] || 'GH₵'}${settings['PRICE_PRO'] || '49'}`}
+          subtext={`Ultra: ${settings['CURRENCY_SYMBOL'] || 'GH₵'}${settings['PRICE_ULTRA'] || '99'} / mo`}
+          icon={CreditCard}
+          tone="accent"
+        />
 
-        <Card className="p-4 bg-card relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">AI Gateway</span>
-            <BrainCircuit className="w-4 h-4 text-violet-500" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight uppercase text-violet-600 dark:text-violet-400">
-            {settings['PRIMARY_AI_PROVIDER'] || 'Groq'}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            Fallback: {settings['SECONDARY_AI_PROVIDER'] || 'Gemini'}
-          </p>
-        </Card>
+        <AdminMetricCard
+          label="AI Gateway"
+          value={settings['PRIMARY_AI_PROVIDER'] || 'Groq'}
+          subtext={`Fallback: ${settings['SECONDARY_AI_PROVIDER'] || 'Gemini'}`}
+          icon={BrainCircuit}
+          tone="accent"
+        />
       </div>
 
       {/* Main Configuration Tabs */}
@@ -860,11 +850,10 @@ export default function SettingsClient({ initialSettings, initialAuditLogs = [] 
               Discard
             </Button>
             <Button
-              variant="default"
               size="sm"
               onClick={handleSaveAll}
               disabled={saving}
-              className="h-8 text-xs font-semibold shadow-sm"
+              className="h-8 text-xs font-semibold shadow-xs bg-[#00004E] hover:bg-[#00004E]/90 text-white dark:bg-[#D89A06] dark:hover:bg-[#D89A06]/90 dark:text-[#00004E]"
             >
               {saving ? <Activity className="w-3.5 h-3.5 animate-spin mr-1" /> : <Save className="w-3.5 h-3.5 mr-1" />}
               Save All
@@ -872,6 +861,27 @@ export default function SettingsClient({ initialSettings, initialAuditLogs = [] 
           </div>
         </div>
       )}
+
+      {/* Confirmation Dialogs */}
+      <ConfirmActionDialog
+        open={confirmMaintenanceOpen}
+        onOpenChange={setConfirmMaintenanceOpen}
+        title="Enable Maintenance Mode?"
+        description="Activating maintenance mode will immediately restrict student logins and disable mutating API endpoints across the platform. Are you sure you want to proceed?"
+        confirmLabel="Enable Maintenance Mode"
+        variant="destructive"
+        onConfirm={confirmMaintenanceAction}
+      />
+
+      <ConfirmActionDialog
+        open={confirmResetOpen}
+        onOpenChange={setConfirmResetOpen}
+        title="Reset All Settings to Baseline?"
+        description="This will restore all feature flags, quota limits, and AI provider thresholds to recommended production baselines. You must click 'Save Changes' afterwards to apply."
+        confirmLabel="Reset to Baseline"
+        variant="destructive"
+        onConfirm={confirmResetAction}
+      />
     </div>
   );
 }

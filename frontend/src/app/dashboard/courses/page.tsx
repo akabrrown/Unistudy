@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'motion/react';
 import {
   Plus,
   UploadCloud,
@@ -24,6 +25,8 @@ import {
   List,
   FolderOpen,
   Target,
+  Loader2,
+  MoreHorizontal,
 } from 'lucide-react';
 import { COURSE_COLORS, resolveCourseColor } from '@/lib/constants/courses';
 import { Button } from '@/components/ui/button';
@@ -39,6 +42,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog';
+import { SPRING_SNAPPY, useAppReducedMotion } from '@/lib/motion';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api/client';
@@ -145,6 +157,10 @@ export default function CoursesPage() {
   const [editCourseColor, setEditCourseColor] = useState('#00004E');
   const [editCourseSemester, setEditCourseSemester] = useState('1');
   const [editCourseYear, setEditCourseYear] = useState('');
+  const [isCreatingCourse, setIsCreatingCourse] = useState(false);
+  const [isUpdatingCourse, setIsUpdatingCourse] = useState(false);
+  const [pendingDeleteCourseId, setPendingDeleteCourseId] = useState<string | null>(null);
+  const reducedMotion = useAppReducedMotion();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [semesterFilter, setSemesterFilter] = useState<string>('all');
@@ -317,10 +333,16 @@ export default function CoursesPage() {
     return () => clearInterval(interval);
   }, [hasProcessingLecture]);
 
-  const deleteCourse = async (e: React.MouseEvent, id: string) => {
+  const deleteCourse = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm('Are you sure you want to delete this course?')) return;
+    setPendingDeleteCourseId(id);
+  };
+
+  const confirmDeleteCourse = async () => {
+    if (!pendingDeleteCourseId) return;
+    const id = pendingDeleteCourseId;
+    setPendingDeleteCourseId(null);
 
     const previousCourses = [...courses];
     setCourses((prev) => prev.filter((c) => c.id !== id));
@@ -344,6 +366,8 @@ export default function CoursesPage() {
       toast.error('Please provide both a course code and a name.');
       return;
     }
+    if (isCreatingCourse) return;
+    setIsCreatingCourse(true);
 
     try {
       const colour = newCourseColor || '#00004E';
@@ -398,6 +422,8 @@ export default function CoursesPage() {
     } catch (err: unknown) {
       console.error('Unexpected error adding course:', err);
       toast.error(err instanceof Error ? err.message : 'Unexpected error');
+    } finally {
+      setIsCreatingCourse(false);
     }
   };
 
@@ -414,7 +440,8 @@ export default function CoursesPage() {
   };
 
   const handleUpdateCourse = async () => {
-    if (!editCourseId) return;
+    if (!editCourseId || isUpdatingCourse) return;
+    setIsUpdatingCourse(true);
     try {
       const updatePayload = {
         course_code: editCourseCode.trim().toUpperCase(),
@@ -454,6 +481,8 @@ export default function CoursesPage() {
       toast.success('Course updated');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error updating course');
+    } finally {
+      setIsUpdatingCourse(false);
     }
   };
 
@@ -683,8 +712,14 @@ export default function CoursesPage() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button type="button" onClick={handleAddCourse} className="cursor-pointer">
-                    Create Course
+                  <Button
+                    type="button"
+                    disabled={isCreatingCourse}
+                    onClick={handleAddCourse}
+                    className="cursor-pointer bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:text-[#00004E] gap-1.5"
+                  >
+                    {isCreatingCourse ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                    {isCreatingCourse ? 'Creating...' : 'Create Course'}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -882,8 +917,14 @@ export default function CoursesPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" onClick={handleUpdateCourse} className="cursor-pointer">
-              Save changes
+            <Button
+              type="button"
+              disabled={isUpdatingCourse}
+              onClick={handleUpdateCourse}
+              className="cursor-pointer bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:text-[#00004E] gap-1.5"
+            >
+              {isUpdatingCourse ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+              {isUpdatingCourse ? 'Saving...' : 'Save changes'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1201,10 +1242,12 @@ export default function CoursesPage() {
             }
 
             return (
-              <article
+              <motion.article
                 key={course.id}
-                onClick={() => router.push(`/dashboard/lectures?courseId=${course.id}`)}
-                className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-card hover:border-primary/45 p-5 shadow-xs transition-all cursor-pointer"
+                layout={!reducedMotion}
+                transition={SPRING_SNAPPY}
+                onClick={() => router.push(`/dashboard/courses/${course.id}`)}
+                className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-card hover:border-foreground/30 p-5 shadow-xs transition-all cursor-pointer"
               >
                 <div className="absolute top-0 left-0 right-0 h-1.5" style={{ backgroundColor: accentColor }} />
 
@@ -1215,47 +1258,75 @@ export default function CoursesPage() {
                         <span className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           {course.course_code || 'COURSE'}
                         </span>
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                          Sem {course.semester || 1} · {course.year || new Date().getFullYear()}
+                        <span className="text-[11px] text-muted-foreground font-mono tabular-nums">
+                          · Sem {course.semester || 1} {course.year || new Date().getFullYear()}
                         </span>
                       </div>
-                      <h2 className="mt-1 text-lg font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                      <h2 className="mt-1 text-lg font-bold text-foreground group-hover:text-[#00004E] dark:group-hover:text-[#D89A06] transition-colors line-clamp-1">
                         {course.title || 'Untitled'}
                       </h2>
                     </div>
 
-                    <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={(e) => openEditDialog(e, course)}
-                        className="w-8 h-8 rounded-lg bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                        title="Edit Course"
-                      >
-                        <Edit3 size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => handleArchiveCourse(e, course.id, !!course.is_archived)}
-                        className="w-8 h-8 rounded-lg bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                        title="Archive Course"
-                      >
-                        <Archive size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => deleteCourse(e, course.id)}
-                        className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center text-destructive hover:bg-destructive hover:text-white transition-colors cursor-pointer"
-                        title="Delete Course"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                    <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                          aria-label="Course options"
+                        >
+                          <MoreHorizontal size={16} />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setActiveCourseId(course.id);
+                              setIsUploadDialogOpen(true);
+                            }}
+                          >
+                            <UploadCloud className="w-3.5 h-3.5 mr-2" />
+                            Upload Slides
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setExamFocusCourseId(course.id);
+                              setIsExamFocusOpen(true);
+                            }}
+                          >
+                            <Target className="w-3.5 h-3.5 mr-2" />
+                            Exam Areas
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => router.push(`/dashboard/courses/${course.id}/quiz`)}
+                          >
+                            <BookOpen className="w-3.5 h-3.5 mr-2" />
+                            Practice Quiz
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={(e) => openEditDialog(e, course)}>
+                            <Edit3 className="w-3.5 h-3.5 mr-2" />
+                            Edit Course
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => handleArchiveCourse(e, course.id, !!course.is_archived)}
+                          >
+                            <Archive className="w-3.5 h-3.5 mr-2" />
+                            Archive Course
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => deleteCourse(e, course.id)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-2" />
+                            Delete Course
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
 
                   {/* Course Content Summary */}
                   <div className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
                     <span className="inline-flex items-center gap-1">
-                      <FileText className="w-3.5 h-3.5 text-primary" />
+                      <FileText className="w-3.5 h-3.5 text-muted-foreground" />
                       {lectures.length} {lectures.length === 1 ? 'lecture' : 'lectures'}
                     </span>
                     <span className="inline-flex items-center gap-1">
@@ -1265,21 +1336,7 @@ export default function CoursesPage() {
                   </div>
 
                   {/* Recent Lectures Quick Preview */}
-                  <div className="rounded-xl border border-border/60 bg-muted/25 p-2.5 space-y-1.5 min-h-[72px]">
-                    <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground font-semibold flex items-center justify-between">
-                      <span>Recent Lectures</span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          router.push(`/dashboard/lectures?courseId=${course.id}`);
-                        }}
-                        className="text-[10px] text-primary hover:underline font-semibold cursor-pointer"
-                      >
-                        All Decks &rarr;
-                      </button>
-                    </div>
+                  <div className="border-t border-border/50 pt-2.5 space-y-1.5 min-h-[64px]">
                     {lectures.length === 0 ? (
                       <div className="text-xs text-muted-foreground flex items-center justify-between pt-0.5">
                         <span>No PDF decks uploaded yet</span>
@@ -1291,7 +1348,7 @@ export default function CoursesPage() {
                             setActiveCourseId(course.id);
                             setIsUploadDialogOpen(true);
                           }}
-                          className="text-primary font-semibold hover:underline cursor-pointer"
+                          className="text-[#00004E] dark:text-[#D89A06] font-semibold hover:underline cursor-pointer"
                         >
                           Upload PDF
                         </button>
@@ -1303,7 +1360,7 @@ export default function CoursesPage() {
                             <Link
                               href={`/dashboard/courses/${course.id}/lectures/${lec.id}`}
                               onClick={(e) => e.stopPropagation()}
-                              className="flex items-center justify-between gap-2 text-xs text-foreground hover:text-primary transition-colors cursor-pointer"
+                              className="flex items-center justify-between gap-2 text-xs text-foreground hover:text-[#00004E] dark:hover:text-[#D89A06] transition-colors cursor-pointer"
                             >
                               <span className="truncate">{lec.title || 'Untitled Lecture'}</span>
                               {lec.processing ? (
@@ -1321,59 +1378,41 @@ export default function CoursesPage() {
                   </div>
                 </div>
 
-                {/* Bottom-aligned action quick strip */}
+                {/* Clean 4-item footer instead of cramped 5-button toolbar */}
                 <div
-                  className="mt-4 pt-3 border-t border-border/60 grid grid-cols-5 gap-1.5"
+                  className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between gap-2"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Button
-                    variant="outline"
                     size="sm"
-                    className="h-8 text-[11px] px-1 gap-1 cursor-pointer border-primary/30 text-primary hover:bg-primary/10"
-                    onClick={() => {
-                      setExamFocusCourseId(course.id);
-                      setIsExamFocusOpen(true);
-                    }}
+                    onClick={() => router.push(`/dashboard/courses/${course.id}`)}
+                    className="h-8 px-3 text-xs font-semibold bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:text-[#00004E] cursor-pointer"
                   >
-                    <Target size={12} /> Focus
+                    Open Course
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-[11px] px-1 gap-1 cursor-pointer"
-                    onClick={() => router.push(`/dashboard/courses/${course.id}/flashcards`)}
-                  >
-                    <BrainCircuit size={12} /> Cards
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-[11px] px-1 gap-1 cursor-pointer"
-                    onClick={() => router.push(`/dashboard/courses/${course.id}/quiz`)}
-                  >
-                    <BookOpen size={12} /> Quiz
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-[11px] px-1 gap-1 cursor-pointer"
-                    onClick={() => router.push(`/dashboard/courses/${course.id}/past-papers`)}
-                  >
-                    <FileCheck2 size={12} /> Papers
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-[11px] px-1 gap-1 cursor-pointer"
-                    onClick={() => {
-                      setActiveCourseId(course.id);
-                      setIsUploadDialogOpen(true);
-                    }}
-                  >
-                    <UploadCloud size={12} /> Upload
-                  </Button>
+
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Link
+                      href={`/dashboard/lectures?courseId=${course.id}`}
+                      className="px-2 py-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors font-medium"
+                    >
+                      Slides
+                    </Link>
+                    <Link
+                      href={`/dashboard/courses/${course.id}/flashcards`}
+                      className="px-2 py-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors font-medium"
+                    >
+                      Cards
+                    </Link>
+                    <Link
+                      href={`/dashboard/courses/${course.id}/past-papers`}
+                      className="px-2 py-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors font-medium"
+                    >
+                      Papers
+                    </Link>
+                  </div>
                 </div>
-              </article>
+              </motion.article>
             );
           })}
         </div>
@@ -1398,6 +1437,16 @@ export default function CoursesPage() {
         onOpenChange={handleExamFocusOpenChange}
         courses={activeCourses}
         initialCourseId={examFocusCourseId}
+      />
+
+      <ConfirmActionDialog
+        open={Boolean(pendingDeleteCourseId)}
+        onOpenChange={(open) => !open && setPendingDeleteCourseId(null)}
+        title="Delete course?"
+        description="This permanently removes this course module and unlinks its uploaded lecture decks and notes."
+        confirmLabel="Delete Course"
+        variant="destructive"
+        onConfirm={confirmDeleteCourse}
       />
     </div>
   );

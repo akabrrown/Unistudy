@@ -1,8 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, use } from 'react';
+import React, { useState, useEffect, useMemo, useRef, use } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import {
   FileText,
   ArrowLeft,
@@ -103,6 +108,27 @@ export default function YouTubeWatchPage({
   const [timestampInput, setTimestampInput] = useState('05:00');
   const [copied, setCopied] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string>('Synced');
+  const [notesMode, setNotesMode] = useState<'write' | 'preview'>('write');
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const seekToTimestamp = (mmss: string) => {
+    const parts = mmss.split(':').map(Number);
+    if (parts.some(Number.isNaN)) return;
+    const totalSeconds =
+      parts.length === 3
+        ? parts[0] * 3600 + parts[1] * 60 + parts[2]
+        : (parts[0] || 0) * 60 + (parts[1] || 0);
+    iframeRef.current?.contentWindow?.postMessage(
+      JSON.stringify({ event: 'command', func: 'seekTo', args: [totalSeconds, true] }),
+      '*'
+    );
+    toast.info(`Jumped to ${mmss}`);
+  };
+
+  const detectedTimestamps = useMemo(() => {
+    const matches = notes.match(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g) || [];
+    return Array.from(new Set(matches.map((m) => m.slice(1, -1)))).slice(0, 12);
+  }, [notes]);
 
   useEffect(() => {
     let active = true;
@@ -366,8 +392,9 @@ export default function YouTubeWatchPage({
         <div className={cn('space-y-4', theaterMode ? 'lg:col-span-12' : 'lg:col-span-7')}>
           <div className="rounded-2xl overflow-hidden border border-border/80 bg-black shadow-lg">
             <iframe
+              ref={iframeRef}
               className="w-full aspect-video"
-              src={`https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&rel=0`}
+              src={`https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&rel=0&enablejsapi=1`}
               title={title}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
@@ -477,30 +504,87 @@ export default function YouTubeWatchPage({
             </div>
           </div>
 
-          {/* Note Templates Strip */}
-          <div className="px-4 py-2.5 border-b border-border/60 bg-muted/10 flex items-center gap-1.5 overflow-x-auto">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1 shrink-0 mr-1">
-              <BookOpen className="w-3 h-3 text-primary" />
-              Templates:
-            </span>
-            {Object.entries(NOTE_TEMPLATES).map(([key, tpl]) => (
+          {/* Note Templates & Write/Preview Strip */}
+          <div className="px-4 py-2.5 border-b border-border/60 bg-muted/10 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 overflow-x-auto">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1 shrink-0 mr-1">
+                <BookOpen className="w-3 h-3 text-primary" />
+                Templates:
+              </span>
+              {Object.entries(NOTE_TEMPLATES).map(([key, tpl]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => handleApplyTemplate(key)}
+                  className="rounded-lg border border-border bg-background hover:bg-muted px-2.5 py-1 text-[11px] font-semibold text-foreground transition-colors cursor-pointer shrink-0"
+                >
+                  + {tpl.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="inline-flex rounded-lg border border-border bg-muted/40 p-0.5 text-[11px]">
               <button
-                key={key}
                 type="button"
-                onClick={() => handleApplyTemplate(key)}
-                className="rounded-lg border border-border bg-background hover:bg-muted px-2.5 py-1 text-[11px] font-semibold text-foreground transition-colors cursor-pointer shrink-0"
+                onClick={() => setNotesMode('write')}
+                className={cn(
+                  'px-2.5 py-0.5 rounded-md font-semibold cursor-pointer',
+                  notesMode === 'write'
+                    ? 'bg-background text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
               >
-                + {tpl.label}
+                Write
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => setNotesMode('preview')}
+                className={cn(
+                  'px-2.5 py-0.5 rounded-md font-semibold cursor-pointer',
+                  notesMode === 'preview'
+                    ? 'bg-background text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Preview Math
+              </button>
+            </div>
           </div>
 
-          <textarea
-            value={notes}
-            onChange={(e) => handleNotesChange(e.target.value)}
-            placeholder="Write structured lecture notes, paste derivations, or click any timestamp marker button on the left to log key moments..."
-            className="w-full min-h-[420px] p-4 bg-transparent resize-y font-mono text-xs sm:text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
-          />
+          {detectedTimestamps.length > 0 && (
+            <div className="px-4 py-2 border-b border-border/50 bg-muted/5 flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-mono text-muted-foreground uppercase">Jump:</span>
+              {detectedTimestamps.map((ts) => (
+                <button
+                  key={ts}
+                  type="button"
+                  onClick={() => seekToTimestamp(ts)}
+                  className="px-2 py-0.5 rounded bg-[#00004E]/10 text-[#00004E] dark:bg-[#D89A06]/15 dark:text-[#D89A06] font-mono text-[11px] font-semibold hover:opacity-80 cursor-pointer tabular-nums"
+                >
+                  [{ts}]
+                </button>
+              ))}
+            </div>
+          )}
+
+          {notesMode === 'write' ? (
+            <textarea
+              value={notes}
+              onChange={(e) => handleNotesChange(e.target.value)}
+              placeholder="Write structured lecture notes, paste derivations, or click any timestamp marker button on the left to log key moments..."
+              className="w-full min-h-[420px] p-4 bg-transparent resize-y font-mono text-xs sm:text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+            />
+          ) : (
+            <div className="w-full min-h-[420px] max-h-[560px] overflow-y-auto p-5 prose prose-sm dark:prose-invert max-w-none">
+              {notes.trim() ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                  {notes}
+                </ReactMarkdown>
+              ) : (
+                <p className="text-xs text-muted-foreground">No notes written yet.</p>
+              )}
+            </div>
+          )}
 
           <div className="px-4 py-2.5 border-t border-border/60 bg-muted/15 flex items-center justify-between text-[11px] text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">

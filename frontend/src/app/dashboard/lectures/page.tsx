@@ -30,6 +30,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -162,6 +163,7 @@ export default function LecturesHubPage() {
 
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedCourseId, setSelectedCourseId] = useState<string | 'all'>(urlCourseId || 'all');
   const [sortOrder, setSortOrder] = useState<'sequence' | 'newest'>('sequence');
   const [searchQuery, setSearchQuery] = useState('');
@@ -267,8 +269,9 @@ export default function LecturesHubPage() {
           });
         }
       }
-    } catch (err) {
+      } catch (err) {
       console.error('Failed to load courses for lectures hub', err);
+      setErrorMsg('Could not load lecture decks.');
     } finally {
       setLoading(false);
     }
@@ -528,17 +531,52 @@ export default function LecturesHubPage() {
         </div>
       </header>
 
-      {/* Course Selection Section: Choose what course you want to study */}
-      <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+      {/* Compact Course Filter & Search Bar */}
+      <section className="rounded-2xl border border-border/80 bg-card p-4 shadow-xs space-y-3.5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-bold tracking-tight text-foreground flex items-center gap-2">
-              <Filter className="w-4 h-4 text-primary" />
-              Choose What Course You Want to Study
-            </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Click a course to view all its slide decks, flashcards, and exam practice.
-            </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => handleSelectCourse('all')}
+              className={cn(
+                'px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 tabular-nums',
+                selectedCourseId === 'all'
+                  ? 'border-[#00004E] bg-[#00004E] text-white dark:border-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E]'
+                  : 'border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/60'
+              )}
+            >
+              <span>All Courses</span>
+              <span className="text-[10px] font-mono opacity-80">({totalLectureCount})</span>
+            </button>
+
+            {courses.map((course) => {
+              const isSelected = selectedCourseId === course.id;
+              const accent = resolveCourseColor(course.colour);
+              const count = (course.lectures || []).length;
+
+              return (
+                <button
+                  key={course.id}
+                  type="button"
+                  onClick={() => handleSelectCourse(course.id)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 tabular-nums',
+                    isSelected
+                      ? 'border-[#00004E] bg-[#00004E]/10 text-[#00004E] dark:border-[#D89A06] dark:bg-[#D89A06]/15 dark:text-[#D89A06]'
+                      : 'border-border bg-background text-foreground hover:border-foreground/30 hover:bg-muted/40'
+                  )}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: accent }}
+                  />
+                  <span className="font-mono text-[11px] font-bold">
+                    {course.course_code || 'COURSE'}
+                  </span>
+                  <span className="text-[10px] font-mono text-muted-foreground">({count})</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Quick Search Input */}
@@ -551,66 +589,6 @@ export default function LecturesHubPage() {
               className="h-8 pl-8 text-xs bg-background"
             />
           </div>
-        </div>
-
-        {/* Course Filter Chips */}
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <button
-            type="button"
-            onClick={() => handleSelectCourse('all')}
-            className={cn(
-              'px-3.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5',
-              selectedCourseId === 'all'
-                ? 'border-primary bg-primary text-primary-foreground shadow-xs'
-                : 'border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/60'
-            )}
-          >
-            <span>All Courses</span>
-            <span
-              className={cn(
-                'text-[10px] font-mono px-1.5 py-0.2 rounded-full',
-                selectedCourseId === 'all'
-                  ? 'bg-primary-foreground/20 text-primary-foreground'
-                  : 'bg-muted text-muted-foreground'
-              )}
-            >
-              {totalLectureCount}
-            </span>
-          </button>
-
-          {courses.map((course) => {
-            const isSelected = selectedCourseId === course.id;
-            const accent = resolveCourseColor(course.colour);
-            const count = (course.lectures || []).length;
-
-            return (
-              <button
-                key={course.id}
-                type="button"
-                onClick={() => handleSelectCourse(course.id)}
-                className={cn(
-                  'px-3.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-2',
-                  isSelected
-                    ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/40'
-                    : 'border-border bg-background text-foreground hover:border-primary/40 hover:bg-muted/40'
-                )}
-              >
-                <span
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: accent }}
-                />
-                <span className="font-mono text-[11px] font-bold">
-                  {course.course_code || 'COURSE'}
-                </span>
-                <span className="max-w-[140px] truncate font-medium text-muted-foreground">
-                  {course.title}
-                </span>
-                <span className="text-[10px] font-mono bg-muted/60 px-1.5 py-0.2 rounded text-muted-foreground tabular-nums">
-                  {count}
-                </span>
-              </button>
-            );
-          })}
         </div>
 
         {/* Selected Course Quick Actions Banner */}
@@ -672,11 +650,37 @@ export default function LecturesHubPage() {
         )}
       </section>
 
+      {errorMsg && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-xs sm:text-sm text-destructive flex items-center justify-between gap-3">
+          <span>{errorMsg}</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setErrorMsg(null);
+              void loadCourses();
+            }}
+            className="h-8 text-xs cursor-pointer"
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
       {/* Lectures Content Grid */}
       {loading ? (
-        <div className="rounded-2xl border border-border p-12 text-center space-y-3 bg-card">
-          <Loader2 className="w-6 h-6 text-primary animate-spin mx-auto" />
-          <p className="text-xs text-muted-foreground">Loading course lectures...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border border-border/70 bg-card overflow-hidden space-y-3 pb-4">
+              <Skeleton className="w-full aspect-[16/9] rounded-none" />
+              <div className="px-4 space-y-2">
+                <Skeleton className="h-3.5 w-24" />
+                <Skeleton className="h-5 w-4/5" />
+                <Skeleton className="h-9 w-full rounded-xl mt-2" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : filteredLectures.length === 0 ? (
         <div className="rounded-2xl border border-border/80 bg-card p-8 md:p-12 text-center space-y-5 shadow-xs flex flex-col items-center">
@@ -902,8 +906,8 @@ export default function LecturesHubPage() {
                         </span>
                       )}
                       <span className="inline-flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                        Interactive AI
+                        <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                        {resolveWeekNumber(lecture) ? `Week ${resolveWeekNumber(lecture)}` : formattedDate}
                       </span>
                     </div>
                   </div>

@@ -3,9 +3,16 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
+import confetti from 'canvas-confetti'
 import { generateFlashcards, submitFlashcardReview } from '@/app/actions/flashcards'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, Loader2, BrainCircuit, Check, X, RotateCcw, Volume2, RefreshCw, Layers, PlayCircle, Lightbulb, Languages } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
+import { RadialRing } from '@/components/ui/sparkline'
+import { ChevronLeft, Loader2, BrainCircuit, RotateCcw, Volume2, RefreshCw, Layers, PlayCircle, Lightbulb, Languages } from 'lucide-react'
 import { apiFetch } from '@/lib/api/client'
 import { createClient } from '@/lib/supabase/client'
 import { Rating } from '@/lib/utils/sm2'
@@ -32,6 +39,13 @@ export default function FlashcardsPage() {
 
   // Review mode state
   const [reviewMode, setReviewMode] = useState(false)
+  const [sessionComplete, setSessionComplete] = useState(false)
+  const [sessionCounts, setSessionCounts] = useState<Record<Rating, number>>({
+    again: 0,
+    hard: 0,
+    good: 0,
+    easy: 0,
+  })
   const [dueCards, setDueCards] = useState<any[]>([])
   const [currentCardIndex, setCurrentCardIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
@@ -181,6 +195,8 @@ export default function FlashcardsPage() {
     setMnemonicsData(null)
     setTranslatedFront('')
     setTranslatedBack('')
+    setSessionCounts({ again: 0, hard: 0, good: 0, easy: 0 })
+    setSessionComplete(false)
     setReviewMode(true)
   }
 
@@ -194,6 +210,12 @@ export default function FlashcardsPage() {
       repetitions: card.repetitions,
     };
 
+    const nextCounts = {
+      ...sessionCounts,
+      [rating]: (sessionCounts[rating] || 0) + 1,
+    };
+    setSessionCounts(nextCounts);
+
     // 0ms Optimistic Navigation: Advance card immediately without waiting for server response
     if (currentCardIndex < dueCards.length - 1) {
       setCurrentCardIndex(prev => prev + 1);
@@ -202,8 +224,15 @@ export default function FlashcardsPage() {
       setTranslatedFront('');
       setTranslatedBack('');
     } else {
-      setReviewMode(false);
-      toast.success("Deck review completed! Great work!");
+      setSessionComplete(true);
+      const strongCount = nextCounts.good + nextCounts.easy;
+      const pct = Math.round((strongCount / Math.max(1, dueCards.length)) * 100);
+      if (pct >= 70 && !settings.reduced_motion && typeof window !== 'undefined') {
+        try {
+          void confetti({ particleCount: 45, spread: 60, origin: { y: 0.7 } });
+        } catch {}
+      }
+      toast.success("Deck review completed!");
     }
 
     // Background Async Sync: persist review to database or offline queue
@@ -240,7 +269,7 @@ export default function FlashcardsPage() {
       window.speechSynthesis.cancel() // Stop currently playing
       window.speechSynthesis.speak(utterance)
     } else {
-      alert('Text-to-speech is not supported in your browser.')
+      toast.error('Text-to-speech is not supported in this browser.')
     }
   }
 
@@ -262,10 +291,10 @@ export default function FlashcardsPage() {
       if (res.result) {
         setMnemonicsData(res.result);
       } else {
-        alert("Failed to generate mnemonics.");
+        toast.error("Could not generate mnemonics right now.");
       }
-    } catch (err) {
-      alert("Failed to generate mnemonics.");
+    } catch {
+      toast.error("Could not generate mnemonics right now.");
     } finally {
       setMnemonicsLoading(false);
     }
@@ -273,10 +302,10 @@ export default function FlashcardsPage() {
 
   async function handleTranslate(e: React.MouseEvent) {
     e.stopPropagation();
-    if (translatedFront && translatedBack) return; // Already translated
+    if (translatedFront && translatedBack) return;
     
     setTranslating(true);
-    const targetLanguage = settings.language || 'fr'; // fallback to french
+    const targetLanguage = settings.language || 'fr';
     const card = dueCards[currentCardIndex];
     try {
       const [frontRes, backRes] = await Promise.all([
@@ -286,8 +315,8 @@ export default function FlashcardsPage() {
       
       if (frontRes.translatedText) setTranslatedFront(frontRes.translatedText);
       if (backRes.translatedText) setTranslatedBack(backRes.translatedText);
-    } catch (err) {
-      alert("Translation failed.");
+    } catch {
+      toast.error("Translation failed. Please try again.");
     } finally {
       setTranslating(false);
     }
@@ -295,10 +324,92 @@ export default function FlashcardsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-[calc(100vh-theme(spacing.16))] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="p-6 md:p-8 max-w-5xl mx-auto space-y-6">
+        <Skeleton className="h-10 w-64 rounded-xl" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-48 rounded-2xl" />
+          ))}
+        </div>
       </div>
     )
+  }
+
+  if (reviewMode && sessionComplete) {
+    const totalReviewed = dueCards.length;
+    const strongRecall = sessionCounts.good + sessionCounts.easy;
+    const retentionPct = Math.round((strongRecall / Math.max(1, totalReviewed)) * 100);
+    return (
+      <div className="p-6 md:p-10 max-w-2xl mx-auto min-h-[calc(100vh-theme(spacing.16))] flex flex-col items-center justify-center">
+        <div className="w-full rounded-3xl border border-border/80 bg-card p-8 text-center space-y-6 shadow-xs">
+          <div className="flex justify-center">
+            <RadialRing
+              percent={retentionPct}
+              size={112}
+              strokeWidth={8}
+              label={`${retentionPct}%`}
+              sublabel="Recall"
+              accentColor={retentionPct >= 70 ? '#10B981' : '#D89A06'}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <span className="text-[11px] font-mono uppercase tracking-wider text-[#D89A06] font-bold">
+              Session Summary
+            </span>
+            <h2 className="text-2xl font-black text-foreground">
+              Reviewed {totalReviewed} {totalReviewed === 1 ? 'Card' : 'Cards'}
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Next review intervals have been scheduled using SM-2 spaced repetition.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2.5 text-center font-mono tabular-nums">
+            <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3">
+              <div className="text-lg font-black text-rose-600 dark:text-rose-400">{sessionCounts.again}</div>
+              <div className="text-[10px] uppercase text-muted-foreground">Again</div>
+            </div>
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+              <div className="text-lg font-black text-amber-600 dark:text-amber-400">{sessionCounts.hard}</div>
+              <div className="text-[10px] uppercase text-muted-foreground">Hard</div>
+            </div>
+            <div className="rounded-xl border border-primary/30 bg-primary/10 p-3">
+              <div className="text-lg font-black text-primary">{sessionCounts.good}</div>
+              <div className="text-[10px] uppercase text-muted-foreground">Good</div>
+            </div>
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
+              <div className="text-lg font-black text-emerald-600 dark:text-emerald-400">{sessionCounts.easy}</div>
+              <div className="text-[10px] uppercase text-muted-foreground">Easy</div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSessionComplete(false);
+                setCurrentCardIndex(0);
+                setIsFlipped(false);
+                setSessionCounts({ again: 0, hard: 0, good: 0, easy: 0 });
+              }}
+              className="gap-1.5 text-xs font-semibold cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Practice Again
+            </Button>
+            <Button
+              onClick={() => {
+                setSessionComplete(false);
+                setReviewMode(false);
+              }}
+              className="bg-[#00004E] text-white hover:bg-[#00003E] dark:bg-[#D89A06] dark:text-[#00004E] text-xs font-bold px-5 cursor-pointer"
+            >
+              Back to Course Decks
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (reviewMode && dueCards.length > 0) {
@@ -332,15 +443,29 @@ export default function FlashcardsPage() {
           </div>
         </div>
 
-        {/* 3D Flip Card */}
+        {/* Stacked 3D Flip Card */}
         <div className="flex-1 flex flex-col items-center justify-center my-auto">
           <div 
             className="w-full aspect-[4/3] max-h-[460px] relative cursor-pointer group"
             style={{ perspective: '1000px' }}
             onClick={() => !isFlipped && setIsFlipped(true)}
           >
+            {/* Physical Deck Depth Stack Layers */}
+            {currentCardIndex + 2 < dueCards.length && (
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 rounded-3xl border border-border/50 bg-card/60 translate-y-4 scale-[0.95] pointer-events-none"
+              />
+            )}
+            {currentCardIndex + 1 < dueCards.length && (
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 rounded-3xl border border-border/70 bg-card/85 translate-y-2 scale-[0.975] pointer-events-none"
+              />
+            )}
+
             <div 
-              className="w-full h-full transition-transform duration-500 relative"
+              className="w-full h-full transition-transform duration-500 relative z-10"
               style={{ 
                 transformStyle: 'preserve-3d', 
                 transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' 
@@ -348,7 +473,7 @@ export default function FlashcardsPage() {
             >
               {/* Front (Question) */}
               <div 
-                className="absolute inset-0 bg-card border-2 border-border/90 rounded-3xl p-8 md:p-10 flex flex-col items-center justify-center text-center shadow-md hover:border-[#D89A06]/60 transition-colors"
+                className="absolute inset-0 bg-card border-2 border-border/90 rounded-3xl p-8 md:p-10 flex flex-col items-center justify-center text-center shadow-md hover:border-[#D89A06]/60 transition-colors overflow-y-auto"
                 style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
               >
                 <div className="absolute top-4 right-4">
@@ -362,11 +487,13 @@ export default function FlashcardsPage() {
                   </Button>
                 </div>
                 <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#D89A06] mb-5">QUESTION</span>
-                <h3 className="text-xl md:text-2xl font-bold text-foreground leading-relaxed max-w-lg">
-                  {translatedFront || card.front}
-                </h3>
+                <div className="text-xl md:text-2xl font-bold text-foreground leading-relaxed max-w-lg prose dark:prose-invert prose-p:my-1">
+                  <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                    {translatedFront || card.front}
+                  </ReactMarkdown>
+                </div>
                 {!isFlipped && (
-                  <p className="mt-8 text-xs font-semibold text-muted-foreground animate-pulse flex items-center gap-1.5">
+                  <p className="mt-8 text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                     <RotateCcw size={13} /> Click card or press <kbd className="font-mono bg-muted px-1.5 py-0.5 rounded border border-border">Space</kbd> to reveal answer
                   </p>
                 )}
@@ -374,7 +501,7 @@ export default function FlashcardsPage() {
               
               {/* Back (Answer) */}
               <div 
-                className="absolute inset-0 bg-[#00004E] text-white rounded-3xl p-8 md:p-10 flex flex-col items-center justify-center text-center shadow-xl border border-[#D89A06]/40"
+                className="absolute inset-0 bg-[#00004E] text-white rounded-3xl p-8 md:p-10 flex flex-col items-center justify-center text-center shadow-xl border border-[#D89A06]/40 overflow-y-auto"
                 style={{ 
                   backfaceVisibility: 'hidden', 
                   WebkitBackfaceVisibility: 'hidden', 
@@ -396,7 +523,11 @@ export default function FlashcardsPage() {
                   </Button>
                 </div>
                 <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#D89A06] mb-5">OFFICIAL ANSWER</span>
-                <div className="text-lg md:text-xl font-medium leading-relaxed whitespace-pre-wrap max-w-lg">{translatedBack || card.back}</div>
+                <div className="text-lg md:text-xl font-medium leading-relaxed max-w-lg prose prose-invert prose-p:my-1">
+                  <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                    {translatedBack || card.back}
+                  </ReactMarkdown>
+                </div>
                 
                 {mnemonicsData && (
                   <div className="mt-6 text-left text-xs bg-black/30 border border-white/10 p-3.5 rounded-xl w-full max-w-md">
@@ -469,21 +600,25 @@ export default function FlashcardsPage() {
     <div className="p-8 max-w-5xl mx-auto space-y-8">
       <div className="flex items-start justify-between">
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Link href="/dashboard/courses" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors flex items-center">
-              <ChevronLeft size={16} className="mr-1" /> Courses
+          <div className="flex items-center gap-2 mb-2 text-xs">
+            <Link href="/dashboard/courses" className="font-medium text-muted-foreground hover:text-primary transition-colors flex items-center">
+              <ChevronLeft size={15} className="mr-0.5" /> Courses
             </Link>
-            <span className="text-muted-foreground text-sm">/</span>
-            <span className="text-sm font-medium text-foreground">Flashcards</span>
+            <span className="text-muted-foreground">/</span>
+            <Link href={`/dashboard/courses/${courseId}`} className="font-medium text-muted-foreground hover:text-primary transition-colors">
+              Course Workspace
+            </Link>
+            <span className="text-muted-foreground">/</span>
+            <span className="font-semibold text-foreground">Flashcards</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">Flashcard Deck</h1>
-          <p className="text-muted-foreground mt-1">Review your AI-generated flashcards using spaced repetition.</p>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Flashcard Decks</h1>
+          <p className="text-sm text-muted-foreground mt-1">Spaced repetition recall cards extracted from your lecture slides.</p>
         </div>
 
-        {allDue.length > 0 && (
+        {flashcards.length > 0 && (
           <Button size="lg" onClick={() => startReview()} className="font-bold bg-[#00004E] text-white hover:bg-[#00003E] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] shadow-md cursor-pointer">
             <PlayCircle size={18} className="mr-2 text-[#D89A06] dark:text-[#00004E]" />
-            Review {allDue.length} Due Cards
+            {allDue.length > 0 ? `Review ${allDue.length} Due Cards` : `Practice All ${flashcards.length} Cards`}
           </Button>
         )}
       </div>
@@ -559,10 +694,9 @@ export default function FlashcardsPage() {
                   ) : (
                     <Button 
                       className="w-full text-xs font-bold bg-[#00004E] text-white hover:bg-[#00003E] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] cursor-pointer" 
-                      disabled={due.length === 0}
                       onClick={() => startReview(lec.id)}
                     >
-                      {due.length === 0 ? 'All Cards Reviewed' : `Review ${due.length} Cards`}
+                      {due.length === 0 ? `Practice Deck (${lecCards.length})` : `Review ${due.length} Due Cards`}
                     </Button>
                   )}
                 </div>

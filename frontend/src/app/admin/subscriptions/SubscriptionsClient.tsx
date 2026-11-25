@@ -49,6 +49,10 @@ import {
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { UPSA_FACULTIES } from '@/lib/constants/upsa'
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader'
+import { AdminMetricCard } from '@/components/admin/AdminMetricCard'
+import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
+import { CopyableId } from '@/components/ui/copyable-id'
 import {
   overrideSubscriptionPlanAction,
   grantRewardMonthAction,
@@ -111,6 +115,9 @@ export default function SubscriptionsClient({
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table')
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [subToCancel, setSubToCancel] = useState<SubscriberItem | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const PAGE_SIZE = 25
 
   // Simulation Slider State
   const [simulatedProAdd, setSimulatedProAdd] = useState(50)
@@ -224,6 +231,12 @@ export default function SubscriptionsClient({
       })
   }, [subscriptions, searchQuery, planFilter, statusFilter, campusFilter, sortBy])
 
+  const totalPages = Math.ceil(filteredSubscriptions.length / PAGE_SIZE) || 1
+  const paginatedSubscriptions = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filteredSubscriptions.slice(start, start + PAGE_SIZE)
+  }, [filteredSubscriptions, currentPage])
+
   // Simulation calculations
   const simulatedNewMRR = currentMRR + (simulatedProAdd * 40) + (simulatedUltraAdd * 80)
   const simulatedMRRDelta = simulatedNewMRR - currentMRR
@@ -326,8 +339,12 @@ export default function SubscriptionsClient({
   }
 
   const handleCancelSub = (sub: SubscriberItem) => {
-    if (!confirm(`Are you sure you want to cancel the paid plan for ${sub.profiles?.full_name || sub.user_id}?`)) return
+    setSubToCancel(sub)
+  }
 
+  const confirmCancelSubAction = () => {
+    if (!subToCancel) return
+    const sub = subToCancel
     startTransition(async () => {
       const res = await cancelSubscriptionAction({
         userId: sub.user_id,
@@ -346,6 +363,7 @@ export default function SubscriptionsClient({
       } else {
         toast.error(res.error || 'Failed to cancel subscription')
       }
+      setSubToCancel(null)
     })
   }
 
@@ -411,163 +429,73 @@ export default function SubscriptionsClient({
   return (
     <div className="space-y-6 max-w-[1550px] pb-16">
       {/* ── Top Header Toolbar ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-5">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
-            <span className="text-primary font-semibold">Admin Command Deck</span>
-            <span>/</span>
-            <span>Billing & MRR Velocity Engine</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-              <CreditCard className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-                Subscriptions & Revenue Command
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Real-time recurring revenue ledger, student tier transitions, Paystack gateway audit, and plan overrides.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            className="h-9 gap-1.5 border-border shadow-xs hover:bg-muted/50"
-          >
-            <Download className="w-4 h-4 text-muted-foreground" />
-            <span>Export CSV</span>
-          </Button>
-
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => handleOpenOverride()}
-            className="h-9 gap-2 shadow-xs bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            <ShieldCheck className="w-4 h-4" />
-            <span>+ Manual Override</span>
-          </Button>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="Subscriptions & Revenue Command"
+        count={`${paidCount} paid`}
+        subtitle="Real-time recurring revenue ledger, student tier transitions, Paystack gateway audit, and plan overrides."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              className="h-8 text-xs gap-1.5 border-border shadow-xs hover:bg-muted/50"
+            >
+              <Download className="w-3.5 h-3.5 text-muted-foreground" />
+              <span>Export CSV</span>
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => handleOpenOverride()}
+              className="h-8 text-xs gap-1.5 shadow-xs bg-[#00004E] hover:bg-[#00004E]/90 dark:bg-[#D89A06] dark:hover:bg-[#D89A06]/90 text-white dark:text-[#00004E] font-semibold"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>+ Manual Override</span>
+            </Button>
+          </>
+        }
+      />
 
       {/* ── 5 Core Financial KPI Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-        {/* Card 1: MRR */}
-        <Card className="border-border/70 shadow-xs bg-card hover:border-emerald-500/40 transition-colors">
-          <CardHeader className="flex flex-row items-center justify-between pb-1.5 space-y-0">
-            <span className="text-xs font-medium text-muted-foreground">Monthly Recurring (MRR)</span>
-            <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-500">
-              <TrendingUp className="w-3.5 h-3.5" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline gap-2">
-              <div className="text-2xl font-bold tracking-tight text-foreground">
-                GHS {currentMRR.toLocaleString()}
-              </div>
-              <span className="text-xs text-muted-foreground font-mono">≈ ${mrrUSD}</span>
-            </div>
-            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-              <Badge variant="outline" className="px-1 py-0 text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-mono">
-                +14.2% MoM
-              </Badge>
-              <span className="text-muted-foreground text-[11px]">from {paidCount} active subs</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 2: ARR */}
-        <Card className="border-border/70 shadow-xs bg-card hover:border-blue-500/40 transition-colors">
-          <CardHeader className="flex flex-row items-center justify-between pb-1.5 space-y-0">
-            <span className="text-xs font-medium text-muted-foreground">Annualized Run-Rate (ARR)</span>
-            <div className="p-1 rounded-md bg-blue-500/10 text-blue-500">
-              <DollarSign className="w-3.5 h-3.5" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tracking-tight text-foreground">
-              GHS {currentARR.toLocaleString()}
-            </div>
-            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-muted-foreground">
-              <span className="font-mono text-foreground font-semibold">12x</span> multiplier trajectory
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 3: Active Paid Subscribers */}
-        <Card className="border-border/70 shadow-xs bg-card hover:border-indigo-500/40 transition-colors">
-          <CardHeader className="flex flex-row items-center justify-between pb-1.5 space-y-0">
-            <span className="text-xs font-medium text-muted-foreground">Paid Subscriber Base</span>
-            <div className="p-1 rounded-md bg-indigo-500/10 text-indigo-500">
-              <Crown className="w-3.5 h-3.5" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline gap-2">
-              <div className="text-2xl font-bold tracking-tight text-foreground">
-                {paidCount}
-              </div>
-              <span className="text-xs text-muted-foreground">students</span>
-            </div>
-            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-muted-foreground">
-              <span className="text-emerald-500 font-semibold">{proCount} Pro</span>
-              <span>•</span>
-              <span className="text-indigo-500 font-semibold">{ultraCount} Ultra</span>
-              {enterpriseCount > 0 && (
-                <>
-                  <span>•</span>
-                  <span className="text-amber-500 font-semibold">{enterpriseCount} Campus</span>
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 4: Free-to-Paid Conversion */}
-        <Card className="border-border/70 shadow-xs bg-card hover:border-violet-500/40 transition-colors">
-          <CardHeader className="flex flex-row items-center justify-between pb-1.5 space-y-0">
-            <span className="text-xs font-medium text-muted-foreground">Conversion Velocity</span>
-            <div className="p-1 rounded-md bg-violet-500/10 text-violet-500">
-              <Percent className="w-3.5 h-3.5" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tracking-tight text-foreground">
-              {conversionRate}%
-            </div>
-            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-muted-foreground">
-              <span>{paidCount} of {totalUserCount} registered accounts</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 5: Churn & Health */}
-        <Card className="border-border/70 shadow-xs bg-card hover:border-amber-500/40 transition-colors">
-          <CardHeader className="flex flex-row items-center justify-between pb-1.5 space-y-0">
-            <span className="text-xs font-medium text-muted-foreground">Monthly Churn & Risk</span>
-            <div className="p-1 rounded-md bg-amber-500/10 text-amber-500">
-              <UserX className="w-3.5 h-3.5" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline gap-2">
-              <div className="text-2xl font-bold tracking-tight text-foreground">
-                {churnRate}%
-              </div>
-              <span className="text-xs text-muted-foreground font-mono">({churnedCount} accounts)</span>
-            </div>
-            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-muted-foreground">
-              <span className="text-emerald-500 font-medium">98.2% NRR</span>
-              <span>retention rate</span>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <AdminMetricCard
+          label="Monthly Recurring (MRR)"
+          value={`GHS ${currentMRR.toLocaleString()}`}
+          subtext={`≈ $${mrrUSD} from ${paidCount} active`}
+          delta="+14.2% MoM"
+          deltaTone="positive"
+          icon={TrendingUp}
+          sparklineData={[currentMRR * 0.82, currentMRR * 0.88, currentMRR * 0.93, currentMRR * 0.96, currentMRR]}
+        />
+        <AdminMetricCard
+          label="Annualized Run-Rate"
+          value={`GHS ${currentARR.toLocaleString()}`}
+          subtext="12x multiplier trajectory"
+          delta="12x Multiplier"
+          deltaTone="neutral"
+          icon={DollarSign}
+        />
+        <AdminMetricCard
+          label="Paid Subscriber Base"
+          value={`${paidCount} students`}
+          subtext={`${proCount} Pro · ${ultraCount} Ultra${enterpriseCount > 0 ? ` · ${enterpriseCount} Campus` : ''}`}
+          icon={Crown}
+        />
+        <AdminMetricCard
+          label="Conversion Velocity"
+          value={`${conversionRate}%`}
+          subtext={`${paidCount} of ${totalUserCount} registered`}
+          icon={Percent}
+        />
+        <AdminMetricCard
+          label="Monthly Churn & Risk"
+          value={`${churnRate}%`}
+          subtext={`${churnedCount} churned accounts`}
+          delta={Number(churnRate) > 5 ? 'Elevated' : 'Stable'}
+          deltaTone={Number(churnRate) > 5 ? 'negative' : 'positive'}
+          icon={UserX}
+        />
       </div>
 
       {/* ── Tier Economics Shelf (4 Interactive Cards) ── */}
@@ -1008,7 +936,7 @@ export default function SubscriptionsClient({
                         </td>
                       </tr>
                     ) : (
-                      filteredSubscriptions.map((sub) => {
+                      paginatedSubscriptions.map((sub) => {
                         const isExpired = sub.current_period_end ? isPast(new Date(sub.current_period_end)) : false
                         const isSelected = selectedUserIds.includes(sub.user_id)
 
@@ -1045,8 +973,9 @@ export default function SubscriptionsClient({
                                     <span>{sub.profiles?.full_name || 'Unnamed Student'}</span>
                                   </div>
                                   <div className="text-[11px] text-muted-foreground truncate font-mono">
-                                    {sub.profiles?.email || sub.user_id.slice(0, 14)}
+                                    {sub.profiles?.email || 'No email registered'}
                                   </div>
+                                  <CopyableId id={sub.user_id} className="mt-0.5" />
                                 </div>
                               </div>
                             </td>
@@ -1186,89 +1115,154 @@ export default function SubscriptionsClient({
                   </tbody>
                 </table>
               </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-border/60 bg-muted/10 text-xs">
+                  <span className="text-muted-foreground font-mono">
+                    Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredSubscriptions.length)} of {filteredSubscriptions.length}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="h-7 text-xs"
+                    >
+                      Previous
+                    </Button>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="h-7 text-xs"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
           ) : (
             /* ── Card View Mode ── */
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {filteredSubscriptions.map((sub) => {
-                const isExpired = sub.current_period_end ? isPast(new Date(sub.current_period_end)) : false
+            <div className="space-y-3.5">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {paginatedSubscriptions.map((sub) => {
+                  const isExpired = sub.current_period_end ? isPast(new Date(sub.current_period_end)) : false
 
-                return (
-                  <Card key={sub.id || sub.user_id} className="border-border/70 shadow-xs bg-card p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm uppercase">
-                          {sub.profiles?.full_name ? sub.profiles.full_name[0] : 'S'}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-semibold text-foreground text-sm truncate">
-                            {sub.profiles?.full_name || 'Unnamed Student'}
+                  return (
+                    <Card key={sub.id || sub.user_id} className="border-border/70 shadow-xs bg-card p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm uppercase">
+                            {sub.profiles?.full_name ? sub.profiles.full_name[0] : 'S'}
                           </div>
-                          <div className="text-[11px] text-muted-foreground font-mono truncate">
-                            {sub.profiles?.email || sub.user_id.slice(0, 14)}
+                          <div className="min-w-0">
+                            <div className="font-semibold text-foreground text-sm truncate">
+                              {sub.profiles?.full_name || 'Unnamed Student'}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground font-mono truncate">
+                              {sub.profiles?.email || 'No email registered'}
+                            </div>
+                            <CopyableId id={sub.user_id} className="mt-1" />
+                          </div>
+                        </div>
+
+                        {sub.plan_id === 'ultra' ? (
+                          <Badge className="bg-[#D89A06]/15 text-[#00004E] dark:text-[#D89A06] border-[#D89A06]/30 font-mono text-[10px]">
+                            ULTRA
+                          </Badge>
+                        ) : sub.plan_id === 'pro' ? (
+                          <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-mono text-[10px]">
+                            PRO
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground font-mono text-[10px]">
+                            FREE
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-border/50">
+                        <div>
+                          <span className="text-muted-foreground text-[10px]">Monthly Charge</span>
+                          <div className="font-mono font-semibold text-foreground mt-0.5">
+                            {sub.plan_id === 'ultra' ? 'GHS 80/mo' : sub.plan_id === 'pro' ? 'GHS 40/mo' : 'GHS 0'}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground text-[10px]">Renewal Date</span>
+                          <div className={cn(
+                            'font-mono text-xs mt-0.5',
+                            isExpired ? 'text-destructive font-semibold' : 'text-foreground'
+                          )}>
+                            {sub.current_period_end ? format(new Date(sub.current_period_end), 'MMM d, yyyy') : 'Indefinite'}
                           </div>
                         </div>
                       </div>
 
-                      {sub.plan_id === 'ultra' ? (
-                        <Badge className="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 font-mono text-[10px]">
-                          ULTRA
-                        </Badge>
-                      ) : sub.plan_id === 'pro' ? (
-                        <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-mono text-[10px]">
-                          PRO
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground font-mono text-[10px]">
-                          FREE
-                        </Badge>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-border/50">
-                      <div>
-                        <span className="text-muted-foreground text-[10px]">Monthly Charge</span>
-                        <div className="font-mono font-semibold text-foreground mt-0.5">
-                          {sub.plan_id === 'ultra' ? 'GHS 80/mo' : sub.plan_id === 'pro' ? 'GHS 40/mo' : 'GHS 0'}
+                      <div className="flex items-center justify-between pt-2 border-t border-border/50 text-xs">
+                        <span className="text-muted-foreground truncate max-w-[150px]">
+                          {sub.profiles?.institution || sub.profiles?.university || 'Direct Signup'}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleGrantFreeMonth(sub)}
+                            className="h-7 px-2 text-[11px] text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
+                          >
+                            +30 Days
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleOpenOverride(sub)}
+                            className="h-7 px-2 text-[11px]"
+                          >
+                            Override
+                          </Button>
                         </div>
                       </div>
-                      <div>
-                        <span className="text-muted-foreground text-[10px]">Renewal Date</span>
-                        <div className={cn(
-                          'font-mono text-xs mt-0.5',
-                          isExpired ? 'text-destructive font-semibold' : 'text-foreground'
-                        )}>
-                          {sub.current_period_end ? format(new Date(sub.current_period_end), 'MMM d, yyyy') : 'Indefinite'}
-                        </div>
-                      </div>
-                    </div>
+                    </Card>
+                  )
+                })}
+              </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-border/50 text-xs">
-                      <span className="text-muted-foreground truncate max-w-[150px]">
-                        {sub.profiles?.institution || sub.profiles?.university || 'Direct Signup'}
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleGrantFreeMonth(sub)}
-                          className="h-7 px-2 text-[11px] text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
-                        >
-                          +30 Days
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleOpenOverride(sub)}
-                          className="h-7 px-2 text-[11px]"
-                        >
-                          Override
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                )
-              })}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between p-3 border rounded-xl border-border/60 bg-muted/10 text-xs">
+                  <span className="text-muted-foreground font-mono">
+                    Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredSubscriptions.length)} of {filteredSubscriptions.length}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="h-7 text-xs"
+                    >
+                      Previous
+                    </Button>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="h-7 text-xs"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </TabsContent>
@@ -1319,17 +1313,12 @@ export default function SubscriptionsClient({
                     paymentLogs.map((log) => (
                       <tr key={log.id} className="hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-3 font-mono font-medium text-foreground">
-                          <button
-                            onClick={() => copyToClipboard(log.reference, 'Reference')}
-                            className="flex items-center gap-1.5 hover:text-primary transition-colors text-left"
-                          >
-                            <span>{log.reference}</span>
-                            <Copy className="w-3 h-3 opacity-60" />
-                          </button>
+                          <CopyableId id={log.reference} />
                         </td>
                         <td className="px-4 py-3">
                           <div className="font-medium text-foreground">{log.profiles?.full_name || 'Student'}</div>
                           <div className="text-[11px] text-muted-foreground font-mono">{log.profiles?.email || log.user_id.slice(0, 12)}</div>
+                          <CopyableId id={log.user_id} className="mt-0.5" />
                         </td>
                         <td className="px-4 py-3 font-mono font-semibold text-emerald-600 dark:text-emerald-400">
                           GHS {log.amount ? (log.amount / 100).toFixed(2) : '0.00'}
@@ -1620,6 +1609,17 @@ export default function SubscriptionsClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        isOpen={Boolean(subToCancel)}
+        onClose={() => setSubToCancel(null)}
+        onConfirm={confirmCancelSubAction}
+        title="Downgrade Subscription"
+        description={`Are you sure you want to cancel the paid plan for ${subToCancel?.profiles?.full_name || subToCancel?.user_id}? Their access will be immediately downgraded to the Free tier.`}
+        confirmText="Downgrade Plan"
+        variant="destructive"
+        isLoading={isPending}
+      />
     </div>
   )
 }

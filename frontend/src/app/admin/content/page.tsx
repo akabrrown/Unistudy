@@ -41,8 +41,15 @@ import {
   Layers,
   Check,
   ShieldCheck,
-  FileCheck
+  FileCheck,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { AdminMetricCard } from '@/components/admin/AdminMetricCard';
+import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog';
+import { CopyableId } from '@/components/ui/copyable-id';
 import { apiFetch } from '@/lib/api/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -103,6 +110,16 @@ export default function ContentModerationPage() {
   // Inspection Drawer
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 25;
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
 
   const fetchContent = async (isManualRefresh = false) => {
     if (isManualRefresh) setRefreshing(true);
@@ -143,20 +160,30 @@ export default function ContentModerationPage() {
   }, []);
 
   // Single Item Handlers
-  const handleDeleteItem = async (item: ContentItem) => {
-    if (!confirm(`Are you sure you want to permanently take down and delete "${item.title}"?`)) return;
+  const executeDeleteItem = async (item: ContentItem) => {
     setActionLoading(true);
     try {
       await apiFetch(`/admin/content/${item.id}?type=${item.type}`, { method: 'DELETE' });
       toast.success(`Removed ${item.type === 'past_paper' ? 'Past Paper' : 'Lecture'} successfully`);
       setContent((prev) => prev.filter((i) => i.id !== item.id));
       if (selectedItem?.id === item.id) setSelectedItem(null);
+      setConfirmDialog(null);
       await fetchContent();
     } catch (err: any) {
       toast.error(err.message || 'Could not remove content');
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleDeleteItem = (item: ContentItem) => {
+    setConfirmDialog({
+      open: true,
+      title: `Take down "${item.title}"?`,
+      description: 'This permanently deletes the uploaded asset and removes it from student course banks.',
+      confirmLabel: 'Take Down Asset',
+      onConfirm: () => executeDeleteItem(item),
+    });
   };
 
   const handleApproveItem = async (item: ContentItem) => {
@@ -203,10 +230,7 @@ export default function ContentModerationPage() {
   };
 
   // Batch Handlers
-  const handleBatchAction = async (action: 'delete' | 'approve' | 'dismiss_flags') => {
-    if (selectedIds.length === 0) return;
-    if (action === 'delete' && !confirm(`Permanently take down and delete ${selectedIds.length} items?`)) return;
-
+  const executeBatchAction = async (action: 'delete' | 'approve' | 'dismiss_flags') => {
     setBatchLoading(true);
     try {
       const selectedItems = content.filter((i) => selectedIds.includes(i.id));
@@ -219,12 +243,28 @@ export default function ContentModerationPage() {
 
       toast.success(`Batch ${action} completed for ${selectedIds.length} items`);
       setSelectedIds([]);
+      setConfirmDialog(null);
       await fetchContent();
     } catch (err: any) {
       toast.error(err.message || 'Batch operation failed');
     } finally {
       setBatchLoading(false);
     }
+  };
+
+  const handleBatchAction = async (action: 'delete' | 'approve' | 'dismiss_flags') => {
+    if (selectedIds.length === 0) return;
+    if (action === 'delete') {
+      setConfirmDialog({
+        open: true,
+        title: `Take down ${selectedIds.length} selected items?`,
+        description: 'All selected lecture decks and past exam papers will be permanently removed.',
+        confirmLabel: 'Take Down Selected',
+        onConfirm: () => executeBatchAction('delete'),
+      });
+      return;
+    }
+    await executeBatchAction(action);
   };
 
   // Filtered and Sorted Content List
@@ -328,11 +368,29 @@ export default function ContentModerationPage() {
     toast.success(`Exported ${listToExport.length} moderation records to CSV`);
   };
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, typeFilter, statusFilter, searchTerm, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedContent.length / PAGE_SIZE));
+  const paginatedContent = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredAndSortedContent.slice(start, start + PAGE_SIZE);
+  }, [filteredAndSortedContent, currentPage]);
+
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground font-mono">Loading moderation queue & safety flags...</p>
+      <div className="space-y-6 max-w-[1500px] mx-auto pb-12">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-9 w-64 rounded-lg" />
+          <Skeleton className="h-9 w-44 rounded-lg" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-[460px] rounded-xl" />
       </div>
     );
   }
@@ -340,129 +398,78 @@ export default function ContentModerationPage() {
   return (
     <div className="space-y-6 max-w-[1500px] mx-auto pb-12">
       {/* Top Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border/60 pb-5">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <Badge variant="outline" className="text-xs uppercase font-mono tracking-wider text-muted-foreground">
-              Trust & Safety • Triage Center
-            </Badge>
-            <span className="text-xs text-muted-foreground">•</span>
-            <span className="text-xs font-mono text-muted-foreground">
-              {filteredAndSortedContent.length} items in view
-            </span>
-          </div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Content Moderation</h1>
-          <p className="text-muted-foreground text-sm max-w-2xl mt-0.5">
-            Audit study materials, past exam questions, lecture slide decks, and community-reported flags for academic integrity.
-          </p>
-        </div>
+      <AdminPageHeader
+        title="Content Moderation"
+        count={stats.total}
+        subtitle="Audit uploaded lecture slide decks, past exam questions, and student-reported flags for academic integrity."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportContentCsv}
+              className="h-9 gap-2 text-xs font-medium cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export CSV
+            </Button>
 
-        <div className="flex items-center gap-2.5">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportContentCsv}
-            className="h-9 gap-2 text-xs font-medium"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export Moderation CSV
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchContent(true)}
-            disabled={refreshing}
-            className="h-9 gap-2 text-xs font-medium"
-          >
-            <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
-            Sync Queue
-          </Button>
-        </div>
-      </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchContent(true)}
+              disabled={refreshing}
+              className="h-9 gap-2 text-xs font-medium cursor-pointer"
+            >
+              <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
+              Sync Queue
+            </Button>
+          </>
+        }
+      />
 
       {/* KPI Queue Ribbon (5 Cards) */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Card
+        <AdminMetricCard
+          label="All Content"
+          value={stats.total}
+          subtext="Uploaded repository items"
+          icon={Layers}
+          active={activeTab === 'all' && statusFilter === 'all'}
           onClick={() => { setActiveTab('all'); setStatusFilter('all'); }}
-          className={cn(
-            "p-4 cursor-pointer transition-all hover:border-primary/50 relative overflow-hidden",
-            activeTab === 'all' && statusFilter === 'all' ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "bg-card"
-          )}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">All Content</span>
-            <Layers className="w-4 h-4 text-muted-foreground" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight">{stats.total}</div>
-          <p className="text-[11px] text-muted-foreground mt-1">Uploaded repository items</p>
-        </Card>
-
-        <Card
+        />
+        <AdminMetricCard
+          label="Needs Review"
+          value={stats.flagged}
+          subtext={stats.flagged === 0 ? 'Queue clean' : 'Active user reports'}
+          deltaTone={stats.flagged > 0 ? 'negative' : 'positive'}
+          icon={AlertTriangle}
+          active={activeTab === 'flagged'}
           onClick={() => { setActiveTab('flagged'); setStatusFilter('all'); }}
-          className={cn(
-            "p-4 cursor-pointer transition-all hover:border-rose-500/50 relative overflow-hidden",
-            activeTab === 'flagged' ? "border-rose-500 bg-rose-500/10 ring-1 ring-rose-500/20" : "bg-card"
-          )}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">
-              Needs Review
-            </span>
-            <AlertTriangle className={cn("w-4 h-4 text-rose-500", stats.flagged > 0 && "animate-pulse")} />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-rose-600 dark:text-rose-400">
-            {stats.flagged}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            {stats.flagged === 0 ? 'Queue clean & healthy' : 'Active user reports'}
-          </p>
-        </Card>
-
-        <Card
+        />
+        <AdminMetricCard
+          label="Lectures"
+          value={stats.lectures}
+          subtext="Slide decks"
+          icon={BookOpen}
+          active={activeTab === 'lectures'}
           onClick={() => { setActiveTab('lectures'); setStatusFilter('all'); }}
-          className={cn(
-            "p-4 cursor-pointer transition-all hover:border-blue-500/50 relative overflow-hidden",
-            activeTab === 'lectures' ? "border-blue-500 bg-blue-500/10 ring-1 ring-blue-500/20" : "bg-card"
-          )}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lectures</span>
-            <BookOpen className="w-4 h-4 text-blue-500" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-blue-600 dark:text-blue-400">
-            {stats.lectures}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">Slide decks & recordings</p>
-        </Card>
-
-        <Card
+        />
+        <AdminMetricCard
+          label="Past Papers"
+          value={stats.pastPapers}
+          subtext="Question banks"
+          icon={FileText}
+          active={activeTab === 'past_papers'}
           onClick={() => { setActiveTab('past_papers'); setStatusFilter('all'); }}
-          className={cn(
-            "p-4 cursor-pointer transition-all hover:border-primary/50 relative overflow-hidden",
-            activeTab === 'past_papers' ? "border-primary bg-primary/10 ring-1 ring-primary/20" : "bg-card"
-          )}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Past Papers</span>
-            <FileText className="w-4 h-4 text-primary" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-primary">
-            {stats.pastPapers}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">Exams & question banks</p>
-        </Card>
-
-        <Card className="p-4 bg-card relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Enforcements</span>
-            <ShieldCheck className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-emerald-600 dark:text-emerald-400">
-            {stats.moderatedActions}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">Actions logged in audit</p>
-        </Card>
+        />
+        <AdminMetricCard
+          label="Enforcements"
+          value={stats.moderatedActions}
+          subtext="Actions logged in audit"
+          deltaTone="positive"
+          icon={ShieldCheck}
+        />
       </div>
 
       {/* Control Deck: Tabs, Search, Filters, Batch Actions */}
@@ -649,7 +656,7 @@ export default function ContentModerationPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
-              {filteredAndSortedContent.map((item) => {
+              {paginatedContent.map((item) => {
                 const isSelected = selectedIds.includes(item.id);
                 const hasFlags = item.flags.length > 0;
 
@@ -783,7 +790,7 @@ export default function ContentModerationPage() {
                           size="icon"
                           onClick={() => setSelectedItem(item)}
                           className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                          title="Inspect Dossier"
+                          title="Inspect Asset"
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </Button>
@@ -802,7 +809,7 @@ export default function ContentModerationPage() {
                               Content Actions
                             </DropdownMenuLabel>
                             <DropdownMenuItem onClick={() => setSelectedItem(item)} className="gap-2">
-                              <Eye className="w-3.5 h-3.5" /> Inspect Dossier
+                              <Eye className="w-3.5 h-3.5" /> Inspect Asset
                             </DropdownMenuItem>
 
                             {item.file_url && (
@@ -868,9 +875,39 @@ export default function ContentModerationPage() {
             </tbody>
           </table>
         </div>
+        {filteredAndSortedContent.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border/60 text-xs text-muted-foreground">
+            <span className="tabular-nums">
+              Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredAndSortedContent.length)} of {filteredAndSortedContent.length} assets
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="h-8 px-2.5 text-xs gap-1 cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" /> Previous
+              </Button>
+              <span className="font-mono font-medium text-foreground tabular-nums px-1">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="h-8 px-2.5 text-xs gap-1 cursor-pointer"
+              >
+                Next <ChevronRight className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
-      {/* Deepened Content Dossier Drawer */}
+      {/* Asset Details Drawer */}
       <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
         <SheetContent className="w-full sm:max-w-xl md:max-w-2xl overflow-y-auto bg-background p-0 border-l border-border flex flex-col">
           {selectedItem && (
@@ -896,8 +933,9 @@ export default function ContentModerationPage() {
                         <SheetTitle className="text-lg font-bold leading-snug">
                           {selectedItem.title}
                         </SheetTitle>
-                        <SheetDescription className="text-xs text-muted-foreground font-mono mt-0.5">
-                          ID: {selectedItem.id}
+                        <SheetDescription className="text-xs text-muted-foreground font-mono mt-0.5 flex items-center gap-1.5">
+                          <span>ID:</span>
+                          <CopyableId value={selectedItem.id} truncateLength={10} toastMessage="Asset ID copied" />
                         </SheetDescription>
                       </div>
                     </div>
@@ -1139,6 +1177,16 @@ export default function ContentModerationPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      <ConfirmActionDialog
+        open={!!confirmDialog?.open}
+        onOpenChange={(open) => !open && setConfirmDialog(null)}
+        title={confirmDialog?.title || ''}
+        description={confirmDialog?.description || ''}
+        confirmLabel={confirmDialog?.confirmLabel || 'Confirm'}
+        loading={actionLoading || batchLoading}
+        onConfirm={() => confirmDialog?.onConfirm()}
+      />
     </div>
   );
 }

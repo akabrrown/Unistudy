@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -54,13 +54,14 @@ export function PinnedLibraryClient({
   const [sortOrder, setSortOrder] = useState<LibrarySortOrder>('recent');
   const [viewMode, setViewMode] = useState<LibraryViewMode>('grid');
   const [busyVideoId, setBusyVideoId] = useState<string | null>(null);
+  const [noteWordCounts, setNoteWordCounts] = useState<Record<string, number>>({});
 
-  const noteWordCounts = useMemo(() => {
+  useEffect(() => {
     const map: Record<string, number> = {};
     for (const v of pinnedVideos) {
       map[v.video_id] = getVideoNoteWordCount(v.video_id);
     }
-    return map;
+    setNoteWordCounts(map);
   }, [pinnedVideos]);
 
   const courseMap = useMemo(() => {
@@ -193,7 +194,25 @@ export function PinnedLibraryClient({
       if (!res.ok) {
         throw new Error('Failed to remove pinned lecture');
       }
-      toast.success('Removed lecture from Pinned Library');
+      toast.success('Removed lecture from Pinned Library', {
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            setPinnedVideos((prev) => [video, ...prev]);
+            void fetch('/api/youtube/pin', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                videoId: video.video_id,
+                title: video.title,
+                channel: video.channel,
+                thumbnail: video.thumbnail_url,
+                courseId: video.course_id,
+              }),
+            });
+          },
+        },
+      });
     } catch (err: unknown) {
       setPinnedVideos(snapshot);
       toast.error(err instanceof Error ? err.message : 'Failed to remove lecture');

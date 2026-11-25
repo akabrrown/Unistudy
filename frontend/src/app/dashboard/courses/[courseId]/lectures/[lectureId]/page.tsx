@@ -12,6 +12,8 @@ import { generateSlideExplanation } from '@/app/actions/explain'
 import { downloadLecturePack } from '@/lib/downloadPack'
 import { getFlashcards } from '@/app/actions/flashcards'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { useSettings } from '@/contexts/SettingsContext'
 import { toast } from 'sonner'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuGroup } from '@/components/ui/dropdown-menu'
@@ -167,11 +169,11 @@ export default function LectureViewer() {
   const [isNotesOpen, setIsNotesOpen] = useState(false)
   const [showExplanation, setShowExplanation] = useState(true)
   const [isFocusMode, setIsFocusMode] = useState(false)
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false)
 
-  // Listen for Escape key and global arrows for slide switching
+  // Listen for Escape, J/K, N, F, ?, and arrows for Readwise-grade slide navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept if user is typing in an input, textarea, or contentEditable element
       const target = e.target as HTMLElement | null;
       if (
         target &&
@@ -182,16 +184,26 @@ export default function LectureViewer() {
       ) {
         return;
       }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       if (e.key === 'Escape') {
         if (isFocusMode) {
           setIsFocusMode(false);
           toast.info('Exited Focus Mode');
         }
-      } else if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+      } else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key.toLowerCase() === 'j') {
         setSlideIndex(prev => Math.min(totalSlides - 1, prev + 1));
-      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp' || e.key.toLowerCase() === 'k') {
         setSlideIndex(prev => Math.max(0, prev - 1));
+      } else if (e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        setIsNotesOpen(prev => !prev);
+      } else if (e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setIsFocusMode(prev => !prev);
+      } else if (e.key === '?') {
+        e.preventDefault();
+        setIsShortcutsOpen(prev => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -651,7 +663,7 @@ export default function LectureViewer() {
     }
   }
 
-  // Drawing Handlers
+  // Drawing Handlers (scaled to logical 800x450 canvas coordinates)
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -659,8 +671,10 @@ export default function LectureViewer() {
     if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const scaleX = rect.width > 0 ? canvas.width / rect.width : 1;
+    const scaleY = rect.height > 0 ? canvas.height / rect.height : 1;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
 
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -675,11 +689,13 @@ export default function LectureViewer() {
     if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const scaleX = rect.width > 0 ? canvas.width / rect.width : 1;
+    const scaleY = rect.height > 0 ? canvas.height / rect.height : 1;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
 
     ctx.lineTo(x, y);
-    ctx.strokeStyle = '#e11d48'; // Rose 600 (Primary-ish)
+    ctx.strokeStyle = '#D89A06';
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     ctx.stroke();
@@ -736,10 +752,9 @@ export default function LectureViewer() {
           lectureId
         })
       })
-      // Could show a toast here
-      alert('Video pinned successfully!')
+      toast.success('Video pinned to course library')
     } catch (error) {
-      console.error(error)
+      toast.error('Could not pin video')
     }
   }
 
@@ -1301,9 +1316,22 @@ export default function LectureViewer() {
 
   if (slidesLoading) {
     return (
-      <div className="h-[calc(100vh-theme(spacing.16))] flex flex-col items-center justify-center gap-3 bg-background border border-border rounded-xl shadow-sm relative">
-        <Loader2 className="animate-spin w-10 h-10 text-primary" />
-        <p className="text-sm text-muted-foreground">Loading lecture — this may take a few seconds on first open.</p>
+      <div className="h-[calc(100vh-theme(spacing.16))] rounded-xl border border-border bg-card overflow-hidden flex flex-col">
+        <div className="h-14 border-b border-border px-5 flex items-center justify-between">
+          <Skeleton className="h-6 w-56 rounded-lg" />
+          <Skeleton className="h-8 w-24 rounded-lg" />
+        </div>
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-5">
+          <div className="lg:col-span-8 flex flex-col justify-between gap-4">
+            <Skeleton className="w-full aspect-video rounded-xl" />
+            <Skeleton className="h-16 w-full rounded-xl" />
+          </div>
+          <div className="lg:col-span-4 space-y-3">
+            <Skeleton className="h-10 w-full rounded-xl" />
+            <Skeleton className="h-64 w-full rounded-xl" />
+            <Skeleton className="h-28 w-full rounded-xl" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -1526,8 +1554,8 @@ export default function LectureViewer() {
               <DropdownMenuItem onClick={() => toast.info('Issue reported. Thank you for your feedback!')}>
                 Report Issue
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.info('Keyboard shortcuts coming soon!')}>
-                Keyboard Shortcuts
+              <DropdownMenuItem onClick={() => setIsShortcutsOpen(true)} className="cursor-pointer">
+                Keyboard Shortcuts (?)
               </DropdownMenuItem>
               <DropdownMenuItem className="p-0">
                 <Link href={`/dashboard/courses/${courseId}/lectures/${lectureId}/poster`} className="w-full h-full px-2 py-1.5 cursor-pointer block text-primary">
@@ -1995,26 +2023,26 @@ export default function LectureViewer() {
           {/* Action Header */}
           {!isFocusMode && (
           <div className="flex-shrink-0 flex items-center gap-1 px-4 py-3 border-b border-border justify-between">
-            <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap" >
-              <Button variant="ghost" size="icon-sm" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => setIsYoutubeOpen(true)} title="Find Resources">
+            <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap">
+              <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground hover:bg-muted" onClick={() => setIsYoutubeOpen(true)} title="Related Video Lectures">
                 <PlaySquare size={16} />
               </Button>
-              <Button variant="ghost" size="icon-sm" className="text-blue-500 hover:text-blue-600 hover:bg-blue-50" onClick={() => handleGenerateExplanation(slideIndex, true)} title="Regenerate Explanation" disabled={loadingAI}>
+              <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground hover:bg-muted" onClick={() => handleGenerateExplanation(slideIndex, true)} title="Regenerate Explanation" disabled={loadingAI}>
                 <RefreshCw size={16} className={loadingAI ? "animate-spin" : ""} />
               </Button>
-              <Button variant="ghost" size="icon-sm" className="text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50" onClick={() => setIsChatOpen(true)} title="Ask AI about this slide">
+              <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground hover:bg-muted" onClick={() => setIsChatOpen(true)} title="Ask Tutor about this slide">
                 <MessageCircle size={16} />
               </Button>
-              <Button variant="ghost" size="icon-sm" className="text-[#00004E] dark:text-[#D89A06] hover:bg-[#00004E]/10 dark:hover:bg-white/10" onClick={() => setIsCalculatorOpen(true)} title="Open Math Calculator">
+              <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground hover:bg-muted" onClick={() => setIsCalculatorOpen(true)} title="Open Math Calculator">
                 <Calculator size={16} />
               </Button>
-              <Button variant="ghost" size="icon-sm" className="text-orange-500 hover:text-orange-600 hover:bg-orange-50" onClick={() => { setIsSongOpen(true); handleGenerateSong(); }} title="Generate Revision Song">
+              <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground hover:bg-muted" onClick={() => { setIsSongOpen(true); handleGenerateSong(); }} title="Mnemonic Revision Song">
                 <Music size={16} />
               </Button>
               <Button 
                 variant="ghost" 
                 size="icon-sm" 
-                className={translatedExplanation[slideIndex] ? "text-teal-600 bg-teal-50" : "text-teal-500 hover:text-teal-600 hover:bg-teal-50"}
+                className={translatedExplanation[slideIndex] ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"}
                 onClick={handleTranslateExplanation} 
                 disabled={isTranslatingExplanation}
                 title={translatedExplanation[slideIndex] ? "Show original" : `Translate to ${settings.language || 'fr'}`}
@@ -2383,16 +2411,11 @@ export default function LectureViewer() {
             </div>
           </div>
 
-          {/* Active Slide & Explanation Grounding Bar */}
-          <div className="px-4 py-2 bg-emerald-500/10 border-b border-emerald-500/20 flex items-center justify-between text-xs shrink-0">
-            <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-medium truncate">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              <span className="truncate">
-                Strictly Grounded: Slide {slideIndex + 1} {explanation ? '& Active AI Explanation' : ''}
-              </span>
-            </div>
-            <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-500/15 border border-emerald-500/20 px-1.5 py-0.5 rounded font-semibold shrink-0">
-              Live Grounding
+          {/* Active Slide Context Strip */}
+          <div className="px-4 py-2 bg-muted/40 border-b border-border/60 flex items-center justify-between text-xs shrink-0">
+            <span className="text-muted-foreground font-medium truncate">
+              Attached: <strong className="text-foreground font-mono">Slide {slideIndex + 1}</strong>
+              {explanation ? ' · Slide Notes' : ''}
             </span>
           </div>
           
@@ -2487,6 +2510,36 @@ export default function LectureViewer() {
       
       {/* Background Focus Timer */}
       <FocusTimer ref={timerRef} isOpen={isTimerOpen} onClose={() => setIsTimerOpen(false)} onTick={setTimerDisplay} />
+
+      {/* Keyboard Shortcuts Reference Dialog */}
+      <Dialog open={isShortcutsOpen} onOpenChange={setIsShortcutsOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Slide Viewer Shortcuts</DialogTitle>
+            <DialogDescription>
+              Navigate lecture slides and notes rapidly from your keyboard.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="divide-y divide-border/60 text-xs pt-2">
+            {[
+              { keys: 'J / →', desc: 'Next slide' },
+              { keys: 'K / ←', desc: 'Previous slide' },
+              { keys: 'N', desc: 'Toggle slide notes drawer' },
+              { keys: 'F', desc: 'Toggle fullscreen focus mode' },
+              { keys: 'Double-Click', desc: 'Zoom slide 100% / 200%' },
+              { keys: 'Esc', desc: 'Exit focus mode or close dialog' },
+              { keys: '?', desc: 'Open this shortcuts sheet' },
+            ].map((row) => (
+              <div key={row.keys} className="py-2.5 flex items-center justify-between gap-4">
+                <span className="text-foreground font-medium">{row.desc}</span>
+                <kbd className="px-2 py-0.5 rounded bg-muted border border-border font-mono font-bold text-[11px] text-foreground">
+                  {row.keys}
+                </kbd>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

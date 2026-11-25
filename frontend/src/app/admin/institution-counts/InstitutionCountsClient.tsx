@@ -36,6 +36,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { AdminMetricCard } from '@/components/admin/AdminMetricCard';
 import {
   UPSADemographicsData,
   UPSAFacultyWithStats,
@@ -287,65 +289,42 @@ export default function InstitutionCountsClient({ initialData, initialInstitutio
   return (
     <div className="space-y-6 max-w-[1550px] pb-16">
       {/* ── Top Header Toolbar ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-5">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
-            <span className="text-primary font-semibold">Admin Command Deck</span>
-            <span>/</span>
-            <span>UPSA Academic Structure & Faculty Registry</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20">
-              <Building2 className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-                  UPSA Faculties & Demographics
-                </h1>
-                <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs font-mono">
-                  Single-University Exclusive
-                </Badge>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Official academic structure, faculties, degree programmes, and cohort distribution for University of Professional Studies, Accra.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isPending}
-            className="h-9 gap-1.5 border-border shadow-xs hover:bg-muted/50"
-          >
-            <RotateCw className={cn('w-4 h-4 text-muted-foreground', isPending && 'animate-spin')} />
-            <span>Refresh</span>
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            className="h-9 gap-1.5 border-border shadow-xs hover:bg-muted/50"
-          >
-            <Download className="w-4 h-4 text-muted-foreground" />
-            <span>Export CSV</span>
-          </Button>
-
-          <Button
-            size="sm"
-            onClick={() => setCreateModalOpen(true)}
-            className="h-9 gap-1.5 bg-primary text-primary-foreground shadow-xs hover:bg-primary/90"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Add Faculty</span>
-          </Button>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="UPSA Faculties & Demographics"
+        count={`${data.totalStudents} students`}
+        subtitle="Official academic structure, faculties, degree programmes, and cohort distribution for University of Professional Studies, Accra."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isPending}
+              className="h-8 text-xs gap-1.5 border-border shadow-xs hover:bg-muted/50"
+            >
+              <RotateCw className={cn('w-3.5 h-3.5 text-muted-foreground', isPending && 'animate-spin')} />
+              <span>Refresh</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              className="h-8 text-xs gap-1.5 border-border shadow-xs hover:bg-muted/50"
+            >
+              <Download className="w-3.5 h-3.5 text-muted-foreground" />
+              <span>Export CSV</span>
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setCreateModalOpen(true)}
+              className="h-8 text-xs gap-1.5 bg-[#00004E] hover:bg-[#00004E]/90 dark:bg-[#D89A06] dark:hover:bg-[#D89A06]/90 text-white dark:text-[#00004E] font-semibold shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Add Faculty</span>
+            </Button>
+          </>
+        }
+      />
 
       {/* ── Institution Identity Card ── */}
       <Card className="border-primary/30 bg-primary/5 shadow-xs overflow-hidden">
@@ -400,100 +379,39 @@ export default function InstitutionCountsClient({ initialData, initialInstitutio
       </Card>
 
       {/* ── 5 Core Academic & Enrollment KPI Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-        {/* Card 1: Total UPSA Students */}
-        <Card className="border-border/70 shadow-xs bg-card hover:border-primary/40 transition-colors">
-          <CardHeader className="flex flex-row items-center justify-between pb-1.5 space-y-0">
-            <span className="text-xs font-medium text-muted-foreground">Total UPSA Students</span>
-            <div className="p-1 rounded-md bg-primary/10 text-primary">
-              <Users className="w-3.5 h-3.5" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tracking-tight text-foreground">
-              {data.totalStudents.toLocaleString()}
-            </div>
-            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-muted-foreground font-mono">
-              <span className="text-emerald-500 font-semibold">{data.verifiedEmailCount}</span>
-              <span>verified accounts</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 2: Email Domain Verification */}
-        <Card className="border-border/70 shadow-xs bg-card hover:border-emerald-500/40 transition-colors">
-          <CardHeader className="flex flex-row items-center justify-between pb-1.5 space-y-0">
-            <span className="text-xs font-medium text-muted-foreground">@upsamail.edu.gh Adoption</span>
-            <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-500">
-              <ShieldCheck className="w-3.5 h-3.5" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tracking-tight text-foreground">
-              {verifiedPercent}%
-            </div>
-            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-muted-foreground">
-              <Progress value={verifiedPercent} className="h-1.5 flex-1" />
-              <span className="font-mono text-[10px]">{data.verifiedEmailCount}/{data.totalStudents}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 3: UPSA Past Papers */}
-        <Card className="border-border/70 shadow-xs bg-card hover:border-blue-500/40 transition-colors">
-          <CardHeader className="flex flex-row items-center justify-between pb-1.5 space-y-0">
-            <span className="text-xs font-medium text-muted-foreground">UPSA Exam Past Papers</span>
-            <div className="p-1 rounded-md bg-blue-500/10 text-blue-500">
-              <FileText className="w-3.5 h-3.5" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tracking-tight text-foreground">
-              {data.totalPastPapers}
-            </div>
-            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-muted-foreground">
-              <span>Across all 5 faculties</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 4: Official Faculties */}
-        <Card className="border-border/70 shadow-xs bg-card hover:border-indigo-500/40 transition-colors">
-          <CardHeader className="flex flex-row items-center justify-between pb-1.5 space-y-0">
-            <span className="text-xs font-medium text-muted-foreground">Academic Faculties</span>
-            <div className="p-1 rounded-md bg-indigo-500/10 text-indigo-500">
-              <Layers className="w-3.5 h-3.5" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tracking-tight text-foreground">
-              {data.faculties.length}
-            </div>
-            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-muted-foreground">
-              <span>FITCS, FAF, FMS, Law, Grad</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 5: Paid Study Subscribers */}
-        <Card className="border-border/70 shadow-xs bg-card hover:border-amber-500/40 transition-colors">
-          <CardHeader className="flex flex-row items-center justify-between pb-1.5 space-y-0">
-            <span className="text-xs font-medium text-muted-foreground">Pro & Ultra Cohorts</span>
-            <div className="p-1 rounded-md bg-amber-500/10 text-amber-500">
-              <Crown className="w-3.5 h-3.5" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold tracking-tight text-foreground">
-              {data.faculties.reduce((acc, f) => acc + f.proCount + f.ultraCount, 0)}
-            </div>
-            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-muted-foreground font-mono">
-              <span className="text-emerald-500 font-semibold">{data.faculties.reduce((acc, f) => acc + f.proCount, 0)} Pro</span>
-              <span>•</span>
-              <span className="text-indigo-500 font-semibold">{data.faculties.reduce((acc, f) => acc + f.ultraCount, 0)} Ultra</span>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <AdminMetricCard
+          label="Total UPSA Students"
+          value={data.totalStudents.toLocaleString()}
+          subtext={`${data.verifiedEmailCount} verified accounts`}
+          icon={Users}
+        />
+        <AdminMetricCard
+          label="@upsamail.edu.gh Adoption"
+          value={`${verifiedPercent}%`}
+          subtext={`${data.verifiedEmailCount} of ${data.totalStudents} verified`}
+          delta={verifiedPercent >= 70 ? 'High' : 'Moderate'}
+          deltaTone={verifiedPercent >= 70 ? 'positive' : 'neutral'}
+          icon={ShieldCheck}
+        />
+        <AdminMetricCard
+          label="UPSA Past Papers"
+          value={data.totalPastPapers}
+          subtext="Across all 5 faculties"
+          icon={FileText}
+        />
+        <AdminMetricCard
+          label="Academic Faculties"
+          value={data.faculties.length}
+          subtext="FITCS, FAF, FMS, Law, Grad"
+          icon={Layers}
+        />
+        <AdminMetricCard
+          label="Pro & Ultra Cohorts"
+          value={data.faculties.reduce((acc, f) => acc + f.proCount + f.ultraCount, 0)}
+          subtext={`${data.faculties.reduce((acc, f) => acc + f.proCount, 0)} Pro · ${data.faculties.reduce((acc, f) => acc + f.ultraCount, 0)} Ultra`}
+          icon={Crown}
+        />
       </div>
 
       {/* ── Interactive Faculty Spectrum Cards (5 Cards) ── */}
@@ -558,7 +476,7 @@ export default function InstitutionCountsClient({ initialData, initialInstitutio
               <div className="px-4 py-2.5 bg-muted/20 border-t border-border/50 text-[11px] flex items-center justify-between text-muted-foreground font-mono">
                 <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{fac.proCount} Pro</span>
                 <span>•</span>
-                <span className="text-indigo-600 dark:text-indigo-400 font-semibold">{fac.ultraCount} Ultra</span>
+                <span className="text-[#00004E] dark:text-[#D89A06] font-semibold">{fac.ultraCount} Ultra</span>
               </div>
             </Card>
           ))}

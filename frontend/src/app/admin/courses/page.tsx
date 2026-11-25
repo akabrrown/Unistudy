@@ -19,10 +19,19 @@ import {
   X,
   Loader2,
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { AdminMetricCard } from '@/components/admin/AdminMetricCard';
 import { toast } from 'sonner';
 
 interface CourseItem {
@@ -46,6 +55,7 @@ export default function AdminCoursesPage() {
   const [stats, setStats] = useState({ total: 0, active: 0, archived: 0, with_duplicates: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterDuplicatesOnly, setFilterDuplicatesOnly] = useState(false);
 
   // Merge Modal State
@@ -54,10 +64,16 @@ export default function AdminCoursesPage() {
   const [targetCourseId, setTargetCourseId] = useState('');
   const [merging, setMerging] = useState(false);
 
-  const fetchCourses = async () => {
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const fetchCourses = async (queryOverride?: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/courses?q=${encodeURIComponent(search)}`);
+      const q = queryOverride !== undefined ? queryOverride : debouncedSearch;
+      const res = await fetch(`/api/admin/courses?q=${encodeURIComponent(q)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
@@ -71,8 +87,8 @@ export default function AdminCoursesPage() {
   };
 
   useEffect(() => {
-    fetchCourses();
-  }, [search]);
+    fetchCourses(debouncedSearch);
+  }, [debouncedSearch]);
 
   const handleMergeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,61 +133,54 @@ export default function AdminCoursesPage() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <BookOpen className="w-6 h-6 text-[#00004E] dark:text-[#D89A06]" />
-            Master Course Directory &amp; Merge Control
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            Reconcile syllabus course codes, detect duplicate student course banks, and merge materials atomically into canonical courses.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+      <AdminPageHeader
+        title="Master Course Directory"
+        count={stats.total}
+        subtitle="Reconcile syllabus course codes, detect duplicate student course banks, and merge materials atomically into canonical courses."
+        actions={
           <Button
-            onClick={fetchCourses}
+            onClick={() => fetchCourses()}
             variant="outline"
             size="sm"
             disabled={loading}
-            className="gap-1.5 cursor-pointer text-xs"
+            className="gap-1.5 cursor-pointer text-xs h-9"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* KPI Tiles */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl border border-border bg-card shadow-xs">
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Total Courses</div>
-          <div className="text-2xl font-bold text-foreground mt-1 tabular-nums">{stats.total}</div>
-        </div>
-        <div className="p-4 rounded-xl border border-border bg-card shadow-xs">
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Active Curriculum</div>
-          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 tabular-nums">{stats.active}</div>
-        </div>
-        <div className="p-4 rounded-xl border border-border bg-card shadow-xs">
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Archived / Merged</div>
-          <div className="text-2xl font-bold text-muted-foreground mt-1 tabular-nums">{stats.archived}</div>
-        </div>
-        <div
+        <AdminMetricCard
+          label="Total Courses"
+          value={stats.total}
+          subtext="Indexed syllabus records"
+          icon={BookOpen}
+        />
+        <AdminMetricCard
+          label="Active Curriculum"
+          value={stats.active}
+          subtext="Canonical courses"
+          deltaTone="positive"
+          icon={CheckCircle2}
+        />
+        <AdminMetricCard
+          label="Archived / Merged"
+          value={stats.archived}
+          subtext="Redirected banks"
+          icon={Archive}
+        />
+        <AdminMetricCard
+          label="Duplicate Codes"
+          value={stats.with_duplicates}
+          subtext={filterDuplicatesOnly ? 'Showing conflicts only' : 'Click to filter conflicts'}
+          deltaTone={stats.with_duplicates > 0 ? 'negative' : 'neutral'}
+          icon={AlertTriangle}
+          active={filterDuplicatesOnly}
           onClick={() => setFilterDuplicatesOnly(!filterDuplicatesOnly)}
-          className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs ${
-            filterDuplicatesOnly
-              ? 'border-amber-500 bg-amber-500/10'
-              : 'border-border bg-card hover:border-amber-500/40'
-          }`}
-        >
-          <div className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center justify-between">
-            Duplicate Codes
-            {stats.with_duplicates > 0 && <AlertTriangle className="w-3.5 h-3.5" />}
-          </div>
-          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1 tabular-nums">
-            {stats.with_duplicates}
-          </div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">Click to filter duplicates</div>
-        </div>
+        />
       </div>
 
       {/* Filter and Search Bar */}
@@ -287,91 +296,91 @@ export default function AdminCoursesPage() {
         </div>
       </div>
 
-      {/* MERGE MODAL */}
-      {mergeModalOpen && sourceCourse && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-lg p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-                <Merge className="w-4 h-4 text-[#D89A06]" />
-                Merge Course Bank
-              </h3>
-              <button
-                onClick={() => setMergeModalOpen(false)}
-                className="text-muted-foreground hover:text-foreground cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* MERGE DIALOG */}
+      <Dialog open={mergeModalOpen && !!sourceCourse} onOpenChange={setMergeModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <Merge className="w-4 h-4 text-[#D89A06]" />
+              Merge Course Bank
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Reassign lecture decks and past exam papers into a single canonical syllabus record.
+            </DialogDescription>
+          </DialogHeader>
 
-            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 space-y-1">
-              <div className="font-bold flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                Atomic Course Reassignment
-              </div>
-              <p>
-                All <strong>{sourceCourse.lecture_count} lecture slides</strong> and{' '}
-                <strong>{sourceCourse.paper_count} past papers</strong> currently attached to{' '}
-                <strong className="underline">{sourceCourse.course_code}</strong> will be moved into your selected target
-                course. Source will be archived.
-              </p>
-            </div>
-
-            <form onSubmit={handleMergeSubmit} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">
-                  Source Course (To be merged and archived)
-                </label>
-                <div className="p-2.5 rounded-lg border border-border bg-muted/40 font-mono text-xs font-bold text-foreground">
-                  {sourceCourse.course_code} — {sourceCourse.title}
+          {sourceCourse && (
+            <>
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Atomic Course Reassignment
                 </div>
+                <p>
+                  All <strong>{sourceCourse.lecture_count} lecture slides</strong> and{' '}
+                  <strong>{sourceCourse.paper_count} past papers</strong> attached to{' '}
+                  <strong className="underline">{sourceCourse.course_code}</strong> will move into your selected target
+                  course, and the source record will be archived.
+                </p>
               </div>
 
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">
-                  Target Canonical Course (Receives all materials)
-                </label>
-                <select
-                  value={targetCourseId}
-                  onChange={(e) => setTargetCourseId(e.target.value)}
-                  required
-                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-xs font-medium text-foreground focus:outline-hidden focus:ring-2 focus:ring-primary/40 cursor-pointer"
-                >
-                  <option value="">Select target course...</option>
-                  {courses
-                    .filter((c) => c.id !== sourceCourse.id && !c.is_archived)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.course_code} — {c.title}
-                      </option>
-                    ))}
-                </select>
-              </div>
+              <form onSubmit={handleMergeSubmit} className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">
+                    Source Course (Archived after merge)
+                  </label>
+                  <div className="p-2.5 rounded-lg border border-border bg-muted/40 font-mono text-xs font-bold text-foreground">
+                    {sourceCourse.course_code} — {sourceCourse.title}
+                  </div>
+                </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-border">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setMergeModalOpen(false)}
-                  disabled={merging}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={merging || !targetCourseId}
-                  className="bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] font-semibold gap-1.5 cursor-pointer"
-                >
-                  {merging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Merge className="w-3.5 h-3.5" />}
-                  Confirm Course Merge
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                <div>
+                  <label htmlFor="target-course-select" className="text-xs font-semibold text-muted-foreground block mb-1">
+                    Target Canonical Course (Receives all materials)
+                  </label>
+                  <select
+                    id="target-course-select"
+                    value={targetCourseId}
+                    onChange={(e) => setTargetCourseId(e.target.value)}
+                    required
+                    className="w-full h-10 px-3 rounded-lg border border-border bg-background text-xs font-medium text-foreground focus:outline-hidden focus:ring-2 focus:ring-primary/40 cursor-pointer"
+                  >
+                    <option value="">Select target course...</option>
+                    {courses
+                      .filter((c) => c.id !== sourceCourse.id && !c.is_archived)
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.course_code} — {c.title}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <DialogFooter className="pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMergeModalOpen(false)}
+                    disabled={merging}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={merging || !targetCourseId}
+                    className="bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] font-semibold gap-1.5 cursor-pointer"
+                  >
+                    {merging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Merge className="w-3.5 h-3.5" />}
+                    Confirm Course Merge
+                  </Button>
+                </DialogFooter>
+              </form>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

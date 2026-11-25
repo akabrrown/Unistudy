@@ -2,7 +2,12 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
-import { setCachedDashboardSnapshotFast } from '@/lib/offlineSync';
+import { motion } from 'motion/react';
+import {
+  getCachedDashboardSnapshotFast,
+  setCachedDashboardSnapshotFast,
+} from '@/lib/offlineSync';
+import { SPRING_SNAPPY, useAppReducedMotion } from '@/lib/motion';
 import {
   ArrowRight,
   BookOpen,
@@ -202,6 +207,11 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
   } = props;
 
   const [courseFilter, setCourseFilter] = useState<CourseFilterTab>('all');
+  const [offlineSnapshot, setOfflineSnapshot] = useState<{
+    courses?: DashboardCourseItem[];
+    resumeItem?: DashboardResumeItem | null;
+  } | null>(null);
+  const reducedMotion = useAppReducedMotion();
 
   // 0ms Local Snapshot: Store dashboard state in Dexie IndexedDB for instant offline hydration
   useEffect(() => {
@@ -213,8 +223,17 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
         upcomingEvents,
         timestamp: Date.now(),
       });
+    } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      void getCachedDashboardSnapshotFast('last_dashboard').then((snap) => {
+        if (snap && Array.isArray(snap.courses) && snap.courses.length > 0) {
+          setOfflineSnapshot(snap);
+        }
+      });
     }
   }, [courses, resumeItem, creditBalance, upcomingEvents]);
+
+  const effectiveCourses = courses.length > 0 ? courses : offlineSnapshot?.courses || courses;
+  const effectiveResumeItem = resumeItem || offlineSnapshot?.resumeItem || null;
 
   const upcomingExams = useMemo(
     () => upcomingEvents.filter((event) => event.type === 'exam'),
@@ -238,28 +257,28 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
 
   const filteredCourses = useMemo(() => {
     if (courseFilter === 'due') {
-      return courses.filter((c) => c.dueCards > 0);
+      return effectiveCourses.filter((c) => c.dueCards > 0);
     }
     if (courseFilter === 'with_lectures') {
-      return courses.filter((c) => c.lectureCount > 0);
+      return effectiveCourses.filter((c) => c.lectureCount > 0);
     }
-    return courses;
-  }, [courses, courseFilter]);
+    return effectiveCourses;
+  }, [effectiveCourses, courseFilter]);
 
   const coursesWithDueCount = useMemo(
-    () => courses.filter((c) => c.dueCards > 0).length,
-    [courses]
+    () => effectiveCourses.filter((c) => c.dueCards > 0).length,
+    [effectiveCourses]
   );
 
   const primaryReviewHref = useMemo(() => {
     if (dueQueue.length > 0) {
       return `/dashboard/courses/${dueQueue[0].courseId}/flashcards`;
     }
-    if (courses.length > 0) {
-      return `/dashboard/courses/${courses[0].id}/flashcards`;
+    if (effectiveCourses.length > 0) {
+      return `/dashboard/courses/${effectiveCourses[0].id}/flashcards`;
     }
     return '/dashboard/courses';
-  }, [dueQueue, courses]);
+  }, [dueQueue, effectiveCourses]);
 
   return (
     <div className="max-w-[1380px] mx-auto pb-12 space-y-5">
@@ -284,11 +303,11 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
           <div className="flex flex-wrap items-center gap-2.5">
             <Link
               href="/dashboard/settings/billing"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[#D89A06]/50 bg-[#FEF8E7] dark:bg-white/5 px-3 py-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] hover:bg-[#FDF2D0] transition-colors cursor-pointer tabular-nums shadow-2xs"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border/80 bg-muted/30 hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors cursor-pointer tabular-nums"
             >
               <Coins className="h-3.5 w-3.5 text-[#D89A06]" strokeWidth={2} />
               <span className="font-mono font-bold">{creditBalance}</span>
-              <span className="text-[#8C6404] dark:text-[#D89A06]/80 text-[11px]">credits</span>
+              <span className="text-muted-foreground text-[11px]">credits</span>
             </Link>
 
             <Link
@@ -301,7 +320,7 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
 
             <Link
               href="/dashboard/courses?action=new"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#00004E] text-white border border-[#D89A06] hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] px-3.5 py-2 text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#00004E] text-white hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] px-3.5 py-2 text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
             >
               <FolderPlus className="h-3.5 w-3.5" strokeWidth={2} />
               New Course
@@ -330,13 +349,13 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
                   <Link
                     key={tool.href}
                     href={tool.href}
-                    className="group flex items-center gap-2.5 rounded-xl border border-[#D89A06]/25 bg-muted/20 hover:bg-[#FEF8E7]/60 dark:hover:bg-white/5 hover:border-[#D89A06]/60 p-2.5 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
+                    className="group flex items-center gap-2.5 rounded-xl border border-border/75 bg-muted/20 hover:bg-muted/50 hover:border-[#00004E]/40 dark:hover:border-[#D89A06]/50 p-2.5 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
                   >
-                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-card border border-[#D89A06]/40 group-hover:scale-105 transition-transform shadow-2xs">
+                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-muted dark:text-[#D89A06] group-hover:scale-105 transition-transform">
                       <Icon className="h-4 w-4" strokeWidth={2} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs font-bold text-[#00004E] dark:text-foreground leading-tight whitespace-nowrap">
+                      <div className="text-xs font-bold text-foreground leading-tight truncate">
                         {tool.label}
                       </div>
                       <div className="text-[10px] text-muted-foreground truncate">
@@ -411,21 +430,21 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
         {/* Left Execution Core (8 cols) */}
         <div className="lg:col-span-8 space-y-5">
           {/* Hero Stream: Resume Studying OR Getting Started */}
-          {resumeItem ? (
+          {effectiveResumeItem ? (
             <section className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-5 shadow-xs transition-all hover:border-[#00004E]/50 dark:hover:border-[#D89A06]/50">
               <div
                 className="absolute top-0 left-0 bottom-0 w-2"
-                style={{ backgroundColor: resolveCourseColor(resumeItem.courseColour) }}
+                style={{ backgroundColor: resolveCourseColor(effectiveResumeItem.courseColour) }}
               />
               <div className="pl-3 flex flex-col md:flex-row md:items-center justify-between gap-5">
                 {/* Visual Slide Frame Mockup */}
                 <div className="w-full md:w-48 h-32 rounded-xl border border-border/80 bg-slate-900 p-3 flex flex-col justify-between shrink-0 shadow-sm relative overflow-hidden group">
                   <div className="flex items-center justify-between z-10">
                     <span className="text-[10px] font-mono font-semibold text-[#D89A06] bg-black/40 px-1.5 py-0.5 rounded border border-white/10">
-                      {resumeItem.courseCode}
+                      {effectiveResumeItem.courseCode}
                     </span>
-                    <span className="text-[10px] font-mono text-white/70">
-                      Slide {resumeItem.slideNumber}/{resumeItem.slideCount}
+                    <span className="text-[10px] font-mono text-white/70 tabular-nums">
+                      Slide {effectiveResumeItem.slideNumber}/{effectiveResumeItem.slideCount}
                     </span>
                   </div>
 
@@ -438,49 +457,49 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
 
                   {/* Bottom Slide Meta */}
                   <div className="flex items-center justify-between pt-1.5 border-t border-white/10 text-[10px] font-mono text-white/80 z-10">
-                    <span className="truncate max-w-[110px]">{resumeItem.lectureTitle}</span>
-                    <span className="text-[#D89A06] font-bold">
-                      {Math.min(100, Math.round((resumeItem.slideNumber / resumeItem.slideCount) * 100))}%
+                    <span className="truncate max-w-[110px]">{effectiveResumeItem.lectureTitle}</span>
+                    <span className="text-[#D89A06] font-bold tabular-nums">
+                      {Math.min(100, Math.round((effectiveResumeItem.slideNumber / Math.max(1, effectiveResumeItem.slideCount)) * 100))}%
                     </span>
                   </div>
                 </div>
 
                 <div className="space-y-2 min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono font-semibold tracking-wider uppercase text-muted-foreground border border-border/60">
-                      RESUME STUDYING
+                    <span className="text-[10px] font-mono font-semibold tracking-wider uppercase text-muted-foreground">
+                      Resume Studying
                     </span>
-                    <span className="text-xs font-mono font-semibold text-muted-foreground">
-                      {resumeItem.courseCode}
+                    <span className="text-xs font-mono font-semibold text-foreground">
+                      · {effectiveResumeItem.courseCode}
                     </span>
-                    {resumeItem.updatedAt ? (
+                    {effectiveResumeItem.updatedAt ? (
                       <span className="text-xs text-muted-foreground">
-                        Last opened {formatShortDate(resumeItem.updatedAt)}
+                        · {formatShortDate(effectiveResumeItem.updatedAt)}
                       </span>
                     ) : null}
                   </div>
                   <h2 className="text-lg md:text-xl font-bold tracking-tight text-foreground truncate">
-                    {resumeItem.lectureTitle}
+                    {effectiveResumeItem.lectureTitle}
                   </h2>
                   <p className="text-xs text-muted-foreground truncate">
-                    {resumeItem.courseTitle}
+                    {effectiveResumeItem.courseTitle}
                   </p>
 
-                  {resumeItem.slideCount > 0 ? (
+                  {effectiveResumeItem.slideCount > 0 ? (
                     <div className="pt-1 space-y-1.5 max-w-md">
                       <div className="flex items-center justify-between text-xs tabular-nums">
                         <span className="text-muted-foreground">
-                          Deck Progress: <strong className="text-foreground">Slide {resumeItem.slideNumber}</strong> of {resumeItem.slideCount}
+                          Deck Progress: <strong className="text-foreground">Slide {effectiveResumeItem.slideNumber}</strong> of {effectiveResumeItem.slideCount}
                         </span>
                         <span className="font-mono font-bold text-[#00004E] dark:text-[#D89A06]">
-                          {Math.min(100, Math.round((resumeItem.slideNumber / resumeItem.slideCount) * 100))}%
+                          {Math.min(100, Math.round((effectiveResumeItem.slideNumber / effectiveResumeItem.slideCount) * 100))}%
                         </span>
                       </div>
                       <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-[#00004E] via-[#D89A06] to-[#D89A06] transition-all"
+                          className="h-full rounded-full bg-[#00004E] dark:bg-[#D89A06] transition-all"
                           style={{
-                            width: `${Math.min(100, Math.round((resumeItem.slideNumber / resumeItem.slideCount) * 100))}%`,
+                            width: `${Math.min(100, Math.round((effectiveResumeItem.slideNumber / effectiveResumeItem.slideCount) * 100))}%`,
                           }}
                         />
                       </div>
@@ -490,14 +509,14 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
 
                 <div className="flex sm:flex-row md:flex-col items-stretch sm:items-center md:items-end gap-2.5 shrink-0">
                   <Link
-                    href={`/dashboard/courses/${resumeItem.courseId}/lectures/${resumeItem.lectureId}`}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#00004E] text-white border border-[#D89A06] hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] px-5 py-2.5 text-sm font-bold transition-all shadow-md cursor-pointer active:scale-[0.98]"
+                    href={`/dashboard/courses/${effectiveResumeItem.courseId}/lectures/${effectiveResumeItem.lectureId}`}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#00004E] text-white hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] px-5 py-2.5 text-sm font-bold transition-all shadow-sm cursor-pointer active:scale-[0.98]"
                   >
                     Resume Deck
-                    <ArrowRight className="h-4 w-4 text-[#D89A06] dark:text-[#00004E]" strokeWidth={2} />
+                    <ArrowRight className="h-4 w-4" strokeWidth={2} />
                   </Link>
                   <Link
-                    href={`/dashboard/courses/${resumeItem.courseId}/quiz`}
+                    href={`/dashboard/courses/${effectiveResumeItem.courseId}/quiz`}
                     className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
                   >
                     Quick Course Quiz
@@ -590,54 +609,47 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
           )}
 
           {/* Active Courses Workspace */}
-          {courses.length > 0 ? (
+          {effectiveCourses.length > 0 ? (
             <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <h2 className="text-base font-bold tracking-tight text-foreground">Course Workspaces</h2>
                   <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs font-semibold text-muted-foreground tabular-nums">
-                    {courses.length}
+                    {effectiveCourses.length}
                   </span>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setCourseFilter('all')}
-                      className={cn(
-                        'px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer',
-                        courseFilter === 'all'
-                          ? 'bg-background text-foreground shadow-xs'
-                          : 'text-muted-foreground hover:text-foreground'
-                      )}
-                    >
-                      All ({courses.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCourseFilter('due')}
-                      className={cn(
-                        'px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer',
-                        courseFilter === 'due'
-                          ? 'bg-background text-foreground shadow-xs'
-                          : 'text-muted-foreground hover:text-foreground'
-                      )}
-                    >
-                      Due ({coursesWithDueCount})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCourseFilter('with_lectures')}
-                      className={cn(
-                        'px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer',
-                        courseFilter === 'with_lectures'
-                          ? 'bg-background text-foreground shadow-xs'
-                          : 'text-muted-foreground hover:text-foreground'
-                      )}
-                    >
-                      Active Decks
-                    </button>
+                    {(
+                      [
+                        { id: 'all' as const, label: `All (${effectiveCourses.length})` },
+                        { id: 'due' as const, label: `Due (${coursesWithDueCount})` },
+                        { id: 'with_lectures' as const, label: 'Active Decks' },
+                      ] as const
+                    ).map((tab) => {
+                      const isActive = courseFilter === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setCourseFilter(tab.id)}
+                          className={cn(
+                            'relative px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer',
+                            isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          {isActive && (
+                            <motion.span
+                              layoutId="dashboard-course-filter-pill"
+                              transition={reducedMotion ? { duration: 0 } : SPRING_SNAPPY}
+                              className="absolute inset-0 rounded-md bg-background shadow-xs"
+                            />
+                          )}
+                          <span className="relative z-10">{tab.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   <div className="flex items-center gap-2">

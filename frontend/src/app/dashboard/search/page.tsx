@@ -1,110 +1,346 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { FileText, Layers, Award, Search, Zap, ChevronRight, Image as ImageIcon } from 'lucide-react';
 import Link from 'next/link';
+import { motion } from 'motion/react';
+import {
+  FileText,
+  Layers,
+  FileCheck2,
+  Search,
+  RotateCcw,
+  ArrowRight,
+  BrainCircuit,
+} from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { apiFetch } from '@/lib/api/client';
+import { CollegiateLibraryIllustration } from '@/components/illustrations';
+import { SPRING_SNAPPY, useAppReducedMotion } from '@/lib/motion';
+import { cn } from '@/lib/utils';
+
+type SearchCategoryTab = 'all' | 'slides' | 'flashcards' | 'papers';
+
+interface SlideHit {
+  id: string;
+  lecture_id: string;
+  course_id?: string | null;
+  slide_number: number;
+  text_content?: string | null;
+  explanation?: string | null;
+  image_url?: string | null;
+}
+
+interface FlashcardHit {
+  id: string;
+  lecture_id?: string | null;
+  course_id?: string | null;
+  front: string;
+  back: string;
+}
+
+interface PaperHit {
+  id: string;
+  past_paper_id: string;
+  text_content?: string | null;
+}
+
+interface SearchPayload {
+  slides?: SlideHit[];
+  flashcards?: FlashcardHit[];
+  past_papers?: PaperHit[];
+}
+
+function highlightQuery(text: string | null | undefined, query: string): React.ReactNode {
+  if (!text) return null;
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return text;
+  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
+  return parts.map((part, idx) =>
+    part.toLowerCase() === trimmed.toLowerCase() ? (
+      <mark
+        key={idx}
+        className="bg-[#D89A06]/25 text-foreground rounded-xs px-0.5 font-semibold"
+      >
+        {part}
+      </mark>
+    ) : (
+      part
+    )
+  );
+}
 
 function SearchResultsContent() {
   const searchParams = useSearchParams();
-  const query = searchParams.get('q') || '';
+  const router = useRouter();
+  const reducedMotion = useAppReducedMotion();
+
+  const urlQuery = searchParams.get('q') || '';
+  const [draftQuery, setDraftQuery] = useState(urlQuery);
+  const [activeCategory, setActiveCategory] = useState<SearchCategoryTab>('all');
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<SearchPayload | null>(null);
   const [error, setError] = useState('');
-  const [isEnhanced, setIsEnhanced] = useState(false);
+  const [lectureCourseMap, setLectureCourseMap] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
-    if (!query) return;
+    setDraftQuery(urlQuery);
+  }, [urlQuery]);
 
-    const fetchResults = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/search`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ query })
-        });
-        
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to search');
-        
-        setResults(data.data);
-        setIsEnhanced(data.enhanced || false);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
+  // Build lectureId -> courseId map so flashcard & slide links resolve directly to valid course routes
+  useEffect(() => {
+    let active = true;
+    fetch('/api/courses')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((courses: Array<{ id: string; lectures?: Array<{ id: string }> }>) => {
+        if (!active || !Array.isArray(courses)) return;
+        const map = new Map<string, string>();
+        for (const c of courses) {
+          for (const lec of c.lectures || []) {
+            if (lec?.id && c.id) map.set(lec.id, c.id);
+          }
+        }
+        setLectureCourseMap(map);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
     };
+  }, []);
 
-    fetchResults();
-  }, [query]);
+  const executeSearch = useCallback(async (q: string) => {
+    const trimmed = q.trim();
+    if (!trimmed) {
+      setResults(null);
+      setError('');
+      return;
+    }
 
-  if (!query) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-        <Search className="w-12 h-12 mb-4 opacity-50" />
-        <p>Type anything in the search bar to find answers across your study materials.</p>
-      </div>
-    );
-  }
+    setLoading(true);
+    setError('');
+    try {
+      const response = (await apiFetch('/search', {
+        method: 'POST',
+        body: JSON.stringify({ query: trimmed }),
+      })) as { data?: SearchPayload } & SearchPayload;
+
+      const payload: SearchPayload = response?.data ? response.data : response;
+      setResults({
+        slides: Array.isArray(payload?.slides) ? payload.slides : [],
+        flashcards: Array.isArray(payload?.flashcards) ? payload.flashcards : [],
+        past_papers: Array.isArray(payload?.past_papers) ? payload.past_papers : [],
+      });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not complete search');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (urlQuery.trim()) {
+      void executeSearch(urlQuery);
+    } else {
+      setResults(null);
+    }
+  }, [urlQuery, executeSearch]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = draftQuery.trim();
+    if (!q) return;
+    router.push(`/dashboard/search?q=${encodeURIComponent(q)}`);
+  };
+
+  const slides = results?.slides || [];
+  const flashcards = results?.flashcards || [];
+  const papers = results?.past_papers || [];
+  const totalCount = slides.length + flashcards.length + papers.length;
+
+  const tabs: Array<{ id: SearchCategoryTab; label: string; count: number }> = useMemo(
+    () => [
+      { id: 'all', label: 'All Results', count: totalCount },
+      { id: 'slides', label: 'Lecture Slides', count: slides.length },
+      { id: 'flashcards', label: 'Flashcards', count: flashcards.length },
+      { id: 'papers', label: 'Past Papers', count: papers.length },
+    ],
+    [totalCount, slides.length, flashcards.length, papers.length]
+  );
+
+  const resolveSlideHref = (s: SlideHit) => {
+    const courseId = s.course_id || lectureCourseMap.get(s.lecture_id);
+    if (courseId) {
+      return `/dashboard/courses/${courseId}/lectures/${s.lecture_id}?slide=${s.slide_number}`;
+    }
+    return `/dashboard/lectures/${s.lecture_id}?slide=${s.slide_number}`;
+  };
+
+  const resolveFlashcardHref = (f: FlashcardHit) => {
+    const courseId = f.course_id || (f.lecture_id ? lectureCourseMap.get(f.lecture_id) : undefined);
+    if (courseId) {
+      return `/dashboard/courses/${courseId}/flashcards`;
+    }
+    return '/dashboard/courses';
+  };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Search Results</h1>
-        {isEnhanced && (
-          <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium border border-primary/20">
-            <Zap className="w-4 h-4 text-[#D89A06]" /> Enhanced Academic Ranking
+    <div className="max-w-5xl mx-auto pb-12 space-y-6">
+      {/* Live Hero Search Bar */}
+      <header className="rounded-2xl border border-border/80 bg-card p-5 md:p-6 space-y-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+            Search Study Library
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Find formulas, definitions, and exam questions across your lecture slides, flashcards, and past papers.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Input
+              value={draftQuery}
+              onChange={(e) => setDraftQuery(e.target.value)}
+              placeholder="Search concepts, course codes, or formulas (e.g. IAS 2 inventory, eigenvalues)..."
+              className="pl-10 h-11 rounded-xl bg-background border-border/80 text-sm focus:border-[#D89A06]"
+              autoFocus={!urlQuery}
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={!draftQuery.trim() || loading}
+            className="h-11 px-5 rounded-xl bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] font-bold text-xs sm:text-sm cursor-pointer shrink-0"
+          >
+            Search
+          </Button>
+        </form>
+
+        {results && urlQuery && (
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border/50">
+            <div className="inline-flex flex-wrap rounded-xl border border-border bg-muted/35 p-1 gap-1">
+              {tabs.map((tab) => {
+                const isActive = activeCategory === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveCategory(tab.id)}
+                    className={cn(
+                      'relative px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer tabular-nums',
+                      isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {isActive && (
+                      <motion.span
+                        layoutId="search-category-pill"
+                        transition={reducedMotion ? { duration: 0 } : SPRING_SNAPPY}
+                        className="absolute inset-0 rounded-lg bg-background shadow-xs"
+                      />
+                    )}
+                    <span className="relative z-10">
+                      {tab.label} ({tab.count})
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <span className="text-xs font-mono tabular-nums text-muted-foreground">
+              {totalCount} {totalCount === 1 ? 'match' : 'matches'} for &ldquo;{urlQuery}&rdquo;
+            </span>
           </div>
         )}
-      </div>
+      </header>
 
-      <p className="text-muted-foreground text-lg">Showing matches for: <span className="text-foreground font-semibold">&ldquo;{query}&rdquo;</span></p>
-
-      {loading ? (
-        <div className="space-y-6">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-32 bg-muted/30 rounded-xl border border-border animate-pulse"></div>
+      {/* Empty Query State */}
+      {!urlQuery.trim() ? (
+        <div className="rounded-2xl border border-border/70 bg-card p-10 text-center flex flex-col items-center space-y-4">
+          <CollegiateLibraryIllustration className="w-52 h-36" />
+          <div className="space-y-1 max-w-md">
+            <h2 className="text-base font-bold text-foreground">Search across every course</h2>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Enter any topic, theorem, or exam keyword above to jump straight to the matching slide, flashcard, or past question.
+            </p>
+          </div>
+        </div>
+      ) : loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-36 rounded-2xl" />
           ))}
         </div>
       ) : error ? (
-        <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500">
-          <p className="font-semibold">Search failed</p>
-          <p className="text-sm mt-1">{error}</p>
+        <div className="p-5 bg-destructive/10 border border-destructive/25 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-destructive">Search unavailable</p>
+            <p className="text-xs text-destructive/90 mt-0.5">{error}</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void executeSearch(urlQuery)}
+            className="shrink-0 gap-1.5 text-xs cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Retry
+          </Button>
+        </div>
+      ) : results && totalCount === 0 ? (
+        <div className="rounded-2xl border border-border/70 bg-card p-10 text-center flex flex-col items-center space-y-3">
+          <CollegiateLibraryIllustration className="w-48 h-32" />
+          <h3 className="text-base font-bold text-foreground">
+            No matches for &ldquo;{urlQuery}&rdquo;
+          </h3>
+          <p className="text-xs text-muted-foreground max-w-sm">
+            Try shorter keywords, a course code, or ask your Study Tutor directly.
+          </p>
+          <Link
+            href={`/dashboard/chat`}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#00004E] dark:text-[#D89A06] hover:underline pt-1"
+          >
+            Ask Study Tutor instead <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
       ) : results ? (
-        <div className="grid gap-8">
-          
+        <div className="space-y-8">
           {/* Slides */}
-          {results.slides?.length > 0 && (
-            <section className="space-y-4">
-              <h2 className="text-xl font-semibold flex items-center gap-2">
-                <Layers className="w-5 h-5 text-primary" /> Lecture Slides
+          {(activeCategory === 'all' || activeCategory === 'slides') && slides.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="text-sm font-bold tracking-tight text-foreground flex items-center gap-2">
+                <Layers className="w-4 h-4 text-[#00004E] dark:text-[#D89A06]" />
+                <span>Lecture Slides</span>
+                <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                  ({slides.length})
+                </span>
               </h2>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {results.slides.map((s: any) => (
-                  <Link href={`/dashboard/lectures/${s.lecture_id}?slide=${s.slide_number}`} key={s.id}>
-                    <div className="group bg-card border border-border hover:border-primary/50 rounded-xl p-4 transition-all h-full flex flex-col cursor-pointer hover:shadow-lg hover:shadow-primary/5">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded">Slide {s.slide_number}</div>
+              <div className="grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">
+                {slides.map((s) => (
+                  <Link
+                    href={resolveSlideHref(s)}
+                    key={s.id}
+                    className="group bg-card border border-border/80 hover:border-[#00004E]/50 dark:hover:border-[#D89A06]/60 rounded-2xl p-4 transition-all flex flex-col justify-between gap-2.5"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-mono font-bold text-[#00004E] dark:text-[#D89A06] tabular-nums">
+                          Slide {s.slide_number}
+                        </span>
+                        <ArrowRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
-                      <div className="text-sm text-foreground line-clamp-3 mb-2 font-medium">
-                        {s.text_content}
-                      </div>
-                      <div className="text-xs text-muted-foreground line-clamp-2 mt-auto">
-                        {s.explanation}
-                      </div>
+                      <p className="text-xs sm:text-sm text-foreground line-clamp-3 font-medium leading-relaxed">
+                        {highlightQuery(s.text_content, urlQuery)}
+                      </p>
                     </div>
+                    {s.explanation && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 pt-2 border-t border-border/40">
+                        {highlightQuery(s.explanation, urlQuery)}
+                      </p>
+                    )}
                   </Link>
                 ))}
               </div>
@@ -112,50 +348,77 @@ function SearchResultsContent() {
           )}
 
           {/* Flashcards */}
-          {results.flashcards?.length > 0 && (
-            <section className="space-y-4">
-              <h2 className="text-xl font-semibold flex items-center gap-2">
-                <Layers className="w-5 h-5 text-blue-500" /> Flashcards
-              </h2>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {results.flashcards.map((f: any) => (
-                  <Link href={`/dashboard/flashcards?lecture=${f.lecture_id}`} key={f.id}>
-                    <div className="group bg-card border border-border hover:border-blue-500/50 rounded-xl p-4 transition-all h-full flex flex-col cursor-pointer hover:shadow-lg hover:shadow-blue-500/5">
-                      <div className="text-sm font-semibold mb-2">Q: {f.front}</div>
-                      <div className="text-sm text-muted-foreground line-clamp-3 mt-auto">A: {f.back}</div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          )}
+          {(activeCategory === 'all' || activeCategory === 'flashcards') &&
+            flashcards.length > 0 && (
+              <section className="space-y-3">
+                <h2 className="text-sm font-bold tracking-tight text-foreground flex items-center gap-2">
+                  <BrainCircuit className="w-4 h-4 text-[#00004E] dark:text-[#D89A06]" />
+                  <span>Flashcards</span>
+                  <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                    ({flashcards.length})
+                  </span>
+                </h2>
+                <div className="grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">
+                  {flashcards.map((f) => (
+                    <Link
+                      href={resolveFlashcardHref(f)}
+                      key={f.id}
+                      className="group bg-card border border-border/80 hover:border-[#00004E]/50 dark:hover:border-[#D89A06]/60 rounded-2xl p-4 transition-all flex flex-col justify-between gap-2.5"
+                    >
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                          Question
+                        </span>
+                        <p className="text-xs sm:text-sm font-semibold text-foreground line-clamp-2">
+                          {highlightQuery(f.front, urlQuery)}
+                        </p>
+                      </div>
+                      <div className="pt-2 border-t border-border/40 space-y-1">
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                          Answer
+                        </span>
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {highlightQuery(f.back, urlQuery)}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
 
           {/* Past Papers */}
-          {results.past_papers?.length > 0 && (
-            <section className="space-y-4">
-              <h2 className="text-xl font-semibold flex items-center gap-2">
-                <Award className="w-5 h-5 text-green-500" /> Past Papers
+          {(activeCategory === 'all' || activeCategory === 'papers') && papers.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="text-sm font-bold tracking-tight text-foreground flex items-center gap-2">
+                <FileCheck2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Past Papers</span>
+                <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                  ({papers.length})
+                </span>
               </h2>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {results.past_papers.map((p: any) => (
-                  <Link href={`/dashboard/past-papers/${p.past_paper_id}`} key={p.id}>
-                    <div className="group bg-card border border-border hover:border-green-500/50 rounded-xl p-4 transition-all h-full flex flex-col cursor-pointer hover:shadow-lg hover:shadow-green-500/5">
-                      <div className="text-sm font-medium text-foreground line-clamp-4">
-                        {p.text_content}
-                      </div>
+              <div className="grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">
+                {papers.map((p) => (
+                  <Link
+                    href={`/dashboard/past-papers/${p.past_paper_id}`}
+                    key={p.id}
+                    className="group bg-card border border-border/80 hover:border-[#00004E]/50 dark:hover:border-[#D89A06]/60 rounded-2xl p-4 transition-all flex flex-col justify-between gap-3"
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-mono text-muted-foreground">
+                      <span className="inline-flex items-center gap-1">
+                        <FileText className="w-3.5 h-3.5 text-[#D89A06]" />
+                        Exam Question
+                      </span>
+                      <ArrowRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
+                    <p className="text-xs sm:text-sm font-medium text-foreground line-clamp-4 leading-relaxed">
+                      {highlightQuery(p.text_content, urlQuery)}
+                    </p>
                   </Link>
                 ))}
               </div>
             </section>
           )}
-
-          {(!results.slides?.length && !results.flashcards?.length && !results.past_papers?.length) && (
-            <div className="py-12 text-center text-muted-foreground border border-dashed border-border rounded-xl">
-              <p>No study materials found matching your query.</p>
-            </div>
-          )}
-
         </div>
       ) : null}
     </div>
@@ -164,7 +427,18 @@ function SearchResultsContent() {
 
 export default function SearchResultsPage() {
   return (
-    <Suspense fallback={<div className="animate-pulse h-32 bg-muted/30 rounded-xl"></div>}>
+    <Suspense
+      fallback={
+        <div className="max-w-5xl mx-auto space-y-6">
+          <Skeleton className="h-36 rounded-2xl" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Skeleton className="h-36 rounded-2xl" />
+            <Skeleton className="h-36 rounded-2xl" />
+            <Skeleton className="h-36 rounded-2xl" />
+          </div>
+        </div>
+      }
+    >
       <SearchResultsContent />
     </Suspense>
   );

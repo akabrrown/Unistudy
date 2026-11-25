@@ -16,11 +16,22 @@ import {
   Filter,
   Check,
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+} from '@/components/ui/sheet';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { AdminMetricCard } from '@/components/admin/AdminMetricCard';
+import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog';
+import { CopyableId } from '@/components/ui/copyable-id';
 import { toast } from 'sonner';
 
 interface Submission {
@@ -42,10 +53,12 @@ export default function AdminSupportPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
 
-  // Selected Submission Modal
+  // Selected Submission Drawer & Delete Confirmation
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchSubmissions = async () => {
     setLoading(true);
@@ -102,17 +115,25 @@ export default function AdminSupportPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this inquiry?')) return;
+  const executeDelete = async () => {
+    if (!deleteTargetId) return;
+    setDeleting(true);
     try {
-      const res = await fetch(`/api/admin/support?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/support?id=${deleteTargetId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
       toast.success('Inquiry deleted');
-      setSubmissions((prev) => prev.filter((s) => s.id !== id));
-      if (selectedSubmission?.id === id) setSelectedSubmission(null);
+      setSubmissions((prev) => prev.filter((s) => s.id !== deleteTargetId));
+      if (selectedSubmission?.id === deleteTargetId) setSelectedSubmission(null);
+      setDeleteTargetId(null);
     } catch {
       toast.error('Failed to delete inquiry');
+    } finally {
+      setDeleting(false);
     }
+  };
+
+  const handleDelete = (id: string) => {
+    setDeleteTargetId(id);
   };
 
   const filtered = search
@@ -128,72 +149,60 @@ export default function AdminSupportPage() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <LifeBuoy className="w-6 h-6 text-[#00004E] dark:text-[#D89A06]" />
-            Student Support Desk &amp; Inquiries
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            Manage incoming contact submissions, technical bug reports, and student assistance requests live.
-          </p>
-        </div>
-        <Button
-          onClick={fetchSubmissions}
-          variant="outline"
-          size="sm"
-          disabled={loading}
-          className="gap-1.5 cursor-pointer text-xs self-start sm:self-auto"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-      </div>
+      <AdminPageHeader
+        title="Student Support Desk"
+        count={stats.total}
+        subtitle="Triage incoming contact submissions, technical reports, and student assistance requests."
+        actions={
+          <Button
+            onClick={fetchSubmissions}
+            variant="outline"
+            size="sm"
+            disabled={loading}
+            className="gap-1.5 cursor-pointer text-xs h-9"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        }
+      />
 
       {/* KPI Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div
+        <AdminMetricCard
+          label="All Inquiries"
+          value={stats.total}
+          subtext="Total tickets"
+          icon={LifeBuoy}
+          active={statusFilter === 'all'}
           onClick={() => setStatusFilter('all')}
-          className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs ${
-            statusFilter === 'all' ? 'border-primary ring-1 ring-primary/30 bg-muted/20' : 'border-border bg-card'
-          }`}
-        >
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">All Inquiries</div>
-          <div className="text-2xl font-bold text-foreground mt-1 tabular-nums">{stats.total}</div>
-        </div>
-        <div
+        />
+        <AdminMetricCard
+          label="Unread / New"
+          value={stats.unread}
+          subtext="Awaiting triage"
+          deltaTone={stats.unread > 0 ? 'negative' : 'neutral'}
+          icon={AlertCircle}
+          active={statusFilter === 'unread'}
           onClick={() => setStatusFilter('unread')}
-          className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs ${
-            statusFilter === 'unread' ? 'border-amber-500 ring-1 ring-amber-500/30 bg-amber-500/10' : 'border-border bg-card'
-          }`}
-        >
-          <div className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-            Unread / New
-          </div>
-          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1 tabular-nums">{stats.unread}</div>
-        </div>
-        <div
+        />
+        <AdminMetricCard
+          label="In Progress"
+          value={stats.in_progress}
+          subtext="Assigned & active"
+          icon={MessageSquare}
+          active={statusFilter === 'in_progress'}
           onClick={() => setStatusFilter('in_progress')}
-          className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs ${
-            statusFilter === 'in_progress' ? 'border-blue-500 ring-1 ring-blue-500/30 bg-blue-500/10' : 'border-border bg-card'
-          }`}
-        >
-          <div className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-            In Progress
-          </div>
-          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1 tabular-nums">{stats.in_progress}</div>
-        </div>
-        <div
+        />
+        <AdminMetricCard
+          label="Resolved"
+          value={stats.resolved}
+          subtext="Closed tickets"
+          deltaTone="positive"
+          icon={CheckCircle2}
+          active={statusFilter === 'resolved'}
           onClick={() => setStatusFilter('resolved')}
-          className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs ${
-            statusFilter === 'resolved' ? 'border-emerald-500 ring-1 ring-emerald-500/30 bg-emerald-500/10' : 'border-border bg-card'
-          }`}
-        >
-          <div className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-            Resolved
-          </div>
-          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 tabular-nums">{stats.resolved}</div>
-        </div>
+        />
       </div>
 
       {/* Search Input */}
@@ -207,154 +216,203 @@ export default function AdminSupportPage() {
         />
       </div>
 
-      {/* Submissions List */}
-      <div className="grid gap-3">
-        {filtered.length === 0 ? (
-          <div className="text-center py-12 rounded-2xl border border-dashed border-border bg-card/50 text-muted-foreground text-xs">
-            No inquiries matching this filter.
-          </div>
-        ) : (
-          filtered.map((sub) => (
-            <div
-              key={sub.id}
-              onClick={() => {
-                setSelectedSubmission(sub);
-                setAdminNotes(sub.admin_notes || '');
-              }}
-              className={`p-4 rounded-xl border transition-all cursor-pointer shadow-xs ${
-                selectedSubmission?.id === sub.id
-                  ? 'border-primary ring-2 ring-primary/20 bg-muted/20'
-                  : 'border-border bg-card hover:border-primary/40'
-              }`}
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2">
-                  <Badge
-                    className={`text-[10px] font-semibold ${
-                      sub.status === 'unread'
-                        ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
-                        : sub.status === 'in_progress'
-                        ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30'
-                        : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+      {/* High-Density Linear Triage Table */}
+      <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-xs">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs text-left">
+            <thead className="bg-muted/40 border-b border-border text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+              <tr>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Subject &amp; Message</th>
+                <th className="px-4 py-3">Student</th>
+                <th className="px-4 py-3">Submitted</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="text-center py-12 text-muted-foreground text-xs">
+                    No support inquiries matching this filter.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((sub) => (
+                  <tr
+                    key={sub.id}
+                    onClick={() => {
+                      setSelectedSubmission(sub);
+                      setAdminNotes(sub.admin_notes || '');
+                    }}
+                    className={`hover:bg-muted/30 transition-colors cursor-pointer ${
+                      selectedSubmission?.id === sub.id ? 'bg-primary/5' : ''
                     }`}
                   >
-                    {sub.status.toUpperCase()}
-                  </Badge>
-                  <h3 className="text-sm font-bold text-foreground">{sub.subject}</h3>
-                </div>
-                <div className="text-[11px] text-muted-foreground flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  {new Date(sub.created_at).toLocaleDateString()} at{' '}
-                  {new Date(sub.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
-              </div>
-
-              <p className="text-xs text-foreground/80 leading-relaxed line-clamp-2">{sub.message}</p>
-
-              <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground">
-                <div className="flex items-center gap-3">
-                  <span className="font-semibold text-foreground flex items-center gap-1">
-                    <User className="w-3.5 h-3.5 text-primary" />
-                    {sub.name}
-                  </span>
-                  <span>({sub.email})</span>
-                </div>
-                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={() => handleUpdateStatus(sub.id, sub.status === 'resolved' ? 'unread' : 'resolved')}
-                    className="px-2 py-1 rounded text-[11px] font-medium border border-border hover:bg-muted transition-colors cursor-pointer"
-                  >
-                    {sub.status === 'resolved' ? 'Mark Unread' : 'Mark Resolved'}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(sub.id)}
-                    className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))
-        )}
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] font-mono uppercase font-semibold ${
+                          sub.status === 'unread'
+                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                            : sub.status === 'in_progress'
+                            ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30'
+                            : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                        }`}
+                      >
+                        {sub.status.replace('_', ' ')}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 max-w-md">
+                      <div className="font-semibold text-foreground truncate">{sub.subject}</div>
+                      <p className="text-[11px] text-muted-foreground truncate mt-0.5">{sub.message}</p>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="font-medium text-foreground">{sub.name}</div>
+                      <div className="text-[11px] text-muted-foreground font-mono">{sub.email}</div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap font-mono text-[11px] text-muted-foreground tabular-nums">
+                      <div>{new Date(sub.created_at).toLocaleDateString()}</div>
+                      <div className="text-[10px]">
+                        {new Date(sub.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <div className="inline-flex items-center gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleUpdateStatus(sub.id, sub.status === 'resolved' ? 'unread' : 'resolved')}
+                          className="h-7 px-2.5 text-[11px] cursor-pointer"
+                        >
+                          {sub.status === 'resolved' ? 'Reopen' : 'Resolve'}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(sub.id)}
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* INQUIRY DETAIL DRAWER / MODAL */}
-      {selectedSubmission && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-xl p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div>
-                <h3 className="text-base font-bold text-foreground">{selectedSubmission.subject}</h3>
-                <p className="text-xs text-muted-foreground">
-                  From {selectedSubmission.name} &lt;{selectedSubmission.email}&gt;
-                </p>
+      {/* INQUIRY DETAIL SHEET DRAWER */}
+      <Sheet open={!!selectedSubmission} onOpenChange={(open) => !open && setSelectedSubmission(null)}>
+        <SheetContent className="sm:max-w-lg w-full overflow-y-auto flex flex-col justify-between">
+          {selectedSubmission && (
+            <>
+              <div className="space-y-4">
+                <SheetHeader className="border-b border-border pb-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-mono uppercase ${
+                        selectedSubmission.status === 'unread'
+                          ? 'bg-amber-500/10 text-amber-600 border-amber-500/30'
+                          : selectedSubmission.status === 'in_progress'
+                          ? 'bg-sky-500/10 text-sky-600 border-sky-500/30'
+                          : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
+                      }`}
+                    >
+                      {selectedSubmission.status.replace('_', ' ')}
+                    </Badge>
+                    <CopyableId value={selectedSubmission.id} truncateLength={8} toastMessage="Ticket ID copied" />
+                  </div>
+                  <SheetTitle className="text-base font-bold mt-1">{selectedSubmission.subject}</SheetTitle>
+                  <SheetDescription className="text-xs">
+                    From <strong className="text-foreground">{selectedSubmission.name}</strong> ({selectedSubmission.email})
+                  </SheetDescription>
+                </SheetHeader>
+
+                <div className="p-4 rounded-xl bg-muted/30 border border-border text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                  {selectedSubmission.message}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-muted-foreground block">
+                    Internal Resolution Notes
+                  </label>
+                  <Textarea
+                    value={adminNotes}
+                    onChange={(e) => setAdminNotes(e.target.value)}
+                    placeholder="Log notes about outreach, resolution steps, or follow-up action..."
+                    rows={4}
+                    className="text-xs"
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUpdateStatus(selectedSubmission.id, 'in_progress')}
+                        className="h-8 text-xs cursor-pointer"
+                      >
+                        Mark In Progress
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUpdateStatus(selectedSubmission.id, 'resolved')}
+                        className="h-8 text-xs gap-1 cursor-pointer border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        Mark Resolved
+                      </Button>
+                    </div>
+                    <Button
+                      onClick={handleSaveNotes}
+                      disabled={savingNotes}
+                      size="sm"
+                      variant="secondary"
+                      className="h-8 text-xs cursor-pointer"
+                    >
+                      {savingNotes ? 'Saving...' : 'Save Notes'}
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <button
-                onClick={() => setSelectedSubmission(null)}
-                className="text-muted-foreground hover:text-foreground cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            <div className="p-4 rounded-xl bg-muted/40 border border-border text-xs text-foreground leading-relaxed whitespace-pre-wrap">
-              {selectedSubmission.message}
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-muted-foreground block">
-                Admin Resolution Notes / Internal Response Record
-              </label>
-              <Textarea
-                value={adminNotes}
-                onChange={(e) => setAdminNotes(e.target.value)}
-                placeholder="Log notes about phone outreach, resolved issue, or follow-up action..."
-                rows={3}
-                className="text-xs"
-              />
-              <Button
-                onClick={handleSaveNotes}
-                disabled={savingNotes}
-                size="sm"
-                variant="outline"
-                className="text-xs cursor-pointer"
-              >
-                Save Notes
-              </Button>
-            </div>
-
-            <div className="pt-3 border-t border-border flex items-center justify-between">
-              <a
-                href={`mailto:${selectedSubmission.email}?subject=Re: ${encodeURIComponent(selectedSubmission.subject)}`}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer"
-              >
-                <Mail className="w-3.5 h-3.5" />
-                Reply via Student Email
-              </a>
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => handleUpdateStatus(selectedSubmission.id, 'resolved')}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs gap-1 cursor-pointer"
+              <SheetFooter className="pt-4 border-t border-border flex flex-row items-center justify-between gap-2">
+                <a
+                  href={`mailto:${selectedSubmission.email}?subject=Re: ${encodeURIComponent(selectedSubmission.subject)}`}
+                  className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer"
                 >
-                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                  Mark Resolved
-                </Button>
+                  <Mail className="w-3.5 h-3.5" />
+                  Reply via Email
+                </a>
                 <Button
                   onClick={() => setSelectedSubmission(null)}
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="text-xs cursor-pointer"
+                  className="h-9 text-xs cursor-pointer"
                 >
                   Close
                 </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+              </SheetFooter>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      <ConfirmActionDialog
+        open={!!deleteTargetId}
+        onOpenChange={(open) => !open && setDeleteTargetId(null)}
+        title="Delete support inquiry?"
+        description="This permanently removes the student inquiry and any attached internal resolution notes."
+        confirmLabel="Delete Inquiry"
+        loading={deleting}
+        onConfirm={executeDelete}
+      />
     </div>
   );
 }

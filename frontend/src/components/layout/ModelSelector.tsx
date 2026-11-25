@@ -2,7 +2,7 @@
 
 import { useModelStore } from '@/lib/stores/modelStore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Zap, BrainCircuit } from 'lucide-react';
+import { Zap, BrainCircuit, Layers } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 interface ModelSelectorProps {
@@ -15,56 +15,56 @@ export function ModelSelector({ isCollapsed = false }: ModelSelectorProps) {
   const getTierIcon = (tier: string) => {
     switch (tier) {
       case 'fast':
-        return <Zap className="w-4 h-4 text-yellow-500" />;
+        return <Zap className="w-3.5 h-3.5 text-[#D89A06]" />;
       case 'smart':
-        return <BrainCircuit className="w-4 h-4 text-[#D89A06]" />;
+        return <BrainCircuit className="w-3.5 h-3.5 text-[#D89A06]" />;
       default:
-        return <BrainCircuit className="w-4 h-4 text-blue-500" />;
+        return <Layers className="w-3.5 h-3.5 text-[#00004E] dark:text-[#D89A06]" />;
     }
   };
 
   const getTierLabel = (tier: string) => {
     switch (tier) {
       case 'fast':
-        return 'Fast & Cheap (0.5x)';
+        return 'Fast Response';
       case 'smart':
-        return 'Smart & Precise (2.0x)';
+        return 'Deep Analysis';
       default:
-        return 'Balanced (1.0x)';
+        return 'Balanced Model';
     }
   };
 
   if (isCollapsed) {
     return (
-      <div className="flex justify-center w-full mb-3">
+      <div className="flex justify-center w-full mb-1">
         <Tooltip>
           <TooltipTrigger
             render={
               <div className="inline-flex">
-                <Select value={selectedTier} onValueChange={(val: any) => setTier(val)}>
-                  <SelectTrigger 
-                    className="w-10 h-10 p-0 justify-center rounded-xl bg-background border border-border hover:border-primary/50 transition-colors [&>svg:last-child]:hidden"
-                    aria-label={`Current AI Model: ${getTierLabel(selectedTier)}`}
+                <Select value={selectedTier} onValueChange={(val) => { if (val) setTier(val); }}>
+                  <SelectTrigger
+                    className="w-9 h-9 p-0 justify-center rounded-xl bg-background border border-border/70 hover:border-[#D89A06]/60 transition-colors [&>svg:last-child]:hidden cursor-pointer"
+                    aria-label={`Model: ${getTierLabel(selectedTier)}`}
                   >
                     {getTierIcon(selectedTier)}
                   </SelectTrigger>
                   <SelectContent side="right" align="end" className="z-50">
                     <SelectItem value="fast">
-                      <div className="flex items-center gap-2">
-                        <Zap className="w-4 h-4 text-yellow-500" />
-                        <span>Fast & Cheap (0.5x)</span>
+                      <div className="flex items-center gap-2 text-xs">
+                        <Zap className="w-3.5 h-3.5 text-[#D89A06]" />
+                        <span>Fast Response</span>
                       </div>
                     </SelectItem>
                     <SelectItem value="default">
-                      <div className="flex items-center gap-2">
-                        <BrainCircuit className="w-4 h-4 text-blue-500" />
-                        <span>Balanced (1.0x)</span>
+                      <div className="flex items-center gap-2 text-xs">
+                        <Layers className="w-3.5 h-3.5 text-[#00004E] dark:text-[#D89A06]" />
+                        <span>Balanced Model</span>
                       </div>
                     </SelectItem>
                     <SelectItem value="smart">
-                      <div className="flex items-center gap-2">
-                        <BrainCircuit className="w-4 h-4 text-[#D89A06]" />
-                        <span>Smart & Precise (2.0x)</span>
+                      <div className="flex items-center gap-2 text-xs">
+                        <BrainCircuit className="w-3.5 h-3.5 text-[#D89A06]" />
+                        <span>Deep Analysis</span>
                       </div>
                     </SelectItem>
                   </SelectContent>
@@ -73,7 +73,7 @@ export function ModelSelector({ isCollapsed = false }: ModelSelectorProps) {
             }
           />
           <TooltipContent side="right" sideOffset={12}>
-            AI Model: {getTierLabel(selectedTier)}
+            Model: {getTierLabel(selectedTier)}
           </TooltipContent>
         </Tooltip>
       </div>
@@ -82,27 +82,27 @@ export function ModelSelector({ isCollapsed = false }: ModelSelectorProps) {
 
   return (
     <div className="w-full px-0.5">
-      <Select value={selectedTier} onValueChange={(val: any) => setTier(val)}>
+      <Select value={selectedTier} onValueChange={(val) => { if (val) setTier(val); }}>
         <SelectTrigger className="w-full h-8 text-xs bg-muted/30 border-border/60 hover:bg-muted/60 transition-colors text-muted-foreground hover:text-foreground cursor-pointer">
-          <SelectValue placeholder="Model Tier" />
+          <SelectValue placeholder="Balanced Model" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="fast">
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-yellow-500" />
-              <span>Fast & Cheap (0.5x)</span>
+            <div className="flex items-center gap-2 text-xs">
+              <Zap className="w-3.5 h-3.5 text-[#D89A06]" />
+              <span>Fast Response</span>
             </div>
           </SelectItem>
           <SelectItem value="default">
-            <div className="flex items-center gap-2">
-              <BrainCircuit className="w-4 h-4 text-blue-500" />
-              <span>Balanced (1.0x)</span>
+            <div className="flex items-center gap-2 text-xs">
+              <Layers className="w-3.5 h-3.5 text-[#00004E] dark:text-[#D89A06]" />
+              <span>Balanced Model</span>
             </div>
           </SelectItem>
           <SelectItem value="smart">
-            <div className="flex items-center gap-2">
-              <BrainCircuit className="w-4 h-4 text-[#D89A06]" />
-              <span>Smart & Precise (2.0x)</span>
+            <div className="flex items-center gap-2 text-xs">
+              <BrainCircuit className="w-3.5 h-3.5 text-[#D89A06]" />
+              <span>Deep Analysis</span>
             </div>
           </SelectItem>
         </SelectContent>

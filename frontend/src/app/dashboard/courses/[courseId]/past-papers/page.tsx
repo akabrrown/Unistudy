@@ -203,13 +203,20 @@ export default function CoursePastPapersPage() {
     <div className="max-w-5xl mx-auto py-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
         <div className="space-y-1">
-          <Link
-            href="/dashboard/courses"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Back to Courses
-          </Link>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Link href="/dashboard/courses" className="hover:text-foreground transition-colors">
+              Courses
+            </Link>
+            <span>/</span>
+            <Link
+              href={`/dashboard/courses/${courseId}`}
+              className="font-semibold text-primary hover:underline"
+            >
+              {course?.course_code || 'Course Workspace'}
+            </Link>
+            <span>/</span>
+            <span className="text-foreground font-medium">Past Papers</span>
+          </div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
               {course?.course_code ? `${course.course_code} Past Papers` : 'Course Past Papers'}
@@ -309,7 +316,7 @@ export default function CoursePastPapersPage() {
                       <p className="text-xs text-muted-foreground flex items-center gap-2">
                         <span>{safeFormatDate(paper.created_at)}</span>
                         <span>•</span>
-                        <span>100 Marks Available</span>
+                        <span>Official University Paper</span>
                       </p>
                     </div>
 
@@ -327,7 +334,7 @@ export default function CoursePastPapersPage() {
                           <span>PDF</span>
                         </Button>
                       </a>
-                      <Link href={`/dashboard/past-papers/${encodeURIComponent(paper.id)}`}>
+                      <Link href={`/dashboard/past-papers/${encodeURIComponent(paper.id)}?courseId=${encodeURIComponent(courseId)}`}>
                         <Button size="sm" className="gap-1.5 cursor-pointer shadow-xs font-semibold">
                           <span>Start Mock</span>
                           <ArrowRight className="w-3.5 h-3.5" />
@@ -357,14 +364,19 @@ export default function CoursePastPapersPage() {
                 {drills.map((drill) => (
                   <div
                     key={drill.id}
-                    className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border gap-2"
+                    className="p-3 bg-muted/25 rounded-xl border border-border/80 space-y-2"
                   >
-                    <span className="text-xs font-medium break-words">{drill.topic}</span>
-                    <Link href={`/dashboard/past-papers/drills/${drill.id}`}>
-                      <Button size="sm" variant="secondary" className="h-7 text-xs shrink-0">
-                        Drill
-                      </Button>
-                    </Link>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-foreground break-words">{drill.topic}</span>
+                      <Link href={`/dashboard/courses/${courseId}/drills/${drill.id}`}>
+                        <Button size="sm" variant="secondary" className="h-7 text-xs shrink-0 cursor-pointer">
+                          Practice Drill
+                        </Button>
+                      </Link>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                      <div className="h-full w-1/3 rounded-full bg-[#D89A06]" />
+                    </div>
                   </div>
                 ))}
               </div>

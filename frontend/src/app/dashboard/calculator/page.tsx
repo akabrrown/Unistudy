@@ -259,6 +259,7 @@ export default function CalculatorPage() {
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [history, setHistory] = useState<SolvedHistoryEntry[]>([])
+  const [drawerTab, setDrawerTab] = useState<'examples' | 'history'>('examples')
 
   const endRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -855,32 +856,6 @@ export default function CalculatorPage() {
                 </Button>
               </div>
 
-              {/* Quick Math Tool Jumps */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-xs">
-                <span className="text-[10px] font-mono uppercase text-muted-foreground tracking-wider">Quick Tools:</span>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('evaluator')}
-                  className="px-2 py-0.5 rounded-md border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
-                >
-                  <Cpu className="w-3 h-3 text-primary" /> MathJS Evaluator
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('formulas')}
-                  className="px-2 py-0.5 rounded-md border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
-                >
-                  <Sigma className="w-3 h-3 text-primary" /> Formulas
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('constants')}
-                  className="px-2 py-0.5 rounded-md border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
-                >
-                  <Atom className="w-3 h-3 text-primary" /> Constants
-                </button>
-              </div>
-
               {/* Image Preview Strip */}
               {imagePreview ? (
                 <div className="flex items-center justify-between gap-2 bg-muted/40 border border-border rounded-xl px-3 py-2">
@@ -1136,38 +1111,61 @@ export default function CalculatorPage() {
               </div>
             </section>
 
-            {/* Sample Query Starters */}
-            <section className="rounded-2xl border border-border/80 bg-card p-4 shadow-xs space-y-2.5">
-              <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
-                <BookOpen className="w-3.5 h-3.5 text-primary" />
-                One-Click Example Problems
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {EXAMPLE_PROBLEMS.map((ex) => (
+            {/* Tabbed Examples & Recent History Card */}
+            <section className="rounded-2xl border border-border/80 bg-card p-4 shadow-xs space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="inline-flex rounded-lg border border-border bg-muted/40 p-0.5 text-xs">
                   <button
-                    key={ex.tag}
                     type="button"
-                    onClick={() => void runSolve(ex.text)}
-                    disabled={isComputing}
-                    className="text-left rounded-xl border border-border/70 bg-muted/25 hover:bg-muted/60 hover:border-primary/40 p-2.5 transition-colors cursor-pointer"
+                    onClick={() => setDrawerTab('examples')}
+                    className={cn(
+                      'px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer',
+                      drawerTab === 'examples'
+                        ? 'bg-background text-foreground shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
                   >
-                    <div className="text-[10px] font-mono font-semibold uppercase tracking-wider text-primary">
-                      {ex.tag}
-                    </div>
-                    <div className="text-xs text-foreground font-medium line-clamp-1 mt-0.5">
-                      {ex.text}
-                    </div>
+                    Examples
                   </button>
-                ))}
-              </div>
-            </section>
-
-            {/* Session History */}
-            {history.length > 0 ? (
-              <section className="rounded-2xl border border-border/80 bg-card p-4 shadow-xs space-y-2.5">
-                <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground font-semibold">
-                  Recent Computations
+                  <button
+                    type="button"
+                    onClick={() => setDrawerTab('history')}
+                    className={cn(
+                      'px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer tabular-nums',
+                      drawerTab === 'history'
+                        ? 'bg-background text-foreground shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    Recent ({history.length})
+                  </button>
                 </div>
+              </div>
+
+              {drawerTab === 'examples' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {EXAMPLE_PROBLEMS.map((ex) => (
+                    <button
+                      key={ex.tag}
+                      type="button"
+                      onClick={() => void runSolve(ex.text)}
+                      disabled={isComputing}
+                      className="text-left rounded-xl border border-border/70 bg-muted/25 hover:bg-muted/60 hover:border-foreground/30 p-2.5 transition-colors cursor-pointer"
+                    >
+                      <div className="text-[10px] font-mono font-semibold uppercase tracking-wider text-[#00004E] dark:text-[#D89A06]">
+                        {ex.tag}
+                      </div>
+                      <div className="text-xs text-foreground font-medium line-clamp-1 mt-0.5">
+                        {ex.text}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : history.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-4 text-center">
+                  Solved problems in this session appear here.
+                </p>
+              ) : (
                 <ul className="divide-y divide-border/60">
                   {history.map((entry) => (
                     <li key={entry.id} className="py-2 first:pt-0 last:pb-0">
@@ -1197,8 +1195,8 @@ export default function CalculatorPage() {
                     </li>
                   ))}
                 </ul>
-              </section>
-            ) : null}
+              )}
+            </section>
           </div>
 
           {/* Right Pane: Wolfram-Style Computation Output & Inspector (7 cols) */}
@@ -1223,25 +1221,37 @@ export default function CalculatorPage() {
               </div>
 
               {result ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void handleCopyResult()}
-                  className="h-7 px-2.5 text-xs gap-1.5 cursor-pointer"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-500" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      Copy LaTeX
-                    </>
-                  )}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setActiveTab('graph')}
+                    className="h-7 px-2.5 text-xs gap-1.5 cursor-pointer"
+                  >
+                    <LineChart className="w-3.5 h-3.5 text-[#D89A06]" />
+                    Plot in Graph Studio →
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleCopyResult()}
+                    className="h-7 px-2.5 text-xs gap-1.5 cursor-pointer"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        Copy LaTeX
+                      </>
+                    )}
+                  </Button>
+                </div>
               ) : null}
             </div>
 
@@ -1258,42 +1268,52 @@ export default function CalculatorPage() {
 
               {!result && !isComputing && !error ? (
                 <div className="space-y-6 py-4">
-                  <div className="text-center max-w-md mx-auto space-y-2">
-                    <BrainCircuit className="w-10 h-10 text-primary/40 mx-auto" strokeWidth={1.5} />
-                    <h2 className="text-base font-bold text-foreground">
-                      Symbolic CAS + Step-by-Step Proof Engine
-                    </h2>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      Arithmetic, derivatives, definite integrals, simultaneous equations, matrices, and descriptive statistics are verified deterministically before the AI writes step-by-step working.
-                    </p>
+                  {/* Visual Specimen: Rendered KaTeX + SVG Curve Preview */}
+                  <div className="rounded-2xl border border-border/70 bg-muted/20 p-5 space-y-4">
+                    <div className="flex items-center justify-between text-xs font-mono text-muted-foreground">
+                      <span>SPECIMEN DERIVATION</span>
+                      <button
+                        type="button"
+                        onClick={() => void runSolve('Find the derivative and stationary points of x^3 - 3*x')}
+                        className="text-[#00004E] dark:text-[#D89A06] font-semibold hover:underline cursor-pointer"
+                      >
+                        Run this example →
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                      <div className="md:col-span-7 space-y-2 text-xs text-foreground prose prose-sm dark:prose-invert max-w-none">
+                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                          {`$$f(x) = x^3 - 3x \\implies f'(x) = 3x^2 - 3 = 3(x-1)(x+1)$$`}
+                        </ReactMarkdown>
+                        <p className="text-xs text-muted-foreground not-prose">
+                          Stationary extrema at <code className="font-mono">x = -1</code> (local max) and{' '}
+                          <code className="font-mono">x = 1</code> (local min).
+                        </p>
+                      </div>
+
+                      <div className="md:col-span-5 rounded-xl border border-border/70 bg-background p-3">
+                        <svg viewBox="0 0 180 100" className="w-full h-24">
+                          <line x1="10" y1="50" x2="170" y2="50" stroke="currentColor" strokeOpacity="0.2" strokeWidth="1" />
+                          <line x1="90" y1="10" x2="90" y2="90" stroke="currentColor" strokeOpacity="0.2" strokeWidth="1" />
+                          <path
+                            d="M 35 88 C 60 12, 75 18, 90 50 C 105 82, 120 88, 145 12"
+                            fill="none"
+                            stroke="#00004E"
+                            className="dark:stroke-[#D89A06]"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                          />
+                          <circle cx="66" cy="24" r="3.5" fill="#D89A06" />
+                          <circle cx="114" cy="76" r="3.5" fill="#10B981" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-border/70 bg-muted/25 p-3.5 space-y-1">
-                      <div className="font-mono text-[11px] font-semibold text-primary">CALCULUS &amp; ODES</div>
-                      <p className="text-xs text-muted-foreground">
-                        Symbolic differentiation, Simpson definite integration, limits, series, and differential equations.
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-border/70 bg-muted/25 p-3.5 space-y-1">
-                      <div className="font-mono text-[11px] font-semibold text-primary">ALGEBRA &amp; MATRICES</div>
-                      <p className="text-xs text-muted-foreground">
-                        Real &amp; complex quadratic roots, Gaussian elimination for linear systems, determinants, and inverses.
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-border/70 bg-muted/25 p-3.5 space-y-1">
-                      <div className="font-mono text-[11px] font-semibold text-primary">PROBABILITY &amp; STATS</div>
-                      <p className="text-xs text-muted-foreground">
-                        Mean, median, population &amp; sample standard deviation, variance, distributions, and hypothesis tests.
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-border/70 bg-muted/25 p-3.5 space-y-1">
-                      <div className="font-mono text-[11px] font-semibold text-primary">VISION OCR INPUT</div>
-                      <p className="text-xs text-muted-foreground">
-                        Paste screenshots directly (`Ctrl+V`) or upload handwritten/printed math exam questions.
-                      </p>
-                    </div>
-                  </div>
+                  <p className="text-xs text-center text-muted-foreground max-w-md mx-auto">
+                    Type an equation on the left, click a keypad operator, or paste a question screenshot (<code className="font-mono">Ctrl+V</code>) to see every step.
+                  </p>
                 </div>
               ) : null}
 

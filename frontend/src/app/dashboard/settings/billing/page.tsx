@@ -174,17 +174,17 @@ const UNIT_ECONOMICS = [
     icon: Bot,
   },
   {
-    feature: 'Handwritten Notes & Mathpix Formula Scan',
+    feature: 'Handwritten Notes & Formula OCR Scan',
     cost: '200 pts (2.00 cr)',
     provider: 'Google Gemini 2.5 Flash',
-    description: 'MixTeX LaTeX OCR, table extraction, and .TEX/.MD export',
+    description: 'Structured LaTeX OCR, table extraction, and .TEX/.MD export',
     icon: Camera,
   },
   {
-    feature: 'Essay Grader & Turnitin Rubric Evaluation',
+    feature: 'University Essay & Rubric Grader',
     cost: '200 pts (2.00 cr)',
     provider: 'Google Gemini 2.5 Flash',
-    description: '4-axis scoring, 100/100 exemplar generation, and readability X-ray',
+    description: '4-axis scoring, Honours exemplar generation, and readability X-ray',
     icon: FileText,
   },
   {
@@ -484,18 +484,10 @@ export default function BillingSettings() {
 
   const formattedCreditsLeft = useMemo(() => {
     if (balance > 500) {
-      return (balance / 100).toLocaleString(undefined, { maximumFractionDigits: 1 });
+      return (balance / 100).toFixed(2).replace(/\.00$/, '');
     }
-    return balance.toString();
+    return String(balance);
   }, [balance]);
-
-  // Filtered usage logs for display
-  const displayedLogs = useMemo(() => {
-    if (logFilter === 'all') return usageLogs;
-    const now = new Date();
-    const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
-    return usageLogs.filter((l) => new Date(l.called_at) >= startOfToday);
-  }, [usageLogs, logFilter]);
 
   // Estimated monthly requirement calculation
   const estimatedCreditsNeeded = useMemo(() => {
@@ -503,23 +495,19 @@ export default function BillingSettings() {
     return Math.ceil(totalPoints / 100);
   }, [calcLectures, calcMath, calcEssays]);
 
-  // Feature breakdown entries sorted by compute points
-  const breakdownEntries = useMemo(() => {
-    if (!quota?.features_breakdown) return [];
-    return Object.entries(quota.features_breakdown).sort((a, b) => b[1].points - a[1].points);
-  }, [quota]);
-
   if (loading) {
     return (
-      <div className="max-w-[1440px] mx-auto p-12 text-center space-y-4">
-        <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto text-primary animate-pulse">
-          <Coins className="w-6 h-6" />
+      <div className="max-w-[1440px] mx-auto space-y-6 pb-16">
+        <div className="h-14 rounded-2xl bg-muted/40 animate-pulse" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-32 rounded-2xl border border-border/60 bg-card animate-pulse" />
+          ))}
         </div>
-        <div className="space-y-1">
-          <p className="text-base font-bold text-foreground">Synchronizing AI Compute Telemetry</p>
-          <p className="text-xs font-mono text-muted-foreground">
-            Connecting live wallet balances, daily allowance pools, and consumption audit ledger...
-          </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-72 rounded-2xl border border-border/60 bg-card animate-pulse" />
+          ))}
         </div>
       </div>
     );
@@ -762,114 +750,16 @@ export default function BillingSettings() {
         </div>
       </section>
 
-      {/* Live AI Usage & Deductions History Quick Preview Card */}
-      <section className="rounded-2xl border border-border/80 bg-card p-5 md:p-6 space-y-4 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-border/60">
-          <div>
-            <div className="flex items-center gap-2">
-              <History className="w-4 h-4 text-primary" />
-              <h3 className="text-base font-bold text-foreground">Live AI Compute Deductions &amp; Audit Log</h3>
-              <span className="rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 font-mono text-[11px] font-semibold text-primary tabular-nums">
-                {usageLogs.length} live records
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Live ledger of exact AI inference operations, engines dispatched, and credit points deducted.
-            </p>
-          </div>
-
-          <Link
-            href="/dashboard/settings/billing/audit"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 px-3.5 py-2 text-xs font-semibold transition-all cursor-pointer shadow-xs shrink-0"
-          >
-            Open Standalone Audit Log <ArrowUpRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-
-        {/* Quick Preview of recent operations */}
-        {usageLogs.length === 0 ? (
-          <div className="py-8 text-center space-y-2">
-            <Activity className="w-6 h-6 text-muted-foreground/50 mx-auto" />
-            <p className="text-xs font-semibold text-foreground">No AI Operations Logged Yet</p>
-            <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
-              When you scan lecture slides, ask the AI Tutor, solve math equations, or grade past papers, every operation is streamed live.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="divide-y divide-border/60 border rounded-xl overflow-hidden bg-card">
-              {usageLogs.slice(0, 4).map((log) => {
-                const meta = humanizeFeature(log.feature);
-                const Icon = meta.icon;
-                const providerName = humanizeProvider(log.provider);
-                const isFreeDaily = log.pool_type === 'free_daily';
-
-                return (
-                  <div
-                    key={log.id}
-                    className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-muted/20 transition-colors"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-xs font-bold text-foreground truncate">{meta.label}</p>
-                          <span
-                            className={cn(
-                              'text-[10px] font-mono px-1.5 py-0.5 rounded font-medium shrink-0',
-                              isFreeDaily
-                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                                : 'bg-primary/10 text-primary border border-primary/25'
-                            )}
-                          >
-                            {isFreeDaily ? 'Free Daily Allowance' : 'Wallet Deduction'}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground flex items-center gap-2 font-mono">
-                          <span>{providerName}</span>
-                          <span>•</span>
-                          <span>{formatLogDate(log.called_at)}</span>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0 self-end sm:self-center">
-                      <span className="font-mono text-xs font-bold text-foreground px-2 py-1 rounded-md bg-muted/60 border border-border/80 inline-block">
-                        -{log.cost_points} pts <span className="text-muted-foreground font-normal">(-{log.cost_credits.toFixed(2)} cr)</span>
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-1 text-xs">
-              <span className="text-muted-foreground font-mono">
-                Showing {Math.min(4, usageLogs.length)} of {usageLogs.length} recent operations
-              </span>
-              <Link
-                href="/dashboard/settings/billing/audit"
-                className="text-primary font-semibold hover:underline inline-flex items-center gap-1 self-start sm:self-auto"
-              >
-                View all {usageLogs.length} audit records, search &amp; CSV export →
-              </Link>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* Main Top-Up Packages Grid */}
+      {/* Main Top-Up Packages Grid — Elevated directly beneath wallet telemetry */}
       <section id="top-up-options" className="space-y-4 scroll-mt-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
             <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-              <Zap className="w-4 h-4 text-amber-500" />
-              Purchase AI Compute Credit Bundles
+              <Zap className="w-4 h-4 text-[#D89A06]" />
+              Purchase Study Credit Bundles
             </h2>
             <p className="text-xs text-muted-foreground">
-              One-time purchases via Paystack. Credits are only drawn after your daily free allowance is exhausted.
+              One-time purchases via Paystack. Credits roll over forever and are only drawn after your free 6-hour passes run out.
             </p>
           </div>
           <span className="text-[10px] font-mono text-muted-foreground bg-muted/40 px-2.5 py-1 rounded-md border border-border self-start sm:self-auto">
@@ -914,13 +804,13 @@ export default function BillingSettings() {
                 </div>
 
                 <div className="pt-2 border-t border-border/60">
-                  <div className="flex items-baseline gap-1.5">
+                  <div className="flex items-baseline gap-1.5 tabular-nums">
                     <span className="text-3xl font-extrabold font-mono text-foreground">
                       GH₵{bundle.price}
                     </span>
                     <span className="text-xs text-muted-foreground">one-time</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-primary mt-1">
+                  <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-primary mt-1 tabular-nums">
                     <Coins className="w-3.5 h-3.5" />
                     {bundle.credits} Credits ({bundle.baseCredits.toLocaleString()} pts)
                   </div>
@@ -951,6 +841,103 @@ export default function BillingSettings() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Recent Usage Deductions Preview Card */}
+      <section className="rounded-2xl border border-border/80 bg-card p-5 md:p-6 space-y-4 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-border/60">
+          <div>
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4 text-primary" />
+              <h3 className="text-base font-bold text-foreground">Recent Credit Activity</h3>
+              <span className="rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 font-mono text-[11px] font-semibold text-primary tabular-nums">
+                {usageLogs.length} records
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Recent study tool requests, models used, and pass or credit deductions.
+            </p>
+          </div>
+
+          <Link
+            href="/dashboard/settings/billing/audit"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 px-3.5 py-2 text-xs font-semibold transition-all cursor-pointer shadow-xs shrink-0"
+          >
+            Full Usage History <ArrowUpRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        {usageLogs.length === 0 ? (
+          <div className="py-8 text-center space-y-2">
+            <Activity className="w-6 h-6 text-muted-foreground/50 mx-auto" />
+            <p className="text-xs font-semibold text-foreground">No Study Tool Usage Logged Yet</p>
+            <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
+              When you scan lecture slides, ask your tutor, solve equations, or grade past papers, each action appears here.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="divide-y divide-border/60 border rounded-xl overflow-hidden bg-card">
+              {usageLogs.slice(0, 4).map((log) => {
+                const meta = humanizeFeature(log.feature);
+                const Icon = meta.icon;
+                const providerName = humanizeProvider(log.provider);
+                const isFreeDaily = log.pool_type === 'free_daily';
+
+                return (
+                  <div
+                    key={log.id}
+                    className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-muted/20 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-bold text-foreground truncate">{meta.label}</p>
+                          <span
+                            className={cn(
+                              'text-[10px] font-mono px-1.5 py-0.5 rounded font-medium shrink-0',
+                              isFreeDaily
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                : 'bg-primary/10 text-primary border border-primary/25'
+                            )}
+                          >
+                            {isFreeDaily ? 'Free Pass' : 'Wallet Credit'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground flex items-center gap-2 font-mono">
+                          <span>{providerName}</span>
+                          <span>•</span>
+                          <span>{formatLogDate(log.called_at)}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0 self-end sm:self-center tabular-nums">
+                      <span className="font-mono text-xs font-bold text-foreground px-2 py-1 rounded-md bg-muted/60 border border-border/80 inline-block">
+                        -{log.cost_points} pts <span className="text-muted-foreground font-normal">(-{log.cost_credits.toFixed(2)} cr)</span>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-1 text-xs">
+              <span className="text-muted-foreground font-mono tabular-nums">
+                Showing {Math.min(4, usageLogs.length)} of {usageLogs.length} recent operations
+              </span>
+              <Link
+                href="/dashboard/settings/billing/audit"
+                className="text-primary font-semibold hover:underline inline-flex items-center gap-1 self-start sm:self-auto"
+              >
+                View all {usageLogs.length} records &amp; export CSV →
+              </Link>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Two-Column Matrix: Left 7 Cols Consumption Guide + Right 5 Cols Estimator Calculator */}
@@ -1092,8 +1079,7 @@ export default function BillingSettings() {
           <div className="rounded-xl border border-border/70 bg-muted/20 p-3.5 flex items-center gap-3">
             <ShieldCheck className="w-5 h-5 text-emerald-500 shrink-0" />
             <div className="text-[11px] text-muted-foreground leading-relaxed">
-              <strong className="text-foreground">Bank-Grade Verification:</strong> Paystack webhook
-              HMAC signatures are verified server-side with constant-time equality checks.
+              <strong className="text-foreground">Encrypted Checkout:</strong> All Mobile Money and card payments are verified directly through Paystack before crediting your wallet.
             </div>
           </div>
         </div>

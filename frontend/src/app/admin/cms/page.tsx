@@ -20,11 +20,22 @@ import {
   Sliders,
   Calendar,
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { AdminMetricCard } from '@/components/admin/AdminMetricCard';
+import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog';
 import { toast } from 'sonner';
 
 interface FAQ {
@@ -77,6 +88,14 @@ export default function AdminCmsPage() {
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [quoteForm, setQuoteForm] = useState({ quote: '', author: 'Unknown', theme: 'Excellence', is_active: true });
 
+  // Delete Confirmation Dialog
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
+
   const loadAll = async () => {
     setLoading(true);
     try {
@@ -125,16 +144,23 @@ export default function AdminCmsPage() {
   };
 
   // Delete FAQ
-  const handleDeleteFaq = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this FAQ?')) return;
-    try {
-      const res = await fetch(`/api/admin/cms/faqs?id=${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
-      toast.success('FAQ deleted');
-      setFaqs((prev) => prev.filter((f) => f.id !== id));
-    } catch {
-      toast.error('Failed to delete FAQ');
-    }
+  const handleDeleteFaq = (id: string) => {
+    setDeleteConfirm({
+      open: true,
+      title: 'Delete FAQ entry?',
+      description: 'This removes the question from the public landing page and student helpdesk immediately.',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/admin/cms/faqs?id=${id}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error();
+          toast.success('FAQ deleted');
+          setFaqs((prev) => prev.filter((f) => f.id !== id));
+          setDeleteConfirm(null);
+        } catch {
+          toast.error('Failed to delete FAQ');
+        }
+      },
+    });
   };
 
   // Save Testimonial
@@ -162,16 +188,23 @@ export default function AdminCmsPage() {
   };
 
   // Delete Testimonial
-  const handleDeleteTestimonial = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this testimonial?')) return;
-    try {
-      const res = await fetch(`/api/admin/cms/testimonials?id=${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
-      toast.success('Testimonial deleted');
-      setTestimonials((prev) => prev.filter((t) => t.id !== id));
-    } catch {
-      toast.error('Failed to delete testimonial');
-    }
+  const handleDeleteTestimonial = (id: string) => {
+    setDeleteConfirm({
+      open: true,
+      title: 'Delete student testimonial?',
+      description: 'This permanently removes the student review from the landing page carousel.',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/admin/cms/testimonials?id=${id}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error();
+          toast.success('Testimonial deleted');
+          setTestimonials((prev) => prev.filter((t) => t.id !== id));
+          setDeleteConfirm(null);
+        } catch {
+          toast.error('Failed to delete testimonial');
+        }
+      },
+    });
   };
 
   // Save Quote
@@ -196,81 +229,112 @@ export default function AdminCmsPage() {
   };
 
   // Delete Quote
-  const handleDeleteQuote = async (id: string) => {
-    if (!confirm('Delete this quote?')) return;
-    try {
-      const res = await fetch(`/api/admin/cms/quotes?id=${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
-      toast.success('Quote deleted');
-      setQuotes((prev) => prev.filter((q) => q.id !== id));
-    } catch {
-      toast.error('Failed to delete quote');
-    }
+  const handleDeleteQuote = (id: string) => {
+    setDeleteConfirm({
+      open: true,
+      title: 'Delete motivational quote?',
+      description: 'This removes the quote from the daily student dashboard rotation.',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/admin/cms/quotes?id=${id}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error();
+          toast.success('Quote deleted');
+          setQuotes((prev) => prev.filter((q) => q.id !== id));
+          setDeleteConfirm(null);
+        } catch {
+          toast.error('Failed to delete quote');
+        }
+      },
+    });
   };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <Globe className="w-6 h-6 text-[#00004E] dark:text-[#D89A06]" />
-            Public Site CMS Manager
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            Control dynamic landing page assets, social proof testimonials, FAQ knowledgebase, and student motivational quotes live.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={loadAll}
-            variant="outline"
-            size="sm"
-            disabled={loading}
-            className="gap-1.5 cursor-pointer text-xs"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh Data
-          </Button>
-          {activeTab === 'faqs' && (
+      <AdminPageHeader
+        title="Public Site CMS"
+        count={faqs.length + testimonials.length + quotes.length}
+        subtitle="Manage dynamic landing page FAQs, student reviews, and daily academic quotes live."
+        actions={
+          <>
             <Button
-              onClick={() => {
-                setEditingFaq(null);
-                setFaqForm({ category: 'General', question: '', answer: '', display_order: faqs.length + 1, is_published: true });
-                setFaqModalOpen(true);
-              }}
+              onClick={loadAll}
+              variant="outline"
               size="sm"
-              className="gap-1.5 bg-[#00004E] text-[#FFFFFF] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] cursor-pointer text-xs font-semibold"
+              disabled={loading}
+              className="gap-1.5 cursor-pointer text-xs h-9"
             >
-              <Plus className="w-3.5 h-3.5" />
-              Add FAQ
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
             </Button>
-          )}
-          {activeTab === 'testimonials' && (
-            <Button
-              onClick={() => {
-                setEditingTestimonial(null);
-                setTestForm({ student_name: '', student_role: 'UPSA Student', program: '', content: '', rating: 5, is_featured: true, is_approved: true });
-                setTestModalOpen(true);
-              }}
-              size="sm"
-              className="gap-1.5 bg-[#00004E] text-[#FFFFFF] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] cursor-pointer text-xs font-semibold"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add Testimonial
-            </Button>
-          )}
-          {activeTab === 'quotes' && (
-            <Button
-              onClick={() => setQuoteModalOpen(true)}
-              size="sm"
-              className="gap-1.5 bg-[#00004E] text-[#FFFFFF] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] cursor-pointer text-xs font-semibold"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add Quote
-            </Button>
-          )}
-        </div>
+            {activeTab === 'faqs' && (
+              <Button
+                onClick={() => {
+                  setEditingFaq(null);
+                  setFaqForm({ category: 'General', question: '', answer: '', display_order: faqs.length + 1, is_published: true });
+                  setFaqModalOpen(true);
+                }}
+                size="sm"
+                className="gap-1.5 bg-[#00004E] text-[#FFFFFF] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] cursor-pointer text-xs font-semibold h-9"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add FAQ
+              </Button>
+            )}
+            {activeTab === 'testimonials' && (
+              <Button
+                onClick={() => {
+                  setEditingTestimonial(null);
+                  setTestForm({ student_name: '', student_role: 'UPSA Student', program: '', content: '', rating: 5, is_featured: true, is_approved: true });
+                  setTestModalOpen(true);
+                }}
+                size="sm"
+                className="gap-1.5 bg-[#00004E] text-[#FFFFFF] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] cursor-pointer text-xs font-semibold h-9"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Testimonial
+              </Button>
+            )}
+            {activeTab === 'quotes' && (
+              <Button
+                onClick={() => setQuoteModalOpen(true)}
+                size="sm"
+                className="gap-1.5 bg-[#00004E] text-[#FFFFFF] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] cursor-pointer text-xs font-semibold h-9"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Quote
+              </Button>
+            )}
+          </>
+        }
+      />
+
+      {/* Metric Cards acting as quick tab switchers */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <AdminMetricCard
+          label="Knowledgebase FAQs"
+          value={faqs.length}
+          subtext={`${faqs.filter((f) => f.is_published).length} published live`}
+          icon={HelpCircle}
+          active={activeTab === 'faqs'}
+          onClick={() => setActiveTab('faqs')}
+        />
+        <AdminMetricCard
+          label="Student Testimonials"
+          value={testimonials.length}
+          subtext={`${testimonials.filter((t) => t.is_featured).length} featured on landing`}
+          icon={Star}
+          active={activeTab === 'testimonials'}
+          onClick={() => setActiveTab('testimonials')}
+        />
+        <AdminMetricCard
+          label="Motivational Quotes"
+          value={quotes.length}
+          subtext="Daily dashboard rotation"
+          icon={Quote}
+          active={activeTab === 'quotes'}
+          onClick={() => setActiveTab('quotes')}
+        />
       </div>
 
       {/* Tabs */}
@@ -484,229 +548,232 @@ export default function AdminCmsPage() {
         </div>
       )}
 
-      {/* FAQ MODAL */}
-      {faqModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-lg p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="text-base font-bold text-foreground">
-                {editingFaq ? 'Edit FAQ Item' : 'Create New Knowledgebase FAQ'}
-              </h3>
-              <button onClick={() => setFaqModalOpen(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <form onSubmit={handleSaveFaq} className="space-y-3.5">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Category</label>
-                  <Input
-                    value={faqForm.category}
-                    onChange={(e) => setFaqForm({ ...faqForm, category: e.target.value })}
-                    placeholder="General, Billing, Past Papers"
-                    required
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Display Order</label>
-                  <Input
-                    type="number"
-                    value={faqForm.display_order}
-                    onChange={(e) => setFaqForm({ ...faqForm, display_order: parseInt(e.target.value) || 1 })}
-                    className="h-9 text-xs"
-                  />
-                </div>
-              </div>
+      {/* FAQ DIALOG */}
+      <Dialog open={faqModalOpen} onOpenChange={setFaqModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">
+              {editingFaq ? 'Edit FAQ Item' : 'Create Knowledgebase FAQ'}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Published FAQs appear immediately on the public landing page and student help center.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveFaq} className="space-y-3.5">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">Question</label>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">Category</label>
                 <Input
-                  value={faqForm.question}
-                  onChange={(e) => setFaqForm({ ...faqForm, question: e.target.value })}
-                  placeholder="e.g. How does the AI tutor grade past papers?"
+                  value={faqForm.category}
+                  onChange={(e) => setFaqForm({ ...faqForm, category: e.target.value })}
+                  placeholder="General, Billing, Past Papers"
                   required
                   className="h-9 text-xs"
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">Answer</label>
-                <Textarea
-                  value={faqForm.answer}
-                  onChange={(e) => setFaqForm({ ...faqForm, answer: e.target.value })}
-                  placeholder="Provide comprehensive, student-friendly guidance..."
-                  rows={4}
-                  required
-                  className="text-xs"
-                />
-              </div>
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="is_published"
-                  checked={faqForm.is_published}
-                  onChange={(e) => setFaqForm({ ...faqForm, is_published: e.target.checked })}
-                  className="w-4 h-4 accent-[#00004E]"
-                />
-                <label htmlFor="is_published" className="text-xs font-medium text-foreground cursor-pointer">
-                  Publish publicly on landing page &amp; helpdesk immediately
-                </label>
-              </div>
-              <div className="flex justify-end gap-2 pt-2 border-t border-border">
-                <Button type="button" variant="outline" size="sm" onClick={() => setFaqModalOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" size="sm" className="bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] font-semibold">
-                  Save FAQ
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* TESTIMONIAL MODAL */}
-      {testModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-lg p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="text-base font-bold text-foreground">
-                {editingTestimonial ? 'Edit Student Review' : 'Add Student Testimonial'}
-              </h3>
-              <button onClick={() => setTestModalOpen(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <form onSubmit={handleSaveTestimonial} className="space-y-3.5">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Student Full Name</label>
-                  <Input
-                    value={testForm.student_name}
-                    onChange={(e) => setTestForm({ ...testForm, student_name: e.target.value })}
-                    placeholder="e.g. Ama Serwaa"
-                    required
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Role / Year</label>
-                  <Input
-                    value={testForm.student_role}
-                    onChange={(e) => setTestForm({ ...testForm, student_role: e.target.value })}
-                    placeholder="Level 300 Scholar"
-                    required
-                    className="h-9 text-xs"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">Academic Program / Department</label>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">Display Order</label>
                 <Input
-                  value={testForm.program}
-                  onChange={(e) => setTestForm({ ...testForm, program: e.target.value })}
-                  placeholder="e.g. BSc Information Technology Management"
+                  type="number"
+                  value={faqForm.display_order}
+                  onChange={(e) => setFaqForm({ ...faqForm, display_order: parseInt(e.target.value) || 1 })}
+                  className="h-9 text-xs tabular-nums"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1">Question</label>
+              <Input
+                value={faqForm.question}
+                onChange={(e) => setFaqForm({ ...faqForm, question: e.target.value })}
+                placeholder="e.g. How does the AI tutor grade past papers?"
+                required
+                className="h-9 text-xs"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1">Answer</label>
+              <Textarea
+                value={faqForm.answer}
+                onChange={(e) => setFaqForm({ ...faqForm, answer: e.target.value })}
+                placeholder="Provide clear, student-friendly guidance..."
+                rows={4}
+                required
+                className="text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <Checkbox
+                id="is_published"
+                checked={faqForm.is_published}
+                onCheckedChange={(checked) => setFaqForm({ ...faqForm, is_published: Boolean(checked) })}
+              />
+              <label htmlFor="is_published" className="text-xs font-medium text-foreground cursor-pointer">
+                Publish publicly on landing page immediately
+              </label>
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setFaqModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] font-semibold">
+                Save FAQ
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* TESTIMONIAL DIALOG */}
+      <Dialog open={testModalOpen} onOpenChange={setTestModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">
+              {editingTestimonial ? 'Edit Student Review' : 'Add Student Testimonial'}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Curate verified UPSA student testimonials for the public landing showcase.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveTestimonial} className="space-y-3.5">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">Student Full Name</label>
+                <Input
+                  value={testForm.student_name}
+                  onChange={(e) => setTestForm({ ...testForm, student_name: e.target.value })}
+                  placeholder="e.g. Ama Serwaa"
+                  required
                   className="h-9 text-xs"
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">Testimonial Quote</label>
-                <Textarea
-                  value={testForm.content}
-                  onChange={(e) => setTestForm({ ...testForm, content: e.target.value })}
-                  placeholder="How UniStudy helped their grades..."
-                  rows={3}
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">Role / Year</label>
+                <Input
+                  value={testForm.student_role}
+                  onChange={(e) => setTestForm({ ...testForm, student_role: e.target.value })}
+                  placeholder="Level 300 Scholar"
                   required
-                  className="text-xs"
+                  className="h-9 text-xs"
                 />
               </div>
-              <div className="flex items-center gap-4 pt-1">
-                <label className="flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={testForm.is_featured}
-                    onChange={(e) => setTestForm({ ...testForm, is_featured: e.target.checked })}
-                    className="w-4 h-4 accent-[#00004E]"
-                  />
-                  Feature on Landing Carousel
-                </label>
-                <label className="flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={testForm.is_approved}
-                    onChange={(e) => setTestForm({ ...testForm, is_approved: e.target.checked })}
-                    className="w-4 h-4 accent-[#00004E]"
-                  />
-                  Approved for Public Display
-                </label>
-              </div>
-              <div className="flex justify-end gap-2 pt-2 border-t border-border">
-                <Button type="button" variant="outline" size="sm" onClick={() => setTestModalOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" size="sm" className="bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] font-semibold">
-                  Save Testimonial
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* QUOTE MODAL */}
-      {quoteModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="text-base font-bold text-foreground">Add Daily Motivational Quote</h3>
-              <button onClick={() => setQuoteModalOpen(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
             </div>
-            <form onSubmit={handleSaveQuote} className="space-y-3.5">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1">Academic Programme</label>
+              <Input
+                value={testForm.program}
+                onChange={(e) => setTestForm({ ...testForm, program: e.target.value })}
+                placeholder="e.g. BSc Information Technology Management"
+                className="h-9 text-xs"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1">Testimonial Quote</label>
+              <Textarea
+                value={testForm.content}
+                onChange={(e) => setTestForm({ ...testForm, content: e.target.value })}
+                placeholder="How UniStudy helped their exam preparation..."
+                rows={3}
+                required
+                className="text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-5 pt-1">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="test_featured"
+                  checked={testForm.is_featured}
+                  onCheckedChange={(checked) => setTestForm({ ...testForm, is_featured: Boolean(checked) })}
+                />
+                <label htmlFor="test_featured" className="text-xs font-medium text-foreground cursor-pointer">
+                  Feature on Landing
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="test_approved"
+                  checked={testForm.is_approved}
+                  onCheckedChange={(checked) => setTestForm({ ...testForm, is_approved: Boolean(checked) })}
+                />
+                <label htmlFor="test_approved" className="text-xs font-medium text-foreground cursor-pointer">
+                  Approved for Display
+                </label>
+              </div>
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setTestModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] font-semibold">
+                Save Testimonial
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* QUOTE DIALOG */}
+      <Dialog open={quoteModalOpen} onOpenChange={setQuoteModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Add Daily Motivational Quote</DialogTitle>
+            <DialogDescription className="text-xs">
+              Displayed inside the student command center header rotation.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveQuote} className="space-y-3.5">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1">Quote</label>
+              <Textarea
+                value={quoteForm.quote}
+                onChange={(e) => setQuoteForm({ ...quoteForm, quote: e.target.value })}
+                placeholder="Inspiring quote for students..."
+                rows={3}
+                required
+                className="text-xs"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">Quote</label>
-                <Textarea
-                  value={quoteForm.quote}
-                  onChange={(e) => setQuoteForm({ ...quoteForm, quote: e.target.value })}
-                  placeholder="Inspiring quote for students..."
-                  rows={3}
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">Author</label>
+                <Input
+                  value={quoteForm.author}
+                  onChange={(e) => setQuoteForm({ ...quoteForm, author: e.target.value })}
+                  placeholder="e.g. Kofi Annan"
                   required
-                  className="text-xs"
+                  className="h-9 text-xs"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Author</label>
-                  <Input
-                    value={quoteForm.author}
-                    onChange={(e) => setQuoteForm({ ...quoteForm, author: e.target.value })}
-                    placeholder="e.g. Maya Angelou"
-                    required
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Theme</label>
-                  <Input
-                    value={quoteForm.theme}
-                    onChange={(e) => setQuoteForm({ ...quoteForm, theme: e.target.value })}
-                    placeholder="Focus, Resilience"
-                    className="h-9 text-xs"
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">Theme</label>
+                <Input
+                  value={quoteForm.theme}
+                  onChange={(e) => setQuoteForm({ ...quoteForm, theme: e.target.value })}
+                  placeholder="Focus, Resilience"
+                  className="h-9 text-xs"
+                />
               </div>
-              <div className="flex justify-end gap-2 pt-2 border-t border-border">
-                <Button type="button" variant="outline" size="sm" onClick={() => setQuoteModalOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" size="sm" className="bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] font-semibold">
-                  Add to Rotation
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setQuoteModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] font-semibold">
+                Add to Rotation
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmActionDialog
+        open={!!deleteConfirm?.open}
+        onOpenChange={(open) => !open && setDeleteConfirm(null)}
+        title={deleteConfirm?.title || ''}
+        description={deleteConfirm?.description || ''}
+        confirmLabel="Delete"
+        onConfirm={() => deleteConfirm?.onConfirm()}
+      />
     </div>
   );
 }

@@ -37,9 +37,17 @@ import {
   Flame,
   Gauge
 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { AdminMetricCard } from '@/components/admin/AdminMetricCard';
+import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog';
 import { apiFetch } from '@/lib/api/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import {
   AreaChart,
   Area,
@@ -105,6 +113,13 @@ export default function AiInfrastructurePage() {
   const [updatingFallback, setUpdatingFallback] = useState<string | null>(null);
   const [purgingCache, setPurgingCache] = useState(false);
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
 
   const fetchInfrastructureData = async (isManual = false) => {
     if (isManual) setRefreshing(true);
@@ -178,18 +193,28 @@ export default function AiInfrastructurePage() {
   };
 
   // Purge Cache
-  const handlePurgeCache = async () => {
-    if (!confirm('Purge all cached AI responses across Redis and memory? Subscriptions will re-evaluate models.')) return;
+  const executePurgeCache = async () => {
     setPurgingCache(true);
     try {
       await apiFetch('/admin/ai-usage/purge-cache', { method: 'POST' });
       toast.success('Semantic AI cache successfully purged');
+      setConfirmDialog(null);
       await fetchInfrastructureData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to purge cache');
     } finally {
       setPurgingCache(false);
     }
+  };
+
+  const handlePurgeCache = () => {
+    setConfirmDialog({
+      open: true,
+      title: 'Purge semantic AI cache?',
+      description: 'Clears all cached AI responses across Redis and memory. Subsequent queries will call upstream model providers directly.',
+      confirmLabel: 'Purge Cache',
+      onConfirm: executePurgeCache,
+    });
   };
 
   // Add Key
@@ -214,17 +239,27 @@ export default function AiInfrastructurePage() {
   };
 
   // Delete Key
-  const handleDeleteKey = async (id: string) => {
-    if (!confirm('Remove this API key from the active rotation pool?')) return;
+  const executeDeleteKey = async (id: string) => {
     try {
       const { createClient } = await import('@/lib/supabase/client');
       const supabase = createClient();
       await supabase.from('ai_api_keys').delete().eq('id', id);
       toast.success('Key removed');
       setKeys((prev) => prev.filter((k) => k.id !== id));
+      setConfirmDialog(null);
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete key');
     }
+  };
+
+  const handleDeleteKey = (id: string) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Remove API key from rotation pool?',
+      description: 'This key will immediately stop receiving inference traffic across the gateway.',
+      confirmLabel: 'Remove Key',
+      onConfirm: () => executeDeleteKey(id),
+    });
   };
 
   // Copy Key
@@ -287,9 +322,17 @@ Even if an AI inference engine achieves infinite speedup ($s \\to \\infty$), max
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[420px] gap-3">
-        <RefreshCw className="w-8 h-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground font-mono">Connecting to AI gateway & inference telemetry...</p>
+      <div className="space-y-6 max-w-[1500px] mx-auto pb-12">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-9 w-72 rounded-lg" />
+          <Skeleton className="h-9 w-56 rounded-lg" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-[360px] rounded-xl" />
       </div>
     );
   }
@@ -301,122 +344,105 @@ Even if an AI inference engine achieves infinite speedup ($s \\to \\infty$), max
   const chartData = data?.chartData || [];
   const topUsers = data?.topUsers || [];
   const featureBreakdown = data?.featureBreakdown || {};
+  const liveFeatureEntries = Object.entries(featureBreakdown);
+  const totalFeatureCalls = liveFeatureEntries.reduce((sum, [, count]) => sum + Number(count || 0), 0);
+  const featureRows =
+    liveFeatureEntries.length > 0 && totalFeatureCalls > 0
+      ? liveFeatureEntries
+          .map(([key, count]) => ({
+            label: key.replace(/_/g, ' '),
+            pct: Math.round((Number(count || 0) / totalFeatureCalls) * 100),
+            detail: `${Number(count || 0).toLocaleString()} calls`,
+          }))
+          .sort((a, b) => b.pct - a.pct)
+          .slice(0, 6)
+      : [
+          { label: 'Slide Chat', pct: 64, detail: 'Lecture Q&A' },
+          { label: 'Mock Exams', pct: 18, detail: 'Past paper grading' },
+          { label: 'Note Scanner', pct: 9, detail: 'OCR KaTeX extract' },
+          { label: 'Essay Grader', pct: 5, detail: 'Rubric synthesis' },
+          { label: 'Formula Solver', pct: 3, detail: 'MathJS & SymPy' },
+          { label: 'Flashcards', pct: 1, detail: 'SM-2 Spaced Rep' },
+        ];
 
   return (
     <div className="space-y-6 max-w-[1500px] mx-auto pb-12">
       {/* Top Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border/60 pb-5">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <Badge variant="outline" className="text-xs uppercase font-mono tracking-wider text-muted-foreground">
-              Inference Gateway • Core Infrastructure
-            </Badge>
-            <span className="text-xs text-muted-foreground">•</span>
-            <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-mono">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Multi-Provider Gateway Active</span>
-            </div>
-          </div>
-          <h1 className="text-3xl font-extrabold tracking-tight">AI Infrastructure & Gateway</h1>
-          <p className="text-muted-foreground text-sm max-w-2xl mt-0.5">
-            Real-time inference telemetry, dynamic API key rotation pools, semantic response caching, and automated failover routing.
-          </p>
-        </div>
+      <AdminPageHeader
+        title="AI Infrastructure & Gateway"
+        subtitle="Real-time inference telemetry, API key rotation pools, semantic response caching, and automated failover routing."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleRunBenchmark('groq')}
+              disabled={benchmarking}
+              className="h-9 gap-2 text-xs font-medium cursor-pointer"
+            >
+              <Gauge className={cn("w-3.5 h-3.5", benchmarking && "animate-spin")} />
+              {benchmarking ? 'Pinging Gateway...' : 'Benchmark Latency'}
+            </Button>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleRunBenchmark('groq')}
-            disabled={benchmarking}
-            className="h-9 gap-2 text-xs font-medium"
-          >
-            <Gauge className={cn("w-3.5 h-3.5", benchmarking && "animate-spin")} />
-            {benchmarking ? 'Pinging Gateway...' : 'Benchmark Latency'}
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePurgeCache}
+              disabled={purgingCache}
+              className="h-9 gap-2 text-xs font-medium cursor-pointer"
+            >
+              <RotateCcw className={cn("w-3.5 h-3.5", purgingCache && "animate-spin")} />
+              Purge Cache
+            </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePurgeCache}
-            disabled={purgingCache}
-            className="h-9 gap-2 text-xs font-medium"
-          >
-            <RotateCcw className={cn("w-3.5 h-3.5", purgingCache && "animate-spin")} />
-            Purge Cache
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchInfrastructureData(true)}
-            disabled={refreshing}
-            className="h-9 gap-2 text-xs font-medium"
-          >
-            <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
-            Sync
-          </Button>
-        </div>
-      </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchInfrastructureData(true)}
+              disabled={refreshing}
+              className="h-9 gap-2 text-xs font-medium cursor-pointer"
+            >
+              <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
+              Sync
+            </Button>
+          </>
+        }
+      />
 
       {/* KPI Ribbon (5 High-Density Cards) */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Card className="p-4 bg-card relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Invocations</span>
-            <Activity className="w-4 h-4 text-primary" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight">
-            {cache.total.toLocaleString()}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">AI requests logged</p>
-        </Card>
-
-        <Card className="p-4 bg-card relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tokens Burned</span>
-            <Flame className="w-4 h-4 text-amber-500" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-amber-600 dark:text-amber-400">
-            {(totalTokensMonth / 1_000_000).toFixed(2)}M
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">Current monthly cycle</p>
-        </Card>
-
-        <Card className="p-4 bg-card relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Semantic Cache</span>
-            <Database className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-emerald-600 dark:text-emerald-400">
-            {cache.rate}%
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            Saved ~GH₵ {cache.savingsGhs} ({cache.hits} hits)
-          </p>
-        </Card>
-
-        <Card className="p-4 bg-card relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Active Keys</span>
-            <Key className="w-4 h-4 text-[#D89A06]" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-[#D89A06]">
-            {keys.filter((k) => k.status === 'active').length} <span className="text-xs font-normal text-muted-foreground font-sans">/ {keys.length}</span>
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">Multi-provider pool</p>
-        </Card>
-
-        <Card className="p-4 bg-card relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">P95 Latency</span>
-            <Clock className="w-4 h-4 text-blue-500" />
-          </div>
-          <div className="text-2xl font-bold font-mono tracking-tight text-blue-600 dark:text-blue-400">
-            118 ms
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-1">Groq LPU acceleration</p>
-        </Card>
+        <AdminMetricCard
+          label="Total Invocations"
+          value={cache.total.toLocaleString()}
+          subtext="AI requests logged"
+          icon={Activity}
+        />
+        <AdminMetricCard
+          label="Tokens Burned"
+          value={`${(totalTokensMonth / 1_000_000).toFixed(2)}M`}
+          subtext="Current monthly cycle"
+          icon={Flame}
+        />
+        <AdminMetricCard
+          label="Semantic Cache"
+          value={`${cache.rate}%`}
+          delta={`~GH₵ ${cache.savingsGhs}`}
+          deltaTone="positive"
+          subtext={`${cache.hits} hits`}
+          icon={Database}
+        />
+        <AdminMetricCard
+          label="Active Keys"
+          value={`${keys.filter((k) => k.status === 'active').length} / ${keys.length}`}
+          subtext="Multi-provider pool"
+          icon={Key}
+        />
+        <AdminMetricCard
+          label="P95 Latency"
+          value={benchmarkResult?.latencyMs ? `${benchmarkResult.latencyMs} ms` : '118 ms'}
+          subtext="Groq LPU acceleration"
+          icon={Clock}
+        />
       </div>
 
       {/* Main Tabs Console */}
@@ -580,36 +606,14 @@ Even if an AI inference engine achieves infinite speedup ($s \\to \\infty$), max
               </CardDescription>
             </CardHeader>
             <CardContent className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-xs">
-              <div className="p-3 rounded-lg border bg-card space-y-1">
-                <span className="text-muted-foreground text-[10px] uppercase font-mono block">Slide Chat</span>
-                <span className="font-bold text-base font-mono block">64%</span>
-                <span className="text-[10px] text-muted-foreground block">Lecture Q&A</span>
-              </div>
-              <div className="p-3 rounded-lg border bg-card space-y-1">
-                <span className="text-muted-foreground text-[10px] uppercase font-mono block">Mock Exams</span>
-                <span className="font-bold text-base font-mono block">18%</span>
-                <span className="text-[10px] text-muted-foreground block">Past paper grading</span>
-              </div>
-              <div className="p-3 rounded-lg border bg-card space-y-1">
-                <span className="text-muted-foreground text-[10px] uppercase font-mono block">Note Scanner</span>
-                <span className="font-bold text-base font-mono block">9%</span>
-                <span className="text-[10px] text-muted-foreground block">OCR KaTeX extract</span>
-              </div>
-              <div className="p-3 rounded-lg border bg-card space-y-1">
-                <span className="text-muted-foreground text-[10px] uppercase font-mono block">Essay Grader</span>
-                <span className="font-bold text-base font-mono block">5%</span>
-                <span className="text-[10px] text-muted-foreground block">Rubric synthesis</span>
-              </div>
-              <div className="p-3 rounded-lg border bg-card space-y-1">
-                <span className="text-muted-foreground text-[10px] uppercase font-mono block">Formula Solver</span>
-                <span className="font-bold text-base font-mono block">3%</span>
-                <span className="text-[10px] text-muted-foreground block">MathJS & SymPy</span>
-              </div>
-              <div className="p-3 rounded-lg border bg-card space-y-1">
-                <span className="text-muted-foreground text-[10px] uppercase font-mono block">Flashcards</span>
-                <span className="font-bold text-base font-mono block">1%</span>
-                <span className="text-[10px] text-muted-foreground block">SM-2 Spaced Rep</span>
-              </div>
+              {featureRows.map((row) => (
+                <div key={row.label} className="p-3 rounded-lg border border-border/70 bg-card space-y-1.5">
+                  <span className="text-muted-foreground text-[10px] uppercase font-mono block truncate">{row.label}</span>
+                  <span className="font-bold text-base font-mono tabular-nums block">{row.pct}%</span>
+                  <Progress value={row.pct} className="h-1.5" />
+                  <span className="text-[10px] text-muted-foreground block truncate">{row.detail}</span>
+                </div>
+              ))}
             </CardContent>
           </Card>
         </TabsContent>
@@ -935,8 +939,10 @@ Even if an AI inference engine achieves infinite speedup ($s \\to \\infty$), max
                     <span className="text-foreground font-semibold">Model: {sandboxOutput.model}</span>
                     <span>Latency: <strong className="text-emerald-600 dark:text-emerald-400">{sandboxOutput.latencyMs}ms</strong> • ~{sandboxOutput.tokens} tokens</span>
                   </div>
-                  <div className="text-xs leading-relaxed whitespace-pre-wrap font-sans text-foreground">
-                    {sandboxOutput.answer}
+                  <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed text-foreground">
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                      {sandboxOutput.answer}
+                    </ReactMarkdown>
                   </div>
                 </div>
               )}
@@ -944,6 +950,16 @@ Even if an AI inference engine achieves infinite speedup ($s \\to \\infty$), max
           </Card>
         </TabsContent>
       </Tabs>
+
+      <ConfirmActionDialog
+        open={!!confirmDialog?.open}
+        onOpenChange={(open) => !open && setConfirmDialog(null)}
+        title={confirmDialog?.title || ''}
+        description={confirmDialog?.description || ''}
+        confirmLabel={confirmDialog?.confirmLabel || 'Confirm'}
+        loading={purgingCache}
+        onConfirm={() => confirmDialog?.onConfirm()}
+      />
     </div>
   );
 }

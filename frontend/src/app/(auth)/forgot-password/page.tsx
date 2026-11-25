@@ -8,16 +8,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
 import { AuthSplitLayout } from '../components/AuthSplitLayout';
-import { 
-  ArrowLeft, 
-  Loader2, 
-  Mail, 
-  KeyRound, 
-  CheckCircle2, 
-  AlertCircle, 
-  ArrowRight, 
+import {
+  ArrowLeft,
+  Loader2,
+  Mail,
+  CheckCircle2,
+  AlertCircle,
+  ArrowRight,
   RotateCcw,
-  Lock
+  Lock,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -35,7 +34,14 @@ export default function ForgotPasswordPage() {
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Timer countdown for resending OTP
+  const passwordChecks = [
+    newPassword.length >= 8 && newPassword.length <= 128,
+    /[A-Z]/.test(newPassword),
+    /[a-z]/.test(newPassword),
+    /[0-9]/.test(newPassword),
+  ];
+  const passwordStrength = passwordChecks.filter(Boolean).length;
+
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const timer = setInterval(() => {
@@ -44,7 +50,6 @@ export default function ForgotPasswordPage() {
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
-  // Step 1: Request Reset
   const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
@@ -52,9 +57,9 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setError('');
     const supabase = createClient();
-    
+
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim());
-    
+
     if (resetError) {
       setError(resetError.message);
       setLoading(false);
@@ -66,9 +71,7 @@ export default function ForgotPasswordPage() {
     setLoading(false);
   };
 
-  // Step 2: Handle OTP input & Paste
   const handleOtpChange = (index: number, value: string) => {
-    // Check if pasted multiple characters
     if (value.length > 1) {
       const cleaned = value.replace(/\D/g, '').slice(0, OTP_LENGTH);
       if (cleaned.length > 0) {
@@ -96,6 +99,12 @@ export default function ForgotPasswordPage() {
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace' && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      e.preventDefault();
+      inputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && index < OTP_LENGTH - 1) {
+      e.preventDefault();
+      inputRefs.current[index + 1]?.focus();
     }
   };
 
@@ -140,7 +149,6 @@ export default function ForgotPasswordPage() {
     setLoading(false);
   };
 
-  // Step 3: Update Password
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword.length < 8) {
@@ -173,11 +181,11 @@ export default function ForgotPasswordPage() {
   return (
     <AuthSplitLayout
       badge="Account Recovery"
-      title="Secure Password Recovery"
-      description="Restore access to your UniStudy scholar account through encrypted one-time verification."
+      title="Reset Your Password"
+      description="Restore access to your UniStudy courses and saved notes with a single-use 6-digit recovery code."
     >
       <div className="space-y-6">
-        {/* Step Indicator Pills */}
+        {/* Step Indicator */}
         <div className="flex items-center justify-between border-b border-border/50 pb-4">
           <div className="flex items-center gap-1.5 sm:gap-2">
             {[
@@ -191,7 +199,7 @@ export default function ForgotPasswordPage() {
               return (
                 <div key={s.num} className="flex items-center gap-1.5">
                   <div
-                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold tabular-nums transition-all ${
                       isCurrent
                         ? 'bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] ring-2 ring-[#D89A06]/40'
                         : isCompleted
@@ -208,7 +216,7 @@ export default function ForgotPasswordPage() {
                   >
                     {s.label}
                   </span>
-                  {s.num < 4 && <span className="text-border mx-0.5">•</span>}
+                  {s.num < 4 && <span className="text-border mx-0.5">·</span>}
                 </div>
               );
             })}
@@ -219,7 +227,7 @@ export default function ForgotPasswordPage() {
             className="text-xs font-semibold text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors"
           >
             <ArrowLeft className="w-3 h-3" />
-            <span>Cancel</span>
+            <span>Sign In</span>
           </Link>
         </div>
 
@@ -239,7 +247,7 @@ export default function ForgotPasswordPage() {
                 Forgot Your Password?
               </h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Enter your registered university email. We will dispatch a 6-digit verification code.
+                Enter your registered university email to receive a 6-digit verification code.
               </p>
             </div>
 
@@ -292,27 +300,26 @@ export default function ForgotPasswordPage() {
                 Enter 6-Digit Code
               </h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                We sent a recovery token to{' '}
-                <strong className="text-foreground font-mono">{email}</strong>.
+                Code sent to <strong className="text-foreground font-mono">{email}</strong>.
               </p>
             </div>
 
             <div className="space-y-6">
-              <div 
-                className="flex justify-between gap-1.5 sm:gap-2.5"
-                onPaste={handleOtpPaste}
-              >
+              <div className="flex justify-between gap-1.5 sm:gap-2.5" onPaste={handleOtpPaste}>
                 {otp.map((digit, i) => (
                   <input
                     key={i}
-                    ref={(el) => { inputRefs.current[i] = el; }}
+                    ref={(el) => {
+                      inputRefs.current[i] = el;
+                    }}
                     type="text"
                     inputMode="numeric"
-                    maxLength={1}
+                    autoComplete="one-time-code"
+                    aria-label={`Verification digit ${i + 1}`}
                     value={digit}
                     onChange={(e) => handleOtpChange(i, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                    className="h-12 w-11 sm:h-14 sm:w-12 rounded-xl border-2 border-border/80 bg-background text-center text-xl font-mono font-bold text-foreground outline-hidden transition-all focus:border-[#D89A06] focus:ring-2 focus:ring-[#D89A06]/20 shadow-2xs"
+                    className="h-12 w-11 sm:h-14 sm:w-12 rounded-xl border-2 border-border/80 bg-background text-center text-xl font-mono font-bold tabular-nums text-foreground outline-hidden transition-all focus:border-[#D89A06] focus:ring-2 focus:ring-[#D89A06]/20 shadow-2xs"
                   />
                 ))}
               </div>
@@ -335,10 +342,10 @@ export default function ForgotPasswordPage() {
                 )}
               </Button>
 
-              <div className="text-center pt-2">
+              <div className="text-center pt-1">
                 {resendCooldown > 0 ? (
-                  <p className="text-xs text-muted-foreground font-mono">
-                    Resend code available in {resendCooldown}s
+                  <p className="text-xs text-muted-foreground font-mono tabular-nums">
+                    Resend code in {resendCooldown}s
                   </p>
                 ) : (
                   <button
@@ -364,25 +371,55 @@ export default function ForgotPasswordPage() {
                 Set New Password
               </h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Code verified. Choose a strong, memorable password for your scholar account.
+                Choose a strong password (8–128 characters) for your account.
               </p>
             </div>
 
             <form onSubmit={handleUpdatePassword} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="newPassword" className="text-xs font-semibold text-foreground">
-                  New Password (min 8 characters)
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="newPassword" className="text-xs font-semibold text-foreground">
+                    New Password
+                  </Label>
+                  {newPassword.length > 0 && (
+                    <span className="text-[10px] font-mono tabular-nums text-muted-foreground">
+                      {newPassword.length}/128
+                    </span>
+                  )}
+                </div>
                 <div className="relative">
                   <PasswordInput
                     id="newPassword"
                     required
+                    minLength={8}
+                    maxLength={128}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="pl-10 h-11 rounded-xl bg-background border-border/80 focus:border-[#D89A06] focus:ring-2 focus:ring-[#D89A06]/20 transition-all text-sm"
                   />
                   <Lock className="w-4 h-4 text-muted-foreground absolute left-3.5 top-3.5 pointer-events-none" />
                 </div>
+
+                {newPassword.length > 0 && (
+                  <div className="flex gap-1.5 h-1.5 pt-1">
+                    {[1, 2, 3, 4].map((lvl) => (
+                      <div
+                        key={lvl}
+                        className={`flex-1 rounded-full transition-colors duration-200 ${
+                          lvl <= passwordStrength
+                            ? passwordStrength <= 1
+                              ? 'bg-red-500'
+                              : passwordStrength === 2
+                              ? 'bg-amber-500'
+                              : passwordStrength === 3
+                              ? 'bg-[#D89A06]'
+                              : 'bg-emerald-500'
+                            : 'bg-muted'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
 
               <Button
@@ -415,10 +452,10 @@ export default function ForgotPasswordPage() {
 
             <div className="space-y-2">
               <h3 className="text-2xl font-extrabold tracking-tight text-foreground">
-                Password Reset Successfully
+                Password Updated
               </h3>
               <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
-                Your credentials have been securely updated. You can now access your courses and lecture materials.
+                Your password has been updated. Sign in to return to your courses.
               </p>
             </div>
 

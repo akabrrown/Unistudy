@@ -25,10 +25,14 @@ import {
   Loader2,
   Target,
   FolderInput,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog';
+import { RadialRing, Sparkline } from '@/components/ui/sparkline';
 import { createClient } from '@/lib/supabase/client';
 import { apiFetch } from '@/lib/api/client';
 import { resolveCourseColor } from '@/lib/constants/courses';
@@ -134,6 +138,7 @@ export default function PastPapersDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedPapers, setSelectedPapers] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null);
   const [isExamFocusOpen, setIsExamFocusOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -343,17 +348,19 @@ export default function PastPapersDashboard() {
     setSelectedPapers((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
   };
 
-  const handleDelete = async (e: React.MouseEvent | null, ids: string[]) => {
+  const handleDelete = (e: React.MouseEvent | null, ids: string[]) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     if (!ids || ids.length === 0) return;
-    const msg =
-      ids.length === 1
-        ? 'Are you sure you want to delete this past question paper? All extracted questions and drill data will be permanently removed.'
-        : `Are you sure you want to delete ${ids.length} past question paper(s)?`;
-    if (!confirm(msg)) return;
+    setPendingDeleteIds(ids);
+  };
+
+  const confirmDeletePapers = async () => {
+    if (!pendingDeleteIds || pendingDeleteIds.length === 0) return;
+    const ids = pendingDeleteIds;
+    setPendingDeleteIds(null);
 
     const previousPapers = [...papers];
     setPapers((prev) => prev.filter((p) => !ids.includes(p.id)));
@@ -572,11 +579,21 @@ export default function PastPapersDashboard() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setIsExamFocusOpen(true)}
-              className="h-9 px-3 text-xs font-semibold gap-1.5 border-primary/35 hover:bg-primary/10 text-primary cursor-pointer"
+              onClick={() => setIsMoodleModalOpen(true)}
+              className="h-9 px-3 text-xs font-semibold gap-1.5 border-border hover:bg-muted text-foreground cursor-pointer"
             >
-              <Target className="w-3.5 h-3.5" />
-              Exam Areas Focus
+              <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
+              Portal Sync
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsExamFocusOpen(true)}
+              className="h-9 px-3 text-xs font-semibold gap-1.5 border-border hover:bg-muted text-foreground cursor-pointer"
+            >
+              <Target className="w-3.5 h-3.5 text-[#D89A06]" />
+              Exam Areas
             </Button>
 
             <Button
@@ -873,8 +890,8 @@ export default function PastPapersDashboard() {
                     <div className="space-y-3 pt-0.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold bg-primary/10 text-primary">
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono text-muted-foreground tabular-nums">
+                            <span className="font-bold text-foreground">
                               {resolveDisplayCourseCode({
                                 courseCode: paper.course_code,
                                 joinedCourseCode: courseMeta?.course_code || courseById.get(paper.course_id || '')?.course_code,
@@ -884,17 +901,17 @@ export default function PastPapersDashboard() {
                                 fallback: 'EXAM',
                               })}
                             </span>
-                            <span className="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                              {examLabel}
-                            </span>
+                            <span>·</span>
+                            <span>{examLabel}</span>
                             {paper.year ? (
-                              <span className="rounded bg-muted px-2 py-0.5 font-mono text-[11px] font-medium text-muted-foreground tabular-nums">
-                                {paper.year}
-                              </span>
+                              <>
+                                <span>·</span>
+                                <span>{paper.year}</span>
+                              </>
                             ) : null}
                           </div>
 
-                          <h3 className="mt-1.5 text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                          <h3 className="mt-1 text-base font-bold text-foreground group-hover:text-[#00004E] dark:group-hover:text-[#D89A06] transition-colors line-clamp-1">
                             {normalizePastPaperTitle(paper.title) || courseMeta?.title || 'Past Examination Paper'}
                           </h3>
                           {courseMeta?.title && paper.title && normalizePastPaperTitle(paper.title) !== courseMeta.title && !courseMeta.isCentral ? (
@@ -905,9 +922,18 @@ export default function PastPapersDashboard() {
                         </div>
 
                         <div
-                          className="flex items-center gap-1 shrink-0"
+                          className="flex items-center gap-1.5 shrink-0"
                           onClick={(e) => e.stopPropagation()}
                         >
+                          {attInfo?.bestScore != null && (
+                            <RadialRing
+                              value={Math.round(attInfo.bestScore)}
+                              size={36}
+                              strokeWidth={3.5}
+                              color={attInfo.bestScore >= 70 ? '#10B981' : '#D89A06'}
+                              label={`${Math.round(attInfo.bestScore)}%`}
+                            />
+                          )}
                           <button
                             type="button"
                             onClick={(e) => handleDelete(e, [paper.id])}
@@ -917,20 +943,15 @@ export default function PastPapersDashboard() {
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                          <button
-                            type="button"
+                          <div
                             onClick={(e) => toggleSelect(e, paper.id)}
-                            title="Select paper"
-                            className="p-1.5 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+                            className="p-1 rounded-lg hover:bg-muted transition-colors cursor-pointer flex items-center justify-center"
                           >
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               checked={isSelected}
-                              readOnly
                               aria-label="Select paper for batch action"
-                              className="w-4 h-4 accent-primary cursor-pointer"
                             />
-                          </button>
+                          </div>
                         </div>
                       </div>
 
@@ -1042,13 +1063,25 @@ export default function PastPapersDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-bold tracking-tight text-foreground">
-                  Recent Examiner Reports
+                  Recent Exam Scores
                 </h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Latest timed attempts &amp; AI marking feedback
+                  Latest timed attempts &amp; marking reports
                 </p>
               </div>
-              <Award className="w-4 h-4 text-primary" />
+              {scoredAttempts.length >= 2 ? (
+                <Sparkline
+                  data={[...scoredAttempts]
+                    .slice(0, 8)
+                    .reverse()
+                    .map((a) => Number(a.score_percentage || 0))}
+                  width={72}
+                  height={26}
+                  color="#D89A06"
+                />
+              ) : (
+                <Award className="w-4 h-4 text-[#D89A06]" />
+              )}
             </div>
 
             {attempts.length === 0 ? (
@@ -1236,6 +1269,21 @@ export default function PastPapersDashboard() {
           setPaperToMove(null);
           void loadData();
         }}
+      />
+
+      <ConfirmActionDialog
+        open={Boolean(pendingDeleteIds && pendingDeleteIds.length > 0)}
+        onOpenChange={(open) => !open && setPendingDeleteIds(null)}
+        title={
+          pendingDeleteIds && pendingDeleteIds.length > 1
+            ? `Delete ${pendingDeleteIds.length} past papers?`
+            : 'Delete past examination paper?'
+        }
+        description="All extracted questions, marking rubrics, and drill history linked to this paper will be permanently removed."
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={isDeleting}
+        onConfirm={confirmDeletePapers}
       />
     </div>
   );

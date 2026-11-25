@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import Link from 'next/link';
+import { motion } from 'motion/react';
 import {
   Camera,
   UploadCloud,
@@ -643,7 +645,7 @@ export default function NotesScannerPage() {
               )}
             >
               {preview ? (
-                <div className="w-full h-full flex flex-col items-center justify-center overflow-auto max-h-[360px]">
+                <div className="relative w-full h-full flex flex-col items-center justify-center overflow-auto max-h-[360px]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={preview}
@@ -654,6 +656,14 @@ export default function NotesScannerPage() {
                     }}
                     className="max-h-[310px] object-contain rounded-lg transition-transform duration-150"
                   />
+                  {loading && (
+                    <motion.div
+                      initial={{ top: '4%' }}
+                      animate={{ top: ['4%', '92%', '4%'] }}
+                      transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                      className="absolute left-3 right-3 h-0.5 bg-[#D89A06] shadow-[0_0_12px_2px_rgba(216,154,6,0.65)] pointer-events-none"
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3 max-w-xs">
@@ -887,11 +897,10 @@ export default function NotesScannerPage() {
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-foreground">
-                    Running MixTeX Vision OCR (Temperature 0.1)...
+                    Transcribing handwriting &amp; equations...
                   </p>
                   <p className="text-xs text-muted-foreground max-w-sm">
-                    Extracting headings, GFM tables, and normalizing inline ($...$) and block
-                    ($$...$$) LaTeX equations.
+                    Converting headings, tables, and mathematical formulas into clean Markdown and LaTeX.
                   </p>
                 </div>
               </div>
@@ -1026,19 +1035,21 @@ export default function NotesScannerPage() {
                 {latexSnips.map((snip, idx) => {
                   const snipKey = `snip-${idx}`;
                   return (
-                    <button
+                    <div
                       key={snipKey}
-                      type="button"
-                      onClick={() =>
-                        triggerCopy(snip.raw, snipKey, 'Copied LaTeX formula to clipboard')
-                      }
-                      className="group text-left rounded-xl border border-border/70 bg-background/70 hover:border-primary/50 hover:bg-muted/30 p-3 transition-all cursor-pointer flex flex-col justify-between gap-2"
+                      className="group text-left rounded-xl border border-border/70 bg-background/70 hover:border-foreground/30 p-3 transition-all flex flex-col justify-between gap-2"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-md bg-primary/10 text-primary font-semibold">
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground font-semibold">
                           {snip.isBlock ? 'Display $$' : 'Inline $'}
                         </span>
-                        <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground group-hover:text-primary font-mono">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            triggerCopy(snip.raw, snipKey, 'Copied LaTeX formula to clipboard')
+                          }
+                          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground font-mono cursor-pointer"
+                        >
                           {copiedKey === snipKey ? (
                             <>
                               <Check className="w-3 h-3 text-emerald-500" />
@@ -1050,7 +1061,7 @@ export default function NotesScannerPage() {
                               Copy LaTeX
                             </>
                           )}
-                        </span>
+                        </button>
                       </div>
 
                       <div className="overflow-x-auto py-1 text-sm">
@@ -1062,10 +1073,27 @@ export default function NotesScannerPage() {
                         </ReactMarkdown>
                       </div>
 
-                      <code className="text-[11px] font-mono text-muted-foreground truncate block bg-muted/40 rounded px-2 py-1">
-                        {snip.raw}
-                      </code>
-                    </button>
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40 text-[11px]">
+                        <Link
+                          href="/dashboard/calculator"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(snip.raw);
+                          }}
+                          className="font-semibold text-[#00004E] dark:text-[#D89A06] hover:underline"
+                        >
+                          Solve in Calculator →
+                        </Link>
+                        <Link
+                          href="/dashboard/chat"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(snip.raw);
+                          }}
+                          className="text-muted-foreground hover:text-foreground hover:underline"
+                        >
+                          Ask Tutor →
+                        </Link>
+                      </div>
+                    </div>
                   );
                 })}
               </div>

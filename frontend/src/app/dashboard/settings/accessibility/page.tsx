@@ -74,6 +74,8 @@ interface PresetConfig {
     high_contrast?: boolean;
     low_bandwidth?: boolean;
     simplified_mode?: boolean;
+    reduced_motion?: boolean;
+    reading_ruler?: boolean;
   };
 }
 
@@ -94,6 +96,8 @@ const WCAG_PRESETS: PresetConfig[] = [
       high_contrast: false,
       low_bandwidth: false,
       simplified_mode: false,
+      reduced_motion: false,
+      reading_ruler: false,
     },
   },
   {
@@ -134,7 +138,7 @@ const WCAG_PRESETS: PresetConfig[] = [
     icon: Brain,
     values: {
       simplified_mode: true,
-      low_bandwidth: true,
+      reduced_motion: true,
       line_spacing: 'normal',
     },
   },
@@ -234,12 +238,16 @@ export default function AccessibilitySettingsPage() {
   const [activeTab, setActiveTab] = useState<A11yDomainTab>('vision');
   const [sampleCategory, setSampleCategory] = useState<SampleCategory>('stem');
 
-  // Interactive Reading Ruler state
-  const [readingRulerActive, setReadingRulerActive] = useState(false);
-  const [readingRulerScope, setReadingRulerScope] = useState<'sandbox' | 'global'>('sandbox');
+  // Interactive Reading Ruler state (synced with global SettingsContext)
+  const readingRulerActive = Boolean(settings.reading_ruler);
+  const [readingRulerScope, setReadingRulerScope] = useState<'sandbox' | 'global'>('global');
   const [readingRulerY, setReadingRulerY] = useState(120);
-  const [globalRulerY, setGlobalRulerY] = useState(200);
-  const [rulerHeight, setRulerHeight] = useState<'sm' | 'md' | 'lg'>('md');
+  const rulerHeight: 'sm' | 'md' | 'lg' =
+    (settings.reading_ruler_height ?? 44) <= 32
+      ? 'sm'
+      : (settings.reading_ruler_height ?? 44) >= 56
+      ? 'lg'
+      : 'md';
   const [rulerColor, setRulerColor] = useState<'gold' | 'navy' | 'amber'>('gold');
 
   // Touch & Motor Dexterity Test state
@@ -266,16 +274,6 @@ export default function AccessibilitySettingsPage() {
       document.documentElement.setAttribute('data-focus-indicator', 'high-vis');
     }
   }, []);
-
-  // Global cursor tracker for Fullscreen Reading Ruler
-  useEffect(() => {
-    if (!readingRulerActive || readingRulerScope !== 'global') return;
-    const handleMouseMove = (e: MouseEvent) => {
-      setGlobalRulerY(e.clientY);
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [readingRulerActive, readingRulerScope]);
 
   // Clean up Web Speech when leaving page
   useEffect(() => {
@@ -310,6 +308,9 @@ export default function AccessibilitySettingsPage() {
         high_contrast: false,
         low_bandwidth: false,
         simplified_mode: false,
+        reduced_motion: false,
+        reading_ruler: false,
+        reading_ruler_height: 44,
       },
       'Reset all accessibility settings to standard baseline'
     );
@@ -433,23 +434,7 @@ export default function AccessibilitySettingsPage() {
 
   return (
     <div className="max-w-[1440px] mx-auto space-y-6 pb-16">
-      {/* Global Full-Screen Reading Ruler Overlay */}
-      {readingRulerActive && readingRulerScope === 'global' && (
-        <div
-          className={cn(
-            'fixed left-0 right-0 pointer-events-none z-50 transition-all duration-75 shadow-lg',
-            rulerHeight === 'sm' && 'h-6 -translate-y-3',
-            rulerHeight === 'md' && 'h-9 -translate-y-4.5',
-            rulerHeight === 'lg' && 'h-14 -translate-y-7',
-            rulerColor === 'gold' && 'bg-[#D89A06]/15 border-y-2 border-[#D89A06]',
-            rulerColor === 'navy' && 'bg-[#00004E]/15 border-y-2 border-[#00004E]',
-            rulerColor === 'amber' && 'bg-amber-500/15 border-y-2 border-amber-500'
-          )}
-          style={{ top: `${globalRulerY}px` }}
-        />
-      )}
-
-      {/* Clean Header & Navigation (No 4-Card Telemetry Strip) */}
+      {/* Clean Header & Navigation */}
       <header className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 border-b border-border/80 pb-5">
         <div className="space-y-1">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
@@ -931,61 +916,63 @@ export default function AccessibilitySettingsPage() {
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-foreground">
-                        Reduced Motion (`prefers-reduced-motion`)
+                        Reduced Motion
                       </span>
                       <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 font-semibold border border-sky-500/20">
                         Vestibular Aid
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Eliminates bouncing icons, layout shifts, and slide animations to prevent motion sickness.
+                      Disables spring transitions, card flips, and layout animations across every workspace page.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() =>
                       void handleUpdate(
-                        { low_bandwidth: !settings.low_bandwidth },
-                        settings.low_bandwidth ? 'Smooth animations active' : 'Reduced motion active'
+                        { reduced_motion: !Boolean(settings.reduced_motion) },
+                        settings.reduced_motion ? 'Smooth animations active' : 'Reduced motion active'
                       )
                     }
                     className={cn(
                       'relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer shrink-0',
-                      settings.low_bandwidth ? 'bg-[#00004E] dark:bg-[#D89A06]' : 'bg-muted-foreground/30'
+                      settings.reduced_motion ? 'bg-[#00004E] dark:bg-[#D89A06]' : 'bg-muted-foreground/30'
                     )}
                     aria-label="Toggle Reduced Motion"
                   >
                     <span
                       className={cn(
                         'inline-block h-4 w-4 transform rounded-full bg-white dark:bg-[#00004E] transition-transform',
-                        settings.low_bandwidth ? 'translate-x-6' : 'translate-x-1'
+                        settings.reduced_motion ? 'translate-x-6' : 'translate-x-1'
                       )}
                     />
                   </button>
                 </div>
 
-                {/* Reading Guide Line Focus Ruler */}
+                {/* Global Reading Line Focus Ruler */}
                 <div className="rounded-xl border border-border/70 bg-muted/15 p-4 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-foreground">
-                          Interactive Reading Line Ruler
+                          Global Reading Line Ruler
                         </span>
                         <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-[#00004E]/10 dark:bg-[#D89A06]/15 text-[#00004E] dark:text-[#D89A06] font-semibold border border-[#00004E]/20 dark:border-[#D89A06]/30">
-                          Eye Tracking Guide
+                          Site-Wide Guide
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Projects a highlighted horizontal ruler over reading text that follows your cursor to prevent line skipping.
+                        Projects a highlighted horizontal ruler following your pointer across slides, past papers, and notes.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => {
                         const next = !readingRulerActive;
-                        setReadingRulerActive(next);
-                        toast.success(next ? 'Reading ruler enabled' : 'Reading ruler dismissed');
+                        void handleUpdate(
+                          { reading_ruler: next },
+                          next ? 'Global reading ruler enabled' : 'Reading ruler dismissed'
+                        );
                       }}
                       className={cn(
                         'relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer shrink-0',
@@ -1006,33 +993,35 @@ export default function AccessibilitySettingsPage() {
                     <div className="pt-2 border-t border-border/60 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                       <div>
                         <span className="text-[11px] font-mono uppercase text-muted-foreground block mb-1.5 font-semibold">
-                          Ruler Coverage Scope
+                          Ruler Height
                         </span>
                         <div className="inline-flex rounded-lg border border-border bg-background p-0.5">
-                          <button
-                            type="button"
-                            onClick={() => setReadingRulerScope('sandbox')}
-                            className={cn(
-                              'px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer',
-                              readingRulerScope === 'sandbox'
-                                ? 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E]'
-                                : 'text-muted-foreground hover:text-foreground'
-                            )}
-                          >
-                            Sandbox Card Only
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setReadingRulerScope('global')}
-                            className={cn(
-                              'px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer',
-                              readingRulerScope === 'global'
-                                ? 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E]'
-                                : 'text-muted-foreground hover:text-foreground'
-                            )}
-                          >
-                            Full Viewport Screen
-                          </button>
+                          {(
+                            [
+                              { id: 'sm', px: 28, label: 'Compact (28px)' },
+                              { id: 'md', px: 44, label: 'Standard (44px)' },
+                              { id: 'lg', px: 64, label: 'Tall (64px)' },
+                            ] as const
+                          ).map((sz) => (
+                            <button
+                              key={sz.id}
+                              type="button"
+                              onClick={() =>
+                                void handleUpdate(
+                                  { reading_ruler_height: sz.px },
+                                  `Ruler height: ${sz.label}`
+                                )
+                              }
+                              className={cn(
+                                'px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer',
+                                rulerHeight === sz.id
+                                  ? 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E]'
+                                  : 'text-muted-foreground hover:text-foreground'
+                              )}
+                            >
+                              {sz.label}
+                            </button>
+                          ))}
                         </div>
                       </div>
 

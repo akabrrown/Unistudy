@@ -1,191 +1,147 @@
 import React from "react";
 import Link from "next/link";
-import { MarketingNavbar } from "@/components/layout/MarketingNavbar";
-import { MarketingFooter } from "@/components/layout/MarketingFooter";
-import { FileText, Shield, AlertCircle, ArrowLeft } from "lucide-react";
+import { CollegiateLegalShell } from "@/components/legal/CollegiateLegalShell";
+import { AlertCircle } from "lucide-react";
 
-export const dynamic = 'force-static';
+export const dynamic = "force-static";
 
 export const metadata = {
   title: "Terms of Service | UniStudy AI",
   description: "Terms and conditions governing the use of the UniStudy AI study and revision platform.",
 };
 
+const SECTIONS = [
+  { id: "acceptance", label: "1. Acceptance of Terms" },
+  { id: "services", label: "2. Workspace Services" },
+  { id: "accounts", label: "3. Accounts & Eligibility" },
+  { id: "ip", label: "4. Content & Ownership" },
+  { id: "conduct", label: "5. Acceptable Study Use" },
+  { id: "ai-limits", label: "6. AI Study Aid Notice" },
+  { id: "billing", label: "7. Credits & Paystack Billing" },
+  { id: "liability", label: "8. Limitation of Liability" },
+  { id: "law", label: "9. Governing Law (Ghana)" },
+];
+
 export default function TermsPage() {
-  const lastUpdated = "October 25, 2026";
-
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#040416] text-[#00004E] dark:text-[#E2E8F0] transition-colors flex flex-col font-sans">
-      <MarketingNavbar />
-
-      <main className="flex-1 max-w-4xl mx-auto px-6 py-12 md:py-16">
-        <div className="mb-8">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline mb-4"
-          >
-            <ArrowLeft size={14} /> Back to home
+    <CollegiateLegalShell
+      title="Terms of Service"
+      subtitle="Effective upon account registration or use of the UniStudy academic workspace."
+      summaryBanner={
+        <>
+          <strong>Plain-English Summary:</strong> You own the notes and study decks you create, your Pay-As-You-Go credits never expire, payments run through PCI-DSS certified Paystack, and you agree never to use UniStudy during live invigilated exams.
+        </>
+      }
+      sections={SECTIONS}
+    >
+      <section id="acceptance" className="space-y-2.5 scroll-mt-24">
+        <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
+          1. Acceptance of terms
+        </h2>
+        <p>
+          By registering or using UniStudy AI (&ldquo;UniStudy&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;), you agree to these Terms of Service and our{" "}
+          <Link href="/privacy" className="text-[#00004E] dark:text-[#D89A06] font-semibold underline">
+            Privacy Policy
           </Link>
-          <div className="flex items-center gap-3 mb-2">
-            <span className="p-2.5 rounded-xl bg-primary/10 text-primary">
-              <FileText size={24} />
-            </span>
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-              Terms of service
-            </h1>
+          . If you do not agree, discontinue use of the platform.
+        </p>
+      </section>
+
+      <section id="services" className="space-y-2.5 scroll-mt-24">
+        <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
+          2. Description of workspace services
+        </h2>
+        <ul className="list-disc pl-6 space-y-1.5">
+          <li>Slide deck ingestion (PDF, PPTX) with page-cited explanations, summaries, and printable A4 cheat sheets.</li>
+          <li>SM-2 spaced-repetition flashcard generation and offline browser caching.</li>
+          <li>Timed past paper mock simulations, diagnostic quizzes, and rubric-based essay feedback.</li>
+          <li>Symbolic math derivations, 2mm coordinate plotting, and handwritten note OCR.</li>
+        </ul>
+      </section>
+
+      <section id="accounts" className="space-y-2.5 scroll-mt-24">
+        <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
+          3. Accounts and eligibility
+        </h2>
+        <p>
+          You must be at least 16 years old or enrolled in a secondary or tertiary institution, maintain accurate registration details, and keep your account credentials confidential. Report unauthorized access immediately to{" "}
+          <a href="mailto:unistudy.ai@gmail.com" className="text-[#00004E] dark:text-[#D89A06] underline">
+            unistudy.ai@gmail.com
+          </a>
+          .
+        </p>
+      </section>
+
+      <section id="ip" className="space-y-2.5 scroll-mt-24">
+        <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
+          4. User content and intellectual property
+        </h2>
+        <p>
+          <strong>Your study materials:</strong> You retain full ownership of personal notes, flashcards, and essays written in your workspace. By uploading course slides, you confirm lawful educational permission to study those materials.
+        </p>
+        <p>
+          <strong>Limited hosting license:</strong> You grant UniStudy a revocable license strictly to store, render, and process your uploads for your personal account.
+        </p>
+      </section>
+
+      <section id="conduct" className="space-y-2.5 scroll-mt-24">
+        <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
+          5. Academic integrity and acceptable use
+        </h2>
+        <ul className="list-disc pl-6 space-y-1.5">
+          <li>Never use UniStudy during active, invigilated examinations or mid-semester tests.</li>
+          <li>Do not scrape, reverse-engineer, or perform automated denial-of-service attacks against platform endpoints.</li>
+          <li>Comply with our <Link href="/academic-integrity" className="text-[#00004E] dark:text-[#D89A06] underline font-medium">Academic Integrity Policy</Link>.</li>
+        </ul>
+      </section>
+
+      <section id="ai-limits" className="space-y-3 scroll-mt-24">
+        <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
+          6. Study aid verification notice
+        </h2>
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs sm:text-sm space-y-1.5">
+          <div className="flex items-center gap-2 font-bold text-foreground">
+            <AlertCircle size={16} className="text-[#D89A06]" />
+            <span>Always cross-check against lecturer directives</span>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Last updated: <span className="font-medium text-foreground">{lastUpdated}</span> (effective immediately upon registration or platform use).
+          <p className="text-muted-foreground leading-relaxed">
+            Automated explanations, OCR transcriptions, and model answers are probabilistic study aids. Always verify critical formulas, statutory citations, and grading rubrics against your official university syllabus.
           </p>
         </div>
+      </section>
 
-        <div className="mb-10 p-4 md:p-5 rounded-2xl bg-secondary/50 dark:bg-card border border-border flex items-start gap-3.5">
-          <Shield className="text-primary shrink-0 mt-0.5" size={20} />
-          <div className="text-xs md:text-sm text-foreground leading-relaxed">
-            <strong>Key summary:</strong> UniStudy AI is a revision and active recall platform designed to help university students understand lecture materials, practice with quizzes, and prepare for examinations. We respect your intellectual property, enforce academic honesty, and process payments securely via Paystack.
-          </div>
-        </div>
+      <section id="billing" className="space-y-2.5 scroll-mt-24">
+        <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
+          7. Passes, credits, and Paystack billing
+        </h2>
+        <ul className="list-disc pl-6 space-y-1.5">
+          <li><strong>Payment processor:</strong> Mobile Money and card top-ups are processed via <strong>Paystack</strong> (PCI-DSS Level 1).</li>
+          <li><strong>No expiry:</strong> Purchased permanent credits roll over across semesters without expiring.</li>
+          <li><strong>Billing support:</strong> Consumed credits are non-refundable, but any failed or duplicate Paystack debit reported within 7 days is audited and credited promptly.</li>
+        </ul>
+      </section>
 
-        <div className="space-y-10 text-[15px] leading-relaxed text-foreground/90">
-          <section className="space-y-3">
-            <h2 className="text-xl font-bold text-foreground tracking-tight">
-              1. Acceptance of terms
-            </h2>
-            <p>
-              By accessing, browsing, registering, or using UniStudy AI (&ldquo;UniStudy&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;), accessible at unistudy.ai or unistudy-silk.vercel.app, you agree to these Terms of Service and our <Link href="/privacy" className="text-primary font-medium underline">Privacy policy</Link>. If you do not agree to these terms, discontinue use of the platform.
-            </p>
-          </section>
+      <section id="liability" className="space-y-2.5 scroll-mt-24">
+        <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
+          8. Limitation of liability
+        </h2>
+        <p>
+          To the maximum extent permitted by law, UniStudy AI Ltd. shall not be liable for indirect or consequential damages arising from platform use, and total aggregate liability shall not exceed the amount paid by you in the preceding twelve (12) months.
+        </p>
+      </section>
 
-          <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
-              2. Description of services
-            </h2>
-            <p>
-              UniStudy AI provides study assistance and exam revision features:
-            </p>
-            <ul className="list-disc pl-6 space-y-1.5">
-              <li>Upload and processing of lecture slides (PDF, PPTX) into structured slide views and notes.</li>
-              <li>Slide explanations, summaries, and conceptual breakdowns.</li>
-              <li>Spaced-repetition flashcard generation and memory retention scheduling.</li>
-              <li>Diagnostic quizzes, past question analysis, and mock exam simulations.</li>
-              <li>Academic scheduling, study analytics, and streak tracking.</li>
-            </ul>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
-              3. User accounts and eligibility
-            </h2>
-            <p>
-              To use our study tools, you must register with a valid email address and password. You agree to:
-            </p>
-            <ul className="list-disc pl-6 space-y-1.5">
-              <li>Provide accurate, current registration information.</li>
-              <li>Maintain the confidentiality of your login credentials and accept responsibility for account activity.</li>
-              <li>Be at least 16 years of age or enrolled in a secondary or tertiary educational institution.</li>
-              <li>Promptly notify us at <a href="mailto:unistudy.ai@gmail.com" className="text-primary underline">unistudy.ai@gmail.com</a> if you notice unauthorized account access.</li>
-            </ul>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
-              4. User content and intellectual property
-            </h2>
-            <p>
-              <strong>Your materials:</strong> You retain ownership of any personal notes, flashcards, or summaries you create on UniStudy. By uploading lecture slides or documents, you confirm that you have lawful permission or a fair-use educational privilege to analyze those materials for personal study.
-            </p>
-            <p>
-              <strong>License to UniStudy:</strong> You grant UniStudy a limited, revocable license solely to host, convert, display, and process your content through our infrastructure (such as generating study cards and slide explanations for your account). We do not sell your personal notes or course documents to third parties.
-            </p>
-            <p>
-              <strong>Platform property:</strong> The UniStudy AI software, interface design, brand identity, and custom software routines remain the intellectual property of UniStudy AI Ltd.
-            </p>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
-              5. Academic integrity and acceptable use
-            </h2>
-            <p>
-              UniStudy AI is built to encourage genuine understanding, critical thinking, and mastery. You agree that:
-            </p>
-            <ul className="list-disc pl-6 space-y-1.5">
-              <li>You will not use UniStudy AI to cheat, plagiarize, or coordinate answers during active, invigilated examinations.</li>
-              <li>You will adhere to your university&rsquo;s student code of conduct and academic integrity standards.</li>
-              <li>You will not reverse engineer, crawl, scrape, or perform denial-of-service tests against our endpoints.</li>
-              <li>You will not upload malicious files, copyrighted commercial textbooks without permission, or defamatory material.</li>
-            </ul>
-            <p>
-              Misuse may result in immediate account termination. Review our full <Link href="/academic-integrity" className="text-primary underline font-medium">Academic integrity policy</Link>.
-            </p>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
-              6. AI disclaimers and limitations
-            </h2>
-            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 text-xs md:text-sm text-amber-900 dark:text-amber-200 space-y-2">
-              <div className="flex items-center gap-2 font-semibold">
-                <AlertCircle size={16} /> Important notice regarding AI-generated content:
-              </div>
-              <p>
-                UniStudy uses AI language and vision models (including Google Gemini and Groq). AI-generated explanations and quiz questions are probabilistic study aids. While we continually refine prompt accuracy, language models can occasionally generate inaccurate, incomplete, or dated outputs.
-              </p>
-              <p>
-                <strong>Always verify critical definitions, formulas, case law, and medical principles against your official university syllabus, prescribed textbooks, and lecturers&rsquo; directives.</strong>
-              </p>
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
-              7. Fees, credits, and Paystack billing
-            </h2>
-            <p>
-              UniStudy provides a free tier alongside Pay-As-You-Go credit packs and premium features:
-            </p>
-            <ul className="list-disc pl-6 space-y-1.5">
-              <li><strong>Billing partner:</strong> Credit purchases are processed by <strong>Paystack</strong>, a licensed and PCI-DSS Level 1 compliant payment gateway. UniStudy does not store your card details or mobile money PINs.</li>
-              <li><strong>Credit validity:</strong> Pay-As-You-Go credits remain in your balance and do not expire at semester end.</li>
-              <li><strong>Refunds:</strong> Because automated inference consumes direct computing capacity, consumed credits are non-refundable. If a platform outage or billing error prevents usage, reach out within 7 days for review.</li>
-            </ul>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
-              8. Limitation of liability
-            </h2>
-            <p>
-              To the maximum extent permitted by law, UniStudy AI Ltd. and its team shall not be liable for any indirect, incidental, special, or consequential damages (including loss of grades, academic standing, or data) arising from your use of the platform. In no event will our total liability exceed the total amount paid by you to UniStudy in the twelve (12) months preceding the claim.
-            </p>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
-              9. Governing law
-            </h2>
-            <p>
-              These Terms are governed by and construed in accordance with the laws of the <strong>Republic of Ghana</strong>. Any dispute arising out of or relating to these terms shall be submitted to the competent courts of Ghana.
-            </p>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
-              10. Contact and legal inquiries
-            </h2>
-            <p>
-              If you have questions regarding these terms, contact our team:
-            </p>
-            <div className="p-4 rounded-xl bg-[#00004E]/5 dark:bg-white/5 border border-[#00004E]/15 dark:border-white/10 text-sm">
-              <p><strong>UniStudy AI Ltd. (Legal &amp; Compliance)</strong></p>
-              <p>Email: <a href="mailto:unistudy.ai@gmail.com" className="text-primary underline">unistudy.ai@gmail.com</a></p>
-              <p>Location: Accra, Ghana</p>
-            </div>
-          </section>
-        </div>
-      </main>
-
-      <MarketingFooter />
-    </div>
+      <section id="law" className="space-y-2.5 scroll-mt-24">
+        <h2 className="text-xl font-bold text-[#00004E] dark:text-white tracking-tight">
+          9. Governing law and contact
+        </h2>
+        <p>
+          These Terms are governed by the laws of the <strong>Republic of Ghana</strong>. Direct legal inquiries to{" "}
+          <a href="mailto:unistudy.ai@gmail.com" className="text-[#00004E] dark:text-[#D89A06] underline font-medium">
+            unistudy.ai@gmail.com
+          </a>{" "}
+          (Accra, Ghana).
+        </p>
+      </section>
+    </CollegiateLegalShell>
   );
 }

@@ -26,37 +26,45 @@ export interface UserSettings {
   line_spacing: LineSpacing;
   color_blind_mode: ColorBlindMode;
   high_contrast: boolean;
-  
+
   ai_tutor_name: string;
   ai_personality: AIPersonality;
   ai_reading_level: AIReadingLevel;
   ai_tone: AITone;
   learning_style: LearningStyle;
-  
+
   language: Language;
   region: Region;
   low_bandwidth: boolean;
   simplified_mode: boolean;
+
+  // Client-persisted assistive preferences (zero DB schema coupling)
+  reduced_motion?: boolean;
+  reading_ruler?: boolean;
+  reading_ruler_height?: number;
 }
 
 const defaultSettings: UserSettings = {
   theme: 'light',
   font_family: 'inter',
   text_size: 'normal',
-  region: 'north-america',
+  region: 'africa',
   line_spacing: 'normal',
   color_blind_mode: null,
   high_contrast: false,
-  
+
   ai_tutor_name: 'Uni',
   ai_personality: 'neutral',
   ai_reading_level: 'intermediate',
   ai_tone: 'academic',
   learning_style: null,
-  
+
   language: 'en',
   low_bandwidth: false,
   simplified_mode: false,
+  reduced_motion: false,
+  reading_ruler: false,
+  reading_ruler_height: 44,
 };
 
 interface SettingsContextType {
@@ -68,7 +76,34 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 const SETTINGS_CACHE_KEY = 'unistudy_settings_cache_v1';
+const CLIENT_A11Y_KEY = 'unistudy_client_a11y_v1';
 const SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+interface ClientA11yPrefs {
+  reduced_motion?: boolean;
+  reading_ruler?: boolean;
+  reading_ruler_height?: number;
+}
+
+function readClientA11yPrefs(): ClientA11yPrefs {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(CLIENT_A11Y_KEY);
+    return raw ? (JSON.parse(raw) as ClientA11yPrefs) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeClientA11yPrefs(prefs: ClientA11yPrefs): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const existing = readClientA11yPrefs();
+    localStorage.setItem(CLIENT_A11Y_KEY, JSON.stringify({ ...existing, ...prefs }));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 function readCachedSettings(): UserSettings | null {
   if (typeof window === 'undefined') return null;
@@ -77,7 +112,7 @@ function readCachedSettings(): UserSettings | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { settings?: UserSettings; cachedAt?: number };
     if (parsed.settings && typeof parsed.cachedAt === 'number' && Date.now() - parsed.cachedAt < SETTINGS_CACHE_TTL_MS) {
-      return parsed.settings;
+      return { ...parsed.settings, ...readClientA11yPrefs() };
     }
   } catch {
     // ignore storage errors
@@ -101,10 +136,35 @@ function getActiveTheme(): DisplayTheme {
   return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
 }
 
+function GlobalReadingRuler({ active, height = 44 }: { active: boolean; height?: number }) {
+  const [yPos, setYPos] = useState(240);
+
+  useEffect(() => {
+    if (!active) return;
+    const onMove = (e: MouseEvent) => setYPos(e.clientY);
+    window.addEventListener('mousemove', onMove, { passive: true });
+    return () => window.removeEventListener('mousemove', onMove);
+  }, [active]);
+
+  if (!active) return null;
+
+  return (
+    <div
+      aria-hidden="true"
+      className="fixed inset-x-0 pointer-events-none z-[90] border-y-2 border-[#D89A06] bg-[#FEF8E7]/25 dark:bg-[#D89A06]/10"
+      style={{
+        top: Math.max(0, yPos - height / 2),
+        height,
+      }}
+    />
+  );
+}
+
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<UserSettings>(() => ({
     ...defaultSettings,
     theme: typeof window !== 'undefined' ? getActiveTheme() : 'light',
+    ...(typeof window !== 'undefined' ? readClientA11yPrefs() : {}),
   }));
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState<Record<string, string> | null>(null);
@@ -125,9 +185,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     async function loadSettings() {
       try {
         const activeTheme = getActiveTheme();
+        const clientPrefs = readClientA11yPrefs();
         const cached = readCachedSettings();
         if (cached) {
-          const merged = { ...cached, theme: activeTheme };
+          const merged = { ...defaultSettings, ...cached, ...clientPrefs, theme: activeTheme };
           setSettings(merged);
           applyDOMChanges(merged);
           setLoading(false);
@@ -137,9 +198,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          // No user session active; retain active theme without sending unauthenticated requests
-          const merged = { ...defaultSettings, theme: activeTheme };
+          const merged = { ...defaultSettings, ...clientPrefs, theme: activeTheme };
           setSettings(merged);
+          applyDOMChanges(merged);
           setLoading(false);
           return;
         }
@@ -148,17 +209,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (data && data.settings) {
           const localStoredTheme = typeof window !== 'undefined' ? (localStorage.getItem('theme') as DisplayTheme) : null;
           const resolvedTheme = localStoredTheme || data.settings.theme || activeTheme;
-          const merged = { ...data.settings, theme: resolvedTheme };
+          const merged = { ...defaultSettings, ...data.settings, ...clientPrefs, theme: resolvedTheme };
           setSettings(merged);
           applyDOMChanges(merged);
           writeCachedSettings(merged);
           return;
         }
       } catch (err) {
-        // Fall back to defaults on any error: network failure, FK constraint, missing profile, etc.
         console.warn('Settings unavailable, using defaults:', err instanceof Error ? err.message : err);
         const activeTheme = getActiveTheme();
-        const merged = { ...defaultSettings, theme: activeTheme };
+        const merged = { ...defaultSettings, ...readClientA11yPrefs(), theme: activeTheme };
         setSettings(merged);
         applyDOMChanges(merged);
       } finally {
@@ -169,7 +229,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateSettings = async (updates: Partial<UserSettings>) => {
-    // If theme is updated, synchronize with localStorage for next-themes immediately
     if (updates.theme && typeof window !== 'undefined') {
       localStorage.setItem('theme', updates.theme);
       if (updates.theme === 'dark') {
@@ -181,25 +240,45 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Optimistic update
+    const clientPatch: ClientA11yPrefs = {};
+    if (typeof updates.reduced_motion === 'boolean') clientPatch.reduced_motion = updates.reduced_motion;
+    if (typeof updates.reading_ruler === 'boolean') clientPatch.reading_ruler = updates.reading_ruler;
+    if (typeof updates.reading_ruler_height === 'number') clientPatch.reading_ruler_height = updates.reading_ruler_height;
+    if (Object.keys(clientPatch).length > 0) {
+      writeClientA11yPrefs(clientPatch);
+    }
+
     const newSettings = { ...settings, ...updates };
     setSettings(newSettings);
     applyDOMChanges(newSettings);
     writeCachedSettings(newSettings);
-    
+
+    // Strip client-only fields before sending to backend PATCH endpoint
+    const {
+      reduced_motion: _rm,
+      reading_ruler: _rr,
+      reading_ruler_height: _rrh,
+      ...serverUpdates
+    } = updates;
+
+    if (Object.keys(serverUpdates).length === 0) return;
+
     try {
       await apiFetch('/settings/accessibility', {
         method: 'PATCH',
-        body: JSON.stringify(updates),
+        body: JSON.stringify(serverUpdates),
       });
     } catch (err) {
-      console.error("Failed to save settings:", err);
-      // rollback could be implemented here
+      console.error('Failed to save settings:', err);
     }
   };
 
   return (
     <SettingsContext.Provider value={{ settings, updateSettings, loading }}>
+      <GlobalReadingRuler
+        active={Boolean(settings.reading_ruler)}
+        height={settings.reading_ruler_height || 44}
+      />
       {messages ? (
         <NextIntlClientProvider locale={settings.language} messages={messages}>
           {children}
@@ -211,17 +290,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Side-effects function to append classes to body tag
 function applyDOMChanges(settings: UserSettings) {
   if (typeof document === 'undefined') return;
-  
+
   const root = document.documentElement;
-  // Set language attribute for UI localization
   if (settings.language) {
     root.setAttribute('lang', settings.language);
   }
-  
-  // Theme
+
   if (settings.theme === 'dark') {
     root.classList.add('dark');
     root.style.colorScheme = 'dark';
@@ -230,35 +306,34 @@ function applyDOMChanges(settings: UserSettings) {
     root.style.colorScheme = 'light';
   }
 
-  // High Contrast
   if (settings.high_contrast) {
     root.setAttribute('data-contrast', 'high');
   } else {
     root.removeAttribute('data-contrast');
   }
-  
-  // Typography
+
   root.setAttribute('data-font', settings.font_family);
   root.setAttribute('data-text-size', settings.text_size);
   root.setAttribute('data-spacing', settings.line_spacing);
-  
-  // Accessibility Vision
+
   if (settings.color_blind_mode) {
     root.setAttribute('data-color-blind', settings.color_blind_mode);
   } else {
     root.removeAttribute('data-color-blind');
   }
 
-  // Performance
   if (settings.low_bandwidth) {
     root.setAttribute('data-animations', 'off');
-    root.setAttribute('data-reduced-motion', 'true');
   } else {
     root.removeAttribute('data-animations');
+  }
+
+  if (settings.reduced_motion || settings.low_bandwidth) {
+    root.setAttribute('data-reduced-motion', 'true');
+  } else {
     root.removeAttribute('data-reduced-motion');
   }
 
-  // Cognitive Simplified Layout Mode
   if (settings.simplified_mode) {
     root.setAttribute('data-simplified', 'true');
   } else {

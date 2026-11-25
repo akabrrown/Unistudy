@@ -3,15 +3,18 @@
 import React, { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { motion, AnimatePresence } from 'motion/react';
 import { signout } from '@/app/(auth)/actions';
-import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { ModelSelector } from '@/components/layout/ModelSelector';
 import SmartSearchBar from '@/components/layout/SmartSearchBar';
+import { CommandPaletteModal, triggerCommandPalette } from '@/components/layout/CommandPaletteModal';
+import { SignOutSubmitButton } from '@/components/layout/SignOutSubmitButton';
 import { AnnouncementBanner } from '@/components/layout/AnnouncementBanner';
 import { MobileSidebar } from '@/components/layout/MobileSidebar';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { UniStudyLogo } from '@/components/brand/UniStudyLogo';
+import { SPRING_SNAPPY, useAppReducedMotion } from '@/lib/motion';
 import { cn, formatAcademicLevel } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -28,7 +31,6 @@ import {
   User as UserIcon,
   Award,
   Search,
-  LogOut,
   PanelLeftClose,
   PanelLeftOpen,
   ChevronDown,
@@ -41,8 +43,8 @@ import {
   Pin,
   Compass,
   Target,
-  GraduationCap,
   Coins,
+  Timer,
 } from 'lucide-react';
 
 interface SubNavItem {
@@ -55,8 +57,6 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
-  color?: string;
-  badge?: string;
   subItems?: SubNavItem[];
 }
 
@@ -67,7 +67,7 @@ interface NavSection {
 
 const NAV_SECTIONS: NavSection[] = [
   {
-    title: 'Core & AI',
+    title: 'Workspace',
     items: [
       {
         label: 'Dashboard',
@@ -75,15 +75,19 @@ const NAV_SECTIONS: NavSection[] = [
         icon: LayoutDashboard,
       },
       {
-        label: 'AI Study Tutor',
+        label: 'Study Tutor',
         href: '/dashboard/chat',
         icon: BrainCircuit,
-        badge: 'AI',
+      },
+      {
+        label: 'Deep Focus',
+        href: '/dashboard/focus',
+        icon: Timer,
       },
     ],
   },
   {
-    title: 'Academic Suite',
+    title: 'Academics',
     items: [
       {
         label: 'Courses & Slides',
@@ -92,11 +96,9 @@ const NAV_SECTIONS: NavSection[] = [
         subItems: [
           { label: 'Active Courses', href: '/dashboard/courses', icon: BookOpen },
           { label: 'Exam Areas', href: '/dashboard/courses?action=exam-areas', icon: Target },
-          { label: 'Recent Lectures', href: '/dashboard/lectures', icon: Clock },
+          { label: 'Lecture Decks', href: '/dashboard/lectures', icon: Clock },
           { label: 'New Course', href: '/dashboard/courses?action=new', icon: Plus },
           { label: 'Archived Courses', href: '/dashboard/courses?tab=archived', icon: Archive },
-          { label: 'Math Solver', href: '/dashboard/calculator?tab=solver', icon: Calculator },
-          { label: 'Graph Plotter', href: '/dashboard/calculator?tab=graph', icon: Compass },
         ],
       },
       {
@@ -104,19 +106,28 @@ const NAV_SECTIONS: NavSection[] = [
         href: '/dashboard/past-papers',
         icon: Award,
         subItems: [
-          { label: 'Question Bank', href: '/dashboard/past-papers', icon: FileText },
+          { label: 'Question Archive', href: '/dashboard/past-papers', icon: FileText },
           { label: 'Exam Areas', href: '/dashboard/past-papers?action=exam-areas', icon: Target },
           { label: 'Upload Paper', href: '/dashboard/past-papers?action=upload', icon: Upload },
         ],
       },
       {
-        label: 'Study Calendar',
+        label: 'Timetable & Calendar',
         href: '/dashboard/calendar',
         icon: CalendarDays,
         subItems: [
-          { label: 'Live Calendar', href: '/dashboard/calendar?view=calendar', icon: CalendarDays },
+          { label: 'Monthly Calendar', href: '/dashboard/calendar?view=calendar', icon: CalendarDays },
           { label: 'Weekly Timetable', href: '/dashboard/calendar?view=timetable', icon: Clock },
-          { label: 'Add Event', href: '/dashboard/calendar?action=add', icon: Plus },
+          { label: 'Add Deadline', href: '/dashboard/calendar?action=add', icon: Plus },
+        ],
+      },
+      {
+        label: 'Math & Graph Studio',
+        href: '/dashboard/calculator',
+        icon: Calculator,
+        subItems: [
+          { label: 'Step-by-Step Solver', href: '/dashboard/calculator?tab=solver', icon: Calculator },
+          { label: 'Coordinate Plotter', href: '/dashboard/calculator?tab=graph', icon: Compass },
         ],
       },
       {
@@ -130,33 +141,27 @@ const NAV_SECTIONS: NavSection[] = [
         icon: FileText,
       },
       {
-        label: 'Analytics & Insights',
+        label: 'YouTube Study',
+        href: '/dashboard/youtube',
+        icon: PlaySquare,
+        subItems: [
+          { label: 'Discover Lectures', href: '/dashboard/youtube', icon: Search },
+          { label: 'Pinned Library', href: '/dashboard/youtube/pinned', icon: Pin },
+        ],
+      },
+      {
+        label: 'Study Analytics',
         href: '/dashboard/analytics',
         icon: LineChart,
       },
     ],
   },
   {
-    title: 'Resources',
+    title: 'Account',
     items: [
-      {
-        label: 'YouTube Study',
-        href: '/dashboard/youtube',
-        icon: PlaySquare,
-        color: 'text-red-500',
-        subItems: [
-          { label: 'Discover Lectures', href: '/dashboard/youtube', icon: Search },
-          { label: 'Pinned Library', href: '/dashboard/youtube/pinned', icon: Pin },
-        ],
-      },
-    ],
-  },
-  {
-    title: 'Settings',
-    items: [
-      { label: 'Profile Studio', href: '/dashboard/settings/profile', icon: UserIcon },
+      { label: 'Academic Profile', href: '/dashboard/settings/profile', icon: UserIcon },
       { label: 'Accessibility', href: '/dashboard/settings/accessibility', icon: Accessibility },
-      { label: 'Billing & Credits', href: '/dashboard/settings/billing', icon: CreditCard },
+      { label: 'Passes & Billing', href: '/dashboard/settings/billing', icon: CreditCard },
     ],
   },
 ];
@@ -210,6 +215,7 @@ const getHashSnapshot = () => (typeof window !== 'undefined' ? window.location.h
 export function DashboardShell({ profile, latestAnnouncement, initialWalletBalance, children }: DashboardShellProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const reducedMotion = useAppReducedMotion();
   const [walletBalance, setWalletBalance] = useState<number>(initialWalletBalance ?? 20);
   const [freePasses, setFreePasses] = useState<number | null>(null);
   const [paidCredits, setPaidCredits] = useState<number | null>(null);
@@ -236,15 +242,9 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
 
     const handleCreditsChanged = (e: Event) => {
       const ce = e as CustomEvent<{ balance?: number; freePasses?: number; paidCredits?: number }>;
-      if (typeof ce.detail?.balance === 'number') {
-        setWalletBalance(ce.detail.balance);
-      }
-      if (typeof ce.detail?.freePasses === 'number') {
-        setFreePasses(ce.detail.freePasses);
-      }
-      if (typeof ce.detail?.paidCredits === 'number') {
-        setPaidCredits(ce.detail.paidCredits);
-      }
+      if (typeof ce.detail?.balance === 'number') setWalletBalance(ce.detail.balance);
+      if (typeof ce.detail?.freePasses === 'number') setFreePasses(ce.detail.freePasses);
+      if (typeof ce.detail?.paidCredits === 'number') setPaidCredits(ce.detail.paidCredits);
     };
     window.addEventListener('unistudy-credits-changed', handleCreditsChanged);
 
@@ -274,11 +274,6 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
     setCollapsedStorage(!getSidebarCollapsedSnapshot());
   }, [setCollapsedStorage]);
 
-  const expandSidebar = useCallback(() => {
-    setCollapsedStorage(false);
-  }, [setCollapsedStorage]);
-
-  // Keyboard shortcut: Ctrl+B or Cmd+B to toggle sidebar
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -339,59 +334,55 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
     setOpenGroups((prev) => ({ ...prev, [item.href]: !currentlyOpen }));
   };
 
-  // Render navigation list
-  const renderNav = (collapsed: boolean) => (
+  const renderNav = (collapsed: boolean, navScopeId: string) => (
     <nav className="space-y-3.5 flex-1 overflow-y-auto overflow-x-hidden pr-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-      {/* Prominent Admin Panel Button for Administrators */}
       {profile?.role === 'admin' && (
-        <div className={cn("pb-2 mb-2 border-b border-[#D89A06]/20", collapsed ? "flex justify-center" : "px-0.5")}>
+        <div className={cn('pb-2 mb-2 border-b border-border/50', collapsed ? 'flex justify-center' : 'px-0.5')}>
           {collapsed ? (
             <Tooltip>
               <TooltipTrigger
                 render={
                   <Link
                     href="/admin"
-                    className="flex items-center justify-center w-10 h-10 border-2 border-[#D89A06] bg-[#D89A06]/15 text-[#00004E] dark:text-[#D89A06] hover:bg-[#D89A06] hover:text-[#00004E] rounded-xl transition-all shadow-xs"
-                    aria-label="Admin Control Panel"
+                    className="flex items-center justify-center w-9 h-9 border border-[#D89A06]/50 bg-[#FEF8E7] dark:bg-white/5 text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] rounded-xl transition-colors"
+                    aria-label="Admin Portal"
                   >
                     <Shield className="w-4 h-4 text-[#D89A06]" />
                   </Link>
                 }
               />
               <TooltipContent side="right" sideOffset={12}>
-                <span className="font-semibold text-xs">Admin Control Panel</span>
+                <span className="font-semibold text-xs">Admin Portal</span>
               </TooltipContent>
             </Tooltip>
           ) : (
             <Link
               href="/admin"
-              className="flex items-center justify-between px-3.5 py-2.5 border-2 border-[#D89A06] bg-[#FEF8E7] dark:bg-[#00004E]/60 hover:bg-[#FDF2D0] dark:hover:bg-[#00004E] text-[#00004E] dark:text-[#D89A06] rounded-xl transition-all font-bold text-xs shadow-xs group"
+              className="flex items-center justify-between px-3 py-2 border border-[#D89A06]/40 bg-[#FEF8E7]/60 dark:bg-white/[0.04] hover:border-[#D89A06] text-[#00004E] dark:text-white rounded-xl transition-colors text-xs font-semibold group"
             >
-              <div className="flex items-center gap-2.5">
-                <Shield className="w-4 h-4 text-[#D89A06] group-hover:scale-110 transition-transform" />
-                <span className="font-bold text-[#00004E] dark:text-white">Admin Control Center</span>
+              <div className="flex items-center gap-2">
+                <Shield className="w-3.5 h-3.5 text-[#D89A06]" />
+                <span>Admin Portal</span>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded font-extrabold bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E]">
-                ADMIN
-              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
             </Link>
           )}
         </div>
       )}
 
       {NAV_SECTIONS.map((section, sectionIdx) => (
-        <div key={section.title} className={cn(sectionIdx > 0 && "pt-1")}>
+        <div key={section.title} className={cn(sectionIdx > 0 && 'pt-1')}>
           {!collapsed ? (
-            <div className="flex items-center justify-between px-3 mb-1.5 select-none">
-              <span className="text-[10px] font-bold font-mono text-muted-foreground/80 uppercase tracking-widest">
+            <div className="px-3 mb-1 select-none">
+              <span className="text-[10px] font-semibold font-mono text-muted-foreground/70 uppercase tracking-wider">
                 {section.title}
               </span>
             </div>
           ) : (
-            sectionIdx > 0 && <div className="border-t border-border/50 my-2 mx-1" />
+            sectionIdx > 0 && <div className="border-t border-border/40 my-2 mx-1" />
           )}
 
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {section.items.map((item: NavItem) => {
               const active = isNavGroupActive(item);
               const Icon = item.icon;
@@ -407,24 +398,19 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
                           <Link
                             href={item.href}
                             className={cn(
-                              "flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200",
+                              'relative flex items-center justify-center w-9 h-9 rounded-xl transition-colors',
                               active
-                                ? "bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] shadow-sm font-bold"
-                                : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                                ? 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] font-bold shadow-2xs'
+                                : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
                             )}
                             aria-label={item.label}
                           >
-                            <Icon className={cn("w-4 h-4", item.color)} />
+                            <Icon className="w-4 h-4" />
                           </Link>
                         }
                       />
                       <TooltipContent side="right" sideOffset={12}>
                         <div className="font-medium text-xs">{item.label}</div>
-                        {hasSubItems && (
-                          <div className="text-[10px] text-muted-foreground mt-0.5">
-                            {item.subItems!.map((s) => s.label).join(' · ')}
-                          </div>
-                        )}
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -435,12 +421,20 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
                 <div key={item.href} className="space-y-0.5">
                   <div
                     className={cn(
-                      "flex items-center rounded-xl transition-all duration-200 group relative overflow-hidden",
+                      'flex items-center rounded-xl transition-colors group relative',
                       active
-                        ? "bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] font-bold shadow-xs"
-                        : "text-[#3A4363] dark:text-[#A3A8C2] hover:bg-[#F0F3F9] dark:hover:bg-white/5 hover:text-[#00004E] dark:hover:text-white font-medium"
+                        ? 'text-white dark:text-[#00004E] font-semibold'
+                        : 'text-[#3A4363] dark:text-[#A3A8C2] hover:bg-muted/60 hover:text-foreground font-medium'
                     )}
                   >
+                    {active && (
+                      <motion.div
+                        layoutId={`${navScopeId}-active-pill`}
+                        transition={reducedMotion ? { duration: 0 } : SPRING_SNAPPY}
+                        className="absolute inset-0 rounded-xl bg-[#00004E] dark:bg-[#D89A06] shadow-2xs"
+                      />
+                    )}
+
                     <Link
                       href={item.href}
                       onClick={() => {
@@ -449,31 +443,17 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
                           setOpenGroups((prev) => ({ ...prev, [item.href]: true }));
                         }
                       }}
-                      className="flex-1 flex items-center min-w-0 px-3 py-2 text-xs font-semibold"
+                      className="relative z-10 flex-1 flex items-center min-w-0 px-3 py-2 text-xs"
                     >
                       <Icon
                         className={cn(
-                          "w-4 h-4 mr-2.5 transition-colors shrink-0",
-                          item.color
-                            ? item.color
-                            : active
-                            ? "text-[#D89A06] dark:text-[#00004E]"
-                            : "text-muted-foreground group-hover:text-foreground"
+                          'w-4 h-4 mr-2.5 transition-colors shrink-0',
+                          active
+                            ? 'text-[#D89A06] dark:text-[#00004E]'
+                            : 'text-muted-foreground group-hover:text-foreground'
                         )}
                       />
                       <span className="truncate">{item.label}</span>
-                      {item.badge && (
-                        <span
-                          className={cn(
-                            "ml-auto mr-1 text-[9px] font-mono px-1.5 py-0.2 rounded-md font-extrabold uppercase",
-                            active
-                              ? "bg-[#D89A06] text-[#00004E] dark:bg-[#00004E] dark:text-[#D89A06]"
-                              : "bg-[#D89A06]/20 text-[#D89A06]"
-                          )}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
                     </Link>
 
                     {hasSubItems && (
@@ -483,10 +463,10 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
                         aria-expanded={isOpen}
                         aria-label={`Toggle ${item.label} submenu`}
                         className={cn(
-                          "p-2 mr-1 rounded-lg transition-colors focus:outline-hidden",
+                          'relative z-10 p-1.5 mr-1 rounded-lg transition-colors focus:outline-hidden cursor-pointer',
                           active
-                            ? "text-white/80 hover:text-white dark:text-[#00004E]/80 dark:hover:text-[#00004E]"
-                            : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+                            ? 'text-white/80 hover:text-white dark:text-[#00004E]/80 dark:hover:text-[#00004E]'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-background/60'
                         )}
                       >
                         {isOpen ? (
@@ -498,32 +478,42 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
                     )}
                   </div>
 
-                  {hasSubItems && isOpen && (
-                    <div className="ml-4 pl-2.5 border-l-2 border-[#D89A06]/40 dark:border-[#D89A06]/30 space-y-0.5 py-1 animate-in fade-in slide-in-from-top-1 duration-150">
-                      {item.subItems!.map((sub) => {
-                        const SubIcon = sub.icon;
-                        const subActive = isSubItemActive(sub.href);
-                        return (
-                          <Link
-                            key={sub.href}
-                            href={sub.href}
-                            onClick={() =>
-                              setClickedSub({ pathname: sub.href.split('#')[0].split('?')[0], href: sub.href })
-                            }
-                            className={cn(
-                              "flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors",
-                              subActive
-                                ? "bg-[#FEF8E7] dark:bg-[#00004E]/40 text-[#00004E] dark:text-[#D89A06] font-bold border border-[#D89A06]/40 shadow-2xs"
-                                : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
-                            )}
-                          >
-                            <SubIcon className={cn("w-3 h-3 shrink-0", subActive ? "text-[#D89A06]" : "opacity-75")} />
-                            <span className="truncate">{sub.label}</span>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
+                  <AnimatePresence initial={false}>
+                    {hasSubItems && isOpen && (
+                      <motion.div
+                        initial={reducedMotion ? false : { opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={reducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                        transition={{ duration: reducedMotion ? 0 : 0.16, ease: 'easeOut' }}
+                        className="overflow-hidden"
+                      >
+                        <div className="ml-4 pl-2.5 border-l border-border/70 space-y-0.5 py-1">
+                          {item.subItems!.map((sub) => {
+                            const SubIcon = sub.icon;
+                            const subActive = isSubItemActive(sub.href);
+                            return (
+                              <Link
+                                key={sub.href}
+                                href={sub.href}
+                                onClick={() =>
+                                  setClickedSub({ pathname: sub.href.split('#')[0].split('?')[0], href: sub.href })
+                                }
+                                className={cn(
+                                  'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] transition-colors',
+                                  subActive
+                                    ? 'bg-[#F0F3F9] dark:bg-white/[0.06] text-[#00004E] dark:text-[#D89A06] font-semibold'
+                                    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                                )}
+                              >
+                                <SubIcon className={cn('w-3 h-3 shrink-0', subActive ? 'text-[#D89A06]' : 'opacity-70')} />
+                                <span className="truncate">{sub.label}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               );
             })}
@@ -533,10 +523,8 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
     </nav>
   );
 
-  // Bottom section: AI Credits Wallet, Profile Card, ModelSelector, Sign Out, ThemeToggle
   const renderBottom = (collapsed: boolean) => (
-    <div className="mt-auto border-t border-[#D89A06]/20 dark:border-white/10 pt-3 space-y-2.5">
-      {/* Academic Credits Row (Linear Standard) */}
+    <div className="mt-auto border-t border-border/60 dark:border-white/10 pt-3 space-y-2">
       {collapsed ? (
         <div className="flex justify-center mb-1">
           <Tooltip>
@@ -545,17 +533,17 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
                 <Link
                   href="/dashboard/settings/billing"
                   className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-muted/60 text-[#00004E] dark:text-[#D89A06] transition-all group"
-                  aria-label="Billing & Credits"
+                  aria-label="Passes & Billing"
                 >
                   <Coins className="w-4 h-4 text-[#D89A06] group-hover:scale-105 transition-transform" />
                 </Link>
               }
             />
             <TooltipContent side="right" sideOffset={12}>
-              <div className="text-xs font-bold">
+              <div className="text-xs font-bold tabular-nums">
                 {freePasses !== null ? `${freePasses}/8 Passes + ${paidCredits ?? 0} Credits` : `${walletBalance} Credits`}
               </div>
-              <div className="text-[10px] text-muted-foreground">Free passes refill every 6 hours · Manage billing</div>
+              <div className="text-[10px] text-muted-foreground">Free passes refill every 6h · Manage billing</div>
             </TooltipContent>
           </Tooltip>
         </div>
@@ -563,7 +551,7 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
         <div className="px-2.5 py-1.5 flex items-center justify-between text-xs rounded-xl hover:bg-muted/40 transition-colors">
           <div className="flex items-center gap-2 min-w-0">
             <Coins className="w-3.5 h-3.5 text-[#D89A06] shrink-0" />
-            <div className="flex items-center gap-1.5 truncate">
+            <div className="flex items-center gap-1.5 truncate tabular-nums">
               <span className="font-semibold text-foreground">
                 {freePasses !== null ? `${freePasses}/8 passes` : `${walletBalance} credits`}
               </span>
@@ -581,7 +569,6 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
         </div>
       )}
 
-      {/* Student Profile Row (Notion / Linear Standard) */}
       {collapsed ? (
         <div className="flex justify-center mb-1">
           <Tooltip>
@@ -590,12 +577,12 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
                 <Link
                   href="/dashboard/settings/profile"
                   className="flex items-center justify-center group/avatar focus:outline-hidden rounded-full"
-                  aria-label="User Profile"
+                  aria-label="Academic Profile"
                 >
                   {profile?.avatar_url ? (
                     <img
                       src={profile.avatar_url}
-                      alt="Avatar"
+                      alt="Profile avatar"
                       className="w-8 h-8 rounded-full object-cover ring-1 ring-border shadow-2xs"
                     />
                   ) : (
@@ -609,8 +596,8 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
             <TooltipContent side="right" sideOffset={12}>
               <div className="text-xs font-bold">{profile?.full_name || profile?.username || 'UPSA Scholar'}</div>
               <div className="text-[10px] text-muted-foreground">
-                {profile?.institutions?.name || 'University of Professional Studies, Accra'}
-                {profile?.year_of_study ? ` • ${formatAcademicLevel(profile.year_of_study, profile?.degree_programme)}` : ''}
+                {profile?.institutions?.abbreviation || 'UPSA'}
+                {profile?.year_of_study ? ` · ${formatAcademicLevel(profile.year_of_study, profile?.degree_programme)}` : ''}
               </div>
             </TooltipContent>
           </Tooltip>
@@ -623,7 +610,7 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
           {profile?.avatar_url ? (
             <img
               src={profile.avatar_url}
-              alt="Avatar"
+              alt="Profile avatar"
               className="w-8 h-8 rounded-full object-cover shrink-0 ring-1 ring-border"
             />
           ) : (
@@ -635,35 +622,25 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
             <div className="font-semibold text-foreground truncate group-hover:text-[#00004E] dark:group-hover:text-[#D89A06] transition-colors">
               {profile?.username || profile?.full_name?.split(' ')[0] || 'UPSA Scholar'}
             </div>
-            <div className="text-muted-foreground text-[11px] truncate flex items-center gap-1">
-              <span>
-                {profile?.institutions?.abbreviation || 'UPSA'} · {formatAcademicLevel(profile?.year_of_study, profile?.degree_programme)}
-              </span>
+            <div className="text-muted-foreground text-[11px] truncate">
+              {profile?.institutions?.abbreviation || 'UPSA'} · {formatAcademicLevel(profile?.year_of_study, profile?.degree_programme)}
             </div>
           </div>
           <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
         </Link>
       )}
 
-      {/* Model Selector */}
       <div className="px-0.5">
         <ModelSelector isCollapsed={collapsed} />
       </div>
 
-      {/* Bottom Controls: Sign Out & Theme Toggle */}
       {collapsed ? (
         <div className="flex flex-col items-center gap-2 mb-1">
           <Tooltip>
             <TooltipTrigger
               render={
                 <form action={signout}>
-                  <button
-                    type="submit"
-                    className="w-10 h-10 rounded-xl hover:bg-destructive/10 text-muted-foreground hover:text-destructive border border-border flex items-center justify-center transition-colors focus:outline-hidden"
-                    aria-label="Sign Out"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
+                  <SignOutSubmitButton collapsed />
                 </form>
               }
             />
@@ -689,15 +666,7 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
         <div className="flex items-center gap-2 px-0.5">
           <div className="flex-1">
             <form action={signout}>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full text-xs font-semibold h-8 border-border hover:border-destructive/40 hover:text-destructive cursor-pointer"
-                type="submit"
-              >
-                <LogOut className="w-3.5 h-3.5 mr-1.5" />
-                Sign Out
-              </Button>
+              <SignOutSubmitButton />
             </form>
           </div>
           <div className="flex-none">
@@ -709,44 +678,42 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
   );
 
   return (
-    <TooltipProvider delay={100}>
-      <div className="min-h-screen bg-background flex flex-col md:flex-row">
+    <TooltipProvider delay={80}>
+      <CommandPaletteModal isAdmin={profile?.role === 'admin'} />
+
+      <div className="min-h-[100dvh] bg-background flex flex-col md:flex-row">
         {/* Mobile Sidebar (Drawer) */}
         <MobileSidebar profile={profile}>
           <div className="mb-3 px-1 pt-1">
             <SmartSearchBar />
           </div>
-          {renderNav(false)}
+          {renderNav(false, 'mobile-student-nav')}
           {renderBottom(false)}
         </MobileSidebar>
 
         {/* Desktop Sidebar */}
         <aside
           className={cn(
-            "hidden md:flex flex-col fixed inset-y-0 left-0 z-30 bg-[#FFFFFF] dark:bg-[#070720] border-r border-[#D89A06]/20 dark:border-white/10 transition-all duration-300 ease-in-out select-none shadow-xs",
-            isCollapsed ? "w-20 p-3" : "w-64 p-4"
+            'hidden md:flex flex-col fixed inset-y-0 left-0 z-30 bg-[#FFFFFF] dark:bg-[#070720] border-r border-border/60 dark:border-white/10 transition-[width,padding] duration-200 ease-out select-none',
+            isCollapsed ? 'w-20 p-3' : 'w-64 p-4'
           )}
         >
-          {/* Subtle Top Gold Highlight Bar */}
-          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#00004E] via-[#D89A06] to-[#00004E]" />
-
-          {/* Header & Collapse Toggle */}
           {isCollapsed ? (
-            <div className="flex flex-col items-center gap-3 mb-4 pt-1">
+            <div className="flex flex-col items-center gap-2.5 mb-3 pt-1">
               <Tooltip>
                 <TooltipTrigger
                   render={
                     <Link
                       href="/dashboard"
-                      className="w-10 h-10 rounded-xl flex items-center justify-center hover:opacity-90 transition-all shadow-xs border border-[#D89A06]/30 bg-card focus:outline-hidden"
+                      className="w-9 h-9 rounded-xl flex items-center justify-center hover:opacity-90 transition-opacity border border-border/70 bg-card focus:outline-hidden"
                       aria-label="UniStudy Home"
                     >
-                      <UniStudyLogo variant="icon" height={26} />
+                      <UniStudyLogo variant="icon" height={24} />
                     </Link>
                   }
                 />
                 <TooltipContent side="right" sideOffset={12}>
-                  UniStudy AI
+                  UniStudy Workspace
                 </TooltipContent>
               </Tooltip>
 
@@ -754,8 +721,9 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
                 <TooltipTrigger
                   render={
                     <button
+                      type="button"
                       onClick={toggleCollapse}
-                      className="w-10 h-10 rounded-xl border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-hidden shadow-2xs cursor-pointer"
+                      className="w-9 h-9 rounded-xl border border-border/70 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-hidden cursor-pointer"
                       aria-label="Expand sidebar (Ctrl+B)"
                     >
                       <PanelLeftOpen className="w-4 h-4" />
@@ -768,14 +736,15 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
               </Tooltip>
             </div>
           ) : (
-            <div className="flex items-center justify-between h-10 mb-4 px-1 pt-0.5">
+            <div className="flex items-center justify-between h-10 mb-3 px-1">
               <Link href="/dashboard" className="flex items-center gap-2 overflow-hidden">
-                <UniStudyLogo height={32} />
+                <UniStudyLogo height={30} />
               </Link>
               <Tooltip>
                 <TooltipTrigger
                   render={
                     <button
+                      type="button"
                       onClick={toggleCollapse}
                       className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors focus:outline-hidden cursor-pointer"
                       aria-label="Collapse sidebar (Ctrl+B)"
@@ -791,23 +760,24 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
             </div>
           )}
 
-          {/* Search Bar */}
-          <div className={cn("mb-4", isCollapsed ? "flex justify-center" : "px-0.5")}>
+          {/* Search Trigger (Opens Cmd+K Spotlight in both states) */}
+          <div className={cn('mb-3.5', isCollapsed ? 'flex justify-center' : 'px-0.5')}>
             {isCollapsed ? (
               <Tooltip>
                 <TooltipTrigger
                   render={
                     <button
-                      onClick={expandSidebar}
-                      className="w-10 h-10 rounded-xl bg-background border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/50 transition-all shadow-2xs cursor-pointer"
-                      aria-label="Search slides, papers..."
+                      type="button"
+                      onClick={triggerCommandPalette}
+                      className="w-9 h-9 rounded-xl bg-muted/40 border border-border/70 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-[#D89A06]/50 transition-colors cursor-pointer"
+                      aria-label="Quick Jump & Search (Ctrl+K)"
                     >
-                      <Search className="w-4 h-4" />
+                      <Search className="w-4 h-4 text-[#D89A06]" />
                     </button>
                   }
                 />
                 <TooltipContent side="right" sideOffset={12}>
-                  Search <span className="text-[10px] text-muted-foreground ml-1">(Click to expand)</span>
+                  Quick Jump &amp; Search <span className="text-[10px] text-muted-foreground ml-1">(⌘K)</span>
                 </TooltipContent>
               </Tooltip>
             ) : (
@@ -815,18 +785,15 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
             )}
           </div>
 
-          {/* Navigation Items */}
-          {renderNav(isCollapsed)}
-
-          {/* Bottom Profile & Actions */}
+          {renderNav(isCollapsed, 'desktop-student-nav')}
           {renderBottom(isCollapsed)}
         </aside>
 
         {/* Main Content Area */}
         <main
           className={cn(
-            "flex-1 p-4 md:p-8 overflow-y-auto relative min-h-screen transition-all duration-300 ease-in-out",
-            isCollapsed ? "md:ml-20" : "md:ml-64"
+            'flex-1 p-4 md:p-8 overflow-y-auto relative min-h-[100dvh] transition-[margin] duration-200 ease-out',
+            isCollapsed ? 'md:ml-20' : 'md:ml-64'
           )}
         >
           <AnnouncementBanner announcement={latestAnnouncement} />

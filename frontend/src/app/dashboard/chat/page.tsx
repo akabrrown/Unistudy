@@ -57,7 +57,18 @@ import {
   Play,
   ChevronLeft,
   ChevronRight,
+  Coins,
+  Lightbulb,
+  ListChecks,
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { StreamAskError, streamAsk, stripProtocolTags, type AskFinalPayload } from '@/lib/chat/streamAsk';
 import { cleanChatTitle } from '@/lib/chat/chatTitle';
 import { useSpeechInput } from '@/components/chat/useSpeechInput';
@@ -194,10 +205,10 @@ const AI_MODELS = [
   {
     id: 'openrouter',
     name: 'OpenRouter Cloud',
-    badge: 'Multi-Cloud',
-    tagline: 'Qwen 2.5 72B & high-parameter reasoning models',
+    badge: 'Multi-Model',
+    tagline: 'Qwen 2.5 72B & high-parameter academic models',
     icon: Cpu,
-    color: 'text-purple-500',
+    color: 'text-foreground',
   },
 ] as const;
 
@@ -363,6 +374,12 @@ export default function GeneralAiChatPage() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(true);
   const [historySearchQuery, setHistorySearchQuery] = useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsHistoryOpen(false);
+    }
+  }, []);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
 
@@ -1295,7 +1312,7 @@ export default function GeneralAiChatPage() {
       const errorMessage: ChatMessage = {
         id: `msg-err-${Date.now()}`,
         role: 'assistant',
-        content: `⚠️ **Unable to complete request:** ${msg}\n\nPlease check your connection, switch to another model, or try again shortly.`,
+        content: `**Unable to complete request:** ${msg}\n\nPlease check your connection, switch to another model, or try again shortly.`,
         timestamp: new Date().toISOString(),
         referencedDeck: activeDeck ? { ...activeDeck } : null,
       };
@@ -1683,10 +1700,18 @@ export default function GeneralAiChatPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] max-w-7xl mx-auto pb-3 gap-3">
+    <div className="flex h-[calc(100vh-4rem)] max-w-7xl mx-auto pb-3 gap-3 relative">
+      {/* Mobile backdrop for History Drawer */}
+      {isHistoryOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/45 backdrop-blur-[1px] lg:hidden"
+          onClick={() => setIsHistoryOpen(false)}
+        />
+      )}
+
       {/* Left Sidebar: Conversation History */}
       {isHistoryOpen && (
-        <aside className="w-72 flex-shrink-0 flex flex-col bg-card border border-border rounded-2xl shadow-xs overflow-hidden transition-all duration-200">
+        <aside className="fixed inset-y-16 left-3 z-40 lg:static w-72 flex-shrink-0 flex flex-col bg-card border border-border rounded-2xl shadow-xl lg:shadow-xs overflow-hidden transition-all duration-200">
           {/* History Header */}
           <div className="p-3.5 border-b border-border flex items-center justify-between bg-muted/20">
             <div className="flex items-center gap-2">
@@ -1897,33 +1922,34 @@ export default function GeneralAiChatPage() {
               <span>{activeDeck ? 'Switch Deck' : 'Attach Deck'}</span>
             </Button>
 
-            {/* Wallet Pill - subtle, quiet */}
+            {/* Passes & Credits Pill - subtle, quiet */}
             <Link
               href="/dashboard/settings/billing"
-              className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border/50"
-              title={`Dual-Pocket Wallet: ${freePasses ?? 8}/8 Free 6h Passes + ${paidCredits ?? 20} Paid Credits (Never expires)`}
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border/50 tabular-nums"
+              title={`Passes & Credits: ${freePasses ?? 8}/8 Free 6h Passes + ${paidCredits ?? 20} Study Credits`}
             >
-              <span className="text-[#D89A06]">⚡</span>
+              <Zap className="h-3 w-3 text-[#D89A06]" />
               <span>{freePasses ?? 8}/8 Free</span>
               {(paidCredits ?? 0) > 0 && (
-                <span className="border-l border-border/60 pl-1.5 ml-0.5 text-foreground font-mono">
-                  🪙 {paidCredits}
+                <span className="border-l border-border/60 pl-1.5 ml-0.5 text-foreground font-mono inline-flex items-center gap-1">
+                  <Coins className="h-3 w-3 text-[#D89A06]" />
+                  {paidCredits}
                 </span>
               )}
             </Link>
 
-            {/* Utility Tools: Calibrate, Memory, Export */}
+            {/* Utility Tools: Tutor Style, Saved Context, Export */}
             <div className="flex items-center rounded-lg border border-border/60 bg-muted/30 p-0.5">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsCalibrateDialogOpen(true)}
                 className="h-7 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
-                title="Calibrate Tutor Name, Tone & Personality"
-                aria-label="Calibrate Tutor"
+                title="Tutor Style & Preferences"
+                aria-label="Tutor Style"
               >
                 <SlidersHorizontal className="h-3.5 w-3.5 xl:mr-1 text-muted-foreground" />
-                <span className="hidden xl:inline">Calibrate</span>
+                <span className="hidden xl:inline">Tutor Style</span>
               </Button>
 
               <Button
@@ -2362,37 +2388,41 @@ export default function GeneralAiChatPage() {
                         )}
 
                       {/* Interactive Visual Action Chips */}
-                      <div className="px-4 md:px-6 py-2.5 bg-muted/20 border-t border-border/50 flex flex-wrap items-center gap-1.5">
+                      <div className="px-4 md:px-6 py-2.5 bg-muted/15 border-t border-border/50 flex flex-wrap items-center gap-1.5">
                         <span className="text-[10px] font-mono font-bold uppercase text-muted-foreground mr-1">
-                          Quick Actions:
+                          Actions:
                         </span>
                         <button
                           type="button"
                           onClick={() => handleSendMessage('Create 3 high-yield flashcards from this explanation with clear Q&A.')}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-card border border-border/80 hover:border-[#D89A06] hover:bg-[#FEF8E7]/50 dark:hover:bg-white/5 text-[11px] font-medium text-foreground transition-all cursor-pointer shadow-2xs active:scale-95"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-card border border-border/80 hover:border-foreground/30 hover:bg-muted/50 text-[11px] font-medium text-foreground transition-all cursor-pointer active:scale-95"
                         >
-                          <span>🎴 Make 3 Flashcards</span>
+                          <Layers className="h-3 w-3 text-[#D89A06]" />
+                          <span>Make 3 Flashcards</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => handleSendMessage('/test Quiz me on 3 questions testing my understanding of this.')}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-card border border-border/80 hover:border-[#D89A06] hover:bg-[#FEF8E7]/50 dark:hover:bg-white/5 text-[11px] font-medium text-foreground transition-all cursor-pointer shadow-2xs active:scale-95"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-card border border-border/80 hover:border-foreground/30 hover:bg-muted/50 text-[11px] font-medium text-foreground transition-all cursor-pointer active:scale-95"
                         >
-                          <span>🎯 Quiz Me</span>
+                          <HelpCircle className="h-3 w-3 text-[#00004E] dark:text-[#D89A06]" />
+                          <span>Quiz Me</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => handleSendMessage('Summarize this into 3 concise high-priority bullet points for rapid revision.')}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-card border border-border/80 hover:border-[#D89A06] hover:bg-[#FEF8E7]/50 dark:hover:bg-white/5 text-[11px] font-medium text-foreground transition-all cursor-pointer shadow-2xs active:scale-95"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-card border border-border/80 hover:border-foreground/30 hover:bg-muted/50 text-[11px] font-medium text-foreground transition-all cursor-pointer active:scale-95"
                         >
-                          <span>⚡ 3-Bullet Summary</span>
+                          <ListChecks className="h-3 w-3 text-emerald-500" />
+                          <span>3-Bullet Summary</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => handleSendMessage('Simplify this concept step-by-step with an intuitive real-world analogy.')}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-card border border-border/80 hover:border-[#D89A06] hover:bg-[#FEF8E7]/50 dark:hover:bg-white/5 text-[11px] font-medium text-foreground transition-all cursor-pointer shadow-2xs active:scale-95"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-card border border-border/80 hover:border-foreground/30 hover:bg-muted/50 text-[11px] font-medium text-foreground transition-all cursor-pointer active:scale-95"
                         >
-                          <span>💡 Simplify with Analogy</span>
+                          <Lightbulb className="h-3 w-3 text-[#D89A06]" />
+                          <span>Plain Analogy</span>
                         </button>
                       </div>
                     </div>
@@ -2489,11 +2519,10 @@ export default function GeneralAiChatPage() {
             onCompact={() => void handleCompactContext()}
           />
 
-          {/* Interactive Command Shortcut Toolbar */}
-          <div className="flex items-center gap-2 px-1 flex-wrap">
-            <span className="text-[11px] text-muted-foreground font-bold uppercase tracking-wider flex items-center gap-1">
-              <SlidersHorizontal className="h-3 w-3 text-[#D89A06]" />
-              Mode Shortcuts:
+          {/* Interactive Command Shortcut Toolbar - Restrained Hairline Pills */}
+          <div className="flex items-center gap-1.5 px-1 flex-wrap">
+            <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider mr-0.5">
+              Modes:
             </span>
             {COMMAND_SHORTCUTS.map((cmd) => {
               const isSelected = detectedCommand?.prefix === cmd.prefix;
@@ -2503,15 +2532,15 @@ export default function GeneralAiChatPage() {
                   onClick={() => handleCommandShortcut(cmd)}
                   disabled={isLoading}
                   className={cn(
-                    'text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs',
+                    'text-[11px] font-medium px-2.5 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5',
                     isSelected
-                      ? 'bg-[#00004E] text-white border-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E]'
-                      : 'bg-[#FEF8E7] dark:bg-white/10 text-[#00004E] dark:text-[#D89A06] border-[#D89A06]/30 hover:border-[#D89A06] hover:bg-[#FDF2D0]'
+                      ? 'bg-[#00004E] text-white border-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] dark:border-[#D89A06] font-semibold'
+                      : 'bg-muted/25 text-muted-foreground border-border/70 hover:text-foreground hover:bg-muted/60'
                   )}
                   title={cmd.hint}
                 >
                   <span className="font-mono">{cmd.label}</span>
-                  <span className="font-medium text-[10px] opacity-80">({cmd.name})</span>
+                  <span className="text-[10px] opacity-80">{cmd.name}</span>
                 </button>
               );
             })}
@@ -2771,16 +2800,16 @@ export default function GeneralAiChatPage() {
             {/* Dynamic Model Selector Dropdown - right beside send button */}
             <DropdownMenu>
               <DropdownMenuTrigger
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/10 px-2.5 py-2 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:border-[#D89A06] transition-colors cursor-pointer shadow-2xs shrink-0 h-10"
-                title="Select AI Reasoning Engine"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-border/80 bg-muted/40 hover:bg-muted px-2.5 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer shrink-0 h-10"
+                title="Select Model"
               >
                 <activeModelConfig.icon className={cn('h-3.5 w-3.5', activeModelConfig.color)} />
-                <span className="hidden sm:inline font-semibold">{activeModelConfig.name}</span>
+                <span className="hidden sm:inline">{activeModelConfig.name}</span>
                 <ChevronDown className="h-3 w-3 opacity-60 shrink-0" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" side="top" className="w-64 p-1.5 space-y-1 mb-1">
                 <DropdownMenuLabel className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                  Select AI Reasoning Engine
+                  Model
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {AI_MODELS.map((model) => {
@@ -2848,204 +2877,188 @@ export default function GeneralAiChatPage() {
         onClose={() => setFlashcardSource(null)}
       />
 
-      {/* Slide Deck Selector Modal */}
-      {isDeckSelectorOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card border-2 border-[#D89A06]/40 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="p-4 md:p-5 border-b border-border flex items-center justify-between bg-muted/20">
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-lg bg-[#00004E] text-[#D89A06] flex items-center justify-center font-bold">
-                  <Layers className="h-4 w-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-[#00004E] dark:text-white">
-                    Attach Lecture Slide Deck
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Select any uploaded slide deck to ground the AI tutor with exact citations.
-                  </p>
-                </div>
+      {/* Slide Deck Selector Dialog */}
+      <Dialog open={isDeckSelectorOpen} onOpenChange={setIsDeckSelectorOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-2xl border border-border/80 bg-card">
+          <DialogHeader className="p-4 md:p-5 border-b border-border bg-muted/15">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] flex items-center justify-center font-bold shrink-0">
+                <Layers className="h-4 w-4" />
               </div>
-              <button
-                onClick={() => setIsDeckSelectorOpen(false)}
-                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <div className="text-left">
+                <DialogTitle className="font-bold text-sm text-foreground">
+                  Attach Lecture Slides
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Select a course lecture deck so answers cite exact slide numbers.
+                </DialogDescription>
+              </div>
             </div>
+          </DialogHeader>
 
-            {/* Modal Body */}
-            <div className="p-4 md:p-5 flex-1 overflow-y-auto space-y-4">
-              {/* Option to clear grounding */}
-              {activeDeck && (
-                <div className="flex items-center justify-between p-3 rounded-xl border border-[#D89A06]/40 bg-[#FEF8E7] dark:bg-white/5">
-                  <div className="text-xs">
-                    <span className="font-bold text-[#00004E] dark:text-[#D89A06]">
-                      Currently Attached:{' '}
-                    </span>
-                    <span className="font-medium text-foreground">{activeDeck.lectureTitle}</span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleDetachDeck}
-                    className="h-7 text-xs font-bold text-destructive hover:bg-destructive/10"
-                  >
-                    Detach Deck (Go General)
-                  </Button>
+          <div className="p-4 md:p-5 flex-1 overflow-y-auto space-y-4">
+            {activeDeck && (
+              <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/25">
+                <div className="text-xs">
+                  <span className="font-bold text-foreground">Attached: </span>
+                  <span className="font-medium text-muted-foreground">{activeDeck.lectureTitle}</span>
                 </div>
-              )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDetachDeck}
+                  className="h-7 text-xs font-semibold text-destructive hover:bg-destructive/10"
+                >
+                  Detach Slides
+                </Button>
+              </div>
+            )}
 
-              {/* Course Selector Strip */}
-              {isCoursesLoading ? (
-                <div className="flex items-center justify-center py-10 text-xs text-muted-foreground">
-                  <RefreshCw className="h-4 w-4 animate-spin mr-2 text-[#D89A06]" />
-                  Loading your uploaded courses...
+            {isCoursesLoading ? (
+              <div className="flex items-center justify-center py-10 text-xs text-muted-foreground">
+                <RefreshCw className="h-4 w-4 animate-spin mr-2 text-[#D89A06]" />
+                Loading your courses...
+              </div>
+            ) : courses.length === 0 ? (
+              <div className="text-center py-10 space-y-3">
+                <BookOpen className="h-8 w-8 text-muted-foreground mx-auto" />
+                <p className="text-xs text-muted-foreground">
+                  No active courses yet. Upload PDF slides under Courses to cite them here.
+                </p>
+                <Link
+                  href="/dashboard/courses"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:underline"
+                >
+                  Go to Courses &rarr;
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                  {courses.map((course) => {
+                    const isSelected = course.id === selectedCourseId;
+                    return (
+                      <button
+                        key={course.id}
+                        type="button"
+                        onClick={() => setSelectedCourseId(course.id)}
+                        className={cn(
+                          'px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border cursor-pointer',
+                          isSelected
+                            ? 'bg-[#00004E] text-white border-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] dark:border-[#D89A06]'
+                            : 'bg-background hover:bg-muted text-muted-foreground border-border'
+                        )}
+                      >
+                        {course.course_code || course.title}
+                      </button>
+                    );
+                  })}
                 </div>
-              ) : courses.length === 0 ? (
-                <div className="text-center py-10 space-y-3">
-                  <BookOpen className="h-8 w-8 text-muted-foreground mx-auto" />
-                  <p className="text-xs text-muted-foreground">
-                    No active courses found. You can chat freely in General Mode, or upload slides under Courses.
-                  </p>
-                  <Link
-                    href="/dashboard/courses"
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:underline"
-                  >
-                    Go to Courses &rarr;
-                  </Link>
+
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    value={deckSearchQuery}
+                    onChange={(e) => setDeckSearchQuery(e.target.value)}
+                    placeholder="Search lecture title in this course..."
+                    className="pl-8 text-xs h-9"
+                  />
                 </div>
-              ) : (
-                <>
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                    {courses.map((course) => {
-                      const isSelected = course.id === selectedCourseId;
+
+                <div className="space-y-2 pt-1 max-h-[42vh] overflow-y-auto">
+                  {filteredLectures.length === 0 ? (
+                    <div className="text-center py-8 text-xs text-muted-foreground">
+                      No slide decks found in this course.
+                    </div>
+                  ) : (
+                    filteredLectures.map((lecture) => {
+                      const isCurrentActive = activeDeck?.lectureId === lecture.id;
+                      const coverThumb = lecture.cover_image_url
+                        ? getSlideThumbnailUrl(lecture.cover_image_url)
+                        : '';
+
                       return (
-                        <button
-                          key={course.id}
-                          onClick={() => setSelectedCourseId(course.id)}
+                        <div
+                          key={lecture.id}
                           className={cn(
-                            'px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border cursor-pointer',
-                            isSelected
-                              ? 'bg-[#00004E] text-white border-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E]'
-                              : 'bg-background hover:bg-muted text-muted-foreground border-border'
+                            'flex items-center justify-between p-3 rounded-xl border transition-all',
+                            isCurrentActive
+                              ? 'border-[#D89A06] bg-muted/40'
+                              : 'border-border bg-card hover:border-foreground/30 hover:bg-muted/25'
                           )}
                         >
-                          {course.course_code || course.title}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Search bar inside selected course */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      value={deckSearchQuery}
-                      onChange={(e) => setDeckSearchQuery(e.target.value)}
-                      placeholder="Search lecture title in this course..."
-                      className="pl-8 text-xs h-9"
-                    />
-                  </div>
-
-                  {/* Lecture Decks List */}
-                  <div className="space-y-2 pt-1">
-                    {filteredLectures.length === 0 ? (
-                      <div className="text-center py-8 text-xs text-muted-foreground">
-                        No slide decks found in this course.
-                      </div>
-                    ) : (
-                      filteredLectures.map((lecture) => {
-                        const isCurrentActive = activeDeck?.lectureId === lecture.id;
-                        const coverThumb = lecture.cover_image_url
-                          ? getSlideThumbnailUrl(lecture.cover_image_url)
-                          : '';
-
-                        return (
-                          <div
-                            key={lecture.id}
-                            className={cn(
-                              'flex items-center justify-between p-3 rounded-xl border transition-all',
-                              isCurrentActive
-                                ? 'border-[#D89A06] bg-[#FEF8E7]/80 dark:bg-white/10 shadow-2xs'
-                                : 'border-border bg-card hover:border-[#D89A06]/50 hover:bg-muted/30'
-                            )}
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className="relative h-12 w-20 rounded-lg overflow-hidden bg-muted flex-shrink-0 border border-border">
-                                {coverThumb && !isPlaceholderSlideUrl(coverThumb) ? (
-                                  <Image
-                                    src={coverThumb}
-                                    alt={`Cover for ${lecture.title}`}
-                                    fill
-                                    className="object-cover"
-                                    unoptimized
-                                  />
-                                ) : (
-                                  <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground font-mono bg-muted/60">
-                                    <BookOpen className="h-4 w-4 text-[#D89A06]" />
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="min-w-0 space-y-0.5">
-                                <h4 className="text-xs font-bold text-foreground truncate">
-                                  {lecture.title}
-                                </h4>
-                                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                                  {lecture.week && <span>Week {lecture.week}</span>}
-                                  {lecture.week && <span>·</span>}
-                                  <span>{lecture.slide_count || 0} slides</span>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="relative h-12 w-20 rounded-lg overflow-hidden bg-muted flex-shrink-0 border border-border">
+                              {coverThumb && !isPlaceholderSlideUrl(coverThumb) ? (
+                                <Image
+                                  src={coverThumb}
+                                  alt={`Cover for ${lecture.title}`}
+                                  fill
+                                  className="object-cover"
+                                  unoptimized
+                                />
+                              ) : (
+                                <div className="h-full w-full flex items-center justify-center text-[10px] text-muted-foreground font-mono bg-muted/60">
+                                  <BookOpen className="h-4 w-4 text-[#D89A06]" />
                                 </div>
-                              </div>
+                              )}
                             </div>
 
-                            <Button
-                              size="sm"
-                              onClick={() => activeCourse && handleAttachDeck(activeCourse, lecture)}
-                              disabled={isCurrentActive}
-                              className={cn(
-                                'h-8 text-xs font-bold ml-2 cursor-pointer',
-                                isCurrentActive
-                                  ? 'bg-emerald-600 text-white'
-                                  : 'bg-[#00004E] text-white hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E]'
-                              )}
-                            >
-                              {isCurrentActive ? (
-                                <>
-                                  <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                                  Attached
-                                </>
-                              ) : (
-                                'Attach Deck'
-                              )}
-                            </Button>
+                            <div className="min-w-0 space-y-0.5">
+                              <h4 className="text-xs font-bold text-foreground truncate">
+                                {lecture.title}
+                              </h4>
+                              <div className="flex items-center gap-2 text-[11px] text-muted-foreground tabular-nums">
+                                {lecture.week && <span>Week {lecture.week}</span>}
+                                {lecture.week && <span>·</span>}
+                                <span>{lecture.slide_count || 0} slides</span>
+                              </div>
+                            </div>
                           </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
 
-            {/* Modal Footer */}
-            <div className="p-3 border-t border-border bg-muted/10 flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsDeckSelectorOpen(false)}
-                className="text-xs"
-              >
-                Close
-              </Button>
-            </div>
+                          <Button
+                            size="sm"
+                            onClick={() => activeCourse && handleAttachDeck(activeCourse, lecture)}
+                            disabled={isCurrentActive}
+                            className={cn(
+                              'h-8 text-xs font-bold ml-2 cursor-pointer',
+                              isCurrentActive
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-[#00004E] text-white hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E]'
+                            )}
+                          >
+                            {isCurrentActive ? (
+                              <>
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                Attached
+                              </>
+                            ) : (
+                              'Attach'
+                            )}
+                          </Button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            )}
           </div>
-        </div>
-      )}
 
-      {/* Calibrate AI Study Tutor Dialog */}
+          <DialogFooter className="p-3 border-t border-border bg-muted/10">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsDeckSelectorOpen(false)}
+              className="text-xs"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tutor Style Preferences Dialog */}
       <CalibrateTutorDialog
         open={isCalibrateDialogOpen}
         onOpenChange={setIsCalibrateDialogOpen}
@@ -3058,39 +3071,25 @@ export default function GeneralAiChatPage() {
         }}
       />
 
-      {/* Full-size Image Lightbox Modal */}
-      {previewModalImage && (
-        <div
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-          onClick={() => setPreviewModalImage(null)}
-        >
-          <div
-            className="relative max-w-4xl max-h-[92vh] bg-card border-2 border-[#D89A06]/40 rounded-2xl overflow-hidden p-3 shadow-2xl flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center pb-2 border-b border-border mb-2 px-1">
-              <span className="text-xs font-bold text-[#00004E] dark:text-white truncate max-w-md">
-                {previewModalImage.alt}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPreviewModalImage(null)}
-                className="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                title="Close preview"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="overflow-auto max-h-[80vh] flex items-center justify-center bg-black/5 dark:bg-black/30 rounded-xl p-1">
+      {/* Full-size Image Lightbox Dialog */}
+      <Dialog open={Boolean(previewModalImage)} onOpenChange={(o) => !o && setPreviewModalImage(null)}>
+        <DialogContent className="max-w-4xl max-h-[92vh] bg-card border border-border/80 rounded-2xl overflow-hidden p-4">
+          <DialogHeader>
+            <DialogTitle className="text-xs font-bold text-foreground truncate">
+              {previewModalImage?.alt || 'Attachment preview'}
+            </DialogTitle>
+          </DialogHeader>
+          {previewModalImage && (
+            <div className="overflow-auto max-h-[78vh] flex items-center justify-center bg-muted/20 rounded-xl p-2">
               <img
                 src={previewModalImage.src}
                 alt={previewModalImage.alt}
-                className="max-h-[78vh] w-auto max-w-full rounded-lg object-contain shadow-md"
+                className="max-h-[74vh] w-auto max-w-full rounded-lg object-contain"
               />
             </div>
-          </div>
-        </div>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

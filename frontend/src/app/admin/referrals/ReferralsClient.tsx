@@ -70,6 +70,10 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { format, formatDistanceToNow } from 'date-fns'
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader'
+import { AdminMetricCard } from '@/components/admin/AdminMetricCard'
+import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
+import { CopyableId } from '@/components/ui/copyable-id'
 import {
   createReferralAction,
   updateReferralStatusAction,
@@ -455,119 +459,118 @@ export function ReferralsClient({
   return (
     <div className="space-y-6 max-w-7xl pb-16">
       {/* 1. Header & Actions Strip */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-5">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
-            <span>Administration</span>
-            <span>/</span>
-            <span className="text-foreground font-semibold">Growth & Virality Network</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <Share2 className="w-6 h-6 text-[var(--color-plum-500)]" />
-            Student Referral Program & Ambassador Command Center
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            Monitor peer-to-peer student invitations, campus ambassador code distribution, organic conversion funnels, and automated Pro tier reward fulfillment.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            className="h-9 gap-1.5"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Export CSV</span>
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleBatchReward}
-            disabled={isPending}
-            className="h-9 gap-1.5 border-purple-500/30 text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/30"
-          >
-            <Gift className="w-3.5 h-3.5 text-purple-600" />
-            <span>Batch Reward Converted</span>
-          </Button>
-
-          <Button
-            onClick={() => handleOpenProvision()}
-            className="h-9 gap-1.5 bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white dark:text-[#00004E] font-semibold shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Provision Ambassador Code</span>
-          </Button>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="Student Referral Program & Ambassadors"
+        count={`${stats.total} invites`}
+        subtitle="Monitor peer-to-peer student invitations, campus ambassador code distribution, organic conversion funnels, and automated Pro tier reward fulfillment."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              className="h-8 text-xs gap-1.5"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export CSV</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBatchReward}
+              disabled={isPending}
+              className="h-8 text-xs gap-1.5 border-[#D89A06]/40 text-[#00004E] dark:text-[#D89A06] hover:bg-[#FEF8E7] dark:hover:bg-white/5"
+            >
+              <Gift className="w-3.5 h-3.5 text-[#D89A06]" />
+              <span>Batch Reward Converted</span>
+            </Button>
+            <Button
+              onClick={() => handleOpenProvision()}
+              className="h-8 text-xs gap-1.5 bg-[#00004E] hover:bg-[#00004E]/90 dark:bg-[#D89A06] dark:hover:bg-[#D89A06]/90 text-white dark:text-[#00004E] font-semibold shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Provision Ambassador Code</span>
+            </Button>
+          </>
+        }
+      />
 
       {/* 2. Executive Growth Velocity Strip (5 KPI Cards) */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
-        <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Invites</span>
-            <Share2 className="w-4 h-4 text-[var(--color-plum-500)]" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">{stats.total}</div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span className="text-emerald-600 dark:text-emerald-400 font-medium">Dispatched</span>
-            <span>across network</span>
-          </div>
-        </Card>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <AdminMetricCard
+          label="Total Invites"
+          value={stats.total}
+          subtext="Dispatched across network"
+          icon={Share2}
+        />
+        <AdminMetricCard
+          label="Ambassador Codes"
+          value={stats.activeCodes}
+          subtext="Unique promo links"
+          icon={Flame}
+        />
+        <AdminMetricCard
+          label="Converted Signups"
+          value={stats.converted}
+          subtext={`${stats.pending} pending registrations`}
+          delta={`${stats.conversionRate}% Rate`}
+          deltaTone={Number(stats.conversionRate) >= 20 ? 'positive' : 'neutral'}
+          icon={UserCheck}
+        />
+        <AdminMetricCard
+          label="Pro Months Awarded"
+          value={`${stats.totalMonthsAwarded} mo`}
+          subtext={`${stats.rewarded} rewarded invites`}
+          icon={Crown}
+        />
+        <AdminMetricCard
+          label="Virality Multiplier"
+          value={stats.total > 0 ? (stats.converted / (totalStudentsCount || 1) * 10).toFixed(2) : '1.14'}
+          subtext="Virality coefficient (K-factor)"
+          icon={TrendingUp}
+        />
+      </div>
 
-        <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Ambassador Codes</span>
-            <Flame className="w-4 h-4 text-amber-500" />
+      {/* 2b. Visual 3-Stage Conversion Funnel Strip */}
+      <div className="p-3.5 rounded-xl border border-border/70 bg-muted/20">
+        <div className="flex items-center justify-between text-xs mb-2">
+          <span className="font-semibold text-foreground flex items-center gap-1.5">
+            <TrendingUp className="w-3.5 h-3.5 text-[#D89A06]" />
+            Referral Conversion Funnel Velocity
+          </span>
+          <span className="text-muted-foreground font-mono text-[11px]">
+            {stats.converted} of {stats.total || 1} converted ({stats.conversionRate}%)
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="p-2.5 rounded-lg border border-border/50 bg-background">
+            <div className="text-[10px] uppercase font-mono text-muted-foreground">1. Dispatched</div>
+            <div className="text-lg font-bold font-mono text-foreground mt-0.5">{stats.total}</div>
+            <div className="w-full bg-muted h-1 rounded-full mt-1.5 overflow-hidden">
+              <div className="bg-[#00004E] dark:bg-white h-full w-full" />
+            </div>
           </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">{stats.activeCodes}</div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span>Unique promo links</span>
+          <div className="p-2.5 rounded-lg border border-border/50 bg-background">
+            <div className="text-[10px] uppercase font-mono text-muted-foreground">2. Converted</div>
+            <div className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">{stats.converted}</div>
+            <div className="w-full bg-muted h-1 rounded-full mt-1.5 overflow-hidden">
+              <div
+                className="bg-emerald-500 h-full"
+                style={{ width: `${Math.min(100, (stats.converted / (stats.total || 1)) * 100)}%` }}
+              />
+            </div>
           </div>
-        </Card>
-
-        <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Converted Signups</span>
-            <UserCheck className="w-4 h-4 text-emerald-500" />
+          <div className="p-2.5 rounded-lg border border-border/50 bg-background">
+            <div className="text-[10px] uppercase font-mono text-muted-foreground">3. Rewarded</div>
+            <div className="text-lg font-bold font-mono text-[#D89A06] mt-0.5">{stats.rewarded}</div>
+            <div className="w-full bg-muted h-1 rounded-full mt-1.5 overflow-hidden">
+              <div
+                className="bg-[#D89A06] h-full"
+                style={{ width: `${Math.min(100, (stats.rewarded / (stats.converted || 1)) * 100)}%` }}
+              />
+            </div>
           </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            {stats.converted}
-            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">
-              {stats.conversionRate}% Rate
-            </span>
-          </div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span>{stats.pending} pending registrations</span>
-          </div>
-        </Card>
-
-        <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Pro Months Awarded</span>
-            <Crown className="w-4 h-4 text-purple-500" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">{stats.totalMonthsAwarded} mo</div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span className="text-purple-600 dark:text-purple-400 font-medium">{stats.rewarded} rewarded</span>
-            <span>invites</span>
-          </div>
-        </Card>
-
-        <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all col-span-2 md:col-span-1">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Network Multiplier (K)</span>
-            <TrendingUp className="w-4 h-4 text-blue-500" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">
-            {stats.total > 0 ? (stats.converted / (totalStudentsCount || 1) * 10).toFixed(2) : '1.14'}
-          </div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span className="text-blue-600 dark:text-blue-400 font-medium">Virality coefficient</span>
-          </div>
-        </Card>
+        </div>
       </div>
 
       {/* 3. Campus Ambassador Leaderboard & Growth Policy Strip */}
@@ -662,7 +665,7 @@ export function ReferralsClient({
             <div className="space-y-2.5 text-xs text-muted-foreground">
               <div className="p-2.5 rounded-lg bg-muted/40 border border-border/50">
                 <div className="font-semibold text-foreground mb-0.5 flex items-center gap-1">
-                  <Gift className="w-3 h-3 text-[var(--color-plum-500)]" />
+                  <Gift className="w-3 h-3 text-[#D89A06]" />
                   Dual-Sided Referral Incentive
                 </div>
                 <p className="text-[11px] leading-relaxed">
@@ -696,7 +699,7 @@ export function ReferralsClient({
             <span>Status: <strong className="text-emerald-600 dark:text-emerald-400">Active</strong></span>
             <Button
               variant="link"
-              className="h-auto p-0 text-[11px] text-[var(--color-plum-500)]"
+              className="h-auto p-0 text-[11px] text-[#00004E] dark:text-[#D89A06]"
               onClick={() => handleOpenProvision('CAMPUS-VIP')}
             >
               Provision Campus VIP &rarr;
@@ -1126,7 +1129,7 @@ export function ReferralsClient({
                   <button
                     type="button"
                     onClick={() => setProvCode(generateRandomCode())}
-                    className="text-[11px] text-[var(--color-plum-500)] hover:underline flex items-center gap-1"
+                    className="text-[11px] text-[#00004E] dark:text-[#D89A06] hover:underline flex items-center gap-1"
                   >
                     <RefreshCw className="w-3 h-3" /> Regenerate
                   </button>
@@ -1218,7 +1221,7 @@ export function ReferralsClient({
                   <button
                     type="button"
                     onClick={() => handleCopyLink(provCode)}
-                    className="text-[11px] text-[var(--color-plum-500)] hover:underline flex items-center gap-1"
+                    className="text-[11px] text-[#00004E] dark:text-[#D89A06] hover:underline flex items-center gap-1"
                   >
                     <Copy className="w-3 h-3" /> Copy
                   </button>
@@ -1246,7 +1249,7 @@ export function ReferralsClient({
               size="sm"
               onClick={handleSaveProvision}
               disabled={isSubmitting || !provCode.trim() || !provReferredEmail.trim()}
-              className="bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white dark:text-[#00004E] font-semibold gap-1.5 shadow-sm"
+              className="bg-[#00004E] hover:bg-[#00004E]/90 dark:bg-[#D89A06] dark:hover:bg-[#D89A06]/90 text-white dark:text-[#00004E] font-semibold gap-1.5 shadow-sm"
             >
               <Crown className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Provisioning...' : 'Provision Ambassador Code'}</span>
@@ -1256,40 +1259,16 @@ export function ReferralsClient({
       </Sheet>
 
       {/* 7. Delete Referral Dialog */}
-      <Dialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
-        <DialogContent className="sm:max-w-[420px]">
-          <DialogHeader>
-            <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 flex items-center justify-center mb-2">
-              <Trash2 className="w-5 h-5" />
-            </div>
-            <DialogTitle className="text-base font-bold">Delete Referral Code?</DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
-              Are you sure you want to delete referral code <strong className="text-foreground">{deleteTarget?.referral_code}</strong> for {deleteTarget?.referred_email}? This action is irreversible.
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogFooter className="gap-2 sm:gap-0 pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setDeleteTarget(null)}
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleConfirmDelete}
-              disabled={isDeleting}
-              className="gap-1.5"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>{isDeleting ? 'Deleting...' : 'Confirm Deletion'}</span>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmActionDialog
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Referral Code?"
+        description={`Are you sure you want to delete referral code ${deleteTarget?.referral_code} for ${deleteTarget?.referred_email}? This action is irreversible.`}
+        confirmText="Confirm Deletion"
+        variant="destructive"
+        isLoading={isDeleting}
+      />
     </div>
   )
 }

@@ -3,9 +3,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog';
+import { RadialRing } from '@/components/ui/sparkline';
+import { useAppReducedMotion } from '@/lib/motion';
 import {
   ChevronLeft,
   ChevronRight,
@@ -142,6 +153,10 @@ export default function CalendarPage() {
   const [newEventType, setNewEventType] = useState<EventType>('exam');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmDeleteTimetableOpen, setConfirmDeleteTimetableOpen] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [mobileCalendarTab, setMobileCalendarTab] = useState<'grid' | 'agenda'>('grid');
+  const reducedMotion = useAppReducedMotion();
 
   // Editing state for calendar events
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
@@ -237,12 +252,18 @@ export default function CalendarPage() {
 
   const refreshData = async () => {
     setIsRefreshing(true);
+    setLoadError(null);
     try {
       const { nextEvents, nextTemplate } = await loadCalendarAndTemplate();
-      if (nextEvents) setEvents(nextEvents);
+      if (nextEvents) {
+        setEvents(nextEvents);
+      } else {
+        setLoadError('Could not load your calendar events.');
+      }
       setTemplate(nextTemplate);
     } catch (err) {
       console.error('Failed to refresh calendar', err);
+      setLoadError('Could not load your calendar events.');
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -255,10 +276,15 @@ export default function CalendarPage() {
       try {
         const { nextEvents, nextTemplate } = await loadCalendarAndTemplate();
         if (!active) return;
-        if (nextEvents) setEvents(nextEvents);
+        if (nextEvents) {
+          setEvents(nextEvents);
+        } else {
+          setLoadError('Could not load your calendar events.');
+        }
         setTemplate(nextTemplate);
       } catch (err) {
         console.error('Failed to initialize calendar', err);
+        if (active) setLoadError('Could not load your calendar events.');
       } finally {
         if (active) setLoading(false);
       }
@@ -270,19 +296,13 @@ export default function CalendarPage() {
   }, []);
 
   const handleDeleteTimetable = async () => {
-    if (
-      !confirm(
-        'Are you sure you want to delete your entire generated study timetable? This will remove all planned sessions from your calendar.'
-      )
-    ) {
-      return;
-    }
     setIsDeleting(true);
     try {
       const res = await fetch('/api/planner/template', { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete timetable');
       toast.success('Timetable deleted');
       setTemplate(null);
+      setConfirmDeleteTimetableOpen(false);
       await refreshData();
       setView('calendar');
     } catch (err: unknown) {
@@ -435,7 +455,7 @@ export default function CalendarPage() {
                 size="sm"
                 className="h-9 text-xs border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 cursor-pointer"
                 disabled={isDeleting}
-                onClick={handleDeleteTimetable}
+                onClick={() => setConfirmDeleteTimetableOpen(true)}
               >
                 {isDeleting ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
@@ -555,6 +575,52 @@ export default function CalendarPage() {
         </div>
       </header>
 
+      {/* Error Banner */}
+      {loadError && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-xs sm:text-sm text-destructive flex items-center justify-between gap-3">
+          <span>{loadError}</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void refreshData()}
+            className="h-8 text-xs cursor-pointer"
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
+      {/* Mobile Grid / Agenda Switcher */}
+      {!loading && view === 'calendar' && (
+        <div className="lg:hidden flex rounded-xl border border-border bg-muted/40 p-1">
+          <button
+            type="button"
+            onClick={() => setMobileCalendarTab('grid')}
+            className={cn(
+              'flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer',
+              mobileCalendarTab === 'grid'
+                ? 'bg-background text-foreground shadow-xs'
+                : 'text-muted-foreground'
+            )}
+          >
+            Month Grid
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileCalendarTab('agenda')}
+            className={cn(
+              'flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer',
+              mobileCalendarTab === 'agenda'
+                ? 'bg-background text-foreground shadow-xs'
+                : 'text-muted-foreground'
+            )}
+          >
+            Day &amp; Exam Agenda ({upcomingAgenda.length})
+          </button>
+        </div>
+      )}
+
       {/* Main Content */}
       {loading ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -578,7 +644,12 @@ export default function CalendarPage() {
         /* Split-Screen Notion Calendar x Motion Workspace */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* Left Calendar Grid (8 cols) */}
-          <section className="lg:col-span-8 rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-xs space-y-4">
+          <section
+            className={cn(
+              'lg:col-span-8 rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-xs space-y-4',
+              mobileCalendarTab === 'agenda' && 'hidden lg:block'
+            )}
+          >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <h2 className="text-xl font-bold tracking-tight text-foreground">{monthName}</h2>
@@ -633,7 +704,15 @@ export default function CalendarPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-7 gap-px bg-border rounded-xl overflow-hidden border border-border">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={currentMonthKey}
+                initial={reducedMotion ? false : { opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reducedMotion ? undefined : { opacity: 0, y: -6 }}
+                transition={{ duration: 0.16 }}
+                className="grid grid-cols-7 gap-px bg-border rounded-xl overflow-hidden border border-border"
+              >
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
                 <div
                   key={day}
@@ -719,7 +798,7 @@ export default function CalendarPage() {
                               <Icon className="w-2.5 h-2.5 shrink-0" />
                               <span className="truncate font-medium">{ev.title}</span>
                             </div>
-                            <div className="opacity-0 group-hover/ev:opacity-100 flex items-center gap-0.5 shrink-0">
+                            <div className="opacity-100 sm:opacity-0 sm:group-hover/ev:opacity-100 flex items-center gap-0.5 shrink-0">
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -758,11 +837,17 @@ export default function CalendarPage() {
                   </div>
                 );
               })}
-            </div>
+              </motion.div>
+            </AnimatePresence>
           </section>
 
           {/* Right Context & Agenda Rail (4 cols) */}
-          <aside className="lg:col-span-4 space-y-5">
+          <aside
+            className={cn(
+              'lg:col-span-4 space-y-5',
+              mobileCalendarTab === 'grid' && 'hidden lg:block'
+            )}
+          >
             {/* Selected Day Inspector + Quick Capture */}
             <section className="rounded-2xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-3">
@@ -956,12 +1041,9 @@ export default function CalendarPage() {
                 <ul className="space-y-2">
                   {upcomingExams.slice(0, 5).map((exam) => {
                     const daysLeft = Math.max(0, daysBetweenToday(exam.date, todayDateString));
-                    const urgency =
-                      daysLeft <= 7
-                        ? 'bg-rose-500/15 border-rose-500/30 text-rose-700 dark:text-rose-300'
-                        : daysLeft <= 14
-                          ? 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300'
-                          : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-300';
+                    const ringColor =
+                      daysLeft <= 7 ? '#F43F5E' : daysLeft <= 14 ? '#D89A06' : '#10B981';
+                    const ringPct = Math.max(8, Math.min(100, Math.round(((30 - Math.min(30, daysLeft)) / 30) * 100)));
 
                     return (
                       <li
@@ -971,7 +1053,7 @@ export default function CalendarPage() {
                           const d = new Date(`${exam.date}T00:00:00`);
                           if (!Number.isNaN(d.getTime())) setCurrentDate(d);
                         }}
-                        className="rounded-xl border border-border/70 bg-muted/25 hover:border-primary/40 p-2.5 flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                        className="rounded-xl border border-border/70 bg-muted/25 hover:border-primary/40 p-2.5 flex items-center justify-between gap-2.5 cursor-pointer transition-colors"
                       >
                         <div className="min-w-0">
                           <div className="text-xs font-semibold text-foreground truncate">
@@ -981,14 +1063,13 @@ export default function CalendarPage() {
                             {formatReadableDate(exam.date)}
                           </div>
                         </div>
-                        <span
-                          className={cn(
-                            'shrink-0 rounded-lg border px-2 py-1 font-mono text-xs font-bold tabular-nums',
-                            urgency
-                          )}
-                        >
-                          {daysLeft}d
-                        </span>
+                        <RadialRing
+                          value={ringPct}
+                          size={38}
+                          strokeWidth={3.5}
+                          color={ringColor}
+                          label={`${daysLeft}d`}
+                        />
                       </li>
                     );
                   })}
@@ -1047,100 +1128,106 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* Edit Event Modal */}
-      {editingEvent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-border/60 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-                  <Pencil className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-foreground">Edit Calendar Event</h3>
-                  <p className="text-xs text-muted-foreground">Modify title, scheduled date, or event type</p>
-                </div>
+      {/* Edit Event Dialog */}
+      <Dialog open={Boolean(editingEvent)} onOpenChange={(open) => !open && cancelEditEvent()}>
+        <DialogContent className="sm:max-w-md rounded-2xl border border-border/80 bg-card p-6">
+          <DialogHeader>
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-[#00004E]/10 dark:bg-[#D89A06]/15 flex items-center justify-center text-[#00004E] dark:text-[#D89A06]">
+                <Pencil className="w-4 h-4" />
               </div>
-              <button
-                type="button"
-                onClick={cancelEditEvent}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="text-left">
+                <DialogTitle className="text-base font-bold text-foreground">
+                  Edit Calendar Event
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Modify title, scheduled date, or event category.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <form onSubmit={(e) => void handleUpdateEvent(e)} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">
+                Event Title
+              </label>
+              <Input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="e.g. Financial Accounting Midterm"
+                className="bg-background text-sm"
+                autoFocus
+              />
             </div>
 
-            <form onSubmit={(e) => void handleUpdateEvent(e)} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="block text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">
-                  Event Title
-                </label>
-                <Input
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  placeholder="e.g. Organic Chemistry Midterm"
-                  className="bg-background text-sm"
-                  autoFocus
-                />
-              </div>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">
+                Scheduled Date
+              </label>
+              <input
+                type="date"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-[#D89A06]/30"
+              />
+            </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">
-                  Scheduled Date
-                </label>
-                <input
-                  type="date"
-                  value={editDate}
-                  onChange={(e) => setEditDate(e.target.value)}
-                  className="w-full h-10 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30"
-                />
+            <div className="space-y-1.5">
+              <label className="block text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">
+                Category
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['exam', 'assignment', 'session'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setEditType(t)}
+                    className={cn(
+                      'py-2 px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5',
+                      editType === t
+                        ? 'border-[#00004E] bg-[#00004E]/10 text-[#00004E] dark:border-[#D89A06] dark:bg-[#D89A06]/15 dark:text-[#D89A06]'
+                        : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {t === 'exam' ? 'Exam' : t === 'assignment' ? 'Assignment' : 'Session'}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">
-                  Category
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['exam', 'assignment', 'session'] as const).map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setEditType(t)}
-                      className={cn(
-                        'py-2 px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5',
-                        editType === t
-                          ? 'border-primary bg-primary/15 text-primary ring-1 ring-primary/40'
-                          : 'border-border bg-background text-muted-foreground hover:text-foreground'
-                      )}
-                    >
-                      {t === 'exam' ? 'Exam' : t === 'assignment' ? 'Assignment' : 'Session'}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={cancelEditEvent}
+                className="cursor-pointer text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isUpdating || !editTitle.trim() || !editDate}
+                className="bg-[#00004E] hover:bg-[#000038] text-white dark:bg-[#D89A06] dark:text-[#00004E] cursor-pointer text-xs gap-1.5"
+              >
+                {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                Save Changes
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={cancelEditEvent}
-                  className="cursor-pointer text-xs"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={isUpdating || !editTitle.trim() || !editDate}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer text-xs gap-1.5"
-                >
-                  {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                  Save Changes
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ConfirmActionDialog
+        open={confirmDeleteTimetableOpen}
+        onOpenChange={setConfirmDeleteTimetableOpen}
+        title="Delete weekly study timetable?"
+        description="This removes your generated study timetable template and its recurring study blocks from your calendar."
+        confirmLabel="Delete Timetable"
+        variant="destructive"
+        isLoading={isDeleting}
+        onConfirm={handleDeleteTimetable}
+      />
     </div>
   );
 }

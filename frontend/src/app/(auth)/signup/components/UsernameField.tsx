@@ -30,7 +30,7 @@ export function UsernameField() {
       try {
         const res = await fetch(`/api/profile/check-username?username=${encodeURIComponent(username)}`);
         const data = await res.json();
-        
+
         if (res.ok) {
           setIsAvailable(data.available);
           setSuggestions(data.suggestions || []);
@@ -66,23 +66,39 @@ export function UsernameField() {
 
   return (
     <div className="space-y-1.5 relative">
-      <Label htmlFor="username" className="text-xs font-semibold text-foreground">
-        Username
-      </Label>
+      <div className="flex items-center justify-between gap-2">
+        <Label htmlFor="username" className="text-xs font-semibold text-foreground">
+          Username
+        </Label>
+        {isChecking && (
+          <span className="text-[10px] font-mono text-muted-foreground">Checking...</span>
+        )}
+        {!isChecking && isAvailable === true && (
+          <span className="text-[10px] font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+            Available
+          </span>
+        )}
+        {!isChecking && isAvailable === false && (
+          <span className="text-[10px] font-mono font-semibold text-destructive">
+            Already taken
+          </span>
+        )}
+      </div>
+
       <div className="relative">
-        <Input 
+        <Input
           ref={inputRef}
-          id="username" 
-          name="username" 
-          placeholder="e.g. kmensah" 
-          required 
+          id="username"
+          name="username"
+          placeholder="e.g. kmensah"
+          required
           autoComplete="username"
-          className="pl-10 pr-10 h-11 rounded-xl bg-background border-border/80 focus:border-[#D89A06] focus:ring-2 focus:ring-[#D89A06]/20 transition-all text-sm font-mono" 
+          className="pl-10 pr-10 h-11 rounded-xl bg-background border-border/80 focus:border-[#D89A06] focus:ring-2 focus:ring-[#D89A06]/20 transition-all text-sm font-mono"
           value={username}
           onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
         />
         <AtSign className="w-4 h-4 text-muted-foreground absolute left-3.5 top-3.5 pointer-events-none" />
-        
+
         <div className="absolute right-3.5 top-3 flex items-center justify-center">
           {isChecking && <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />}
           {!isChecking && isAvailable === true && <Check className="h-4 w-4 text-emerald-500" />}
@@ -91,14 +107,14 @@ export function UsernameField() {
       </div>
 
       {suggestions.length > 0 && !isChecking && isAvailable === false && (
-        <div className="text-[11px] text-muted-foreground pt-1 flex items-center gap-1.5 flex-wrap">
-          <span>Suggestions:</span>
+        <div className="text-[11px] text-muted-foreground pt-0.5 flex items-center gap-1.5 flex-wrap">
+          <span>Try:</span>
           {suggestions.slice(0, 3).map((sugg) => (
             <button
               key={sugg}
               type="button"
               onClick={() => setUsername(sugg)}
-              className="px-2 py-0.5 rounded bg-muted hover:bg-[#D89A06]/15 hover:text-[#D89A06] transition-colors font-mono font-medium text-[10px]"
+              className="px-2 py-0.5 rounded bg-muted hover:bg-[#00004E] hover:text-white dark:hover:bg-[#D89A06] dark:hover:text-[#00004E] transition-colors font-mono font-medium text-[10px]"
             >
               @{sugg}
             </button>

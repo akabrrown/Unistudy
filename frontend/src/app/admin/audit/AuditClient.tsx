@@ -73,6 +73,9 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { format, formatDistanceToNow, isAfter, subDays, subHours } from 'date-fns'
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader'
+import { AdminMetricCard } from '@/components/admin/AdminMetricCard'
+import { CopyableId } from '@/components/ui/copyable-id'
 import { recordAuditCheckpointAction } from './actions'
 
 export interface AuditLogItem {
@@ -181,8 +184,8 @@ export function AuditClient({ initialLogs = [] }: AuditClientProps) {
         )
       case 'communications':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[var(--color-plum-500)]/15 text-[var(--color-plum-700)] dark:text-[var(--color-plum-300)] border border-[var(--color-plum-500)]/30">
-            <Radio className="w-3 h-3 text-[var(--color-plum-500)]" />
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#00004E]/10 text-[#00004E] dark:text-[#D89A06] border border-[#00004E]/20">
+            <Radio className="w-3 h-3 text-[#00004E] dark:text-[#D89A06]" />
             Broadcast
           </span>
         )
@@ -397,125 +400,94 @@ export function AuditClient({ initialLogs = [] }: AuditClientProps) {
   return (
     <div className="space-y-6 max-w-7xl pb-16">
       {/* 1. Header & Actions Strip */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-5">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
-            <span>Administration</span>
-            <span>/</span>
-            <span className="text-foreground font-semibold">Governance & Compliance</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <ShieldCheck className="w-6 h-6 text-[var(--color-plum-500)]" />
-            Immutable Security Audit Log & Compliance Ledger
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            Cryptographically anchored tamper-evident activity ledger of all administrative mutations, privilege assignments, platform configuration changes, and emergency overrides.
-          </p>
-        </div>
+      <AdminPageHeader
+        title="Security Audit & Compliance Ledger"
+        count={`${stats.total} events`}
+        subtitle="Cryptographically anchored tamper-evident activity ledger of all administrative mutations, privilege assignments, and platform configuration changes."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="h-8 text-xs gap-1.5"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </Button>
 
-        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="h-9 gap-1.5"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-input bg-background hover:bg-muted text-xs font-medium text-foreground transition-colors cursor-pointer outline-none">
+                <Download className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>Export Ledger</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={handleExportCSV}>
+                  <FileText className="w-4 h-4 mr-2 text-blue-500" />
+                  Export as CSV Spreadsheet
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportJSON}>
+                  <FileCode className="w-4 h-4 mr-2 text-primary" />
+                  Export Full JSON Ledger
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger className="h-9 px-3 inline-flex items-center gap-1.5 rounded-md border border-input bg-background hover:bg-muted text-xs font-medium text-foreground transition-colors cursor-pointer outline-none">
-              <Download className="w-3.5 h-3.5" />
-              <span>Export Ledger</span>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={handleExportCSV}>
-                <FileText className="w-4 h-4 mr-2 text-blue-500" />
-                Export as CSV Spreadsheet
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportJSON}>
-                <FileCode className="w-4 h-4 mr-2 text-primary" />
-                Export Full JSON Ledger
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button
-            onClick={() => setCheckpointOpen(true)}
-            className="h-9 gap-1.5 bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white dark:text-[#00004E] font-semibold shadow-sm"
-          >
-            <BookmarkPlus className="w-4 h-4" />
-            <span>Record Checkpoint</span>
-          </Button>
-        </div>
-      </div>
+            <Button
+              onClick={() => setCheckpointOpen(true)}
+              className="h-8 text-xs gap-1.5 bg-[#00004E] hover:bg-[#00004E]/90 dark:bg-[#D89A06] dark:hover:bg-[#D89A06]/90 text-white dark:text-[#00004E] font-semibold shadow-xs"
+            >
+              <BookmarkPlus className="w-3.5 h-3.5" />
+              <span>Record Checkpoint</span>
+            </Button>
+          </>
+        }
+      />
 
       {/* 2. Executive Telemetry Strip (5 KPI Cards) */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
-        <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Recorded Events</span>
-            <Activity className="w-4 h-4 text-[var(--color-plum-500)]" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">{stats.total}</div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span className="text-emerald-600 dark:text-emerald-400 font-medium">+{stats.last24h}</span>
-            <span>in last 24 hours</span>
-          </div>
-        </Card>
-
-        <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Security & Access</span>
-            <ShieldAlert className="w-4 h-4 text-red-500" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">{stats.securityCount}</div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span>Privileges & bans</span>
-          </div>
-        </Card>
-
-        <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Governance Shifts</span>
-            <Sliders className="w-4 h-4 text-blue-500" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">{stats.governanceCount}</div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span>Config & toggles</span>
-          </div>
-        </Card>
-
-        <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Admin Actors</span>
-            <User className="w-4 h-4 text-primary" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">{stats.uniqueAdmins || 1}</div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span>Unique operator keys</span>
-          </div>
-        </Card>
-
-        <Card className="p-4 bg-card/60 backdrop-blur border-border/70 hover:border-border transition-all col-span-2 md:col-span-1">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Target Entities</span>
-            <Layers className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">{stats.uniqueTargets || stats.total}</div>
-          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-            <span className="text-emerald-600 dark:text-emerald-400 font-medium">Distinct targets</span>
-          </div>
-        </Card>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <AdminMetricCard
+          label="Total Recorded Events"
+          value={stats.total}
+          subtext={`+${stats.last24h} in last 24h`}
+          delta={`+${stats.last24h} 24h`}
+          deltaTone="neutral"
+          icon={Activity}
+        />
+        <AdminMetricCard
+          label="Security & Access"
+          value={stats.securityCount}
+          subtext="Privileges & bans"
+          delta={stats.securityCount > 0 ? 'Audited' : 'Clean'}
+          deltaTone={stats.securityCount > 0 ? 'neutral' : 'positive'}
+          icon={ShieldAlert}
+        />
+        <AdminMetricCard
+          label="Governance Shifts"
+          value={stats.governanceCount}
+          subtext="Config & policy toggles"
+          icon={Sliders}
+        />
+        <AdminMetricCard
+          label="Admin Operators"
+          value={stats.uniqueAdmins || 1}
+          subtext="Active operator keys"
+          icon={User}
+        />
+        <AdminMetricCard
+          label="Target Entities"
+          value={stats.uniqueTargets || stats.total}
+          subtext="Distinct targets mutated"
+          icon={Layers}
+        />
       </div>
 
       {/* 3. Category Distribution Bar */}
       <Card className="border-border/70 p-4 bg-gradient-to-r from-card via-background to-muted/20">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-[var(--color-plum-500)]" />
+            <Shield className="w-4 h-4 text-[#00004E] dark:text-[#D89A06]" />
             <h3 className="text-sm font-semibold text-foreground">Action Spectrum Distribution</h3>
           </div>
           <span className="text-xs text-muted-foreground">
@@ -566,10 +538,10 @@ export function AuditClient({ initialLogs = [] }: AuditClientProps) {
           <div
             onClick={() => setCategoryFilter('communications')}
             className={`p-2.5 rounded-lg border text-left cursor-pointer transition-all hover:bg-muted/40 ${
-              categoryFilter === 'communications' ? 'border-[var(--color-plum-500)] bg-[var(--color-plum-500)]/5' : 'border-border/60'
+              categoryFilter === 'communications' ? 'border-[#00004E] dark:border-[#D89A06] bg-[#00004E]/5 dark:bg-white/5' : 'border-border/60'
             }`}
           >
-            <div className="text-[11px] font-semibold text-[var(--color-plum-700)] dark:text-[var(--color-plum-300)] uppercase tracking-tight flex items-center justify-between">
+            <div className="text-[11px] font-semibold text-[#00004E] dark:text-[#D89A06] uppercase tracking-tight flex items-center justify-between">
               <span>Broadcasts</span>
               <span>{stats.commsCount}</span>
             </div>
@@ -909,7 +881,7 @@ export function AuditClient({ initialLogs = [] }: AuditClientProps) {
                 className="relative cursor-pointer group"
                 onClick={() => setInspectedLog(item)}
               >
-                <div className="absolute -left-6 top-1 w-3 h-3 rounded-full bg-[var(--color-plum-500)] border-2 border-background ring-2 ring-border"></div>
+                <div className="absolute -left-6 top-1 w-3 h-3 rounded-full bg-[#00004E] dark:bg-[#D89A06] border-2 border-background ring-2 ring-border"></div>
 
                 <div className="p-4 rounded-xl border border-border/70 bg-card/60 hover:bg-muted/20 transition-all hover:shadow-xs">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
@@ -1062,7 +1034,7 @@ export function AuditClient({ initialLogs = [] }: AuditClientProps) {
                     </Label>
                     <button
                       onClick={() => handleCopyJson(inspectedLog.details)}
-                      className="text-[11px] text-[var(--color-plum-500)] hover:underline flex items-center gap-1"
+                      className="text-[11px] text-[#00004E] dark:text-[#D89A06] hover:underline flex items-center gap-1"
                     >
                       <Copy className="w-3 h-3" /> Copy JSON
                     </button>
@@ -1097,9 +1069,9 @@ export function AuditClient({ initialLogs = [] }: AuditClientProps) {
                 <Button
                   size="sm"
                   onClick={() => setInspectedLog(null)}
-                  className="bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white dark:text-[#00004E] font-semibold text-xs"
+                  className="bg-[#00004E] hover:bg-[#00004E]/90 dark:bg-[#D89A06] dark:hover:bg-[#D89A06]/90 text-white dark:text-[#00004E] font-semibold text-xs"
                 >
-                  Close Dossier
+                  Close Details
                 </Button>
               </SheetFooter>
             </div>
@@ -1184,7 +1156,7 @@ export function AuditClient({ initialLogs = [] }: AuditClientProps) {
                 type="submit"
                 size="sm"
                 disabled={isSubmittingCheckpoint || !chkActionType.trim()}
-                className="bg-[var(--color-plum-500)] hover:bg-[var(--color-plum-600)] text-white dark:text-[#00004E] font-semibold gap-1.5"
+                className="bg-[#00004E] hover:bg-[#00004E]/90 dark:bg-[#D89A06] dark:hover:bg-[#D89A06]/90 text-white dark:text-[#00004E] font-semibold gap-1.5"
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>{isSubmittingCheckpoint ? 'Recording...' : 'Record Checkpoint'}</span>

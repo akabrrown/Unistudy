@@ -18,11 +18,10 @@ import {
   Scale,
   Smile,
   Flame,
-  Bot,
+  FileText,
   CheckCircle2,
   SlidersHorizontal,
   Loader2,
-  MessageSquareQuote,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
@@ -38,55 +37,61 @@ const PERSONALITY_TILES = [
     id: 'encouraging',
     label: 'Encouraging',
     icon: Heart,
-    color: 'text-rose-500',
-    desc: 'Validates hard work, builds confidence, and celebrates study milestones.',
-    sampleAcademic: 'Excellent effort. Every concept you master brings you closer to distinction. Let us examine this mechanism systematically.',
-    sampleCasual: "Great job! You're really getting the hang of this. Let's break this slide down step by step!",
+    desc: 'Builds confidence and breaks tough chapters into steady, achievable steps.',
+    sampleAcademic:
+      'Solid progress. Let us examine the IAS 2 net realizable value rule on Slide 14 step by step.',
+    sampleCasual:
+      "You're making steady progress. Let's break down Slide 14 together one piece at a time.",
   },
   {
     id: 'curious',
-    label: 'Socratic & Curious',
+    label: 'Socratic & Questioning',
     icon: Compass,
-    color: 'text-amber-500',
-    desc: 'Asks guiding questions to stimulate deep thinking instead of spoon-feeding answers.',
-    sampleAcademic: 'Consider the underlying economic rationale: when prices rise, what happens to consumer surplus along the demand curve in Slide 4?',
-    sampleCasual: "Hold on, before I give you the answer: look at Slide 4. What happens to buyers when that price jumps up?",
+    desc: 'Asks guiding questions so you work out concepts yourself before seeing the answer.',
+    sampleAcademic:
+      'Before checking the solution: when market prices fall below cost on Slide 4, how does inventory valuation adjust?',
+    sampleCasual:
+      'Hold on before peeking at the answer: look at Slide 4—what happens when selling price drops below cost?',
   },
   {
     id: 'strict',
-    label: 'Strict & Rigorous',
+    label: 'Exam-Strict',
     icon: Scale,
-    color: 'text-blue-500',
-    desc: 'Pushes for academic precision, exact statutory definitions, and exam standard.',
-    sampleAcademic: 'Your definition lacks essential statutory elements. In UPSA examinations, precision in distinguishing legal entities is mandatory.',
-    sampleCasual: "Careful here: you cannot mix those two terms up. On the exam, that small slip costs points. Here is the exact distinction.",
+    desc: 'Holds your definitions, workings, and citations to full UPSA marking-scheme standards.',
+    sampleAcademic:
+      'Your definition omits two required elements. On UPSA papers, state both the statutory rule and exception for full marks.',
+    sampleCasual:
+      'Careful—mixing up those two terms costs marks on the final paper. Here is the exact distinction examiners look for.',
   },
   {
     id: 'empathetic',
-    label: 'Empathetic & Calm',
+    label: 'Calm & Patient',
     icon: Smile,
-    color: 'text-emerald-500',
-    desc: 'Gentle and patient, designed to reduce exam anxiety and cognitive overload.',
-    sampleAcademic: 'Take a calm breath. Exam stress is completely understandable. We will dissect this complex framework one clear paragraph at a time.',
-    sampleCasual: "Take a deep breath, you're doing fine! This topic looks scary at first, but let's take it one simple piece at a time.",
+    desc: 'Unpacks dense quantitative or legal topics slowly without overwhelming you.',
+    sampleAcademic:
+      'Take your time with this derivation. We will isolate each variable in the formula before combining them.',
+    sampleCasual:
+      "No rush—this formula looks dense at first, so let's unpack one variable at a time.",
   },
   {
     id: 'motivational',
-    label: 'High Energy',
+    label: 'Focused & Driven',
     icon: Flame,
-    color: 'text-orange-500',
-    desc: 'Goal-driven and energizing, keeping momentum sharp during late-night revisions.',
-    sampleAcademic: 'Finals season rewards relentless preparation. Master this core derivation today and consolidate your academic standing.',
-    sampleCasual: "Let's crush this! Semester exams are coming and you've got what it takes to get that A. Let's get to work!",
+    desc: 'Keeps momentum brisk and goal-oriented during revision week.',
+    sampleAcademic:
+      'Lock down this core derivation now—it appears repeatedly across past Semester 2 papers.',
+    sampleCasual:
+      "Let's nail this topic now—it shows up on past papers almost every year.",
   },
   {
     id: 'neutral',
-    label: 'Objective & Crisp',
-    icon: Bot,
-    color: 'text-cyan-500',
-    desc: 'Concise, academic, direct bullet points without conversational fluff.',
-    sampleAcademic: 'Direct analysis: The core distinction between GAAP and IFRS here governs inventory impairment reversal under IAS 2.',
-    sampleCasual: 'Quick breakdown: Here are the two key differences between GAAP and IFRS on inventory without any extra fluff.',
+    label: 'Direct & Concise',
+    icon: FileText,
+    desc: 'Crisp bullet points, formulas, and definitions with zero small talk.',
+    sampleAcademic:
+      'Key rule: Under IAS 2, inventory write-downs reverse up to the original write-down amount when NRV recovers.',
+    sampleCasual:
+      'Short version: IAS 2 lets you reverse an inventory write-down if NRV recovers, capped at the original write-down.',
   },
 ];
 
@@ -99,7 +104,6 @@ export function CalibrateTutorDialog({ open, onOpenChange, onSaved }: CalibrateT
 
   const supabase = createClient();
 
-  // Load existing tutor settings on dialog open
   useEffect(() => {
     if (!open) return;
 
@@ -107,18 +111,29 @@ export function CalibrateTutorDialog({ open, onOpenChange, onSaved }: CalibrateT
     const fetchCurrentSettings = async () => {
       setLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         if (!user) return;
 
         const [settingsRes, profileRes] = await Promise.all([
-          supabase.from('user_settings').select('ai_tutor_name, ai_personality, ai_tone').eq('user_id', user.id).maybeSingle(),
-          supabase.from('profiles').select('tutor_name, tutor_personality').eq('id', user.id).maybeSingle(),
+          supabase
+            .from('user_settings')
+            .select('ai_tutor_name, ai_personality, ai_tone')
+            .eq('user_id', user.id)
+            .maybeSingle(),
+          supabase
+            .from('profiles')
+            .select('tutor_name, tutor_personality')
+            .eq('id', user.id)
+            .maybeSingle(),
         ]);
 
         if (!isMounted) return;
 
         const name = settingsRes.data?.ai_tutor_name || profileRes.data?.tutor_name || 'Alex';
-        const personality = settingsRes.data?.ai_personality || profileRes.data?.tutor_personality || 'encouraging';
+        const personality =
+          settingsRes.data?.ai_personality || profileRes.data?.tutor_personality || 'encouraging';
         const tone = (settingsRes.data?.ai_tone as 'academic' | 'casual') || 'academic';
 
         setTutorName(name);
@@ -131,26 +146,28 @@ export function CalibrateTutorDialog({ open, onOpenChange, onSaved }: CalibrateT
       }
     };
 
-    fetchCurrentSettings();
+    void fetchCurrentSettings();
     return () => {
       isMounted = false;
     };
   }, [open, supabase]);
 
-  const selectedMeta = PERSONALITY_TILES.find((p) => p.id === tutorPersonality) || PERSONALITY_TILES[0];
+  const selectedMeta =
+    PERSONALITY_TILES.find((p) => p.id === tutorPersonality) || PERSONALITY_TILES[0];
 
   const handleSave = async () => {
     const trimmedName = tutorName.trim() || 'Alex';
     setSaving(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
-        toast.error('You must be logged in to save settings');
+        toast.error('You must be signed in to save settings');
         return;
       }
 
-      // 1. Sync to user_settings
       await supabase.from('user_settings').upsert({
         user_id: user.id,
         ai_tutor_name: trimmedName,
@@ -158,14 +175,16 @@ export function CalibrateTutorDialog({ open, onOpenChange, onSaved }: CalibrateT
         ai_tone: tutorTone,
       });
 
-      // 2. Sync to profiles
-      await supabase.from('profiles').update({
-        tutor_name: trimmedName,
-        tutor_personality: tutorPersonality,
-      }).eq('id', user.id);
+      await supabase
+        .from('profiles')
+        .update({
+          tutor_name: trimmedName,
+          tutor_personality: tutorPersonality,
+        })
+        .eq('id', user.id);
 
-      toast.success(`AI Tutor updated to ${trimmedName} (${selectedMeta.label} • ${tutorTone === 'casual' ? 'Casual' : 'Academic'})`);
-      
+      toast.success(`Tutor style updated to ${trimmedName} (${selectedMeta.label})`);
+
       if (onSaved) {
         onSaved({
           tutor_name: trimmedName,
@@ -177,7 +196,7 @@ export function CalibrateTutorDialog({ open, onOpenChange, onSaved }: CalibrateT
       onOpenChange(false);
     } catch (err) {
       console.error('Failed to update tutor settings:', err);
-      toast.error('Failed to save AI Tutor settings. Please try again.');
+      toast.error('Failed to save tutor style. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -185,33 +204,32 @@ export function CalibrateTutorDialog({ open, onOpenChange, onSaved }: CalibrateT
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto p-6 rounded-2xl border-2 border-[#D89A06]/35 bg-card">
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto p-6 rounded-2xl border border-border/80 bg-card">
         <DialogHeader className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="p-1.5 rounded-lg bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E]">
               <SlidersHorizontal className="w-4 h-4" />
             </span>
-            <DialogTitle className="text-lg font-black text-foreground">
-              Calibrate AI Study Companion
+            <DialogTitle className="text-lg font-bold text-foreground">
+              Tutor Style &amp; Preferences
             </DialogTitle>
           </div>
           <DialogDescription className="text-xs text-muted-foreground">
-            Adjust your tutor’s identity, pedagogical style, and communication tone at any time. Changes take effect on your next question.
+            Choose how your tutor explains lecture slides, formulas, and exam questions.
           </DialogDescription>
         </DialogHeader>
 
         {loading ? (
           <div className="py-12 flex flex-col items-center justify-center gap-2 text-muted-foreground">
             <Loader2 className="w-5 h-5 animate-spin text-[#D89A06]" />
-            <span className="text-xs">Loading tutor configuration...</span>
+            <span className="text-xs">Loading preferences...</span>
           </div>
         ) : (
           <div className="space-y-4 py-2">
-            {/* Tutor Name & Quick Suggestions */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="tutor_dialog_name" className="text-xs font-bold text-foreground">
-                  Companion Name
+                  Tutor Name
                 </Label>
                 <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                   <span>Presets:</span>
@@ -220,7 +238,11 @@ export function CalibrateTutorDialog({ open, onOpenChange, onSaved }: CalibrateT
                       key={preset}
                       type="button"
                       onClick={() => setTutorName(preset)}
-                      className="px-1.5 py-0.5 rounded bg-muted hover:bg-[#D89A06]/20 hover:text-[#D89A06] font-medium transition-colors"
+                      className={`px-2 py-0.5 rounded font-medium transition-colors cursor-pointer ${
+                        tutorName === preset
+                          ? 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E]'
+                          : 'bg-muted hover:bg-muted/80 text-foreground'
+                      }`}
                     >
                       {preset}
                     </button>
@@ -236,96 +258,105 @@ export function CalibrateTutorDialog({ open, onOpenChange, onSaved }: CalibrateT
               />
             </div>
 
-            {/* Personality Selector */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-foreground">
-                Pedagogical Personality
-              </Label>
+              <Label className="text-xs font-bold text-foreground">Teaching Approach</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {PERSONALITY_TILES.map((tile) => {
                   const isSelected = tutorPersonality === tile.id;
                   const Icon = tile.icon;
                   return (
-                    <div
+                    <button
                       key={tile.id}
+                      type="button"
                       onClick={() => setTutorPersonality(tile.id)}
                       className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
                         isSelected
-                          ? 'bg-[#00004E]/5 dark:bg-[#D89A06]/10 border-[#D89A06] ring-1 ring-[#D89A06] shadow-xs'
-                          : 'bg-background hover:bg-muted/40 border-border/80'
+                          ? 'bg-[#00004E]/[0.04] dark:bg-[#D89A06]/10 border-[#00004E] dark:border-[#D89A06] ring-1 ring-[#00004E]/20 dark:ring-[#D89A06]/40'
+                          : 'bg-background hover:bg-muted/40 border-border/70'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-0.5">
                         <div className="flex items-center gap-1.5">
-                          <Icon className={`w-3.5 h-3.5 ${tile.color}`} />
+                          <Icon
+                            className={`w-3.5 h-3.5 ${
+                              isSelected
+                                ? 'text-[#00004E] dark:text-[#D89A06]'
+                                : 'text-muted-foreground'
+                            }`}
+                          />
                           <span className="text-xs font-bold text-foreground">{tile.label}</span>
                         </div>
-                        {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#D89A06]" />}
+                        {isSelected && (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-[#00004E] dark:text-[#D89A06]" />
+                        )}
                       </div>
                       <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed">
                         {tile.desc}
                       </p>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* Communication Tone */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-foreground">
-                Communication Tone
-              </Label>
+              <Label className="text-xs font-bold text-foreground">Voice &amp; Register</Label>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { id: 'academic', label: 'Academic & Scholarly', badge: 'Exam-Focused', desc: 'Formal disciplinary vocabulary, structured rigor.' },
-                  { id: 'casual', label: 'Relatable & Casual', badge: 'Student-Peer', desc: 'Everyday analogies, conversational and approachable.' },
+                  {
+                    id: 'academic' as const,
+                    label: 'Academic & Formal',
+                    desc: 'University terminology and exam-ready phrasing.',
+                  },
+                  {
+                    id: 'casual' as const,
+                    label: 'Clear & Conversational',
+                    desc: 'Plain peer-to-peer language and everyday analogies.',
+                  },
                 ].map((tone) => {
                   const isSelected = tutorTone === tone.id;
                   return (
-                    <div
+                    <button
                       key={tone.id}
-                      onClick={() => setTutorTone(tone.id as 'academic' | 'casual')}
+                      type="button"
+                      onClick={() => setTutorTone(tone.id)}
                       className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
                         isSelected
-                          ? 'bg-[#00004E]/5 dark:bg-[#D89A06]/10 border-[#D89A06] ring-1 ring-[#D89A06] shadow-xs'
-                          : 'bg-background hover:bg-muted/40 border-border/80'
+                          ? 'bg-[#00004E]/[0.04] dark:bg-[#D89A06]/10 border-[#00004E] dark:border-[#D89A06] ring-1 ring-[#00004E]/20 dark:ring-[#D89A06]/40'
+                          : 'bg-background hover:bg-muted/40 border-border/70'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-0.5">
                         <span className="text-xs font-bold text-foreground">{tone.label}</span>
-                        {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#D89A06]" />}
+                        {isSelected && (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-[#00004E] dark:text-[#D89A06]" />
+                        )}
                       </div>
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">
-                        {tone.desc}
-                      </p>
-                    </div>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">{tone.desc}</p>
+                    </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* Live Interactive Speech Preview */}
-            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#FEF8E7] to-white dark:from-[#00004E]/30 dark:to-card border border-[#D89A06]/40 space-y-2 shadow-2xs">
+            <div className="p-3.5 rounded-xl bg-muted/30 border border-border/70 space-y-1.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-md bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] flex items-center justify-center text-[10px] font-bold shadow-2xs">
-                    {tutorName.charAt(0) || 'A'}
+                  <span className="w-5 h-5 rounded-md bg-[#00004E] text-[#D89A06] dark:bg-[#D89A06] dark:text-[#00004E] flex items-center justify-center text-[10px] font-bold">
+                    {(tutorName.charAt(0) || 'A').toUpperCase()}
                   </span>
-                  <span className="text-xs font-bold text-[#00004E] dark:text-white">
-                    {tutorName}
-                  </span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#D89A06]/15 text-[#D89A06] font-bold">
-                    {selectedMeta.label}
-                  </span>
+                  <span className="text-xs font-bold text-foreground">{tutorName || 'Alex'}</span>
+                  <span className="text-[11px] text-muted-foreground">· {selectedMeta.label}</span>
                 </div>
-                <span className="text-[10px] font-mono text-muted-foreground uppercase font-bold">
-                  {tutorTone === 'casual' ? '💬 Casual' : '🎓 Academic'}
+                <span className="text-[10px] font-mono text-muted-foreground uppercase">
+                  {tutorTone === 'casual' ? 'Conversational' : 'Academic'}
                 </span>
               </div>
-              <div className="rounded-xl rounded-tl-xs p-2.5 bg-white dark:bg-card border border-border/80 text-xs text-foreground leading-relaxed shadow-2xs">
-                &ldquo;{tutorTone === 'casual' ? selectedMeta.sampleCasual : selectedMeta.sampleAcademic}&rdquo;
-              </div>
+              <p className="text-xs text-foreground leading-relaxed pl-7">
+                &ldquo;
+                {tutorTone === 'casual' ? selectedMeta.sampleCasual : selectedMeta.sampleAcademic}
+                &rdquo;
+              </p>
             </div>
           </div>
         )}
@@ -352,7 +383,7 @@ export function CalibrateTutorDialog({ open, onOpenChange, onSaved }: CalibrateT
                 Saving...
               </>
             ) : (
-              'Save Persona'
+              'Save Preferences'
             )}
           </Button>
         </DialogFooter>

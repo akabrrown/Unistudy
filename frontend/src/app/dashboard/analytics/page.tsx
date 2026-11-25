@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import { StudyHeatmap } from '@/components/analytics/StudyHeatmap';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -431,9 +433,17 @@ export default function AnalyticsPage() {
         </div>
 
         <span className="text-[11px] font-mono text-muted-foreground px-1">
-          {loaded ? 'Live Supabase + Redis Telemetry' : 'Synchronizing metrics...'}
+          {loaded ? 'Updated today' : 'Loading progress...'}
         </span>
       </section>
+
+      {!loaded && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <Skeleton className="h-64 rounded-2xl lg:col-span-2" />
+          <Skeleton className="h-64 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
+        </div>
+      )}
 
       {/* 1. Full-Width Study Consistency Matrix + 12-Month Breakdown */}
       {showRetentionSection && (
@@ -662,26 +672,47 @@ export default function AnalyticsPage() {
                   {sortedHourlyAvg.length > 0 && (
                     <div className="space-y-2 pt-1">
                       <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-                        Hourly Quiz Accuracy Distribution
+                        24-Hour Quiz Accuracy Curve
                       </p>
-                      <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
-                        {sortedHourlyAvg.map((item) => (
-                          <div key={item.hour} className="space-y-1">
-                            <div className="flex items-center justify-between text-xs font-mono">
-                              <span className="text-foreground">{item.formattedHour}</span>
-                              <span className="text-muted-foreground">
-                                <strong className="text-foreground">{item.avg.toFixed(1)}%</strong> (
-                                {item.count}x)
-                              </span>
-                            </div>
-                            <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
-                              <div
-                                className="h-full rounded-full bg-emerald-500"
-                                style={{ width: `${Math.min(100, Math.max(5, item.avg))}%` }}
-                              />
-                            </div>
-                          </div>
-                        ))}
+                      <div className="h-44 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={sortedHourlyAvg}>
+                            <defs>
+                              <linearGradient id="hourlyAccGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#D89A06" stopOpacity={0.32} />
+                                <stop offset="95%" stopColor="#D89A06" stopOpacity={0.02} />
+                              </linearGradient>
+                            </defs>
+                            <XAxis
+                              dataKey="formattedHour"
+                              tick={{ fontSize: 10 }}
+                              axisLine={false}
+                              tickLine={false}
+                            />
+                            <YAxis
+                              domain={[0, 100]}
+                              tick={{ fontSize: 10 }}
+                              axisLine={false}
+                              tickLine={false}
+                              width={28}
+                            />
+                            <Tooltip
+                              formatter={(val) => [`${Number(val).toFixed(1)}%`, 'Avg Score']}
+                              contentStyle={{
+                                borderRadius: '10px',
+                                fontSize: '12px',
+                                border: '1px solid rgba(128,128,128,0.25)',
+                              }}
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="avg"
+                              stroke="#D89A06"
+                              strokeWidth={2}
+                              fill="url(#hourlyAccGrad)"
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
                       </div>
                     </div>
                   )}
@@ -801,22 +832,22 @@ export default function AnalyticsPage() {
                           {b.student_avg != null ? `${b.student_avg}%` : 'Not attempted'}
                         </span>
                       </div>
-                      <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
                         <div
-                          className="h-full rounded-full bg-primary"
+                          className="h-full rounded-full bg-[#00004E] dark:bg-[#D89A06]"
                           style={{ width: `${Math.min(100, Math.max(0, studentScore))}%` }}
                         />
                       </div>
 
                       <div className="flex items-center justify-between pt-1">
                         <span className="text-muted-foreground">Course Benchmark</span>
-                        <span className="font-mono text-muted-foreground">
+                        <span className="font-mono tabular-nums text-muted-foreground">
                           {b.course_avg != null ? `${b.course_avg}%` : '--'}
                         </span>
                       </div>
-                      <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
                         <div
-                          className="h-full rounded-full bg-emerald-500/70"
+                          className="h-full rounded-full bg-[#D89A06]/75 dark:bg-white/50"
                           style={{ width: `${Math.min(100, Math.max(0, cohortScore))}%` }}
                         />
                       </div>
@@ -862,22 +893,30 @@ export default function AnalyticsPage() {
                     <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-lg bg-background/70 border border-border/60 px-3 py-2">
-                      <span className="text-[10px] font-mono uppercase text-muted-foreground block">
-                        Self-Confidence
-                      </span>
-                      <span className="text-sm font-bold font-mono text-foreground">
-                        {bs.avgConf.toFixed(1)} / 5.0
-                      </span>
+                  <div className="space-y-2 text-xs">
+                    <div className="space-y-1">
+                      <div className="flex justify-between font-mono tabular-nums">
+                        <span className="text-muted-foreground">Self-Confidence</span>
+                        <span className="font-bold text-foreground">{bs.avgConf.toFixed(1)} / 5.0</span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-[#00004E] dark:bg-white"
+                          style={{ width: `${Math.min(100, (bs.avgConf / 5) * 100)}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="rounded-lg bg-background/70 border border-border/60 px-3 py-2">
-                      <span className="text-[10px] font-mono uppercase text-muted-foreground block">
-                        Actual Quiz Avg
-                      </span>
-                      <span className="text-sm font-bold font-mono text-amber-500">
-                        {bs.avgScore.toFixed(0)}%
-                      </span>
+                    <div className="space-y-1">
+                      <div className="flex justify-between font-mono tabular-nums">
+                        <span className="text-muted-foreground">Actual Quiz Avg</span>
+                        <span className="font-bold text-amber-500">{bs.avgScore.toFixed(0)}%</span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-amber-500"
+                          style={{ width: `${Math.min(100, Math.max(4, bs.avgScore))}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -908,11 +947,11 @@ export default function AnalyticsPage() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-foreground">
-                    Metacognitive Calibration Verified
+                    Confidence Matches Quiz Scores
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     No overconfidence gaps detected. Your self-rated slide comprehension aligns with
-                    your empirical quiz scores.
+                    your quiz performance.
                   </p>
                 </div>
               </div>
@@ -1049,7 +1088,7 @@ export default function AnalyticsPage() {
                   </p>
                 </div>
                 <Link
-                  href="/pricing"
+                  href="/dashboard/settings/billing"
                   className="text-xs font-semibold text-primary hover:underline shrink-0"
                 >
                   Top up credits →

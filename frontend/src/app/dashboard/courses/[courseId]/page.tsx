@@ -13,7 +13,8 @@ import {
   Plus,
   Play,
   Clock,
-  Sparkles,
+  MessageSquare,
+  HelpCircle,
   Calendar,
   GraduationCap,
   DownloadCloud,
@@ -23,6 +24,8 @@ import {
   FileText,
   RotateCcw,
 } from 'lucide-react';
+import { motion } from 'motion/react';
+import { SPRING_SNAPPY, useAppReducedMotion } from '@/lib/motion';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { createClient } from '@/lib/supabase/client';
@@ -80,6 +83,7 @@ export default function CanvasCourseWorkspacePage() {
 
   const initialTab = (searchParams.get('tab') as TabType) || 'modules';
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
+  const reducedMotion = useAppReducedMotion();
 
   const [course, setCourse] = useState<CourseData | null>(null);
   const [lectures, setLectures] = useState<LectureItem[]>([]);
@@ -216,17 +220,33 @@ export default function CanvasCourseWorkspacePage() {
             ) : null}
 
             <Link
-              href={`/dashboard/chat?courseId=${courseId}`}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[#D89A06]/60 bg-[#FEF8E7] dark:bg-white/5 px-3.5 py-2 text-xs font-bold text-[#00004E] dark:text-[#D89A06] hover:bg-[#FDF2D0] transition-colors cursor-pointer"
+              href={`/dashboard/courses/${courseId}/quiz`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background hover:bg-muted px-3 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer"
             >
-              <Sparkles className="w-3.5 h-3.5 text-[#D89A06]" />
-              AI Course Tutor
+              <HelpCircle className="w-3.5 h-3.5 text-primary" />
+              Quizzes
+            </Link>
+
+            <Link
+              href={`/dashboard/courses/${courseId}/discussion`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background hover:bg-muted px-3 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-primary" />
+              Discussions
+            </Link>
+
+            <Link
+              href={`/dashboard/chat?courseId=${courseId}`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 hover:bg-muted px-3.5 py-2 text-xs font-bold text-foreground transition-colors cursor-pointer"
+            >
+              <GraduationCap className="w-3.5 h-3.5 text-[#D89A06]" />
+              Course Tutor
             </Link>
           </div>
         </div>
 
         {/* Academic Stat Line */}
-        <div className="pt-4 border-t border-border/60 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+        <div className="pt-4 border-t border-border/60 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs tabular-nums">
           <div className="flex items-center gap-2 text-muted-foreground">
             <BookOpen className="w-4 h-4 text-[#D89A06]" />
             <span>
@@ -254,63 +274,40 @@ export default function CanvasCourseWorkspacePage() {
         </div>
       </header>
 
-      {/* Canvas LMS 4-Tab Navigation */}
-      <div className="flex items-center gap-2 border-b border-border/80 pb-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab('modules')}
-          className={cn(
-            'inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer',
-            activeTab === 'modules'
-              ? 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] shadow-2xs'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-          )}
-        >
-          <BookOpen className="w-3.5 h-3.5" />
-          Modules &amp; Lecture Decks ({lectures.length})
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('past-papers')}
-          className={cn(
-            'inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer',
-            activeTab === 'past-papers'
-              ? 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] shadow-2xs'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-          )}
-        >
-          <FileCheck2 className="w-3.5 h-3.5" />
-          Past Question Papers ({pastPapers.length})
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('flashcards')}
-          className={cn(
-            'inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer',
-            activeTab === 'flashcards'
-              ? 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] shadow-2xs'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-          )}
-        >
-          <BrainCircuit className="w-3.5 h-3.5" />
-          Flashcard Decks ({flashcards.length})
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('tutoring')}
-          className={cn(
-            'inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer',
-            activeTab === 'tutoring'
-              ? 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] shadow-2xs'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-          )}
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          Grounded AI Tutor
-        </button>
+      {/* Canvas LMS Underline Tab Navigation */}
+      <div className="flex flex-wrap items-center gap-1 border-b border-border/80">
+        {(
+          [
+            { id: 'modules', label: `Lecture Decks (${lectures.length})`, icon: BookOpen },
+            { id: 'past-papers', label: `Past Papers (${pastPapers.length})`, icon: FileCheck2 },
+            { id: 'flashcards', label: `Flashcards (${flashcards.length})`, icon: BrainCircuit },
+            { id: 'tutoring', label: 'Course Tutor', icon: GraduationCap },
+          ] as const
+        ).map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'relative inline-flex items-center gap-2 px-4 py-3 text-xs font-bold transition-colors cursor-pointer',
+                isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Icon className={cn('w-3.5 h-3.5', isActive ? 'text-[#D89A06]' : 'text-muted-foreground')} />
+              <span>{tab.label}</span>
+              {isActive && (
+                <motion.span
+                  layoutId="course-hub-active-tab"
+                  transition={reducedMotion ? { duration: 0 } : SPRING_SNAPPY}
+                  className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-[#D89A06]"
+                />
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab Content 1: Modules & Sequential Syllabus View (Canvas Standard) */}
@@ -367,10 +364,19 @@ export default function CanvasCourseWorkspacePage() {
                     className="group rounded-2xl border border-border/80 bg-card p-4 md:p-5 shadow-xs hover:border-[#D89A06] transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                   >
                     <div className="flex items-start gap-4 min-w-0">
-                      <div className="w-12 h-12 rounded-xl bg-[#00004E] text-[#D89A06] dark:bg-white/10 dark:text-[#D89A06] border border-[#D89A06]/30 flex flex-col items-center justify-center shrink-0">
-                        <span className="text-[9px] font-mono font-bold uppercase">WK</span>
-                        <span className="text-sm font-mono font-black">{String(weekNum).padStart(2, '0')}</span>
-                      </div>
+                      {lec.cover_image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={lec.cover_image_url}
+                          alt={lec.title}
+                          className="w-20 h-12 rounded-xl object-cover border border-border shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-[#00004E] text-[#D89A06] dark:bg-white/10 dark:text-[#D89A06] border border-[#D89A06]/30 flex flex-col items-center justify-center shrink-0">
+                          <span className="text-[9px] font-mono font-bold uppercase">WK</span>
+                          <span className="text-sm font-mono font-black">{String(weekNum).padStart(2, '0')}</span>
+                        </div>
+                      )}
 
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -476,10 +482,10 @@ export default function CanvasCourseWorkspacePage() {
                         Section A (MCQs) &amp; Section B (Theory)
                       </span>
                       <Link
-                        href={`/dashboard/past-papers/${paper.id}/attempt`}
+                        href={`/dashboard/past-papers/${encodeURIComponent(paper.id)}?courseId=${encodeURIComponent(courseId)}`}
                         className="inline-flex items-center gap-1.5 rounded-xl bg-[#00004E] text-white hover:bg-[#00003E] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] px-3.5 py-1.5 text-xs font-bold transition-all shadow-xs cursor-pointer"
                       >
-                        Simulate Exam
+                        Open Exam Paper
                         <ArrowRight className="w-3.5 h-3.5 text-[#D89A06] dark:text-[#00004E]" />
                       </Link>
                     </div>
@@ -554,18 +560,18 @@ export default function CanvasCourseWorkspacePage() {
         </section>
       ) : null}
 
-      {/* Tab Content 4: AI Grounded Course Tutor */}
+      {/* Tab Content 4: Course Study Tutor */}
       {activeTab === 'tutoring' ? (
         <section className="rounded-2xl border border-border/80 bg-card p-8 md:p-12 text-center space-y-5 shadow-xs flex flex-col items-center">
           <div className="w-14 h-14 rounded-2xl bg-[#00004E] text-[#D89A06] dark:bg-white/10 dark:text-[#D89A06] border border-[#D89A06]/30 flex items-center justify-center shadow-xs">
-            <Sparkles className="w-7 h-7" />
+            <GraduationCap className="w-7 h-7" />
           </div>
           <div className="space-y-2 max-w-lg">
             <h3 className="text-xl font-black text-foreground">
-              Grounded AI Tutor for {course?.course_code || 'This Course'}
+              Course Study Tutor for {course?.course_code || 'This Course'}
             </h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Ask questions about lecture slides, request formula derivations, or practice practice quiz questions. The tutor grounds its answers in your exact slide decks with slide citations.
+              Ask questions about lecture slides, request formula derivations, or practice quiz questions. Answers cite your exact uploaded slide numbers.
             </p>
           </div>
           <Link

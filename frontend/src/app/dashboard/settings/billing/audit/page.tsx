@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
+import { CopyableId } from '@/components/ui/copyable-id';
 import { cn } from '@/lib/utils';
 
 interface UsageLogItem {
@@ -126,11 +127,13 @@ export default function StandaloneAuditLogPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [realtimeActive, setRealtimeActive] = useState(false);
 
-  // Filters
+  // Filters & Pagination
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState<'all' | 'today' | '7days' | '30days'>('all');
   const [poolFilter, setPoolFilter] = useState<'all' | 'free_daily' | 'credit_funded'>('all');
   const [featureFilter, setFeatureFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 25;
 
   const supabase = createClient();
 
@@ -310,21 +313,32 @@ export default function StandaloneAuditLogPage() {
   };
 
   const formattedWalletCredits = useMemo(() => {
-    return (walletBalance / 100).toFixed(2).replace(/\.00$/, '');
+    if (walletBalance > 500) {
+      return (walletBalance / 100).toFixed(2).replace(/\.00$/, '');
+    }
+    return String(walletBalance);
   }, [walletBalance]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, timeFilter, poolFilter, featureFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
+  const paginatedLogs = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredLogs.slice(start, start + PAGE_SIZE);
+  }, [filteredLogs, currentPage]);
 
   if (loading) {
     return (
-      <div className="max-w-[1440px] mx-auto p-12 text-center space-y-4">
-        <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto text-primary animate-pulse">
-          <History className="w-6 h-6" />
+      <div className="max-w-[1440px] mx-auto space-y-6 pb-16">
+        <div className="h-14 rounded-2xl bg-muted/40 animate-pulse" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-32 rounded-2xl border border-border/60 bg-card animate-pulse" />
+          ))}
         </div>
-        <div className="space-y-1">
-          <p className="text-base font-bold text-foreground">Loading Standalone AI Compute Audit Ledger</p>
-          <p className="text-xs font-mono text-muted-foreground">
-            Streaming real-time operations, inference tokens, and compute point deductions...
-          </p>
-        </div>
+        <div className="h-96 rounded-2xl border border-border/60 bg-card animate-pulse" />
       </div>
     );
   }
@@ -632,16 +646,42 @@ export default function StandaloneAuditLogPage() {
           </div>
         </div>
 
-        {/* Feature Breakdown Summary Cards */}
-        {summary?.feature_breakdown && Object.keys(summary.feature_breakdown).length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground font-semibold">
-              Consumption Distribution by AI Feature
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-              {Object.entries(summary.feature_breakdown)
-                .sort((a, b) => b[1].points - a[1].points)
-                .map(([featKey, val]) => {
+        {/* Feature Breakdown Stacked Bar + Interactive Cards */}
+        {summary?.feature_breakdown && Object.keys(summary.feature_breakdown).length > 0 && (() => {
+          const sortedFeatures = Object.entries(summary.feature_breakdown).sort((a, b) => b[1].points - a[1].points);
+          const totalDistPts = Math.max(1, sortedFeatures.reduce((s, [, v]) => s + v.points, 0));
+          const barColors = ['bg-[#00004E]', 'bg-[#D89A06]', 'bg-emerald-600', 'bg-sky-600', 'bg-slate-500'];
+          return (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <p className="font-mono uppercase tracking-wider text-muted-foreground font-semibold">
+                  Usage Distribution by Study Tool
+                </p>
+                <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
+                  {totalDistPts.toLocaleString()} pts total
+                </span>
+              </div>
+              <div className="h-3 w-full rounded-full bg-muted overflow-hidden flex gap-0.5">
+                {sortedFeatures.map(([featKey, val], idx) => {
+                  const pct = Math.max(2, Math.round((val.points / totalDistPts) * 100));
+                  return (
+                    <button
+                      key={featKey}
+                      type="button"
+                      onClick={() => setFeatureFilter(featureFilter === featKey ? 'all' : featKey)}
+                      style={{ width: `${pct}%` }}
+                      title={`${humanizeFeature(featKey).label}: ${val.points} pts (${pct}%)`}
+                      className={cn(
+                        'h-full transition-opacity cursor-pointer',
+                        barColors[idx % barColors.length],
+                        featureFilter !== 'all' && featureFilter !== featKey && 'opacity-30'
+                      )}
+                    />
+                  );
+                })}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                {sortedFeatures.map(([featKey, val]) => {
                   const meta = humanizeFeature(featKey);
                   return (
                     <button
@@ -649,7 +689,7 @@ export default function StandaloneAuditLogPage() {
                       type="button"
                       onClick={() => setFeatureFilter(featureFilter === featKey ? 'all' : featKey)}
                       className={cn(
-                        'text-left rounded-xl border p-3 space-y-1 transition-all cursor-pointer',
+                        'text-left rounded-xl border p-3 space-y-1 transition-all cursor-pointer tabular-nums',
                         featureFilter === featKey
                           ? 'border-primary bg-primary/10 ring-2 ring-primary/20'
                           : 'border-border/70 bg-muted/15 hover:border-primary/40'
@@ -665,9 +705,10 @@ export default function StandaloneAuditLogPage() {
                     </button>
                   );
                 })}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Audit Log Table */}
         {filteredLogs.length === 0 ? (
@@ -693,14 +734,17 @@ export default function StandaloneAuditLogPage() {
             </button>
           </div>
         ) : (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs text-muted-foreground px-1 font-mono">
-              <span>Showing {filteredLogs.length} verified operations</span>
-              <span>Sorted by latest execution</span>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs text-muted-foreground px-1 font-mono tabular-nums">
+              <span>
+                Showing {(currentPage - 1) * PAGE_SIZE + 1}–
+                {Math.min(currentPage * PAGE_SIZE, filteredLogs.length)} of {filteredLogs.length} operations
+              </span>
+              <span>Page {currentPage} of {totalPages}</span>
             </div>
 
             <div className="border rounded-2xl overflow-hidden divide-y divide-border/60 bg-card">
-              {filteredLogs.map((log) => {
+              {paginatedLogs.map((log) => {
                 const meta = humanizeFeature(log.feature);
                 const Icon = meta.icon;
                 const providerName = humanizeProvider(log.provider);
@@ -726,8 +770,9 @@ export default function StandaloneAuditLogPage() {
                                 : 'bg-primary/10 text-primary border border-primary/25'
                             )}
                           >
-                            {isFreeDaily ? 'Free Daily Allowance' : 'Wallet Deduction'}
+                            {isFreeDaily ? 'Free Pass' : 'Wallet Credit'}
                           </span>
+                          <CopyableId value={log.id} truncateLength={6} toastMessage="Log ID copied" />
                         </div>
                         <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground font-mono">
                           <span className="text-foreground/80 font-semibold">{providerName}</span>
@@ -737,7 +782,7 @@ export default function StandaloneAuditLogPage() {
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0 self-end sm:self-center">
+                    <div className="text-right shrink-0 self-end sm:self-center tabular-nums">
                       <span className="font-mono text-xs font-bold text-foreground px-3 py-1.5 rounded-lg bg-muted/60 border border-border/80 inline-block">
                         -{log.cost_points} pts <span className="text-muted-foreground font-normal">(-{log.cost_credits.toFixed(2)} cr)</span>
                       </span>
@@ -746,6 +791,30 @@ export default function StandaloneAuditLogPage() {
                 );
               })}
             </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="rounded-lg border border-border bg-card hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <span className="text-xs font-mono text-muted-foreground tabular-nums">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="rounded-lg border border-border bg-card hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         )}
       </section>

@@ -1,14 +1,21 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   ArrowLeft,
   Clock,
   FileText,
-  Bot,
   FileQuestion,
   ArrowRight,
   Trash2,
@@ -24,6 +31,8 @@ import {
   RefreshCw,
   BookOpen,
   FolderInput,
+  MoreHorizontal,
+  Columns2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { apiFetch } from '@/lib/api/client'
@@ -31,8 +40,12 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
 import { MovePaperDialog } from '@/components/past-papers/MovePaperDialog'
 import { normalizePastPaperTitle, resolveDisplayCourseCode } from '@/lib/past-papers/titleNormalizer';
+import { cn } from '@/lib/utils';
 
 const OPTION_LETTER_STYLES: Record<string, string> = {
   A: 'bg-muted/60 text-muted-foreground border border-border/60',
@@ -66,18 +79,43 @@ function parseMcqContent(text: string): { stem: string; options: { letter: strin
 
 export default function PastPaperDetails() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const router = useRouter()
+  const fromCourseId = searchParams.get('courseId')
+  const trialStorageKey = params.id ? `unistudy_paper_trial_${String(params.id)}` : ''
   const [paper, setPaper] = useState<any>(null)
   const [questions, setQuestions] = useState<any[]>([])
   const [courses, setCourses] = useState<any[]>([])
   const [isMoveOpen, setIsMoveOpen] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [isExtracting, setIsExtracting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [activeTab, setActiveTab] = useState<'trial' | 'pdf'>('trial')
+  const [activeTab, setActiveTab] = useState<'trial' | 'pdf' | 'split'>('trial')
   const [trialAnswers, setTrialAnswers] = useState<Record<string, string>>({})
+  const [trialDrafts, setTrialDrafts] = useState<Record<string, string>>({})
   const [revealedSolutions, setRevealedSolutions] = useState<Record<string, boolean>>({})
   const supabase = createClient()
+
+  // Hydrate & persist trial scratchpad answers locally
+  useEffect(() => {
+    if (!trialStorageKey || typeof window === 'undefined') return
+    try {
+      const saved = localStorage.getItem(trialStorageKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.answers) setTrialAnswers(parsed.answers)
+        if (parsed?.drafts) setTrialDrafts(parsed.drafts)
+      }
+    } catch {}
+  }, [trialStorageKey])
+
+  useEffect(() => {
+    if (!trialStorageKey || typeof window === 'undefined') return
+    try {
+      localStorage.setItem(trialStorageKey, JSON.stringify({ answers: trialAnswers, drafts: trialDrafts }))
+    } catch {}
+  }, [trialAnswers, trialDrafts, trialStorageKey])
 
   const extractQuestions = async (silent = false, force = false) => {
     setIsExtracting(true);
@@ -309,8 +347,7 @@ export default function PastPaperDetails() {
 
   const handleDeletePaper = async () => {
     if (!paper) return;
-    if (!confirm('Are you sure you want to delete this past question paper? All extracted questions and attempts will be permanently deleted.')) return;
-
+    setConfirmDeleteOpen(false);
     setIsDeleting(true);
     try {
       await apiFetch(`/past-papers/${paper.id}`, { method: 'DELETE' });
@@ -351,11 +388,11 @@ export default function PastPaperDetails() {
     `/api/v1/past-questions/download?id=${encodeURIComponent(paper.id || (params.id as string))}`;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto py-2">
+    <div className="space-y-6 max-w-6xl mx-auto py-2">
       {/* Top Breadcrumb */}
-      <Link href="/dashboard/past-papers">
+      <Link href={fromCourseId ? `/dashboard/courses/${fromCourseId}/past-papers` : '/dashboard/past-papers'}>
         <Button variant="ghost" className="gap-2 -ml-4 text-muted-foreground hover:text-foreground cursor-pointer">
-          <ArrowLeft className="w-4 h-4" /> Back to Past Question Bank
+          <ArrowLeft className="w-4 h-4" /> {fromCourseId ? 'Back to Course Past Papers' : 'Back to Past Question Bank'}
         </Button>
       </Link>
 
@@ -373,43 +410,17 @@ export default function PastPaperDetails() {
                 fallback: normalizePastPaperTitle(paper.title) || 'Course Paper',
               })}
             </h1>
-            <span className="px-3 py-1 bg-[#00004E]/10 text-[#00004E] dark:bg-[#D89A06]/20 dark:text-[#D89A06] border border-[#00004E]/15 dark:border-[#D89A06]/30 rounded-full text-xs font-bold font-mono">
+            <span className="px-2.5 py-0.5 bg-muted text-foreground border border-border/80 rounded-md text-xs font-bold font-mono tabular-nums">
               {paper.year}
             </span>
-            <span className="px-3 py-1 bg-secondary/20 text-secondary-foreground border border-border/60 rounded-full text-xs font-semibold capitalize">
+            <span className="text-xs font-medium text-muted-foreground capitalize">
               {paper.exam_type === 'end-semester' ? 'End-Semester Exam' : (paper.exam_type || 'Examination')}
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              <CheckCircle2 className="w-3 h-3" /> Ready for Trial
             </span>
           </div>
           <p className="text-sm text-muted-foreground">{paper.courses?.title || normalizePastPaperTitle(paper.title)}</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Button
-            onClick={() => extractQuestions(false, true)}
-            variant="outline"
-            size="sm"
-            disabled={isExtracting}
-            className="h-9 gap-1.5 cursor-pointer font-medium border-border hover:border-primary/50"
-            title="Re-extract authentic questions verbatim from PDF with AI"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-[#00004E] dark:text-[#D89A06] ${isExtracting ? 'animate-spin' : ''}`} />
-            {isExtracting ? 'Extracting...' : 'Re-extract AI'}
-          </Button>
-
-          <Button
-            onClick={() => setIsMoveOpen(true)}
-            variant="outline"
-            size="sm"
-            className="h-9 gap-1.5 cursor-pointer font-medium border-border hover:border-primary/50"
-            title="Move paper to the course it belongs under"
-          >
-            <FolderInput className="w-3.5 h-3.5 text-[#00004E] dark:text-[#D89A06]" />
-            Move Course
-          </Button>
-
+        <div className="flex flex-wrap items-center gap-2">
           <a href={effectiveDownloadUrl} target="_blank" rel="noopener noreferrer" download>
             <Button variant="outline" size="sm" className="h-9 gap-1.5 cursor-pointer font-medium border-border hover:border-primary/50">
               <DownloadCloud className="w-4 h-4 text-[#00004E] dark:text-[#D89A06]" />
@@ -417,32 +428,49 @@ export default function PastPaperDetails() {
             </Button>
           </a>
 
-          {paper.source !== 'klok' && (
-            <Button
-              onClick={handleDeletePaper}
-              variant="outline"
-              size="sm"
-              disabled={isDeleting}
-              className="h-9 text-destructive hover:bg-destructive/10 hover:border-destructive/30 cursor-pointer"
-            >
-              {isDeleting ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1.5" />}
-              Delete
-            </Button>
-          )}
-
           <Button
             onClick={startAttempt}
             size="sm"
             className="h-9 gap-1.5 bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white shadow-xs cursor-pointer font-semibold"
           >
-            Start Timed Trial Mock (120 Mins) <ArrowRight className="w-4 h-4" />
+            Start Timed Mock (120m) <ArrowRight className="w-4 h-4" />
           </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+              <MoreHorizontal className="w-4 h-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => void extractQuestions(false, true)} disabled={isExtracting} className="cursor-pointer gap-2 text-xs">
+                <RefreshCw className={cn('w-3.5 h-3.5', isExtracting && 'animate-spin')} />
+                {isExtracting ? 'Extracting...' : 'Re-extract Questions'}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsMoveOpen(true)} className="cursor-pointer gap-2 text-xs">
+                <FolderInput className="w-3.5 h-3.5" />
+                Assign to Course
+              </DropdownMenuItem>
+              {paper.source !== 'klok' && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setConfirmDeleteOpen(true)}
+                    disabled={isDeleting}
+                    className="cursor-pointer gap-2 text-xs text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete Paper
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      {/* Main Dual View Tabs */}
-      <div className="flex items-center gap-2 border-b border-border/60 pb-1">
+      {/* Main View Mode Tabs: Interactive Questions · Split PDF + Questions · Original PDF */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-border/60 pb-2">
         <button
+          type="button"
           onClick={() => setActiveTab('trial')}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
             activeTab === 'trial'
@@ -451,9 +479,22 @@ export default function PastPaperDetails() {
           }`}
         >
           <Layers className="w-3.5 h-3.5" />
-          Extracted Trial Questions ({questions.length})
+          Interactive Questions ({questions.length})
         </button>
         <button
+          type="button"
+          onClick={() => setActiveTab('split')}
+          className={`hidden lg:flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+            activeTab === 'split'
+              ? 'bg-[#00004E] text-white dark:bg-[#D89A06] dark:text-[#00004E] shadow-xs'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+          }`}
+        >
+          <Columns2 className="w-3.5 h-3.5" />
+          Split PDF + Questions
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab('pdf')}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
             activeTab === 'pdf'
@@ -462,13 +503,13 @@ export default function PastPaperDetails() {
           }`}
         >
           <BookOpen className="w-3.5 h-3.5" />
-          Original Examination Document (PDF)
+          Original PDF Document
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="col-span-2 space-y-6">
-          {activeTab === 'trial' ? (
+      <div className={cn('grid grid-cols-1 gap-6', activeTab === 'split' ? 'lg:grid-cols-12' : 'md:grid-cols-3')}>
+        <div className={cn('space-y-6', activeTab === 'split' ? 'lg:col-span-6' : 'md:col-span-2')}>
+          {activeTab === 'trial' || activeTab === 'split' ? (
             <Card className="border-border/80 shadow-xs">
               <CardHeader className="border-b border-border/50 pb-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -484,10 +525,10 @@ export default function PastPaperDetails() {
               <CardContent className="pt-6 space-y-6">
                 {isExtracting ? (
                   <div className="flex flex-col items-center justify-center py-12 px-6 text-center bg-muted/15 rounded-xl border border-dashed border-border space-y-3">
-                    <Bot className="w-8 h-8 animate-bounce text-[#00004E] dark:text-[#D89A06]" />
+                    <Loader2 className="w-7 h-7 animate-spin text-[#00004E] dark:text-[#D89A06]" />
                     <div className="space-y-1">
-                      <p className="text-sm font-semibold text-foreground">AI is extracting questions from the exam paper...</p>
-                      <p className="text-xs text-muted-foreground">Parsing Section A (MCQs) and Section B (Theory) for your trial practice.</p>
+                      <p className="text-sm font-semibold text-foreground">Extracting questions from the exam paper...</p>
+                      <p className="text-xs text-muted-foreground">Parsing Section A (MCQs) and Section B (Theory) for interactive practice.</p>
                     </div>
                   </div>
                 ) : questions.length === 0 ? (
@@ -542,7 +583,7 @@ export default function PastPaperDetails() {
                           const isRevealed = revealedSolutions[q.id];
 
                           return (
-                            <div key={q.id} className="p-4.5 rounded-xl bg-card border border-border/80 shadow-xs space-y-3">
+                            <div key={q.id} id={`paper-q-${q.id}`} className="p-4.5 rounded-xl bg-card border border-border/80 shadow-xs space-y-3 scroll-mt-20">
                               <div className="flex justify-between items-start">
                                 <span className="font-bold text-sm text-foreground font-mono">
                                   Question {q.question_number}
@@ -561,7 +602,9 @@ export default function PastPaperDetails() {
 
                               {stem && (
                                 <div className="text-sm text-foreground/90 prose prose-sm dark:prose-invert max-w-none leading-relaxed">
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{stem}</ReactMarkdown>
+                                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                    {stem}
+                                  </ReactMarkdown>
                                 </div>
                               )}
 
@@ -639,7 +682,7 @@ export default function PastPaperDetails() {
                           const isRevealed = revealedSolutions[q.id];
 
                           return (
-                            <div key={q.id} className="p-4.5 rounded-xl bg-card border border-border/80 shadow-xs space-y-3">
+                            <div key={q.id} id={`paper-q-${q.id}`} className="p-4.5 rounded-xl bg-card border border-border/80 shadow-xs space-y-3 scroll-mt-20">
                               <div className="flex justify-between items-start">
                                 <span className="font-bold text-sm text-foreground font-mono">
                                   Question {q.question_number}
@@ -657,7 +700,7 @@ export default function PastPaperDetails() {
                               </div>
 
                               <div className="text-sm text-foreground/90 prose prose-sm dark:prose-invert max-w-none [&_table]:border-collapse [&_table]:w-full [&_table]:border [&_table]:border-border [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:p-2 [&_td]:border [&_td]:border-border [&_td]:p-2">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
                                   {q.text_content.replace(/<br\s*\/?>/gi, '\n')}
                                 </ReactMarkdown>
                               </div>
@@ -684,11 +727,15 @@ export default function PastPaperDetails() {
                                   </label>
                                   <textarea
                                     rows={3}
+                                    value={trialDrafts[q.id] || ''}
+                                    onChange={(e) =>
+                                      setTrialDrafts((prev) => ({ ...prev, [q.id]: e.target.value }))
+                                    }
                                     placeholder="Type your outline, formulas, or key bullet points here to practice..."
                                     className="w-full text-xs p-2.5 rounded-md border border-border bg-background text-foreground resize-y focus:outline-none focus:ring-1 focus:ring-primary"
                                   />
                                   <p className="text-[11px] text-muted-foreground">
-                                    Trial draft saved locally. Launch the Timed Mock Exam when ready for official AI essay grading.
+                                    Draft auto-saved locally. Launch the Timed Mock Exam when ready for full rubric marking.
                                   </p>
                                 </div>
                               )}
@@ -756,80 +803,145 @@ export default function PastPaperDetails() {
           )}
         </div>
 
-        {/* Right Rail: Exam Details */}
-        <div className="space-y-6">
-          <Card className="border-border/80 shadow-xs">
-            <CardHeader className="border-b border-border/50 pb-4">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Clock className="w-4 h-4 text-[#00004E] dark:text-[#D89A06]" /> Trial Exam Overview
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-5 text-sm">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Course Code</span>
-                <span className="font-bold text-[#00004E] dark:text-[#D89A06] font-mono">
-                  {paper.courses?.course_code || paper.course_code || 'EXAM'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Academic Year</span>
-                <span className="font-semibold">{paper.year}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Time Limit</span>
-                <span className="font-medium">120 Minutes</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Total Questions</span>
-                <span className="font-bold text-foreground">
-                  {questions.length > 0 ? `${questions.length} Questions` : 'Ready to Extract'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">MCQs (Sec A)</span>
-                <span className="font-medium">{mcqQuestions.length}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Theory (Sec B)</span>
-                <span className="font-medium">{theoryQuestions.length}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Available Marks</span>
-                <span className="font-medium">
-                  {totalCalculatedMarks > 0 ? `${totalCalculatedMarks} Marks` : '100 Marks'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Trial Format</span>
-                <span className="font-semibold text-xs px-2.5 py-0.5 rounded-full bg-[#00004E]/10 text-[#00004E] dark:bg-[#D89A06]/20 dark:text-[#D89A06]">
-                  Interactive + PDF
-                </span>
-              </div>
+        {/* Right Rail: Split-Screen PDF Pane OR Exam Overview + Question Jump Grid */}
+        <div className={cn('space-y-6', activeTab === 'split' ? 'lg:col-span-6 lg:sticky lg:top-6' : '')}>
+          {activeTab === 'split' ? (
+            <Card className="border-border/80 shadow-xs">
+              <CardHeader className="border-b border-border/50 pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-[#00004E] dark:text-[#D89A06]" />
+                    <span>Original Examination PDF</span>
+                  </CardTitle>
+                  <a href={effectiveDownloadUrl} target="_blank" rel="noopener noreferrer">
+                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1 cursor-pointer">
+                      <ExternalLink className="w-3 h-3" /> Open Tab
+                    </Button>
+                  </a>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-3">
+                <div className="w-full h-[760px] rounded-xl overflow-hidden border border-border/80 bg-muted/10">
+                  <iframe
+                    src={`${effectiveDownloadUrl}#toolbar=1`}
+                    className="w-full h-full border-0"
+                    title={paper.title || 'Official Examination Paper PDF'}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-border/80 shadow-xs">
+              <CardHeader className="border-b border-border/50 pb-4">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-[#00004E] dark:text-[#D89A06]" /> Exam Paper Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-5 text-sm tabular-nums">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Course Code</span>
+                  <span className="font-bold text-[#00004E] dark:text-[#D89A06] font-mono">
+                    {paper.courses?.course_code || paper.course_code || 'EXAM'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Academic Year</span>
+                  <span className="font-semibold">{paper.year}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Time Limit</span>
+                  <span className="font-medium">120 Minutes</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Questions Extracted</span>
+                  <span className="font-bold text-foreground">
+                    {questions.length > 0 ? `${questions.length}` : 'Ready to Extract'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Section A / B</span>
+                  <span className="font-medium font-mono text-xs">
+                    {mcqQuestions.length} MCQ · {theoryQuestions.length} Theory
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Available Marks</span>
+                  <span className="font-medium">
+                    {totalCalculatedMarks > 0 ? `${totalCalculatedMarks} Marks` : '—'}
+                  </span>
+                </div>
 
-              <div className="pt-4 border-t border-border/60 space-y-2.5">
-                <Button
-                  onClick={startAttempt}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white px-3.5 py-2.5 text-xs font-semibold transition-colors cursor-pointer shadow-xs"
-                >
-                  <ArrowRight className="w-3.5 h-3.5" />
-                  Launch Timed Trial Mock
-                </Button>
+                {questions.length > 0 && (
+                  <div className="pt-3 border-t border-border/60 space-y-2">
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground font-bold block">
+                      Jump to Question
+                    </span>
+                    <div className="grid grid-cols-6 gap-1.5">
+                      {questions.map((q, idx) => {
+                        const attempted = Boolean(trialAnswers[q.id] || trialDrafts[q.id]?.trim());
+                        return (
+                          <button
+                            key={q.id}
+                            type="button"
+                            onClick={() => {
+                              setActiveTab('trial');
+                              setTimeout(() => {
+                                document
+                                  .getElementById(`paper-q-${q.id}`)
+                                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }, 40);
+                            }}
+                            className={cn(
+                              'h-7 rounded-md font-mono text-[11px] font-bold border transition-colors cursor-pointer tabular-nums',
+                              attempted
+                                ? 'bg-[#00004E] text-[#D89A06] border-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E]'
+                                : 'bg-background text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground'
+                            )}
+                          >
+                            {q.question_number || idx + 1}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
-                <a
-                  href={effectiveDownloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background hover:bg-muted px-3.5 py-2.5 text-xs font-semibold text-foreground transition-colors cursor-pointer"
-                >
-                  <DownloadCloud className="w-3.5 h-3.5 text-[#00004E] dark:text-[#D89A06]" />
-                  Download PDF (Offline)
-                </a>
-              </div>
-            </CardContent>
-          </Card>
+                <div className="pt-4 border-t border-border/60 space-y-2.5">
+                  <Button
+                    onClick={startAttempt}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] hover:bg-[#00003E] dark:hover:bg-[#C28905] text-white px-3.5 py-2.5 text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                  >
+                    <ArrowRight className="w-3.5 h-3.5" />
+                    Launch Timed Mock (120m)
+                  </Button>
+
+                  <a
+                    href={effectiveDownloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background hover:bg-muted px-3.5 py-2.5 text-xs font-semibold text-foreground transition-colors cursor-pointer"
+                  >
+                    <DownloadCloud className="w-3.5 h-3.5 text-[#00004E] dark:text-[#D89A06]" />
+                    Download PDF (Offline)
+                  </a>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
+
+      <ConfirmActionDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title="Delete Past Examination Paper?"
+        description="This permanently removes the uploaded paper, extracted questions, and saved attempt history."
+        confirmLabel="Delete Paper"
+        variant="destructive"
+        loading={isDeleting}
+        onConfirm={() => void handleDeletePaper()}
+      />
 
       <MovePaperDialog
         isOpen={isMoveOpen}
