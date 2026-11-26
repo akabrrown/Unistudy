@@ -11,6 +11,9 @@ const STATIC_PUBLIC_ROUTES = [
   '/pricing',
   '/features',
   '/contact',
+  '/offline',
+  '/manifest.webmanifest',
+  '/sw.js',
 ]
 
 const AUTH_PUBLIC_ROUTES = ['/login', '/signup', '/forgot-password', '/auth/callback']

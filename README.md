@@ -140,6 +140,7 @@ The web application will be live at `http://localhost:3000`.
 
 ## 5. Recent Changelog & Key System Updates
 
+- **Progressive Web App (PWA) & Offline Shell:** Added Web App Manifest (`manifest.ts`), production Service Worker (`sw.js`), collegiate offline fallback screen (`/offline`), and `PwaManager` install/connectivity listener with Dexie IndexedDB local-first persistence.
 - **Native Past Paper Uploads:** Past paper PDF uploads now run through a dedicated native Next.js API route (`/api/past-papers/upload`) featuring Gemini Multimodal PDF parsing and Cloudinary storage.
 - **Removed Moodle Portal Sync:** Eliminated third-party Moodle credential scrapers (`MoodleSyncModal` and crawler background tasks) in favor of the resilient native past paper endpoint and KLOK repository search.
 - **Multimodal AI Slide Vision:** Added substantive text threshold logic in `explain.ts` and `ai.ts`. When a slide contains graphical code or sparse text (e.g. only `"Slide 12"`), text-only models are bypassed in favor of Gemini Vision directly inspecting the slide image.

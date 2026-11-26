@@ -1,5 +1,15 @@
 # UniStudy Development Roadmap & Queued Features
 
+## 🚀 Recent Deliverables
+
+### ✅ Progressive Web App (PWA) & Offline Shell (Phase 1)
+- **Web App Manifest:** Standalone display, UPSA brand theme `#00004E`, collegiate icons, and mobile install prompt.
+- **Service Worker (`public/sw.js`):** Pre-caches critical assets, executes network-first navigation with 3.5s timeout, cache-first for static media, and serves `/offline` fallback when disconnected.
+- **Offline Fallback Page (`/offline`):** Collegiate offline experience with real-time connectivity detection, auto-reload on reconnect, and direct links to locally cached dashboards and past papers.
+- **PWA Manager (`components/pwa/PwaManager.tsx`):** Seamless install prompt handler, live online/offline toast notifications, and Dexie IndexedDB integration.
+
+---
+
 ## 📌 Next Priority Milestone: UniLecture Live (Interactive AI Lecturer)
 
 > **Status:** Queued / Ready for Implementation  
