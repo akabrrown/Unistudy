@@ -221,7 +221,6 @@ export async function POST(req: NextRequest) {
         status: 'ready',
         course_code: resolvedCourseCode,
         normalized_course_code: normalizedCode,
-        file_url: fileUrl,
         shared_to_community: false,
       })
       .select()
@@ -229,6 +228,16 @@ export async function POST(req: NextRequest) {
 
     if (pErr) throw pErr;
     createdPaperId = paper.id;
+
+    // Save Cloudinary PDF URL in past_paper_pages table
+    if (fileUrl) {
+      await supabase.from('past_paper_pages').insert({
+        past_paper_id: paper.id,
+        paper_id: paper.id,
+        page_number: 1,
+        image_url: fileUrl,
+      });
+    }
 
     // 7. Extract Questions using Gemini Multimodal Vision / PDF Reading
     let extractedQuestions = await extractQuestionsWithGemini(pdfBuffer, resolvedCourseCode);

@@ -89,6 +89,7 @@ export async function GET(req: NextRequest) {
         .from('past_papers')
         .select(`
           id,
+          user_id,
           course_id,
           course_code,
           normalized_course_code,
@@ -99,7 +100,7 @@ export async function GET(req: NextRequest) {
           created_at,
           courses(id, course_code, title, colour),
           past_paper_questions(id, question_number, text_content, extracted_topic, marks_available),
-          past_paper_pages(id, image_url)
+          past_paper_pages!past_paper_pages_past_paper_id_fkey(id, image_url)
         `);
 
       if (isGlobalSearch) {
@@ -115,9 +116,9 @@ export async function GET(req: NextRequest) {
           ? targetCourse.course_code.toUpperCase().replace(/[^A-Z0-9]/g, '')
           : null;
         if (targetNorm) {
-          query = query.or(`course_id.eq.${courseIdParam},normalized_course_code.eq.${targetNorm}`);
+          query = query.or(`course_id.eq.${courseIdParam},normalized_course_code.eq.${targetNorm},user_id.eq.${user.id}`);
         } else {
-          query = query.eq('course_id', courseIdParam);
+          query = query.or(`course_id.eq.${courseIdParam},user_id.eq.${user.id}`);
         }
       } else if (userCourses.length > 0) {
         const filters: string[] = [];
@@ -201,6 +202,7 @@ export async function GET(req: NextRequest) {
 
           return {
             id: p.id,
+            user_id: p.user_id,
             course_id: resolvedCourse?.id || p.course_id,
             course_code: safeCode,
             normalized_course_code: safeCode.replace(/[^A-Z0-9]/g, ''),
@@ -355,41 +357,37 @@ export async function GET(req: NextRequest) {
     }
 
     // 4. Merge local Bank papers + external Endpoint papers with Deduplication
-    const paperMap = new Map<string, any>();
+    const seenKeys = new Set<string>();
+    const finalPapers: any[] = [];
 
     // Bank papers take precedence (they have extracted questions and permanent Cloudinary URLs)
     for (const p of localPapers) {
+      if (!p.id || seenKeys.has(p.id)) continue;
       const courseKey = (p.normalized_course_code || p.course_code || '')
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, '');
       const cleanTitle = (p.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const dedupKey = `${courseKey}_${p.year}_${p.exam_type || 'end-semester'}_${cleanTitle}`;
-      if (!paperMap.has(dedupKey) && !paperMap.has(p.id)) {
-        paperMap.set(dedupKey, p);
-        paperMap.set(p.id, p);
-      }
+      if (cleanTitle && seenKeys.has(dedupKey)) continue;
+
+      seenKeys.add(p.id);
+      if (cleanTitle) seenKeys.add(dedupKey);
+      finalPapers.push(p);
     }
 
     // Merge external KLOK papers for any papers not yet in the local bank
     for (const p of klokPapers) {
+      if (!p.id || seenKeys.has(p.id)) continue;
       const courseKey = (p.normalized_course_code || p.course_code || '')
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, '');
       const cleanTitle = (p.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const dedupKey = `${courseKey}_${p.year}_${p.exam_type || 'end-semester'}_${cleanTitle}`;
-      if (!paperMap.has(dedupKey) && !paperMap.has(p.id)) {
-        paperMap.set(dedupKey, p);
-        paperMap.set(p.id, p);
-      }
-    }
+      if (cleanTitle && seenKeys.has(dedupKey)) continue;
 
-    const seenIds = new Set<string>();
-    const finalPapers: any[] = [];
-    for (const p of paperMap.values()) {
-      if (p.id && !seenIds.has(p.id)) {
-        seenIds.add(p.id);
-        finalPapers.push(p);
-      }
+      seenKeys.add(p.id);
+      if (cleanTitle) seenKeys.add(dedupKey);
+      finalPapers.push(p);
     }
 
     return NextResponse.json(finalPapers, {

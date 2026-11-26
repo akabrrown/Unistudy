@@ -64,6 +64,7 @@ interface PastPaperCourseJoin {
 
 interface PastPaperRecord {
   id: string;
+  user_id?: string | null;
   course_id: string | null;
   course_code?: string | null;
   normalized_course_code?: string | null;
@@ -229,7 +230,11 @@ export default function PastPapersDashboard() {
       .map((c) => (c.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''))
       .filter(Boolean);
 
+    const currentUserId = session?.user?.id;
     const nextPapers = rawPapers.filter((p) => {
+      // 0. Papers uploaded by the current student: ALWAYS show!
+      if (currentUserId && p.user_id && p.user_id === currentUserId) return true;
+
       // 1. Direct course ID match
       if (p.course_id && userCourseIdSet.has(p.course_id)) return true;
       const cId = Array.isArray(p.courses) ? p.courses[0]?.id : p.courses?.id;
