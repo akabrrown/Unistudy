@@ -338,6 +338,39 @@ export function clearSlideProgress(lectureId: string): void {
   } catch {}
 }
 
+/**
+ * 0ms Past Papers Cache: In-memory + sessionStorage cache so past questions load
+ * immediately without waiting for network revalidation.
+ */
+let inMemoryPastPapers: any[] | null = null;
+
+export function getCachedPastPapers(): any[] | null {
+  if (inMemoryPastPapers && inMemoryPastPapers.length > 0) {
+    return inMemoryPastPapers;
+  }
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem('unistudy_cached_past_papers');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        inMemoryPastPapers = parsed;
+        return parsed;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+export function saveCachedPastPapers(papers: any[]): void {
+  if (!Array.isArray(papers) || papers.length === 0) return;
+  inMemoryPastPapers = papers;
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem('unistudy_cached_past_papers', JSON.stringify(papers.slice(0, 150)));
+  } catch {}
+}
+
 // Auto-register online event listener in the browser
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {

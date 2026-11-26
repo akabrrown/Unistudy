@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 import { cleanLectureTitle, formatCourseCode } from '@/lib/courses/lectureTitle';
+import { getServiceSupabase, syncCoursePapersFromKlok } from '@/lib/past-papers/ingestion';
 
 export const dynamic = 'force-dynamic';
 
@@ -143,6 +144,29 @@ export async function POST(request: Request) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Auto-link central bank past papers & trigger background bank sync for this course code
+    if (data?.course_code) {
+      const normalizedCode = data.course_code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (normalizedCode) {
+        try {
+          const serviceSupabase = getServiceSupabase();
+          if (serviceSupabase) {
+            // Associate any central past papers with this normalized course code that have no course_id assigned
+            void serviceSupabase
+              .from('past_papers')
+              .update({ course_id: data.id })
+              .eq('normalized_course_code', normalizedCode)
+              .is('course_id', null);
+          }
+        } catch (linkErr) {
+          console.warn('[Courses POST] Notice linking past papers:', linkErr);
+        }
+
+        // Fire-and-forget background sync to ensure central bank has any papers uploaded to KLOK
+        void syncCoursePapersFromKlok(data.course_code, data.id, user.id);
+      }
     }
 
     return NextResponse.json(data);

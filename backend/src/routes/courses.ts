@@ -187,6 +187,18 @@ router.post('/', authenticateUser, async (req: Request, res: Response) => {
   const { data, error } = await supabase.from('courses').insert({ ...parsed.data, user_id: req.user!.id }).select('*, lectures(id)').single();
   
   if (error) return res.status(500).json({ error: 'Internal server error', details: process.env.NODE_ENV === 'development' ? error.message : undefined });
+  
+  if (data?.course_code) {
+    const norm = data.course_code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (norm) {
+      void supabaseAdmin
+        .from('past_papers')
+        .update({ course_id: data.id })
+        .eq('normalized_course_code', norm)
+        .is('course_id', null);
+    }
+  }
+
   invalidateCourseCaches(req.user!.id, data?.id);
   res.json(data);
 });
