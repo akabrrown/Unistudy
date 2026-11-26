@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { fetchKlokPapers, getServiceSupabase } from '@/lib/past-papers/ingestion';
+import {
+  fetchKlokPapers,
+  ensurePaperIngested,
+  getServiceSupabase,
+} from '@/lib/past-papers/ingestion';
 import {
   normalizePastPaperTitle,
   isUidString,
@@ -15,6 +19,33 @@ function parseYear(val: any): number {
   if (!val) return new Date().getFullYear();
   const m = String(val).match(/(\d{4})/);
   return m ? parseInt(m[1], 10) : new Date().getFullYear();
+}
+
+function findMatchingCourse(userCourses: any[], codeOrTitle: string): any | null {
+  if (!codeOrTitle || !userCourses || userCourses.length === 0) return null;
+  const clean = codeOrTitle.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!clean) return null;
+
+  // 1. Exact match on normalized code (e.g. BCPC207 === BCPC207)
+  for (const c of userCourses) {
+    const cCode = (c.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (cCode && cCode === clean) return c;
+  }
+
+  // 2. Strict prefix boundary match (e.g. BCPC207_FINAL matches BCPC207, BCPC201 matches BCPC 201)
+  for (const c of userCourses) {
+    const cCode = (c.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!cCode) continue;
+    const idx = clean.indexOf(cCode);
+    if (idx !== -1) {
+      const nextChar = clean[idx + cCode.length];
+      if (!nextChar || !/[0-9]/.test(nextChar)) {
+        return c;
+      }
+    }
+  }
+
+  return null;
 }
 
 export async function GET(req: NextRequest) {
@@ -89,7 +120,6 @@ export async function GET(req: NextRequest) {
           query = query.eq('course_id', courseIdParam);
         }
       } else if (userCourses.length > 0) {
-        // Include user's enrolled courses by ID, by normalized code, or papers uploaded by user
         const filters: string[] = [];
         if (userCourseIds.length > 0) {
           filters.push(`course_id.in.(${userCourseIds.join(',')})`);
@@ -112,7 +142,6 @@ export async function GET(req: NextRequest) {
       }
 
       if (rawPapers && rawPapers.length > 0) {
-        // Fetch any missing course records via service client if unjoined
         const missingCourseIds = Array.from(
           new Set(
             rawPapers
@@ -213,54 +242,122 @@ export async function GET(req: NextRequest) {
       console.warn('[API /api/v1/past-questions] Supabase local fetch warning:', dbErr.message);
     }
 
-    // 3. Fallback Discovery ONLY for Global Search with 0 local matches
-    // In normal course browsing, we NEVER query KLOK synchronously.
-    let externalDiscoveredPapers: any[] = [];
-    if (isGlobalSearch && localPapers.length === 0) {
-      try {
-        const klokItems = await fetchKlokPapers(queryParam);
-        for (const item of klokItems.slice(0, 10)) {
-          const rawName =
-            item.name || item.filename || item.title || item.id || 'Past Examination Paper';
-          const cleanTitle = normalizePastPaperTitle(rawName);
-          const detectedCode = extractCourseCode(cleanTitle) || 'EXAM';
-          const isMidterm =
-            cleanTitle.toLowerCase().includes('mid') || cleanTitle.toLowerCase().includes('interim');
+    // 3. Seamless Endpoint (KLOK) Fetch & Non-Blocking Auto-Ingest
+    // We check KLOK for:
+    // a) Search queries
+    // b) User enrolled courses
+    const searchTerms: string[] = [];
+    if (queryParam) {
+      searchTerms.push(queryParam);
+    } else if (courseIdParam) {
+      const targetCourse = userCourses.find((c) => c.id === courseIdParam);
+      if (targetCourse?.course_code) {
+        searchTerms.push(targetCourse.course_code.trim());
+        const noSpace = targetCourse.course_code.replace(/\s+/g, '').trim();
+        if (noSpace !== targetCourse.course_code.trim()) {
+          searchTerms.push(noSpace);
+        }
+      }
+    } else if (userCourses.length > 0) {
+      for (const c of userCourses) {
+        if (c.course_code) {
+          const codeClean = c.course_code.trim();
+          searchTerms.push(codeClean);
+          const noSpace = codeClean.replace(/\s+/g, '');
+          if (noSpace !== codeClean && !searchTerms.includes(noSpace)) {
+            searchTerms.push(noSpace);
+          }
+        }
+      }
+    } else {
+      // General fallback terms for students with no courses yet
+      searchTerms.push('BCPC', 'BINF', 'BBA');
+    }
 
-          externalDiscoveredPapers.push({
-            id: item.id,
-            course_id: null,
-            course_code: detectedCode,
-            normalized_course_code: detectedCode.replace(/[^A-Z0-9]/g, ''),
-            title: cleanTitle,
-            year: parseYear(item.year || cleanTitle),
-            exam_type: isMidterm ? 'mid-semester' : 'end-semester',
-            status: 'ready',
-            created_at: new Date(
-              item.timemodified ? item.timemodified * 1000 : Date.now()
-            ).toISOString(),
-            download_url: `/api/v1/past-questions/download?id=${encodeURIComponent(item.id)}`,
-            filesize: item.filesize,
-            source: 'klok',
-            courses: {
+    const uniqueTerms = Array.from(new Set(searchTerms)).slice(0, 10);
+    const klokResults = await Promise.all(uniqueTerms.map((t) => fetchKlokPapers(t)));
+
+    // Deduplicate KLOK items by ID
+    const seenKlokIds = new Set<string>();
+    const allKlokItems: any[] = [];
+    for (const items of klokResults) {
+      for (const item of items) {
+        if (item.id && !seenKlokIds.has(item.id)) {
+          seenKlokIds.add(item.id);
+          allKlokItems.push(item);
+        }
+      }
+    }
+
+    const klokPapers: any[] = [];
+    for (const item of allKlokItems) {
+      const rawName =
+        item.name || item.filename || item.title || item.id || 'Past Examination Paper';
+      const cleanTitle = normalizePastPaperTitle(rawName);
+      const detectedCode = extractCourseCode(cleanTitle);
+
+      // Check if this paper matches any of the user's enrolled courses
+      const matchingCourse =
+        findMatchingCourse(userCourses, detectedCode || '') ||
+        findMatchingCourse(userCourses, cleanTitle);
+
+      // In non-global default mode, filter to user courses if user has enrolled courses
+      if (!isGlobalSearch && !matchingCourse && userCourses.length > 0) {
+        continue;
+      }
+
+      // Fast non-blocking auto-ingest into Central Bank in background (NO await to keep response <300ms)
+      if (matchingCourse) {
+        void ensurePaperIngested(item, matchingCourse, user.id);
+      }
+
+      const courseCode = resolveDisplayCourseCode({
+        courseCode: matchingCourse?.course_code,
+        joinedCourseCode: matchingCourse?.course_code,
+        paperTitle: cleanTitle,
+        fallback: detectedCode || 'EXAM',
+      });
+      const isMidterm =
+        cleanTitle.toLowerCase().includes('mid') || cleanTitle.toLowerCase().includes('interim');
+
+      klokPapers.push({
+        id: item.id,
+        course_id: matchingCourse ? matchingCourse.id : null,
+        course_code: courseCode,
+        normalized_course_code: courseCode.replace(/[^A-Z0-9]/g, ''),
+        title: cleanTitle,
+        year: parseYear(item.year || cleanTitle),
+        exam_type: isMidterm ? 'mid-semester' : 'end-semester',
+        status: 'ready',
+        created_at: new Date(
+          item.timemodified ? item.timemodified * 1000 : Date.now()
+        ).toISOString(),
+        download_url: `/api/v1/past-questions/download?id=${encodeURIComponent(item.id)}`,
+        filesize: item.filesize,
+        source: 'klok',
+        courses: matchingCourse
+          ? {
+              id: matchingCourse.id,
+              course_code: courseCode,
+              title: matchingCourse.title,
+              colour: matchingCourse.colour || '#00004E',
+            }
+          : {
               id: null,
-              course_code: detectedCode,
+              course_code: courseCode,
               title: cleanTitle,
               colour: '#00004E',
               isCentral: true,
             },
-            question_count: 0,
-            questions: [],
-          });
-        }
-      } catch (externalErr: any) {
-        console.warn('[API /api/v1/past-questions] External fallback search notice:', externalErr.message);
-      }
+        question_count: 0,
+        questions: [],
+      });
     }
 
-    // 4. Strict Deduplication per Course across academic year & exam type
+    // 4. Merge local Bank papers + external Endpoint papers with Deduplication
     const paperMap = new Map<string, any>();
 
+    // Bank papers take precedence (they have extracted questions and permanent Cloudinary URLs)
     for (const p of localPapers) {
       const courseKey = (p.normalized_course_code || p.course_code || '')
         .toUpperCase()
@@ -273,7 +370,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    for (const p of externalDiscoveredPapers) {
+    // Merge external KLOK papers for any papers not yet in the local bank
+    for (const p of klokPapers) {
       const courseKey = (p.normalized_course_code || p.course_code || '')
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, '');
