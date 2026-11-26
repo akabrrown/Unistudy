@@ -36,6 +36,7 @@ interface CourseRow {
 
 interface ProfileRow {
   full_name: string | null;
+  username: string | null;
   university: string | null;
   degree: string | null;
   year_of_study: number | null;
@@ -167,7 +168,7 @@ export default async function DashboardPage() {
     ] = await Promise.allSettled([
       supabase
         .from('profiles')
-        .select('full_name, university, degree, year_of_study')
+        .select('full_name, username, university, degree, year_of_study')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -519,12 +520,19 @@ export default async function DashboardPage() {
         )
       : null;
 
+  const displayHandle =
+    profile?.username?.trim() ||
+    profile?.full_name?.trim()?.split(/\s+/)[0] ||
+    (typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name.trim().split(/\s+/)[0] : '') ||
+    user?.email?.split('@')[0] ||
+    'Scholar';
+
   const fullName =
     profile?.full_name?.trim() ||
     (typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name.trim() : '') ||
     user?.email?.split('@')[0] ||
     'Scholar';
-  const firstName = fullName.split(/\s+/)[0] || 'Scholar';
+  const firstName = displayHandle;
 
   const subtitleParts = [
     profile?.degree,
