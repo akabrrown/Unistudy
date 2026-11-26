@@ -263,6 +263,35 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [clickedSub, setClickedSub] = useState<{ pathname: string; href: string } | null>(null);
 
+  // Slide preview page auto-collapse & draw-out on mouse move
+  const isSlidePreviewPage =
+    /^\/dashboard\/courses\/[^/]+\/lectures\/[^/]+/.test(pathname) ||
+    /^\/dashboard\/lectures\/[^/]+/.test(pathname);
+  const [isHoverExpanded, setIsHoverExpanded] = useState(false);
+  const effectiveCollapsed = isSlidePreviewPage ? !isHoverExpanded : isCollapsed;
+
+  useEffect(() => {
+    if (!isSlidePreviewPage) {
+      setIsHoverExpanded(false);
+      return;
+    }
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // If mouse is near the left edge (within 72px) or hovering the sidebar, draw out
+      if (e.clientX <= 72) {
+        setIsHoverExpanded(true);
+      } else if (e.clientX > 270) {
+        // Retract only when mouse has moved clearly back into the slide canvas
+        setIsHoverExpanded(false);
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, [isSlidePreviewPage]);
+
   const setCollapsedStorage = useCallback((next: boolean) => {
     try {
       localStorage.setItem('unistudy_sidebar_collapsed', String(next));
@@ -271,11 +300,20 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
   }, []);
 
   const toggleCollapse = useCallback(() => {
+    if (isSlidePreviewPage) {
+      setIsHoverExpanded((prev) => !prev);
+      return;
+    }
     setCollapsedStorage(!getSidebarCollapsedSnapshot());
-  }, [setCollapsedStorage]);
+  }, [isSlidePreviewPage, setCollapsedStorage]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isSlidePreviewPage && isHoverExpanded) {
+        setIsHoverExpanded(false);
+        return;
+      }
+
       const target = e.target as HTMLElement;
       const isInput =
         target &&
@@ -291,7 +329,7 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleCollapse]);
+  }, [toggleCollapse, isSlidePreviewPage, isHoverExpanded]);
 
   const isRouteActive = useCallback((href: string) => {
     const baseHref = href.split('#')[0].split('?')[0];
@@ -693,12 +731,21 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
 
         {/* Desktop Sidebar */}
         <aside
+          onMouseEnter={() => {
+            if (isSlidePreviewPage) setIsHoverExpanded(true);
+          }}
+          onMouseLeave={() => {
+            if (isSlidePreviewPage) setIsHoverExpanded(false);
+          }}
           className={cn(
-            'hidden md:flex flex-col fixed inset-y-0 left-0 z-30 bg-[#FFFFFF] dark:bg-[#070720] border-r border-border/60 dark:border-white/10 transition-[width,padding] duration-200 ease-out select-none',
-            isCollapsed ? 'w-20 p-3' : 'w-64 p-4'
+            'hidden md:flex flex-col fixed inset-y-0 left-0 bg-[#FFFFFF] dark:bg-[#070720] border-r border-border/60 dark:border-white/10 transition-[width,padding,box-shadow,border-color] duration-200 ease-out select-none',
+            isSlidePreviewPage && isHoverExpanded
+              ? 'z-40 shadow-2xl border-border/80 dark:border-white/20 ring-1 ring-border/40'
+              : 'z-30',
+            effectiveCollapsed ? 'w-20 p-3' : 'w-64 p-4'
           )}
         >
-          {isCollapsed ? (
+          {effectiveCollapsed ? (
             <div className="flex flex-col items-center gap-2.5 mb-3 pt-1">
               <Tooltip>
                 <TooltipTrigger
@@ -761,8 +808,8 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
           )}
 
           {/* Search Trigger (Opens Cmd+K Spotlight in both states) */}
-          <div className={cn('mb-3.5', isCollapsed ? 'flex justify-center' : 'px-0.5')}>
-            {isCollapsed ? (
+          <div className={cn('mb-3.5', effectiveCollapsed ? 'flex justify-center' : 'px-0.5')}>
+            {effectiveCollapsed ? (
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -785,15 +832,22 @@ export function DashboardShell({ profile, latestAnnouncement, initialWalletBalan
             )}
           </div>
 
-          {renderNav(isCollapsed, 'desktop-student-nav')}
-          {renderBottom(isCollapsed)}
+          {renderNav(effectiveCollapsed, 'desktop-student-nav')}
+          {renderBottom(effectiveCollapsed)}
         </aside>
 
         {/* Main Content Area */}
         <main
+          onClick={() => {
+            if (isSlidePreviewPage && isHoverExpanded) {
+              setIsHoverExpanded(false);
+            }
+          }}
           className={cn(
-            'flex-1 p-4 md:p-8 overflow-y-auto relative min-h-[100dvh] transition-[margin] duration-200 ease-out',
-            isCollapsed ? 'md:ml-20' : 'md:ml-64'
+            'flex-1 overflow-y-auto relative min-h-[100dvh] transition-[margin,padding] duration-200 ease-out',
+            isSlidePreviewPage
+              ? 'p-2 md:p-4 md:ml-20'
+              : (isCollapsed ? 'p-4 md:p-8 md:ml-20' : 'p-4 md:p-8 md:ml-64')
           )}
         >
           <AnnouncementBanner announcement={latestAnnouncement} />
