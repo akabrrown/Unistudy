@@ -103,7 +103,7 @@ export async function GET(
               colour: '#00004E',
             },
             past_paper_questions: questions,
-            download_url: directPdfUrl || `/api/v1/past-questions/download?id=${paper.id}`,
+            download_url: paper.file_url || directPdfUrl || `/api/v1/past-questions/download?id=${paper.id}`,
           });
         }
       } catch (uuidErr: any) {

@@ -220,7 +220,7 @@ export default function PastPaperDetails() {
 
           setPaper({
             ...pData,
-            download_url: directPdfUrl || `/api/v1/past-questions/download?id=${encodeURIComponent(pData.id)}`,
+            download_url: pData.file_url || directPdfUrl || `/api/v1/past-questions/download?id=${encodeURIComponent(pData.id)}`,
           });
           
           const { data: qData } = await supabase

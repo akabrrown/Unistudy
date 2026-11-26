@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
       try {
         const { data: paper } = await supabase
           .from('past_papers')
-          .select('id, course_id, course_code, title, year, exam_type, status')
+          .select('id, course_id, course_code, title, year, exam_type, status, file_url')
           .eq('id', paperId)
           .maybeSingle();
 
@@ -48,15 +48,19 @@ export async function GET(req: NextRequest) {
           courseCodeHint = paper.course_code || extractCourseCode(paperTitle);
           paperYear = paper.year || parseYear(paperTitle);
 
-          // Check past_paper_pages for image_url
-          const { data: pageRows } = await supabase
-            .from('past_paper_pages')
-            .select('image_url')
-            .eq('past_paper_id', paper.id)
-            .limit(1);
+          if (paper.file_url) {
+            candidatePdfUrl = paper.file_url;
+          } else {
+            // Check past_paper_pages for image_url
+            const { data: pageRows } = await supabase
+              .from('past_paper_pages')
+              .select('image_url')
+              .eq('past_paper_id', paper.id)
+              .limit(1);
 
-          if (pageRows && pageRows.length > 0 && pageRows[0].image_url) {
-            candidatePdfUrl = pageRows[0].image_url;
+            if (pageRows && pageRows.length > 0 && pageRows[0].image_url) {
+              candidatePdfUrl = pageRows[0].image_url;
+            }
           }
         }
       } catch (dbErr: any) {
