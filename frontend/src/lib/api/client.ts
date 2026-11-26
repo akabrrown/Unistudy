@@ -104,16 +104,21 @@ async function resolveAccessToken(): Promise<string | null> {
   return token;
 }
 
-async function withRetry(fn: () => Promise<Response>): Promise<Response> {
+async function withRetry(fn: () => Promise<Response>, signal?: AbortSignal): Promise<Response> {
   let lastError: unknown;
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+  // If the caller supplied an AbortSignal they control the timeout — skip retries
+  // to avoid blocking behind MAX_RETRIES × RETRY_DELAY_MS when the backend is down.
+  const maxAttempts = signal ? 1 : MAX_RETRIES;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       return await fn();
     } catch (err: any) {
+      // Re-throw immediately on abort/timeout — no retry makes sense.
+      if (err?.name === 'AbortError' || err?.name === 'TimeoutError') throw err;
       // Only retry on network-level failures (TypeError: Failed to fetch).
       // HTTP errors (4xx/5xx) come back as resolved Responses, not thrown.
       const isNetworkError = err instanceof TypeError;
-      if (!isNetworkError || attempt === MAX_RETRIES - 1) throw err;
+      if (!isNetworkError || attempt === maxAttempts - 1) throw err;
       lastError = err;
       await new Promise(res => setTimeout(res, RETRY_DELAY_MS));
     }
@@ -209,8 +214,10 @@ export async function apiFetchRaw(endpoint: string, options: RequestInit = {}) {
   const token = await resolveAccessToken();
   const headers = await buildHeaders(options, token);
   const url = buildApiUrl(endpoint);
-  const response = await withRetry(() =>
-    fetch(url, { ...options, headers })
+  // Pass the caller's AbortSignal so withRetry skips retry loops when a timeout is set
+  const response = await withRetry(
+    () => fetch(url, { ...options, headers }),
+    options.signal instanceof AbortSignal ? options.signal : undefined
   );
 
   if (!response.ok) {

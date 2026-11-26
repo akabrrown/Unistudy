@@ -1163,10 +1163,13 @@ export default function LectureViewer() {
             prevSlideText: idx > 0 ? (slides[idx - 1]?.raw_text !== 'Text extraction failed.' ? slides[idx - 1]?.raw_text : '') : '',
             nextSlideText: idx < slides.length - 1 ? (slides[idx + 1]?.raw_text !== 'Text extraction failed.' ? slides[idx + 1]?.raw_text : '') : ''
           }),
-          signal: AbortSignal.timeout(12000),
+          signal: AbortSignal.timeout(5000), // 5s — fast fail so Next.js fallback kicks in without blocking the UI
         });
       } catch (backendErr) {
-        console.warn('Backend /ai/explain unreachable, falling back to Next.js /api/ai/explain-slide:', backendErr);
+        // Backend not available — silently fall through to the Next.js route
+        if (process.env.NODE_ENV === 'development') {
+          console.debug('[explain] Backend unreachable, using Next.js fallback:', (backendErr as Error)?.name);
+        }
       }
 
       if (!res || !res.ok) {
