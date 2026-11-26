@@ -46,10 +46,15 @@ export async function POST(
         .eq('past_paper_id', paperId)
         .order('question_number', { ascending: true });
 
-      // Reject synthetic placeholders
+      // Reject synthetic placeholders and fallback syllabus fabrications
       const isSynthetic = existingQs?.some((q: any) => 
         q.extracted_topic === 'MCQ|System Architecture' || 
-        q.text_content?.includes('In the study of BCPC201 (BCPC201_INFORMATION SYSTEMS _WKD)')
+        q.extracted_topic === 'THEORY|General Syllabus Examination' ||
+        q.extracted_topic === 'MCQ|Core Topic' ||
+        q.extracted_topic === 'THEORY|Advanced Topic' ||
+        q.text_content?.includes('Comprehensive Syllabus Examination for') ||
+        q.text_content?.includes('In the study of BCPC201') ||
+        q.text_content?.includes('Define the fundamental principles and models covered in')
       );
 
       if (existingQs && existingQs.length > 0 && !isSynthetic) {
@@ -183,17 +188,32 @@ export async function POST(
     }
 
     let extractedQuestions: any[] = [];
+    const pageImageUrls: string[] = [];
 
-    // 3. Extract authentic questions using Gemini Multimodal Vision on the PDF
-    if (pdfBuffer && process.env.GEMINI_API_KEY) {
+    // Check if Cloudinary or page images are available
+    if (resolvedPaperRecord?.past_paper_pages && Array.isArray(resolvedPaperRecord.past_paper_pages)) {
+      for (const p of resolvedPaperRecord.past_paper_pages) {
+        if (p.image_url) pageImageUrls.push(p.image_url);
+      }
+    }
+
+    // If Cloudinary URL points to a raw PDF, we can also extract pages using Cloudinary's pg_N rasterization
+    let cloudinaryPdfBase = '';
+    const targetUrl = resolvedPaperRecord?.file_url || resolvedPaperRecord?.pdf_url || (pageImageUrls[0] || '');
+    if (targetUrl.includes('res.cloudinary.com') && targetUrl.endsWith('.pdf')) {
+      cloudinaryPdfBase = targetUrl;
+    }
+
+    // 3. Extract authentic questions using Gemini Multimodal Vision on PDF or Page Images
+    if (process.env.GEMINI_API_KEY) {
       try {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const base64Pdf = pdfBuffer.toString('base64');
         const visionPrompt = `
-You are an expert university exam analyzer. I am providing you with the authentic university examination past paper PDF: ${paperTitle} (${courseCode}).
+You are an expert university exam analyzer. I am providing you with the authentic university examination past paper: ${paperTitle} (${courseCode}).
 Read every page carefully from page 1 to the end.
-Transcribe and extract the EXACT questions as printed on the PDF paper verbatim.
+Transcribe and extract the EXACT questions as printed on the exam paper verbatim.
 Do NOT invent, summarize, or alter questions. Include the authentic question numbers, text, instructions, and multiple choice options (A, B, C, D) verbatim.
+Do NOT hallucinate or create fictional questions. Only output what is actually printed on this document.
 
 Return a valid JSON object with the exact root key "questions", containing an array of objects:
 - "question_number": (string, e.g. "1", "2", "3")
@@ -205,52 +225,118 @@ Return a valid JSON object with the exact root key "questions", containing an ar
 
         const modelsToTry = [
           ...GEMINI_CANDIDATE_MODELS,
-          'gemini-2.0-flash',
-          'gemini-1.5-flash',
-          'gemini-1.5-pro',
+          'gemini-2.5-flash',
+          'gemini-3.8-flash',
+          'gemini-flash-latest',
         ];
 
         const uniqueModels = Array.from(new Set(modelsToTry));
 
-        for (const modelName of uniqueModels) {
-          try {
-            const model = genAI.getGenerativeModel({
-              model: modelName,
-              generationConfig: { responseMimeType: 'application/json' },
-            });
+        // Method A: If we have direct PDF buffer, try sending PDF inline
+        if (pdfBuffer) {
+          const base64Pdf = pdfBuffer.toString('base64');
+          for (const modelName of uniqueModels) {
+            try {
+              const model = genAI.getGenerativeModel({
+                model: modelName,
+                generationConfig: { responseMimeType: 'application/json' },
+              });
 
-            const result = await model.generateContent([
-              visionPrompt,
-              {
-                inlineData: {
-                  data: base64Pdf,
-                  mimeType: 'application/pdf',
+              const result = await model.generateContent([
+                visionPrompt,
+                {
+                  inlineData: {
+                    data: base64Pdf,
+                    mimeType: 'application/pdf',
+                  },
                 },
-              },
-            ]);
+              ]);
 
-            const rawText = result.response.text();
-            const cleanText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-            const start = cleanText.indexOf('{');
-            const end = cleanText.lastIndexOf('}');
-            const startArr = cleanText.indexOf('[');
-            const endArr = cleanText.lastIndexOf(']');
+              const rawText = result.response.text();
+              const cleanText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+              const start = cleanText.indexOf('{');
+              const end = cleanText.lastIndexOf('}');
+              const startArr = cleanText.indexOf('[');
+              const endArr = cleanText.lastIndexOf(']');
 
-            if (start !== -1 && end !== -1 && (startArr === -1 || start < startArr)) {
-              const parsed = JSON.parse(cleanText.slice(start, end + 1));
-              if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-                extractedQuestions = parsed.questions;
-                break;
+              if (start !== -1 && end !== -1 && (startArr === -1 || start < startArr)) {
+                const parsed = JSON.parse(cleanText.slice(start, end + 1));
+                if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+                  extractedQuestions = parsed.questions;
+                  break;
+                }
+              } else if (startArr !== -1 && endArr !== -1) {
+                const parsed = JSON.parse(cleanText.slice(startArr, endArr + 1));
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  extractedQuestions = parsed;
+                  break;
+                }
               }
-            } else if (startArr !== -1 && endArr !== -1) {
-              const parsed = JSON.parse(cleanText.slice(startArr, endArr + 1));
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                extractedQuestions = parsed;
-                break;
+            } catch (modelErr: any) {
+              console.warn(`[extract] Gemini model ${modelName} PDF inline notice:`, modelErr.message);
+            }
+          }
+        }
+
+        // Method B: If inline PDF didn't yield questions (e.g. scanned image PDF or timeout) and we have Cloudinary URL, fetch page-by-page raster images
+        if ((!extractedQuestions || extractedQuestions.length === 0) && cloudinaryPdfBase) {
+          try {
+            // Attempt extracting from the first 5 pages of the scanned paper
+            const pageImages: { data: string; mimeType: string }[] = [];
+            for (let pg = 1; pg <= 5; pg++) {
+              const pageUrl = cloudinaryPdfBase.replace('/upload/', `/upload/pg_${pg}/`).replace(/\.pdf$/i, '.jpg');
+              try {
+                const imgRes = await fetch(pageUrl);
+                if (imgRes.ok) {
+                  const imgBuf = Buffer.from(await imgRes.arrayBuffer());
+                  if (imgBuf.byteLength > 1000) {
+                    pageImages.push({
+                      data: imgBuf.toString('base64'),
+                      mimeType: 'image/jpeg',
+                    });
+                  }
+                }
+              } catch (_) {}
+            }
+
+            if (pageImages.length > 0) {
+              for (const modelName of uniqueModels) {
+                try {
+                  const model = genAI.getGenerativeModel({
+                    model: modelName,
+                    generationConfig: { responseMimeType: 'application/json' },
+                  });
+
+                  const imageParts = pageImages.map((img) => ({
+                    inlineData: {
+                      data: img.data,
+                      mimeType: img.mimeType,
+                    },
+                  }));
+
+                  const result = await model.generateContent([
+                    visionPrompt,
+                    ...imageParts,
+                  ]);
+
+                  const rawText = result.response.text();
+                  const cleanText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+                  const start = cleanText.indexOf('{');
+                  const end = cleanText.lastIndexOf('}');
+                  if (start !== -1 && end !== -1) {
+                    const parsed = JSON.parse(cleanText.slice(start, end + 1));
+                    if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+                      extractedQuestions = parsed.questions;
+                      break;
+                    }
+                  }
+                } catch (imgModelErr: any) {
+                  console.warn(`[extract] Gemini model ${modelName} raster images notice:`, imgModelErr.message);
+                }
               }
             }
-          } catch (modelErr: any) {
-            console.warn(`[extract] Gemini model ${modelName} notice:`, modelErr.message);
+          } catch (rasterErr: any) {
+            console.warn('[extract] Cloudinary page rasterization notice:', rasterErr.message);
           }
         }
       } catch (geminiEx: any) {
@@ -258,69 +344,18 @@ Return a valid JSON object with the exact root key "questions", containing an ar
       }
     }
 
-    // 3b. If PDF extraction yielded 0 questions (e.g. image-only scan, handwritten, or missing PDF stream),
-    // generate authentic syllabus-aligned practice questions so students can immediately drill and take mock exams.
+    // 3b. If PDF extraction yielded 0 questions, DO NOT fabricate synthetic questions!
+    // Instead return informative response allowing student to view authentic PDF.
     if (!extractedQuestions || extractedQuestions.length === 0) {
-      if (process.env.GEMINI_API_KEY) {
-        try {
-          const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-          const fallbackPrompt = `You are a university examination board professor for ${courseCode} (${paperTitle}).
-Create 8 rigorous university examination questions (4 Section A multiple-choice questions with options A, B, C, D, and 4 Section B detailed analytical problems with parts a, b, c) matching standard finals for this course.
-Return strictly valid JSON with this schema:
-{
-  "questions": [
-    {
-      "question_number": "1",
-      "question_type": "mcq",
-      "text_content": "Question text?\nA) Option A\nB) Option B\nC) Option C\nD) Option D",
-      "extracted_topic": "MCQ|Core Topic",
-      "marks_available": 1
-    },
-    {
-      "question_number": "2",
-      "question_type": "theory",
-      "text_content": "a. Describe the core mechanism [4 marks]\nb. Contrast with alternative architectures [6 marks]",
-      "extracted_topic": "THEORY|Advanced Topic",
-      "marks_available": 10
-    }
-  ]
-}`;
-          for (const modelName of GEMINI_CANDIDATE_MODELS) {
-            try {
-              const model = genAI.getGenerativeModel({
-                model: modelName,
-                generationConfig: { responseMimeType: 'application/json' },
-              });
-              const res = await model.generateContent(fallbackPrompt);
-              const text = res.response.text();
-              const start = text.indexOf('{');
-              const end = text.lastIndexOf('}');
-              if (start !== -1 && end !== -1) {
-                const parsed = JSON.parse(text.slice(start, end + 1));
-                if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-                  extractedQuestions = parsed.questions;
-                  break;
-                }
-              }
-            } catch (_) {}
-          }
-        } catch (fbErr: any) {
-          console.warn('[extract] Syllabus fallback notice:', fbErr?.message);
-        }
-      }
-    }
-
-    // 3c. Safe default fallback if model quota or network unavailable
-    if (!extractedQuestions || extractedQuestions.length === 0) {
-      extractedQuestions = [
+      return NextResponse.json(
         {
-          question_number: '1',
-          question_type: 'theory',
-          text_content: `Comprehensive Syllabus Examination for ${paperTitle} (${courseCode})\n\na. Define the fundamental principles and models covered in ${courseCode}. [6 marks]\nb. Explain practical industry implementations and typical failure modes. [8 marks]\nc. Discuss critical trade-offs in modern architectures. [6 marks]`,
-          extracted_topic: 'THEORY|General Syllabus Examination',
-          marks_available: 20,
+          success: false,
+          error: 'Unable to extract text questions automatically from this scanned examination paper. Please view or download the authentic PDF to practice.',
+          is_scanned: true,
+          questions: [],
         },
-      ];
+        { status: 422 }
+      );
     }
 
     // 4. Persist authentic extracted questions into Supabase
