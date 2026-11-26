@@ -17,6 +17,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { isModelAnswerIncomplete } from '../../../../../../../shared/lib/pastPaperGrader';
 import { cn } from '@/lib/utils';
+import { StructuredQuestionView } from '@/components/past-papers/StructuredQuestionView';
 
 interface GradedAnswerRow {
   id: string;
@@ -498,14 +499,7 @@ export default function ExamResults() {
                     <CardTitle className="text-sm font-mono font-bold">
                       Question {q.question_number || idx + 1}
                     </CardTitle>
-                    <div className="text-sm text-foreground/90 prose prose-sm dark:prose-invert max-w-none">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm, remarkMath]}
-                        rehypePlugins={[rehypeKatex]}
-                      >
-                        {(q.text_content || '').replace(/<br\s*\/?>/gi, '\n')}
-                      </ReactMarkdown>
-                    </div>
+                    <StructuredQuestionView content={q.text_content} questionNumber={q.question_number || idx + 1} />
                   </div>
                   <div
                     className={cn(

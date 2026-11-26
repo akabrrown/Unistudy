@@ -17,6 +17,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { cn } from '@/lib/utils';
+import { StructuredQuestionView } from '@/components/past-papers/StructuredQuestionView';
 
 function parseMcqContent(text: string): {
   stem: string;
@@ -532,14 +533,7 @@ export default function ExamAttempt() {
                       </div>
                     </CardHeader>
                     <CardContent className="p-5 md:p-6 space-y-4">
-                      <div className="prose prose-sm dark:prose-invert max-w-none text-foreground font-medium leading-relaxed [&_table]:border-collapse [&_table]:w-full [&_table]:border [&_table]:border-border [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:p-2 [&_td]:border [&_td]:border-border [&_td]:p-2">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm, remarkMath]}
-                          rehypePlugins={[rehypeKatex]}
-                        >
-                          {(q.text_content || '').replace(/<br\s*\/?>/gi, '\n')}
-                        </ReactMarkdown>
-                      </div>
+                      <StructuredQuestionView content={q.text_content} questionNumber={q.question_number} />
 
                       <div className="space-y-2 pt-2">
                         <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold">

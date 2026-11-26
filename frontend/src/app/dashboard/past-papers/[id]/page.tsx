@@ -44,6 +44,7 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import { MovePaperDialog } from '@/components/past-papers/MovePaperDialog'
+import { StructuredQuestionView } from '@/components/past-papers/StructuredQuestionView'
 import { normalizePastPaperTitle, resolveDisplayCourseCode } from '@/lib/past-papers/titleNormalizer';
 import { cn } from '@/lib/utils';
 
@@ -699,11 +700,7 @@ export default function PastPaperDetails() {
                                 </div>
                               </div>
 
-                              <div className="text-sm text-foreground/90 prose prose-sm dark:prose-invert max-w-none [&_table]:border-collapse [&_table]:w-full [&_table]:border [&_table]:border-border [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:p-2 [&_td]:border [&_td]:border-border [&_td]:p-2">
-                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-                                  {q.text_content.replace(/<br\s*\/?>/gi, '\n')}
-                                </ReactMarkdown>
-                              </div>
+                              <StructuredQuestionView content={q.text_content} questionNumber={q.question_number} />
 
                               {/* Trial Scratchpad toggle */}
                               <div className="pt-2 border-t border-border/40 flex items-center justify-between text-xs">
