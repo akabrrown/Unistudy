@@ -37,6 +37,8 @@ import {
   saveSlideNoteFast,
   getCachedDeckFast,
   setCachedDeckFast,
+  getSavedSlideProgress,
+  saveSlideProgress,
 } from '@/lib/offlineSync'
 
 type ImageStage = 'raw' | 'failed';
@@ -95,16 +97,39 @@ export default function LectureViewer() {
   const [level, setLevel] = useState('Med')
   const [confidence, setConfidence] = useState<number | null>(null)
 
+  // Resume progress prompt state
+  const [resumePrompt, setResumePrompt] = useState<{
+    savedIndex: number;
+    savedNumber: number;
+    totalSlides: number;
+  } | null>(null);
+  const hasCheckedResumeRef = useRef(false);
+
   // Reset slide position, speech, notes, and cache cleanly when lecture changes
   useEffect(() => {
     setSlideIndex(0);
     setSlideExplanations({});
     setSlideNotes('');
+    setResumePrompt(null);
+    hasCheckedResumeRef.current = false;
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
     }
   }, [lectureId]);
+
+  // Persist current slide position so students can resume where they left off
+  useEffect(() => {
+    if (!lectureId || totalSlides <= 0) return;
+    saveSlideProgress(lectureId, slideIndex, totalSlides);
+  }, [slideIndex, totalSlides, lectureId]);
+
+  // Auto-dismiss resume prompt if the student navigates away
+  useEffect(() => {
+    if (resumePrompt && slideIndex !== 0 && slideIndex !== resumePrompt.savedIndex) {
+      setResumePrompt(null);
+    }
+  }, [slideIndex, resumePrompt]);
 
   // Predictive sliding-window image preloader (Prefetches Next 3 slides + Previous 1 slide)
   useEffect(() => {
@@ -967,6 +992,16 @@ export default function LectureViewer() {
             if (!isNaN(parsed) && parsed >= 1 && parsed <= cachedDeck.length) {
               setSlideIndex(parsed - 1);
             }
+          } else if (!hasCheckedResumeRef.current && cachedDeck.length > 1) {
+            hasCheckedResumeRef.current = true;
+            const saved = getSavedSlideProgress(lectureId);
+            if (saved && saved.slideIndex > 0 && saved.slideIndex < cachedDeck.length) {
+              setResumePrompt({
+                savedIndex: saved.slideIndex,
+                savedNumber: saved.slideNumber,
+                totalSlides: cachedDeck.length,
+              });
+            }
           }
         }
 
@@ -979,6 +1014,16 @@ export default function LectureViewer() {
             const parsed = parseInt(initialSlideParam, 10);
             if (!isNaN(parsed) && parsed >= 1 && parsed <= slidesData.length) {
               setSlideIndex(parsed - 1);
+            }
+          } else if (!hasCheckedResumeRef.current && slidesData.length > 1) {
+            hasCheckedResumeRef.current = true;
+            const saved = getSavedSlideProgress(lectureId);
+            if (saved && saved.slideIndex > 0 && saved.slideIndex < slidesData.length) {
+              setResumePrompt({
+                savedIndex: saved.slideIndex,
+                savedNumber: saved.slideNumber,
+                totalSlides: slidesData.length,
+              });
             }
           }
         } else if (!cachedDeck || cachedDeck.length === 0) {
@@ -1597,7 +1642,60 @@ export default function LectureViewer() {
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Resume where you left off prompt */}
+        {resumePrompt && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 max-w-lg w-[calc(100%-24px)] bg-[#00004E] text-white px-4 py-2.5 rounded-xl border border-[#D89A06]/40 shadow-2xl shadow-black/40 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-[#D89A06]/20 border border-[#D89A06]/40 flex items-center justify-center shrink-0 text-[#D89A06]">
+                <RotateCcw size={15} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-white truncate">
+                  Resume where you left off?
+                </p>
+                <p className="text-[11px] text-white/70 truncate">
+                  You were on Slide {resumePrompt.savedNumber} of {resumePrompt.totalSlides}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                size="sm"
+                onClick={() => {
+                  const targetIdx = resumePrompt.savedIndex;
+                  setSlideIndex(targetIdx);
+                  setResumePrompt(null);
+                  toast.success(`Resumed at Slide ${targetIdx + 1}`);
+                }}
+                className="h-7.5 px-3 text-xs bg-[#D89A06] hover:bg-[#c28a05] text-[#00004E] font-semibold rounded-lg gap-1.5 cursor-pointer shadow-sm"
+              >
+                <RotateCcw size={12} />
+                Resume Slide {resumePrompt.savedNumber}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setResumePrompt(null);
+                  saveSlideProgress(lectureId, 0, totalSlides);
+                }}
+                className="h-7.5 px-2.5 text-xs text-white/80 hover:text-white hover:bg-white/10 rounded-lg cursor-pointer"
+              >
+                Start at 1
+              </Button>
+              <button
+                type="button"
+                onClick={() => setResumePrompt(null)}
+                className="w-6 h-6 rounded flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors ml-0.5 cursor-pointer"
+                aria-label="Dismiss prompt"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
         {/* Left: Slide panel */}
         <div className="flex-1 flex flex-col overflow-hidden border-r border-border">
           {/* Slide display */}

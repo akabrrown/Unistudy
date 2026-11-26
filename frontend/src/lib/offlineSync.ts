@@ -294,6 +294,50 @@ export async function drainOfflineSyncQueue(): Promise<number> {
   }
 }
 
+export interface SlideProgress {
+  slideIndex: number;
+  slideNumber: number;
+  totalSlides: number;
+  updatedAt: number;
+}
+
+/**
+ * 0ms Slide Progress Store: Tracks the last viewed slide per lecture so students
+ * can resume seamlessly when returning from the dashboard or another page.
+ */
+export function getSavedSlideProgress(lectureId: string): SlideProgress | null {
+  if (typeof window === 'undefined' || !lectureId) return null;
+  try {
+    const raw = localStorage.getItem(`unistudy_slide_progress_${lectureId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.slideIndex === 'number' && typeof parsed?.totalSlides === 'number') {
+      return parsed as SlideProgress;
+    }
+  } catch {}
+  return null;
+}
+
+export function saveSlideProgress(lectureId: string, slideIndex: number, totalSlides: number): void {
+  if (typeof window === 'undefined' || !lectureId || totalSlides <= 0) return;
+  try {
+    const data: SlideProgress = {
+      slideIndex,
+      slideNumber: slideIndex + 1,
+      totalSlides,
+      updatedAt: Date.now(),
+    };
+    localStorage.setItem(`unistudy_slide_progress_${lectureId}`, JSON.stringify(data));
+  } catch {}
+}
+
+export function clearSlideProgress(lectureId: string): void {
+  if (typeof window === 'undefined' || !lectureId) return;
+  try {
+    localStorage.removeItem(`unistudy_slide_progress_${lectureId}`);
+  } catch {}
+}
+
 // Auto-register online event listener in the browser
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {

@@ -140,6 +140,7 @@ The web application will be live at `http://localhost:3000`.
 
 ## 5. Recent Changelog & Key System Updates
 
+- **Slide Progress & Resume Prompt:** Automatically remembers a student's reading position in any lecture slide deck. When returning to the deck from the dashboard or another page, a collegiate prompt allows resuming at their exact slide or starting fresh from Slide 1.
 - **Progressive Web App (PWA) & Offline Shell:** Added Web App Manifest (`manifest.ts`), production Service Worker (`sw.js`), collegiate offline fallback screen (`/offline`), and `PwaManager` install/connectivity listener with Dexie IndexedDB local-first persistence.
 - **Native Past Paper Uploads:** Past paper PDF uploads now run through a dedicated native Next.js API route (`/api/past-papers/upload`) featuring Gemini Multimodal PDF parsing and Cloudinary storage.
 - **Removed Moodle Portal Sync:** Eliminated third-party Moodle credential scrapers (`MoodleSyncModal` and crawler background tasks) in favor of the resilient native past paper endpoint and KLOK repository search.
