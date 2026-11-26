@@ -1112,18 +1112,30 @@ export default function LectureViewer() {
     const slideId = targetSlide.id || `${lectureId}-${idx}`;
 
     // Fast-path: 0ms local cache read if already explained and not forced fresh
+    const isInvalidExplanation = (text: string | null | undefined) => {
+      if (!text) return true;
+      const lower = text.toLowerCase();
+      return (
+        lower.startsWith('**error:') ||
+        lower.includes('ai api returned an error') ||
+        lower.includes('showing mock response') ||
+        lower.includes('slide content provided is empty') ||
+        lower.includes('content provided is empty')
+      );
+    };
+
     if (!forceFresh) {
-      if (slideExplanations[idx] && !slideExplanations[idx].startsWith('**Error:') && !slideExplanations[idx].includes('AI API returned an error')) {
+      if (slideExplanations[idx] && !isInvalidExplanation(slideExplanations[idx])) {
         return; // Already active in UI in 0ms!
       }
       if (typeof window !== 'undefined') {
         const localCached = localStorage.getItem(`offline_exp_${slideId}`);
-        if (localCached && !localCached.includes('Showing mock response') && !localCached.includes('AI API returned an error') && !localCached.startsWith('**Error:')) {
+        if (localCached && !isInvalidExplanation(localCached)) {
           setSlideExplanations(prev => ({ ...prev, [idx]: localCached }));
           return;
         }
       }
-      if (targetSlide.explanation && targetSlide.explanation !== 'Explanation pending.' && !targetSlide.explanation.startsWith('Text extraction failed')) {
+      if (targetSlide.explanation && targetSlide.explanation !== 'Explanation pending.' && !targetSlide.explanation.startsWith('Text extraction failed') && !isInvalidExplanation(targetSlide.explanation)) {
         setSlideExplanations(prev => ({ ...prev, [idx]: targetSlide.explanation }));
         return;
       }

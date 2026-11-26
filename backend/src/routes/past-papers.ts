@@ -23,7 +23,6 @@ import { withAIQuota } from '../middleware/quotaGuard';
 import { consumeUserQuota } from '../lib/ai/quota';
 import { AIRequest, routeRequest } from '../lib/ai/router';
 import { ensurePastPapersForUserCourses } from '../services/courseQuestionBanks';
-import { syncRealMoodlePastPapers, downloadMoodleFileWithToken } from '../services/moodleCrawler';
 router.use(authenticateUser);
 
 router.get('/', async (req: any, res) => {
@@ -207,12 +206,15 @@ router.get('/download', async (req: any, res) => {
 
         if (paper.file_url) {
             try {
-                const pdfBuffer = await downloadMoodleFileWithToken(paper.file_url, 'd47af8abe6b5d925a0be01c2e64a49e6');
-                res.setHeader('Content-Type', 'application/pdf');
-                res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(paper.title || 'past-question')}.pdf"`);
-                return res.send(pdfBuffer);
+                const pdfRes = await fetch(paper.file_url);
+                if (pdfRes.ok) {
+                    const pdfBuffer = Buffer.from(await pdfRes.arrayBuffer());
+                    res.setHeader('Content-Type', 'application/pdf');
+                    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(paper.title || 'past-question')}.pdf"`);
+                    return res.send(pdfBuffer);
+                }
             } catch (dlErr: any) {
-                console.warn('[download] Notice streaming file_url via proxy:', dlErr.message);
+                console.warn('[download] Notice streaming file_url:', dlErr.message);
             }
         }
 
@@ -355,17 +357,6 @@ router.post('/:id/extract', async (req: any, res) => {
         return res.json({ success: true, cached: false, questions: [] });
     } catch (err: any) {
         res.status(500).json({ error: err?.message || 'Failed to extract questions' });
-    }
-});
-
-router.post('/sync-moodle', async (req: any, res) => {
-    try {
-        const userId = req.user!.id;
-        const result = await syncRealMoodlePastPapers(userId, req.body);
-        res.json(result);
-    } catch (err: any) {
-        console.error('[Past Papers POST /sync-moodle] Error:', err);
-        res.status(500).json({ error: err?.message || 'Failed to sync with UPSA Virtual Portal' });
     }
 });
 

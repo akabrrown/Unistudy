@@ -138,7 +138,7 @@ export function UploadModal({ isOpen, onClose, onSuccess, preselectedCourseId }:
         formData.append('year', fData.year)
         formData.append('examType', fData.examType)
 
-        await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8005'}/api/past-papers/upload`, formData, {
+        await axios.post('/api/past-papers/upload', formData, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`
           },

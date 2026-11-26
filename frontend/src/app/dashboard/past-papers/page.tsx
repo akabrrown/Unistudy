@@ -25,7 +25,6 @@ import {
   Loader2,
   Target,
   FolderInput,
-  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,7 +36,6 @@ import { createClient } from '@/lib/supabase/client';
 import { apiFetch } from '@/lib/api/client';
 import { resolveCourseColor } from '@/lib/constants/courses';
 import { UploadModal } from '@/components/past-papers/UploadModal';
-import { MoodleSyncModal } from '@/components/past-papers/MoodleSyncModal';
 import { ExamFocusDialog } from '@/components/exam-focus/ExamFocusDialog';
 import { MovePaperDialog } from '@/components/past-papers/MovePaperDialog';
 import { ExamArchiveIllustration } from '@/components/illustrations';
@@ -133,7 +131,6 @@ export default function PastPapersDashboard() {
   const [papers, setPapers] = useState<PastPaperRecord[]>([]);
   const [attempts, setAttempts] = useState<PastPaperAttemptRecord[]>([]);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [isMoodleModalOpen, setIsMoodleModalOpen] = useState(false);
   const [preselectedCourseId, setPreselectedCourseId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPapers, setSelectedPapers] = useState<string[]>([]);
@@ -575,16 +572,6 @@ export default function PastPapersDashboard() {
               <FolderOpen className="w-3.5 h-3.5 text-primary" />
               Manage Courses
             </Link>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsMoodleModalOpen(true)}
-              className="h-9 px-3 text-xs font-semibold gap-1.5 border-border hover:bg-muted text-foreground cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
-              Portal Sync
-            </Button>
 
             <Button
               type="button"
@@ -1241,13 +1228,6 @@ export default function PastPapersDashboard() {
           void loadData();
         }}
         preselectedCourseId={preselectedCourseId}
-      />
-
-      {/* University Moodle / Portal Sync Modal */}
-      <MoodleSyncModal
-        isOpen={isMoodleModalOpen}
-        onClose={() => setIsMoodleModalOpen(false)}
-        onSuccess={() => void loadData()}
       />
 
       {/* Exam Areas of Concentration Workspace */}

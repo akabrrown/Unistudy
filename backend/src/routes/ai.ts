@@ -587,6 +587,8 @@ router.post('/explain', authenticateUser, withAIQuota('slide_explanation'), asyn
   // Sanitize fallback error strings so they don't corrupt the prompt
   const cleanSlideText = (slideText && slideText !== 'Text extraction failed.') ? slideText : '';
   const cleanVisionEx = (visionExplanation && visionExplanation !== 'Explanation pending.') ? visionExplanation : '';
+  const isSubstantiveSlideText = cleanSlideText.trim().length > 25 && !/^slide\s*\d+$/i.test(cleanSlideText.trim()) && !/^\d+$/.test(cleanSlideText.trim());
+  const hasRealImage = Boolean(imageUrl && imageUrl !== 'https://example.com/placeholder.png' && !imageUrl.includes('placeholder'));
 
   let levelPrompt = 'standard university level';
   if (level === 'ELI5') levelPrompt = 'a high school student with no prior knowledge (ELI5). Use simple analogies.';
@@ -675,9 +677,9 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
 
     let fullText = '';
 
-    // Fast-path 1: Stream from Groq (ultra-low latency ~200ms) using slide text and vision context
-    // This executes IMMEDIATELY without blocking on image download
-    if (process.env.GROQ_API_KEY && (cleanSlideText || cleanVisionEx)) {
+    // Fast-path 1: Stream from Groq (ultra-low latency ~200ms) only when substantive text or vision context exists
+    // (If the slide only has a page number like "Slide 12", skip text-only Groq and stream from Gemini Vision)
+    if (process.env.GROQ_API_KEY && (isSubstantiveSlideText || cleanVisionEx || !hasRealImage)) {
       try {
         const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
         const groqStream = await groq.chat.completions.create({

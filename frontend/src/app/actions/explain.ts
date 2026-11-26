@@ -22,12 +22,15 @@ export async function generateSlideExplanation(
 
     const cleanText = (slideText && slideText !== 'Text extraction failed.') ? slideText : '';
     const cleanVision = (visionExplanation && visionExplanation !== 'Explanation pending.') ? visionExplanation : '';
+    const isSubstantiveText = cleanText.trim().length > 25 && !/^slide\s*\d+$/i.test(cleanText.trim()) && !/^\d+$/.test(cleanText.trim());
+    const hasImage = Boolean(imageUrl && !imageUrl.includes('placeholder'));
 
     const systemPrompt = 'You are an expert university AI tutor. Explain the slide clearly, concisely, and pedagogically in Markdown. Avoid generic introductions. Highlight key terms in bold.';
     const prompt = `Course: ${courseContext}\nStudent Level: ${level}\n\n${cleanText ? `Slide Content:\n"""\n${cleanText}\n"""\n` : ''}${cleanVision ? `Visual Context:\n"""\n${cleanVision}\n"""\n` : ''}Provide a clear, high-yield explanation in under 250 words.`;
 
-    // 1. Fast path: Direct Groq execution (150-300ms)
-    if (process.env.GROQ_API_KEY && (cleanText || cleanVision)) {
+    // 1. Fast path: Direct Groq execution (150-300ms) only when substantive text or vision description exists
+    // (If the slide only has a slide number like "Slide 12", skip text-only models and use Gemini Vision with the actual image)
+    if (process.env.GROQ_API_KEY && (isSubstantiveText || cleanVision || !hasImage)) {
       try {
         const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
         const completion = await groq.chat.completions.create({
@@ -48,7 +51,7 @@ export async function generateSlideExplanation(
     }
 
     // 2. OpenRouter execution (meta-llama/llama-3.3-70b-instruct or qwen/qwen-2.5-72b-instruct)
-    if (process.env.OPENROUTER_API_KEY && (cleanText || cleanVision)) {
+    if (process.env.OPENROUTER_API_KEY && (isSubstantiveText || cleanVision || !hasImage)) {
       try {
         const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',

@@ -427,20 +427,6 @@ export default function SettingsClient({ initialSettings, initialAuditLogs = [] 
                 />
               </div>
 
-              {/* Automated Moodle Virtual Portal Sync */}
-              <div className="p-4 flex items-center justify-between gap-4">
-                <div className="space-y-1 max-w-2xl">
-                  <Label className="text-sm font-semibold">Moodle & Virtual Portal Crawler Sync</Label>
-                  <p className="text-muted-foreground text-xs leading-relaxed">
-                    Enable automated course discovery and PDF past paper synchronization from university Moodle portals (e.g. UPSA Virtual).
-                  </p>
-                </div>
-                <Switch
-                  checked={settings['MOODLE_SYNC_ENABLED'] !== 'false'}
-                  onCheckedChange={(checked) => handleToggleChange('MOODLE_SYNC_ENABLED', checked)}
-                />
-              </div>
-
               {/* Peer Study Groups */}
               <div className="p-4 flex items-center justify-between gap-4">
                 <div className="space-y-1 max-w-2xl">
