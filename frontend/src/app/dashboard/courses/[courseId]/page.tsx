@@ -101,8 +101,8 @@ export default function CanvasCourseWorkspacePage() {
 
       const [courseRes, lecturesRes, flashcardsRes] = await Promise.all([
         supabase.from('courses').select('*').eq('id', courseId).maybeSingle(),
-        supabase.from('lectures').select('id, title, week, slide_count, created_at, processing, cover_image_url').eq('course_id', courseId).order('week', { ascending: true }),
-        supabase.from('flashcards').select('id, lecture_id, next_review').eq('course_id', courseId),
+        supabase.from('lectures').select('id, title, week, slide_count, created_at, processing').eq('course_id', courseId).order('week', { ascending: true }),
+        supabase.from('flashcards').select('id, lecture_id, next_review'),
       ]);
 
       if (courseRes.data) {
@@ -117,7 +117,11 @@ export default function CanvasCourseWorkspacePage() {
         title: cleanLectureTitle(l.title),
       }));
       setLectures(lecs);
-      setFlashcards((flashcardsRes.data || []) as FlashcardItem[]);
+      const lectureIds = new Set(lecs.map((l) => l.id));
+      const relevantCards = ((flashcardsRes.data || []) as FlashcardItem[]).filter((f) =>
+        lectureIds.has(f.lecture_id)
+      );
+      setFlashcards(relevantCards);
 
       // Load past papers
       const normalizedCode = courseRes.data?.course_code
