@@ -188,20 +188,26 @@ export async function POST(
     }
 
     let extractedQuestions: any[] = [];
-    const pageImageUrls: string[] = [];
+    let targetPdfUrl = resolvedPaperRecord?.file_url || resolvedPaperRecord?.pdf_url || '';
 
-    // Check if Cloudinary or page images are available
-    if (resolvedPaperRecord?.past_paper_pages && Array.isArray(resolvedPaperRecord.past_paper_pages)) {
-      for (const p of resolvedPaperRecord.past_paper_pages) {
-        if (p.image_url) pageImageUrls.push(p.image_url);
-      }
+    // Query past_paper_pages for image_url if not found directly
+    if (!targetPdfUrl && isUuid) {
+      try {
+        const { data: pageRows } = await supabase
+          .from('past_paper_pages')
+          .select('image_url')
+          .eq('past_paper_id', paperId)
+          .limit(1);
+        if (pageRows && pageRows.length > 0 && pageRows[0].image_url) {
+          targetPdfUrl = pageRows[0].image_url;
+        }
+      } catch (_) {}
     }
 
     // If Cloudinary URL points to a raw PDF, we can also extract pages using Cloudinary's pg_N rasterization
     let cloudinaryPdfBase = '';
-    const targetUrl = resolvedPaperRecord?.file_url || resolvedPaperRecord?.pdf_url || (pageImageUrls[0] || '');
-    if (targetUrl.includes('res.cloudinary.com') && targetUrl.endsWith('.pdf')) {
-      cloudinaryPdfBase = targetUrl;
+    if (targetPdfUrl.includes('res.cloudinary.com') && targetPdfUrl.endsWith('.pdf')) {
+      cloudinaryPdfBase = targetPdfUrl;
     }
 
     // 3. Extract authentic questions using Gemini Multimodal Vision on PDF or Page Images
@@ -224,10 +230,12 @@ Return a valid JSON object with the exact root key "questions", containing an ar
 `;
 
         const modelsToTry = [
-          ...GEMINI_CANDIDATE_MODELS,
-          'gemini-2.5-flash',
-          'gemini-3.8-flash',
+          'gemini-3.1-flash-lite',
+          'gemini-3.5-flash-lite',
+          'gemini-3-flash-preview',
           'gemini-flash-latest',
+          'gemini-3.8-flash',
+          ...GEMINI_CANDIDATE_MODELS,
         ];
 
         const uniqueModels = Array.from(new Set(modelsToTry));
