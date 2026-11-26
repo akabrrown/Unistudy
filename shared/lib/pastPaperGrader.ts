@@ -156,6 +156,14 @@ CRITICAL RULES (MANDATORY FOR EVERY SINGLE QUESTION):
 2. COMPLETE MODEL ANSWERS ARE NON-NEGOTIABLE:
    - Whether the student answered well, answered partially, answered incorrectly, or left the answer completely blank ("[No answer provided]"), you MUST still write a full, step-by-step "model_answer" solving 100% of the question.
    - If the question has sub-parts (such as (a), (b), (c), (i), (ii)), your "model_answer" MUST label and solve EVERY SINGLE sub-part completely. NEVER skip any sub-part.
+   - READABLE FORMAT FOR "model_answer": For multi-part questions ((a), (b), (c)), organize the solution with clear Markdown section headings for every part:
+     ### Part (a)
+     [Clear step-by-step worked explanation, derivation, or solution]
+
+     ### Part (b)
+     [Clear step-by-step worked explanation, derivation, or solution]
+   - When programming code is required (e.g. PHP, JavaScript, SQL, HTML), provide complete, working code enclosed in fenced code blocks with language identifiers (\`\`\`php, \`\`\`javascript, \`\`\`sql, \`\`\`html).
+   - Format mathematical formulas with KaTeX ($...$ or $$...$$).
    - NEVER write "Student did not attempt", "Refer to notes", "N/A", or leave any part to the reader.
 3. MARKING & FEEDBACK:
    - If <student_answer> is "[No answer provided]", "marks_awarded" MUST be 0, "feedback" should explain that 0 marks were awarded because no answer was submitted and note key marking points, and "model_answer" MUST still provide the full worked solution to every part.

@@ -18,6 +18,7 @@ import 'katex/dist/katex.min.css';
 import { isModelAnswerIncomplete } from '../../../../../../../shared/lib/pastPaperGrader';
 import { cn } from '@/lib/utils';
 import { StructuredQuestionView } from '@/components/past-papers/StructuredQuestionView';
+import { StructuredSolutionView } from '@/components/past-papers/StructuredSolutionView';
 
 interface GradedAnswerRow {
   id: string;
@@ -562,13 +563,8 @@ export default function ExamResults() {
                       )}
                     </button>
                     {!isModelHidden && (
-                      <div className="px-4 pb-4 pt-1 text-foreground/90 leading-relaxed text-sm prose prose-sm dark:prose-invert max-w-none border-t border-emerald-500/15">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm, remarkMath]}
-                          rehypePlugins={[rehypeKatex]}
-                        >
-                          {ans.model_answer}
-                        </ReactMarkdown>
+                      <div className="px-4 pb-4 pt-2 border-t border-emerald-500/15">
+                        <StructuredSolutionView modelAnswer={ans.model_answer} />
                       </div>
                     )}
                   </div>
