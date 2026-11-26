@@ -212,7 +212,13 @@ export default function ExamResults() {
           totalAwarded += ans.marks_awarded || 0;
         }
 
-        setAnswers(gradedAnswers);
+        // Sort by question_number ascending (1, 2, 3 …) before rendering
+        const sortedAnswers = [...gradedAnswers].sort((a, b) => {
+          const qA = parseInt(String(a.past_paper_questions?.question_number ?? 0), 10);
+          const qB = parseInt(String(b.past_paper_questions?.question_number ?? 0), 10);
+          return qA - qB;
+        });
+        setAnswers(sortedAnswers);
         setTotalAvailable(totalAvail);
         setOverallScore(totalAwarded);
 
