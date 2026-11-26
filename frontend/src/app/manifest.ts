@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'UniStudy AI — Academic Companion',
+    name: 'UniStudy AI — Academic Companion & Intelligent Tutor',
     short_name: 'UniStudy',
-    description: 'Upload lecture slides, practice past questions, and study with an intelligent AI tutor offline and online.',
+    description: 'Upload university lecture slides, practice past questions, and master complex STEM coursework with an intelligent AI tutor tailored to your syllabus.',
     start_url: '/dashboard',
     scope: '/',
     display: 'standalone',

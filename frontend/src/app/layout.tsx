@@ -23,14 +23,51 @@ export const viewport: Viewport = {
   maximumScale: 5,
 };
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_APP_URL ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://unistudy.app');
+
 export const metadata: Metadata = {
-  title: "UniStudy AI",
-  description: "Upload your lecture slides and let UniStudy AI explain, quiz, and revise with you.",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "UniStudy AI — Academic Companion & Intelligent Tutor",
+    template: "%s | UniStudy AI",
+  },
+  description:
+    "Upload university lecture slides, practice past questions, and master complex STEM coursework with an intelligent AI tutor tailored to your syllabus.",
+  alternates: {
+    canonical: "/",
+  },
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "UniStudy AI",
+  },
+  openGraph: {
+    title: "UniStudy AI — Academic Companion & Intelligent Tutor",
+    description:
+      "Upload university lecture slides, practice past questions, and master complex STEM coursework with an intelligent AI tutor tailored to your syllabus.",
+    url: siteUrl,
+    siteName: "UniStudy AI",
+    images: [
+      {
+        url: '/brand/logo-stacked.png',
+        width: 1200,
+        height: 630,
+        alt: 'UniStudy AI — Academic Study Companion',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "UniStudy AI — Academic Companion & Intelligent Tutor",
+    description:
+      "Upload university lecture slides, practice past questions, and master complex STEM coursework with an intelligent AI tutor tailored to your syllabus.",
+    images: ['/brand/logo-stacked.png'],
   },
   icons: {
     icon: [
