@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
+import { cleanLectureTitle, formatCourseCode } from '@/lib/courses/lectureTitle';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,17 +46,28 @@ export async function GET() {
 
     if (Array.isArray(data)) {
       data.forEach((c: any) => {
+        c.course_code = formatCourseCode(c.course_code);
         if (Array.isArray(c.lectures)) {
           c.lectures = c.lectures
             .filter((l: any) => !l.title?.startsWith('[FAILED'))
             .map((l: any) => ({
               ...l,
+              title: cleanLectureTitle(l.title),
               processing: Boolean(l.processing && (!l.slide_count || l.slide_count === 0)),
             }));
         } else {
           c.lectures = [];
         }
-        if (!Array.isArray(c.past_papers)) {
+        if (Array.isArray(c.past_papers)) {
+          const seen = new Set<string>();
+          c.past_papers = c.past_papers.filter((p: any) => {
+            const cleanTitle = (p.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const key = `${p.year || ''}_${p.exam_type || 'end-semester'}_${cleanTitle}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        } else {
           c.past_papers = [];
         }
       });

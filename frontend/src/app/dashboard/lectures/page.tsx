@@ -51,6 +51,7 @@ import { UploadLectureDialog } from '@/components/courses/UploadLectureDialog';
 import { DeleteLectureButton } from '@/components/courses/DeleteLectureButton';
 import { CollegiateLibraryIllustration } from '@/components/illustrations';
 import { isPlaceholderSlideUrl, getSlideThumbnailUrl } from '@/lib/images';
+import { cleanLectureTitle, formatCourseCode } from '@/lib/courses/lectureTitle';
 
 interface LectureItem {
   id: string;
@@ -242,8 +243,10 @@ export default function LecturesHubPage() {
           .filter((c: CourseItem) => !c.is_archived)
           .map((c: CourseItem) => ({
             ...c,
+            course_code: formatCourseCode(c.course_code),
             lectures: (c.lectures || []).map((l: any) => ({
               ...l,
+              title: cleanLectureTitle(l.title),
               processing: Boolean(l.processing),
             })),
           }));

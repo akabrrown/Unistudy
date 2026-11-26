@@ -30,6 +30,7 @@ import {
   retrieveRelevantSlideChunks,
 } from '../../../../../../../../shared/lib/aiTutor'
 import { dedupeSlidesByNumber } from '../../../../../../../../shared/lib/slideDedupe'
+import { cleanLectureTitle, formatCourseCode } from '@/lib/courses/lectureTitle'
 import {
   preloadSlideAssets,
   getSlideNoteFast,
@@ -925,14 +926,16 @@ export default function LectureViewer() {
         const lectureData = await apiFetch(`/lectures/detail/${lectureId}`)
           
         if (lectureData) {
-          setLecture(lectureData)
+          const cleanTitle = cleanLectureTitle(lectureData.title);
           const cTitle = Array.isArray(lectureData.courses) ? lectureData.courses[0]?.title : (lectureData.courses as any)?.title;
-          const cCode = Array.isArray(lectureData.courses) ? lectureData.courses[0]?.course_code : (lectureData.courses as any)?.course_code;
+          const rawCCode = Array.isArray(lectureData.courses) ? lectureData.courses[0]?.course_code : (lectureData.courses as any)?.course_code;
+          const cCode = formatCourseCode(rawCCode);
           
+          setLecture({ ...lectureData, title: cleanTitle })
           setCourseContext(`${cCode || ''}: ${cTitle || ''}`)
-          setHeaderTitle(`${cCode || 'Course'} - ${lectureData.title}`)
+          setHeaderTitle(`${cCode || 'Course'} - ${cleanTitle}`)
           setHeaderWeek(`Week ${lectureData.week || '-'}`)
-          setYoutubeQuery(`${cCode || ''} ${lectureData.title}`)
+          setYoutubeQuery(`${cCode || ''} ${cleanTitle}`)
         }
 
         // Fetch all lectures for switcher, sorted in order 1, 2, 3, 4...
@@ -940,7 +943,11 @@ export default function LectureViewer() {
         if (targetCourseId) {
           const allLectures = await apiFetch(`/lectures/${targetCourseId}`)
           if (Array.isArray(allLectures)) {
-            const sorted = [...allLectures].sort((a, b) => {
+            const mapped = allLectures.map((l: any) => ({
+              ...l,
+              title: cleanLectureTitle(l.title),
+            }));
+            const sorted = mapped.sort((a, b) => {
               const wA = typeof a.week === 'number' && a.week > 0 ? a.week : 9999;
               const wB = typeof b.week === 'number' && b.week > 0 ? b.week : 9999;
               if (wA !== wB) return wA - wB;

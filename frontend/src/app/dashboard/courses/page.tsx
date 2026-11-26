@@ -57,6 +57,7 @@ import { apiFetch } from '@/lib/api/client';
 import { UploadLectureDialog } from '@/components/courses/UploadLectureDialog';
 import { ExamFocusDialog } from '@/components/exam-focus/ExamFocusDialog';
 import { CollegiateLibraryIllustration } from '@/components/illustrations';
+import { cleanLectureTitle, formatCourseCode } from '@/lib/courses/lectureTitle';
 import { cn } from '@/lib/utils';
 
 interface LectureSummary {
@@ -94,11 +95,22 @@ type SortKey = 'newest' | 'most_lectures' | 'alphabetical';
 
 function normalizeCourse(raw: CourseRecord): CourseRecord {
   const validLectures = Array.isArray(raw.lectures)
-    ? raw.lectures.filter((l) => l && !(l.title || '').startsWith('[FAILED'))
+    ? raw.lectures
+        .filter((l) => l && !(l.title || '').startsWith('[FAILED'))
+        .map((l) => ({ ...l, title: cleanLectureTitle(l.title) }))
     : [];
-  const papers = Array.isArray(raw.past_papers) ? raw.past_papers : [];
+  const rawPapers = Array.isArray(raw.past_papers) ? raw.past_papers : [];
+  const seenKeys = new Set<string>();
+  const papers = rawPapers.filter((p) => {
+    const cleanTitle = (p.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const key = `${p.year || ''}_${p.exam_type || 'end-semester'}_${cleanTitle}`;
+    if (seenKeys.has(key)) return false;
+    seenKeys.add(key);
+    return true;
+  });
   return {
     ...raw,
+    course_code: formatCourseCode(raw.course_code),
     lectures: validLectures,
     past_papers: papers,
   };

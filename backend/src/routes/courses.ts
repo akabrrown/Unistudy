@@ -4,6 +4,7 @@ import { authenticateUser } from '../middleware/auth';
 import { deduplicateInFlightRequests } from '../middleware/expensiveGuard';
 import { supabaseAsUser, supabaseAdmin } from '../lib/supabase';
 import { TTLCache } from '../../../shared/lib/cpuOptimization';
+import { cleanLectureTitle, formatCourseCode } from '../../../shared/lib/lectureTitle';
 
 const router = Router();
 const coursesListCache = new TTLCache<any[]>(15_000, 300);
@@ -73,19 +74,31 @@ router.get('/', async (req: Request, res: Response) => {
 
   if (data) {
     data.forEach((c: any) => {
+      c.course_code = formatCourseCode(c.course_code);
       if (Array.isArray(c.lectures)) {
         c.lectures = c.lectures
           .filter((l: any) => !l.title?.startsWith('[FAILED'))
           .map((l: any) => {
-            if (l.processing && typeof l.slide_count === 'number' && l.slide_count > 0) {
-              return { ...l, processing: false };
-            }
-            return l;
+            const isProcessing = !(typeof l.slide_count === 'number' && l.slide_count > 0);
+            return {
+              ...l,
+              title: cleanLectureTitle(l.title),
+              processing: Boolean(l.processing && isProcessing),
+            };
           });
       } else {
         c.lectures = [];
       }
-      if (!Array.isArray(c.past_papers)) {
+      if (Array.isArray(c.past_papers)) {
+        const seen = new Set<string>();
+        c.past_papers = c.past_papers.filter((p: any) => {
+          const cleanTitle = (p.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const key = `${p.year || ''}_${p.exam_type || 'end-semester'}_${cleanTitle}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      } else {
         c.past_papers = [];
       }
     });

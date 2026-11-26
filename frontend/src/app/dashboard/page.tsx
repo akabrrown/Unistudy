@@ -2,6 +2,7 @@ import { createClient, getServerUser } from '@/lib/supabase/server';
 import { AnxietyCheckIn } from '@/components/AnxietyCheckIn';
 import { formatAcademicLevel } from '@/lib/utils';
 import { normalizePastPaperTitle } from '@/lib/past-papers/titleNormalizer';
+import { cleanLectureTitle, formatCourseCode } from '@/lib/courses/lectureTitle';
 import {
   DashboardCommandCenter,
   type DashboardAssessmentItem,
@@ -311,10 +312,10 @@ export default async function DashboardPage() {
     for (const lec of validLectures) {
       lectureLookup.set(lec.id, {
         lectureId: lec.id,
-        lectureTitle: lec.title || 'Untitled Lecture',
+        lectureTitle: cleanLectureTitle(lec.title),
         slideCount: lec.slide_count || 0,
         courseId: course.id,
-        courseCode: course.course_code || 'COURSE',
+        courseCode: formatCourseCode(course.course_code),
         courseTitle: course.title || 'Untitled Course',
         courseColour: course.colour,
       });
@@ -371,7 +372,7 @@ export default async function DashboardPage() {
     return {
       id: course.id,
       title: course.title,
-      course_code: course.course_code,
+      course_code: formatCourseCode(course.course_code),
       colour: course.colour,
       semester: course.semester,
       year: course.year,
@@ -380,7 +381,7 @@ export default async function DashboardPage() {
       dueCards: dueByCourse.get(course.id) || 0,
       totalCards: totalByCourse.get(course.id) || 0,
       latestLectureId: latestLecture ? latestLecture.id : null,
-      latestLectureTitle: latestLecture ? latestLecture.title : null,
+      latestLectureTitle: latestLecture ? cleanLectureTitle(latestLecture.title) : null,
     };
   });
 

@@ -35,6 +35,7 @@ import { CourseUploadPastPaperButton } from '@/components/past-papers/CourseUplo
 import { CollegiateLibraryIllustration, FlashcardStackIllustration, ExamArchiveIllustration } from '@/components/illustrations';
 import { cn } from '@/lib/utils';
 import { normalizePastPaperTitle, resolveDisplayCourseCode } from '@/lib/past-papers/titleNormalizer';
+import { cleanLectureTitle, formatCourseCode } from '@/lib/courses/lectureTitle';
 
 interface CourseData {
   id: string;
@@ -105,10 +106,16 @@ export default function CanvasCourseWorkspacePage() {
       ]);
 
       if (courseRes.data) {
-        setCourse(courseRes.data as CourseData);
+        setCourse({
+          ...courseRes.data,
+          course_code: formatCourseCode(courseRes.data.course_code),
+        } as CourseData);
       }
 
-      const lecs = (lecturesRes.data || []) as LectureItem[];
+      const lecs = ((lecturesRes.data || []) as LectureItem[]).map((l) => ({
+        ...l,
+        title: cleanLectureTitle(l.title),
+      }));
       setLectures(lecs);
       setFlashcards((flashcardsRes.data || []) as FlashcardItem[]);
 
@@ -124,7 +131,15 @@ export default function CanvasCourseWorkspacePage() {
         papersQuery = papersQuery.eq('course_id', courseId);
       }
       const { data: papersData } = await papersQuery.order('year', { ascending: false });
-      setPastPapers((papersData || []) as PastPaperItem[]);
+      const seenPaperKeys = new Set<string>();
+      const dedupedPapers = ((papersData || []) as PastPaperItem[]).filter((p) => {
+        const cleanTitle = normalizePastPaperTitle(p.title);
+        const key = `${p.year || ''}_${p.exam_type || 'end-semester'}_${cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+        if (seenPaperKeys.has(key)) return false;
+        seenPaperKeys.add(key);
+        return true;
+      });
+      setPastPapers(dedupedPapers);
     } catch (err) {
       console.error('Failed to load course workspace:', err);
     } finally {
