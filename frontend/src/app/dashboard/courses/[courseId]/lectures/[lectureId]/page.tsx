@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Microscope, Volume2, PenTool, StickyNote, Monitor, Eye, EyeOff, Loader2, PlaySquare, Play, X, Pin, Frown, Meh, Smile, Zap, Flame, Square, Eraser, RefreshCw, MessageCircle, Send, Hourglass, Pause, Calculator, Music, FileText, DownloadCloud, BookOpen, Languages, ChevronDown, SlidersHorizontal, Maximize, Layers, Check, ArrowRight, GraduationCap, Bot, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Microscope, Volume2, PenTool, StickyNote, Monitor, Eye, EyeOff, Loader2, PlaySquare, Play, X, Pin, Frown, Meh, Smile, Zap, Flame, Square, Eraser, RefreshCw, MessageCircle, Send, Hourglass, Pause, Calculator, Music, FileText, DownloadCloud, BookOpen, Languages, ChevronDown, SlidersHorizontal, Maximize, Minimize, Layers, Check, ArrowRight, GraduationCap, Bot, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
 import { FocusTimer, FocusTimerRef } from '@/components/study/FocusTimer'
 import { CalculatorPanel } from '@/components/study/CalculatorPanel'
 import { TutorFeedbackView } from '@/components/study/TutorFeedbackView'
@@ -1414,7 +1414,6 @@ export default function LectureViewer() {
     <div className={`flex flex-col overflow-hidden bg-background shadow-sm relative ${isFocusMode ? 'fixed inset-0 z-50 rounded-none border-none' : 'h-[calc(100vh-theme(spacing.16))] border border-border rounded-xl'}`}>
       
       {/* Top bar */}
-      {!isFocusMode && (
       <div className="h-14 flex-shrink-0 flex items-center justify-between gap-2 md:gap-3 px-3 sm:px-5 border-b border-border bg-card select-none">
         <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
           {/* Back button */}
@@ -1582,7 +1581,6 @@ export default function LectureViewer() {
           </DropdownMenu>
         </div>
       </div>
-      )}
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Slide panel */}
@@ -1739,57 +1737,26 @@ export default function LectureViewer() {
               )}
 
               {/* Floating Nav Buttons in Focus Mode */}
-              {isFocusMode && (
-                <>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-background/70 hover:bg-background backdrop-blur-sm rounded-full w-12 h-12 shadow-lg z-50"
-                    onClick={(e) => { e.stopPropagation(); setSlideIndex(Math.max(0, slideIndex - 1)); }}
-                    disabled={slideIndex === 0}
-                  >
-                    <ChevronLeft size={24} />
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-background/70 hover:bg-background backdrop-blur-sm rounded-full w-12 h-12 shadow-lg z-50"
-                    onClick={(e) => { e.stopPropagation(); setSlideIndex(Math.min(totalSlides - 1, slideIndex + 1)); }}
-                    disabled={slideIndex === totalSlides - 1}
-                  >
-                    <ChevronRight size={24} />
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    className="absolute right-4 top-4 bg-background/70 hover:bg-background backdrop-blur-sm rounded-full w-10 h-10 shadow-lg z-50"
-                    onClick={(e) => { e.stopPropagation(); setIsFocusMode(false); toast.info('Exited Focus Mode'); }}
-                    title="Exit Focus Mode (Esc)"
-                  >
-                    <X size={20} />
-                  </Button>
-                  {slideIndex === totalSlides - 1 && nextLecture && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="absolute bottom-6 right-6 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl z-50 gap-2 font-medium"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        switchToLecture(nextLecture.id);
-                        toast.success(`Switched to Week ${nextLecture.week}: ${nextLecture.title}`);
-                      }}
-                    >
-                      <span>Next Deck: Week {nextLecture.week}</span>
-                      <ArrowRight size={16} />
-                    </Button>
-                  )}
-                </>
+              {isFocusMode && slideIndex === totalSlides - 1 && nextLecture && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="absolute bottom-6 right-6 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl z-50 gap-2 font-medium"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    switchToLecture(nextLecture.id);
+                    toast.success(`Switched to Week ${nextLecture.week}: ${nextLecture.title}`);
+                  }}
+                >
+                  <span>Next Deck: Week {nextLecture.week}</span>
+                  <ArrowRight size={16} />
+                </Button>
               )}
 
               {/* Scoped Slide Zoom Toolbar */}
               <div 
                 className={`absolute z-40 flex items-center gap-1 px-2 py-1 rounded-full bg-background/85 hover:bg-background/95 text-foreground border border-border/80 shadow-md backdrop-blur-md transition-all duration-200 select-none ${
-                  isFocusMode ? 'top-4 right-16' : 'top-3 right-3'
+                  isFocusMode ? 'top-3 right-3' : 'top-3 right-3'
                 }`}
                 onClick={(e) => e.stopPropagation()}
                 title="Slide Zoom Controls (or Ctrl+Scroll / Double Click to zoom)"
@@ -1838,8 +1805,6 @@ export default function LectureViewer() {
           </div>
 
           {/* Nav strip */}
-          {!isFocusMode && (
-          <>
           <div className="flex-shrink-0 flex items-center justify-between px-6 py-3 border-t border-border bg-card">
             <div className="flex items-center gap-1 w-[200px]">
               <Button 
@@ -1900,13 +1865,13 @@ export default function LectureViewer() {
                     <Hourglass size={16} />
                   </Button>
                   <Button
-                    onClick={() => setIsFocusMode(true)}
-                    variant="ghost"
+                    onClick={() => setIsFocusMode(!isFocusMode)}
+                    variant={isFocusMode ? "secondary" : "ghost"}
                     size="icon-sm"
-                    className="text-muted-foreground hover:bg-muted"
-                    title="Focus Mode (Press Esc to exit)"
+                    className={isFocusMode ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-muted"}
+                    title={isFocusMode ? "Exit Fullscreen (Esc)" : "Fullscreen Study Canvas (F)"}
                   >
-                    <Maximize size={16} />
+                    {isFocusMode ? <Minimize size={16} /> : <Maximize size={16} />}
                   </Button>
                 </>
               )}
@@ -2020,15 +1985,12 @@ export default function LectureViewer() {
               );
             })}
           </div>
-          </>
-          )}
         </div>
 
         {/* Right: Explanation panel */}
         {showExplanation && (
         <div className="w-[400px] flex-shrink-0 flex flex-col overflow-hidden bg-card border-l border-border transition-all">
           {/* Action Header */}
-          {!isFocusMode && (
           <div className="flex-shrink-0 flex items-center gap-1 px-4 py-3 border-b border-border justify-between">
             <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap">
               <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground hover:bg-muted" onClick={() => setIsYoutubeOpen(true)} title="Related Video Lectures">
@@ -2090,7 +2052,6 @@ export default function LectureViewer() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          )}
 
           {/* Explanation text */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -2230,7 +2191,6 @@ export default function LectureViewer() {
           </div>
 
           {/* Confidence meter */}
-          {!isFocusMode && (
           <div className="flex-shrink-0 p-5 border-t border-border bg-muted/10">
             <p className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-4 text-center">How confident are you?</p>
             <div className="flex gap-2 justify-center">
@@ -2243,7 +2203,6 @@ export default function LectureViewer() {
               ))}
             </div>
           </div>
-          )}
         </div>
         )}
       </div>
