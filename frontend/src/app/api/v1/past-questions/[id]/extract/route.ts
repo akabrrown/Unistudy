@@ -206,7 +206,7 @@ export async function POST(
 
     // If Cloudinary URL points to a raw PDF, we can also extract pages using Cloudinary's pg_N rasterization
     let cloudinaryPdfBase = '';
-    if (targetPdfUrl.includes('res.cloudinary.com') && targetPdfUrl.endsWith('.pdf')) {
+    if (targetPdfUrl.includes('res.cloudinary.com')) {
       cloudinaryPdfBase = targetPdfUrl;
     }
 
@@ -289,22 +289,34 @@ Return a valid JSON object with the exact root key "questions", containing an ar
         // Method B: If inline PDF didn't yield questions (e.g. scanned image PDF or timeout) and we have Cloudinary URL, fetch page-by-page raster images
         if ((!extractedQuestions || extractedQuestions.length === 0) && cloudinaryPdfBase) {
           try {
-            // Attempt extracting from the first 5 pages of the scanned paper
+            // Attempt extracting from the first 8 pages of the scanned paper
             const pageImages: { data: string; mimeType: string }[] = [];
-            for (let pg = 1; pg <= 5; pg++) {
-              const pageUrl = cloudinaryPdfBase.replace('/upload/', `/upload/pg_${pg}/`).replace(/\.pdf$/i, '.jpg');
-              try {
-                const imgRes = await fetch(pageUrl);
-                if (imgRes.ok) {
-                  const imgBuf = Buffer.from(await imgRes.arrayBuffer());
-                  if (imgBuf.byteLength > 1000) {
-                    pageImages.push({
-                      data: imgBuf.toString('base64'),
-                      mimeType: 'image/jpeg',
-                    });
+            for (let pg = 1; pg <= 8; pg++) {
+              // Try multiple Cloudinary transformation variants for page rasterization:
+              // 1. /upload/pg_N/filename.jpg
+              // 2. /upload/w_1600,pg_N/filename.jpg
+              // 3. /upload/f_jpg,pg_N/filename.jpg
+              const urlVariants = [
+                cloudinaryPdfBase.replace('/upload/', `/upload/pg_${pg}/`).replace(/\.[^./\\]+$/i, '.jpg'),
+                cloudinaryPdfBase.replace('/upload/', `/upload/w_1600,pg_${pg}/`).replace(/\.[^./\\]+$/i, '.jpg'),
+                cloudinaryPdfBase.replace('/upload/', `/upload/f_jpg,pg_${pg}/`).replace(/\.[^./\\]+$/i, '.jpg'),
+              ];
+
+              for (const pageUrl of urlVariants) {
+                try {
+                  const imgRes = await fetch(pageUrl);
+                  if (imgRes.ok) {
+                    const imgBuf = Buffer.from(await imgRes.arrayBuffer());
+                    if (imgBuf.byteLength > 2000) {
+                      pageImages.push({
+                        data: imgBuf.toString('base64'),
+                        mimeType: 'image/jpeg',
+                      });
+                      break; // Found working raster for this page
+                    }
                   }
-                }
-              } catch (_) {}
+                } catch (_) {}
+              }
             }
 
             if (pageImages.length > 0) {
@@ -349,6 +361,53 @@ Return a valid JSON object with the exact root key "questions", containing an ar
         }
       } catch (geminiEx: any) {
         console.warn('[extract] Gemini vision exception:', geminiEx.message);
+      }
+    }
+
+    // Method C: OpenRouter Vision Fallback if Gemini Vision is throttled or fails
+    if ((!extractedQuestions || extractedQuestions.length === 0) && process.env.OPENROUTER_API_KEY && targetPdfUrl) {
+      try {
+        const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'meta-llama/llama-3.2-11b-vision-instruct:free',
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: `You are an expert exam analyzer. Extract verbatim all questions from this exam paper: ${paperTitle}. Return a JSON object with key "questions": [{"question_number": "1", "question_type": "mcq", "text_content": "...", "extracted_topic": "...", "marks_available": 1}]`
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: { url: targetPdfUrl.replace('/upload/', '/upload/w_1200,pg_1/').replace(/\.[^./\\]+$/i, '.jpg') }
+                  }
+                ]
+              }
+            ],
+            response_format: { type: 'json_object' }
+          })
+        });
+
+        if (orRes.ok) {
+          const orData = await orRes.json();
+          const content = orData.choices?.[0]?.message?.content;
+          if (content) {
+            try {
+              const parsed = JSON.parse(content);
+              if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+                extractedQuestions = parsed.questions;
+              }
+            } catch (_) {}
+          }
+        }
+      } catch (orErr: any) {
+        console.warn('[extract] OpenRouter vision notice:', orErr?.message);
       }
     }
 
