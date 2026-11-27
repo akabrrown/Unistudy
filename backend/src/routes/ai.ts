@@ -11,7 +11,9 @@ const router = Router();
 
 router.use(authenticateUser);
 router.use(rateLimit);
-router.use(protectExpensiveEndpoint({ maxPerMinute: 12, maxConcurrent: 2 }));
+// NOTE: protectExpensiveEndpoint is applied PER-ROUTE below, not globally.
+// /explain is a high-frequency route (called on every slide view) and needs
+// much higher limits than compute-heavy routes like /math-ocr or /ocr.
 router.use(deduplicateInFlightRequests({ methods: ['GET', 'POST'] }));
 
 import multer from 'multer';
@@ -107,7 +109,8 @@ router.post('/search-math', withAIQuota('answer_improver'), async (req: Request,
   }
 });
 
-router.post('/scan-notes', upload.single('file'), withAIQuota('handwriting_scan'), async (req: Request, res: Response) => {
+// Heavy compute routes: scan-notes (image OCR), ocr-math, ask (chat tutor) get stricter limits
+router.post('/scan-notes', protectExpensiveEndpoint({ maxPerMinute: 10, maxConcurrent: 2 }), upload.single('file'), withAIQuota('handwriting_scan'), async (req: Request, res: Response) => {
   try {
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'No image uploaded' });
@@ -182,7 +185,7 @@ router.post('/scan-notes', upload.single('file'), withAIQuota('handwriting_scan'
   }
 });
 
-router.post('/ocr-math', upload.single('file'), async (req: Request, res: Response) => {
+router.post('/ocr-math', protectExpensiveEndpoint({ maxPerMinute: 10, maxConcurrent: 2 }), upload.single('file'), async (req: Request, res: Response) => {
   try {
     let base64Data = '';
     let effectiveMime = 'image/jpeg';
@@ -331,7 +334,7 @@ router.post('/ocr-math', upload.single('file'), async (req: Request, res: Respon
   }
 });
 
-router.post('/ask', async (req: Request, res: Response) => {
+router.post('/ask', protectExpensiveEndpoint({ maxPerMinute: 20, maxConcurrent: 3 }), async (req: Request, res: Response) => {
   const { feature, payload, priority, identifiers } = req.body;
   if (!feature || !payload) return res.status(400).json({ error: 'Missing feature or payload' });
 
@@ -580,7 +583,9 @@ router.post('/calculator', withAIQuota('calculator'), async (req: Request, res: 
   }
 });
 
-router.post('/explain', authenticateUser, withAIQuota('slide_explanation'), async (req: Request, res: Response) => {
+// /explain is called on every slide view — allow 60 req/min per user, 4 concurrent.
+// (A student viewing 20 slides quickly should not hit a 429.)
+router.post('/explain', protectExpensiveEndpoint({ maxPerMinute: 60, maxConcurrent: 4 }), withAIQuota('slide_explanation'), async (req: Request, res: Response) => {
   try {
   const { slideText, slideNumber, level, courseContext, visionExplanation, imageUrl, mode, prevSlideText, nextSlideText } = req.body;
 
@@ -699,8 +704,13 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
             res.write(`data: ${JSON.stringify(delta)}\n\n`);
           }
         }
-      } catch (groqFastErr) {
-        console.warn('[AI Explain] Groq fast-path notice, trying next provider:', groqFastErr);
+      } catch (groqFastErr: any) {
+        const is429 = groqFastErr?.status === 429 || groqFastErr?.message?.includes('429') || groqFastErr?.message?.toLowerCase().includes('rate limit');
+        if (is429) {
+          console.warn('[AI Explain] Groq fast-path rate limited (429), skipping to Gemini.');
+        } else {
+          console.warn('[AI Explain] Groq fast-path notice, trying next provider:', groqFastErr?.message || groqFastErr);
+        }
       }
     }
 
@@ -804,29 +814,33 @@ CRITICAL COPY CONSTRAINTS (Human Voice Only):
       }
     }
 
-    // Path 4: Secondary Groq attempt
+    // Path 4: Secondary Groq attempt (try remaining GROQ_SMART_MODELS in order)
     if (!fullText && process.env.GROQ_API_KEY) {
-      try {
-        const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-        const groqStream = await groq.chat.completions.create({
-          model: GROQ_SMART_MODELS[1] || 'openai/gpt-oss-120b',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: prompt }
-          ],
-          stream: true,
-          temperature: 0.5,
-        });
+      for (let gi = 1; gi < Math.min(GROQ_SMART_MODELS.length, 3); gi++) {
+        try {
+          const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+          const groqStream = await groq.chat.completions.create({
+            model: GROQ_SMART_MODELS[gi] || 'openai/gpt-oss-120b',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: prompt }
+            ],
+            stream: true,
+            temperature: 0.5,
+          });
 
-        for await (const chunk of groqStream) {
-          const delta = chunk.choices[0]?.delta?.content || '';
-          if (delta) {
-            fullText += delta;
-            res.write(`data: ${JSON.stringify(delta)}\n\n`);
+          for await (const chunk of groqStream) {
+            const delta = chunk.choices[0]?.delta?.content || '';
+            if (delta) {
+              fullText += delta;
+              res.write(`data: ${JSON.stringify(delta)}\n\n`);
+            }
           }
+          if (fullText) break;
+        } catch (groqFallbackErr: any) {
+          const is429 = groqFallbackErr?.status === 429 || groqFallbackErr?.message?.includes('429');
+          console.error(`[AI Explain] Groq fallback model[${gi}] error${is429 ? ' (rate limited)' : ''}:`, groqFallbackErr?.message || groqFallbackErr);
         }
-      } catch (groqFallbackErr) {
-        console.error('[AI Explain] Groq final fallback error:', groqFallbackErr);
       }
     }
 
