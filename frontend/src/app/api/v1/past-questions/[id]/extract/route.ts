@@ -312,77 +312,123 @@ Return a valid JSON object strictly matching:
 }
 `;
 
-    // 3. Method A & B: Try Gemini Multimodal Vision if key configured
-    if (process.env.GEMINI_API_KEY) {
+    // 3. Method A: Two-step Gemini pipeline — transcribe then extract with maxOutputTokens:16000
+    // This prevents truncation on papers with 50+ MCQ questions.
+    if (process.env.GEMINI_API_KEY && pdfBuffer) {
       try {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const modelsToTry = [
-          ...GEMINI_CANDIDATE_MODELS,
-          'gemini-3.5-flash',
-          'gemini-3.8-flash',
-          'gemini-flash-latest',
-          'gemini-2.5-flash-lite',
-        ];
-        const uniqueModels = Array.from(new Set(modelsToTry));
+        const uniqueModels = Array.from(new Set([...GEMINI_CANDIDATE_MODELS, 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite']));
+        const base64Pdf = pdfBuffer.toString('base64');
 
-        if (pdfBuffer) {
-          const base64Pdf = pdfBuffer.toString('base64');
-          for (const modelName of uniqueModels) {
-            try {
-              const model = genAI.getGenerativeModel({
-                model: modelName,
-                generationConfig: { responseMimeType: 'application/json' },
-              });
-              const result = await model.generateContent([
-                visionPrompt,
-                { inlineData: { data: base64Pdf, mimeType: 'application/pdf' } },
-              ]);
-              const rawText = result.response.text();
-              const cleanText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-              const start = cleanText.indexOf('{');
-              const end = cleanText.lastIndexOf('}');
-              if (start !== -1 && end !== -1) {
-                const parsed = JSON.parse(cleanText.slice(start, end + 1));
-                if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-                  extractedQuestions = parsed.questions;
-                  break;
-                }
-              }
-            } catch (modelErr: any) {
-              console.warn(`[extract] Gemini model ${modelName} PDF inline notice:`, modelErr.message);
-            }
+        // Step 1 — Verbatim transcription (plain text, no JSON, cheap on output tokens)
+        let rawText = '';
+        for (const modelName of uniqueModels) {
+          try {
+            const transcriber = genAI.getGenerativeModel({
+              model: modelName,
+              generationConfig: { maxOutputTokens: 8192, temperature: 0 },
+            });
+            const txResult = await transcriber.generateContent([
+              { inlineData: { data: base64Pdf, mimeType: 'application/pdf' } },
+              { text: 'Transcribe every word of this exam paper verbatim, page by page. Do not omit anything. Output raw text only.' },
+            ]);
+            const candidate = txResult.response.text().trim();
+            if (candidate.length > 200) { rawText = candidate; break; }
+          } catch (txErr: any) {
+            console.warn(`[extract] Transcription model ${modelName} notice:`, txErr.message);
           }
         }
 
-        if ((!extractedQuestions || extractedQuestions.length === 0) && pageImages.length > 0) {
+        // Step 2 — Structured extraction from raw text (maxOutputTokens:16000 covers all 50+ MCQs)
+        if (rawText) {
+          const extractionPrompt = `You are an academic exam parser. The following is the full transcribed text of a university past examination paper for course ${courseCode}.
+Extract EVERY SINGLE question verbatim — do not skip, truncate, or summarise anything.
+If Part A has 50 MCQ questions numbered 1-50, you MUST include all 50 individually.
+Include all parts (Part A, B, C, D or Section I, II, etc.).
+
+Return ONLY a valid JSON array — no Markdown, no preamble:
+[
+  {
+    "question_number": "1",
+    "question_type": "mcq",
+    "text_content": "Full question stem with all MCQ options (A. ... B. ... C. ... D. ...) verbatim",
+    "extracted_topic": "1-3 word concept topic",
+    "marks_available": 1
+  }
+]
+Rules:
+- Part A MCQ → question_number is "1", "2", … "50"; question_type "mcq".
+- Part B short answer → "Part B - 1", "Part B - 2", …; question_type "short_answer".
+- Part C essay → "Part C - 1", …; question_type "essay".
+- Part D case study → "Part D - 1", …; question_type "essay".
+- Include all MCQ answer options (A/B/C/D) in text_content.
+- DO NOT stop early. Output all questions.
+
+Exam Paper Text:
+${rawText}`;
+
           for (const modelName of uniqueModels) {
             try {
-              const model = genAI.getGenerativeModel({
+              const extractor = genAI.getGenerativeModel({
                 model: modelName,
-                generationConfig: { responseMimeType: 'application/json' },
+                generationConfig: { maxOutputTokens: 16000, temperature: 0.1 },
               });
-              const imageParts = pageImages.map((img) => ({
-                inlineData: { data: img.data, mimeType: img.mimeType },
-              }));
-              const result = await model.generateContent([visionPrompt, ...imageParts]);
-              const rawText = result.response.text();
-              const cleanText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-              const start = cleanText.indexOf('{');
-              const end = cleanText.lastIndexOf('}');
-              if (start !== -1 && end !== -1) {
-                const parsed = JSON.parse(cleanText.slice(start, end + 1));
-                if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-                  extractedQuestions = parsed.questions;
+              const exResult = await extractor.generateContent(extractionPrompt);
+              const raw = exResult.response.text().trim();
+              const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+              const s = clean.indexOf('[');
+              const e = clean.lastIndexOf(']');
+              if (s !== -1 && e !== -1) {
+                const parsed = JSON.parse(clean.slice(s, e + 1));
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  extractedQuestions = parsed;
+                  console.log(`[extract] Two-step pipeline extracted ${parsed.length} questions via ${modelName}`);
                   break;
                 }
               }
-            } catch (imgModelErr: any) {
-              console.warn(`[extract] Gemini model ${modelName} raster images notice:`, imgModelErr.message);
+            } catch (exErr: any) {
+              console.warn(`[extract] Extraction model ${modelName} notice:`, exErr.message);
             }
           }
         }
       } catch (geminiEx: any) {
-        console.warn('[extract] Gemini vision exception:', geminiEx.message);
+        console.warn('[extract] Gemini two-step exception:', geminiEx.message);
+      }
+    }
+
+    // 3b. Fallback: Gemini page images (rasterized via Cloudinary) when no PDF buffer
+    if ((!extractedQuestions || extractedQuestions.length === 0) && process.env.GEMINI_API_KEY && pageImages.length > 0) {
+      try {
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const uniqueModels = Array.from(new Set([...GEMINI_CANDIDATE_MODELS, 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest']));
+        for (const modelName of uniqueModels) {
+          try {
+            const model = genAI.getGenerativeModel({
+              model: modelName,
+              generationConfig: { maxOutputTokens: 16000, temperature: 0.1 },
+            });
+            const imageParts = pageImages.map((img) => ({
+              inlineData: { data: img.data, mimeType: img.mimeType as 'image/jpeg' },
+            }));
+            const result = await model.generateContent([visionPrompt, ...imageParts]);
+            const rawText = result.response.text();
+            const cleanText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+            const start = cleanText.indexOf('{');
+            const end = cleanText.lastIndexOf('}');
+            if (start !== -1 && end !== -1) {
+              const parsed = JSON.parse(cleanText.slice(start, end + 1));
+              if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+                extractedQuestions = parsed.questions;
+                console.log(`[extract] Image fallback extracted ${parsed.questions.length} questions via ${modelName}`);
+                break;
+              }
+            }
+          } catch (imgModelErr: any) {
+            console.warn(`[extract] Image fallback model ${modelName} notice:`, imgModelErr.message);
+          }
+        }
+      } catch (geminiImgEx: any) {
+        console.warn('[extract] Gemini image fallback exception:', geminiImgEx.message);
       }
     }
 

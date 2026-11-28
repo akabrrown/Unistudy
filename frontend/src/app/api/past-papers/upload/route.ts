@@ -39,114 +39,87 @@ async function uploadPdfBufferToCloudinary(buffer: Buffer, publicId: string): Pr
   });
 }
 
+/**
+ * Two-step extraction pipeline:
+ * Step 1 — Transcribe full PDF text verbatim (raw text, no JSON, keeps output budget free)
+ * Step 2 — Extract all questions from the raw text with maxOutputTokens:16000 so no question is truncated
+ */
 async function extractQuestionsWithGemini(pdfBuffer: Buffer, courseCode: string): Promise<any[]> {
-  const prompt = `You are an academic exam parser. Read this university past examination paper PDF for course ${courseCode}.
-Extract every distinct examination question, including sub-questions (e.g. 1a, 1b, 2, 3), and return strictly valid JSON matching this schema:
-[
-  {
-    "question_number": "1",
-    "text_content": "Full question text including any formulas, instructions, or scenarios",
-    "extracted_topic": "THEORY|Specific Topic Name",
-    "marks_available": 10
-  }
-]
-Constraints:
-- Return ONLY the JSON array, with no Markdown ticks, no preamble, and no explanation.
-- If there are multiple choice questions, set extracted_topic to "MCQ|Topic Name".
-- Extract between 5 and 50 questions based on what is in the paper.`;
+  if (!process.env.GEMINI_API_KEY) return [];
 
-  // 1. Primary path: Google Gemini Vision
-  if (process.env.GEMINI_API_KEY) {
-    const base64Data = pdfBuffer.toString('base64');
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const base64Data = pdfBuffer.toString('base64');
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-    for (const modelName of GEMINI_CANDIDATE_MODELS) {
-      try {
-        const model = genAI.getGenerativeModel({ model: modelName });
-        const result = await model.generateContent([
-          {
-            inlineData: {
-              data: base64Data,
-              mimeType: 'application/pdf',
-            },
-          },
-          { text: prompt },
-        ]);
-
-        const text = result.response.text().trim();
-        const cleanJson = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-        const start = cleanJson.indexOf('[');
-        const end = cleanJson.lastIndexOf(']');
-        if (start !== -1 && end !== -1) {
-          const parsed = JSON.parse(cleanJson.slice(start, end + 1));
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
-          }
-        }
-      } catch (err: any) {
-        console.warn(`[extractQuestionsWithGemini] Model ${modelName} warning:`, err.message);
-      }
+  // ── Step 1: Transcribe raw text ──────────────────────────────────────────
+  let rawText = '';
+  for (const modelName of GEMINI_CANDIDATE_MODELS) {
+    try {
+      const transcriber = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: { maxOutputTokens: 8192, temperature: 0 },
+      });
+      const txResult = await transcriber.generateContent([
+        { inlineData: { data: base64Data, mimeType: 'application/pdf' } },
+        { text: 'Transcribe every word of this exam paper verbatim, page by page. Do not omit anything. Output raw text only.' },
+      ]);
+      rawText = txResult.response.text().trim();
+      if (rawText.length > 200) break;
+    } catch (err: any) {
+      console.warn(`[upload/extract] Transcription model ${modelName} notice:`, err.message);
     }
   }
 
-  // 2. High-availability fallback path: OpenRouter Vision
-  if (process.env.OPENROUTER_API_KEY) {
+  if (!rawText) {
+    console.warn('[upload/extract] Raw transcription failed — skipping extraction');
+    return [];
+  }
+
+  // ── Step 2: Extract questions from raw text ──────────────────────────────
+  const extractionPrompt = `You are an academic exam parser. The following is the full transcribed text of a university past examination paper for course ${courseCode}.
+Extract EVERY SINGLE question verbatim — do not skip, truncate, or summarise anything.
+If Part A has 50 MCQ questions numbered 1-50, you MUST include all 50 individually.
+Include all parts (Part A, B, C, D or Section I, II, etc.).
+
+Return ONLY a valid JSON array — no Markdown, no preamble:
+[
+  {
+    "question_number": "1",
+    "text_content": "Full question stem with all MCQ options (A. ... B. ... C. ... D. ...) verbatim",
+    "extracted_topic": "MCQ|Topic or THEORY|Topic",
+    "marks_available": 1
+  }
+]
+Rules:
+- Part A MCQ → question_number is "1", "2", … "50"; extracted_topic starts with "MCQ|".
+- Part B short answer → "Part B - 1", "Part B - 2", …; extracted_topic starts with "THEORY|".
+- Part C essay → "Part C - 1", …
+- Part D case study → "Part D - 1", …
+- Include all MCQ answer options (A/B/C/D) in text_content.
+- DO NOT stop early. Output all questions.
+
+Exam Paper Text:
+${rawText}`;
+
+  for (const modelName of GEMINI_CANDIDATE_MODELS) {
     try {
-      const base64Data = pdfBuffer.toString('base64');
-      const orModels = [
-        'google/gemma-4-31b-it:free',
-        'nvidia/nemotron-3.5-super-vl:free',
-        'openrouter/auto',
-      ];
-
-      for (const model of orModels) {
-        try {
-          const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-              'Content-Type': 'application/json',
-              'HTTP-Referer': 'https://unistudy.app',
-            },
-            body: JSON.stringify({
-              model,
-              messages: [
-                {
-                  role: 'user',
-                  content: [
-                    { type: 'text', text: prompt },
-                    {
-                      type: 'image_url',
-                      image_url: { url: `data:application/pdf;base64,${base64Data}` },
-                    },
-                  ],
-                },
-              ],
-              max_tokens: 4000,
-            }),
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            const content = data.choices?.[0]?.message?.content?.trim();
-            if (content) {
-              const cleanJson = content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-              const start = cleanJson.indexOf('[');
-              const end = cleanJson.lastIndexOf(']');
-              if (start !== -1 && end !== -1) {
-                const parsed = JSON.parse(cleanJson.slice(start, end + 1));
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                  return parsed;
-                }
-              }
-            }
-          }
-        } catch (orMError: any) {
-          console.warn(`[extractQuestionsWithGemini] OpenRouter model ${model} warning:`, orMError.message);
+      const extractor = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: { maxOutputTokens: 16000, temperature: 0.1 },
+      });
+      const exResult = await extractor.generateContent(extractionPrompt);
+      const raw = exResult.response.text().trim();
+      const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+      const s = clean.indexOf('[');
+      const e = clean.lastIndexOf(']');
+      if (s !== -1 && e !== -1) {
+        const parsed = JSON.parse(clean.slice(s, e + 1));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          console.log(`[upload/extract] Extracted ${parsed.length} questions via ${modelName}`);
+          return parsed;
         }
       }
-    } catch (orErr: any) {
-      console.warn('[extractQuestionsWithGemini] OpenRouter fallback notice:', orErr.message);
+    } catch (err: any) {
+      console.warn(`[upload/extract] Extraction model ${modelName} notice:`, err.message);
     }
   }
 
