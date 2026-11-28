@@ -133,23 +133,11 @@ function formatShortDate(iso: string | null | undefined): string {
 
 export default function PastPapersDashboard() {
   const [courses, setCourses] = useState<CourseItem[]>([]);
-  const [papers, setPapers] = useState<PastPaperRecord[]>(() => {
-    if (typeof window !== 'undefined') {
-      const cached = getCachedPastPapers();
-      if (cached && cached.length > 0) return cached;
-    }
-    return [];
-  });
+  const [papers, setPapers] = useState<PastPaperRecord[]>([]);
   const [attempts, setAttempts] = useState<PastPaperAttemptRecord[]>([]);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [preselectedCourseId, setPreselectedCourseId] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const cached = getCachedPastPapers();
-      return !(cached && cached.length > 0);
-    }
-    return true;
-  });
+  const [loading, setLoading] = useState<boolean>(true);
   const [selectedPapers, setSelectedPapers] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null);

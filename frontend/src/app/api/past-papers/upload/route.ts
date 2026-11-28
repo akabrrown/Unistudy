@@ -77,9 +77,13 @@ Constraints:
 
       const text = result.response.text().trim();
       const cleanJson = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-      const parsed = JSON.parse(cleanJson);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+      const start = cleanJson.indexOf('[');
+      const end = cleanJson.lastIndexOf(']');
+      if (start !== -1 && end !== -1) {
+        const parsed = JSON.parse(cleanJson.slice(start, end + 1));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
       }
     } catch (err: any) {
       console.warn(`[extractQuestionsWithGemini] Model ${modelName} warning:`, err.message);

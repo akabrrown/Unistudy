@@ -317,12 +317,11 @@ Return a valid JSON object strictly matching:
       try {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const modelsToTry = [
-          'gemini-2.5-flash-preview-05-20',
-          'gemini-2.0-flash',
-          'gemini-2.0-flash-lite',
-          'gemini-1.5-flash',
-          'gemini-1.5-pro',
           ...GEMINI_CANDIDATE_MODELS,
+          'gemini-3.5-flash',
+          'gemini-3.8-flash',
+          'gemini-flash-latest',
+          'gemini-2.5-flash-lite',
         ];
         const uniqueModels = Array.from(new Set(modelsToTry));
 
