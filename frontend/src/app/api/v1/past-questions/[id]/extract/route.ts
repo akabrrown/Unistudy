@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { v2 as cloudinary } from 'cloudinary';
 import { GEMINI_CANDIDATE_MODELS } from '../../../../../../../../shared/constants/aiModels';
 
 export const dynamic = 'force-dynamic';
@@ -8,6 +9,12 @@ export const maxDuration = 60; // 60 seconds max duration for PDF OCR analysis
 
 const KLOK_BASE_URL = process.env.KLOK_BASE_URL || 'https://kloksearch.vercel.app';
 const KLOK_API_KEY = process.env.KLOK_API_KEY || 'klok_live_ddbeef2ccb5ed98dd45873c1d35060c4';
+
+cloudinary.config({
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME || 'dtauhhlve',
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 function extractCourseCode(name: string): string {
   if (!name) return 'EXAM';
@@ -206,29 +213,109 @@ export async function POST(
 
     // If Cloudinary URL points to a raw PDF, we can also extract pages using Cloudinary's pg_N rasterization
     let cloudinaryPdfBase = '';
-    if (targetPdfUrl.includes('res.cloudinary.com')) {
+    if (targetPdfUrl && targetPdfUrl.includes('res.cloudinary.com')) {
       cloudinaryPdfBase = targetPdfUrl;
     }
 
-    // 3. Extract authentic questions using Gemini Multimodal Vision on PDF or Page Images
+    // If no Cloudinary URL yet but we have the raw PDF buffer, upload it to Cloudinary
+    // so we gain instant page-by-page rasterization capabilities
+    if (!cloudinaryPdfBase && pdfBuffer) {
+      try {
+        const uploadRes = await new Promise<string | null>((resolve) => {
+          const stream = cloudinary.uploader.upload_stream(
+            {
+              folder: 'unistudy_past_papers',
+              resource_type: 'image',
+              public_id: `paper_${paperId.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}`,
+              format: 'pdf',
+              overwrite: true,
+            },
+            (error, result) => {
+              if (error || !result?.secure_url) {
+                resolve(null);
+              } else {
+                resolve(result.secure_url);
+              }
+            }
+          );
+          stream.end(pdfBuffer);
+        });
+
+        if (uploadRes) {
+          cloudinaryPdfBase = uploadRes;
+          targetPdfUrl = uploadRes;
+
+          if (isUuid && resolvedPaperRecord) {
+            void supabase
+              .from('past_papers')
+              .update({ file_url: uploadRes })
+              .eq('id', resolvedPaperRecord.id);
+          }
+        }
+      } catch (uErr: any) {
+        console.warn('[extract] Cloudinary buffer upload notice:', uErr.message);
+      }
+    }
+
+    // Collect rasterized page images (pages 1 to 6) in parallel
+    const pageImages: { pageNum: number; data: string; mimeType: string }[] = [];
+    if (cloudinaryPdfBase) {
+      try {
+        const pagePromises = [1, 2, 3, 4, 5, 6].map(async (pg) => {
+          const urlVariants = [
+            cloudinaryPdfBase.replace('/upload/', `/upload/w_1000,pg_${pg}/`).replace(/\.[^./\\]+$/i, '.jpg'),
+            cloudinaryPdfBase.replace('/upload/', `/upload/pg_${pg}/`).replace(/\.[^./\\]+$/i, '.jpg'),
+            cloudinaryPdfBase.replace('/upload/', `/upload/f_jpg,pg_${pg}/`).replace(/\.[^./\\]+$/i, '.jpg'),
+          ];
+          for (const pageUrl of urlVariants) {
+            try {
+              const imgRes = await fetch(pageUrl);
+              if (imgRes.ok) {
+                const imgBuf = Buffer.from(await imgRes.arrayBuffer());
+                if (imgBuf.byteLength > 2000) {
+                  return { pageNum: pg, data: imgBuf.toString('base64'), mimeType: 'image/jpeg' };
+                }
+              }
+            } catch (_) {}
+          }
+          return null;
+        });
+
+        const results = await Promise.all(pagePromises);
+        for (const r of results) {
+          if (r) pageImages.push(r);
+        }
+        pageImages.sort((a, b) => a.pageNum - b.pageNum);
+      } catch (rasterErr: any) {
+        console.warn('[extract] Cloudinary page rasterization notice:', rasterErr.message);
+      }
+    }
+
+    const visionPrompt = `
+You are an expert university exam analyzer. I am providing you with authentic university examination past paper pages: ${paperTitle} (${courseCode}).
+Read every page carefully from beginning to end.
+Transcribe and extract the EXACT questions as printed on the exam paper verbatim.
+Do NOT invent, summarize, or alter questions. Include authentic question numbers, text, instructions, and multiple choice options (A, B, C, D) verbatim.
+Do NOT hallucinate or create fictional questions. Only output what is actually printed on this document.
+
+Return a valid JSON object strictly matching:
+{
+  "questions": [
+    {
+      "question_number": "1",
+      "question_type": "mcq",
+      "text_content": "Full verbatim question stem and all options if MCQ",
+      "extracted_topic": "1-3 word concept topic",
+      "marks_available": 1
+    }
+  ]
+}
+`;
+
+    // 3. Method A & B: Try Gemini Multimodal Vision if key configured
     if (process.env.GEMINI_API_KEY) {
       try {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const visionPrompt = `
-You are an expert university exam analyzer. I am providing you with the authentic university examination past paper: ${paperTitle} (${courseCode}).
-Read every page carefully from page 1 to the end.
-Transcribe and extract the EXACT questions as printed on the exam paper verbatim.
-Do NOT invent, summarize, or alter questions. Include the authentic question numbers, text, instructions, and multiple choice options (A, B, C, D) verbatim.
-Do NOT hallucinate or create fictional questions. Only output what is actually printed on this document.
-
-Return a valid JSON object with the exact root key "questions", containing an array of objects:
-- "question_number": (string, e.g. "1", "2", "3")
-- "question_type": ("mcq" or "theory")
-- "text_content": (the exact verbatim text, options, or instructions as printed on the exam paper)
-- "extracted_topic": (short 1-3 word topic identifying the concept from the question)
-- "marks_available": (number of marks, e.g. 1 for MCQ, or explicit marks indicated for theory)
-`;
-
         const modelsToTry = [
           'gemini-2.5-flash-preview-05-20',
           'gemini-2.0-flash',
@@ -237,10 +324,8 @@ Return a valid JSON object with the exact root key "questions", containing an ar
           'gemini-1.5-pro',
           ...GEMINI_CANDIDATE_MODELS,
         ];
-
         const uniqueModels = Array.from(new Set(modelsToTry));
 
-        // Method A: If we have direct PDF buffer, try sending PDF inline
         if (pdfBuffer) {
           const base64Pdf = pdfBuffer.toString('base64');
           for (const modelName of uniqueModels) {
@@ -249,34 +334,18 @@ Return a valid JSON object with the exact root key "questions", containing an ar
                 model: modelName,
                 generationConfig: { responseMimeType: 'application/json' },
               });
-
               const result = await model.generateContent([
                 visionPrompt,
-                {
-                  inlineData: {
-                    data: base64Pdf,
-                    mimeType: 'application/pdf',
-                  },
-                },
+                { inlineData: { data: base64Pdf, mimeType: 'application/pdf' } },
               ]);
-
               const rawText = result.response.text();
               const cleanText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
               const start = cleanText.indexOf('{');
               const end = cleanText.lastIndexOf('}');
-              const startArr = cleanText.indexOf('[');
-              const endArr = cleanText.lastIndexOf(']');
-
-              if (start !== -1 && end !== -1 && (startArr === -1 || start < startArr)) {
+              if (start !== -1 && end !== -1) {
                 const parsed = JSON.parse(cleanText.slice(start, end + 1));
                 if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
                   extractedQuestions = parsed.questions;
-                  break;
-                }
-              } else if (startArr !== -1 && endArr !== -1) {
-                const parsed = JSON.parse(cleanText.slice(startArr, endArr + 1));
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                  extractedQuestions = parsed;
                   break;
                 }
               }
@@ -286,77 +355,31 @@ Return a valid JSON object with the exact root key "questions", containing an ar
           }
         }
 
-        // Method B: If inline PDF didn't yield questions (e.g. scanned image PDF or timeout) and we have Cloudinary URL, fetch page-by-page raster images
-        if ((!extractedQuestions || extractedQuestions.length === 0) && cloudinaryPdfBase) {
-          try {
-            // Attempt extracting from the first 8 pages of the scanned paper
-            const pageImages: { data: string; mimeType: string }[] = [];
-            for (let pg = 1; pg <= 8; pg++) {
-              // Try multiple Cloudinary transformation variants for page rasterization:
-              // 1. /upload/pg_N/filename.jpg
-              // 2. /upload/w_1600,pg_N/filename.jpg
-              // 3. /upload/f_jpg,pg_N/filename.jpg
-              const urlVariants = [
-                cloudinaryPdfBase.replace('/upload/', `/upload/pg_${pg}/`).replace(/\.[^./\\]+$/i, '.jpg'),
-                cloudinaryPdfBase.replace('/upload/', `/upload/w_1600,pg_${pg}/`).replace(/\.[^./\\]+$/i, '.jpg'),
-                cloudinaryPdfBase.replace('/upload/', `/upload/f_jpg,pg_${pg}/`).replace(/\.[^./\\]+$/i, '.jpg'),
-              ];
-
-              for (const pageUrl of urlVariants) {
-                try {
-                  const imgRes = await fetch(pageUrl);
-                  if (imgRes.ok) {
-                    const imgBuf = Buffer.from(await imgRes.arrayBuffer());
-                    if (imgBuf.byteLength > 2000) {
-                      pageImages.push({
-                        data: imgBuf.toString('base64'),
-                        mimeType: 'image/jpeg',
-                      });
-                      break; // Found working raster for this page
-                    }
-                  }
-                } catch (_) {}
-              }
-            }
-
-            if (pageImages.length > 0) {
-              for (const modelName of uniqueModels) {
-                try {
-                  const model = genAI.getGenerativeModel({
-                    model: modelName,
-                    generationConfig: { responseMimeType: 'application/json' },
-                  });
-
-                  const imageParts = pageImages.map((img) => ({
-                    inlineData: {
-                      data: img.data,
-                      mimeType: img.mimeType,
-                    },
-                  }));
-
-                  const result = await model.generateContent([
-                    visionPrompt,
-                    ...imageParts,
-                  ]);
-
-                  const rawText = result.response.text();
-                  const cleanText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-                  const start = cleanText.indexOf('{');
-                  const end = cleanText.lastIndexOf('}');
-                  if (start !== -1 && end !== -1) {
-                    const parsed = JSON.parse(cleanText.slice(start, end + 1));
-                    if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-                      extractedQuestions = parsed.questions;
-                      break;
-                    }
-                  }
-                } catch (imgModelErr: any) {
-                  console.warn(`[extract] Gemini model ${modelName} raster images notice:`, imgModelErr.message);
+        if ((!extractedQuestions || extractedQuestions.length === 0) && pageImages.length > 0) {
+          for (const modelName of uniqueModels) {
+            try {
+              const model = genAI.getGenerativeModel({
+                model: modelName,
+                generationConfig: { responseMimeType: 'application/json' },
+              });
+              const imageParts = pageImages.map((img) => ({
+                inlineData: { data: img.data, mimeType: img.mimeType },
+              }));
+              const result = await model.generateContent([visionPrompt, ...imageParts]);
+              const rawText = result.response.text();
+              const cleanText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+              const start = cleanText.indexOf('{');
+              const end = cleanText.lastIndexOf('}');
+              if (start !== -1 && end !== -1) {
+                const parsed = JSON.parse(cleanText.slice(start, end + 1));
+                if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+                  extractedQuestions = parsed.questions;
+                  break;
                 }
               }
+            } catch (imgModelErr: any) {
+              console.warn(`[extract] Gemini model ${modelName} raster images notice:`, imgModelErr.message);
             }
-          } catch (rasterErr: any) {
-            console.warn('[extract] Cloudinary page rasterization notice:', rasterErr.message);
           }
         }
       } catch (geminiEx: any) {
@@ -364,50 +387,82 @@ Return a valid JSON object with the exact root key "questions", containing an ar
       }
     }
 
-    // Method C: OpenRouter Vision Fallback if Gemini Vision is throttled or fails
-    if ((!extractedQuestions || extractedQuestions.length === 0) && process.env.OPENROUTER_API_KEY && targetPdfUrl) {
+    // 3c. Method C: OpenRouter Multimodal Vision Pipeline (High-Accuracy Parallel Batching)
+    if ((!extractedQuestions || extractedQuestions.length === 0) && process.env.OPENROUTER_API_KEY && pageImages.length > 0) {
       try {
-        const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'meta-llama/llama-3.2-11b-vision-instruct:free',
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'text',
-                    text: `You are an expert exam analyzer. Extract verbatim all questions from this exam paper: ${paperTitle}. Return a JSON object with key "questions": [{"question_number": "1", "question_type": "mcq", "text_content": "...", "extracted_topic": "...", "marks_available": 1}]`
-                  },
-                  {
-                    type: 'image_url',
-                    image_url: { url: targetPdfUrl.replace('/upload/', '/upload/w_1200,pg_1/').replace(/\.[^./\\]+$/i, '.jpg') }
+        const openRouterModels = [
+          'nvidia/nemotron-3.5-super-vl:free',
+          'google/gemma-4-26b-a4b-it:free',
+          'google/gemma-4-31b-it:free',
+          'particle-ai/particle-1:free',
+          'openrouter/auto',
+        ];
+
+        // Batch pages in chunks of 2 for fast, high-quality parallel extraction
+        const chunks: { pageNum: number; data: string; mimeType: string }[][] = [];
+        for (let i = 0; i < pageImages.length; i += 2) {
+          chunks.push(pageImages.slice(i, i + 2));
+        }
+
+        const chunkPromises = chunks.map(async (chunk, cIdx) => {
+          const imageParts = chunk.map((img) => ({
+            type: 'image_url',
+            image_url: { url: `data:${img.mimeType};base64,${img.data}` },
+          }));
+
+          for (const model of openRouterModels) {
+            try {
+              const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                  'Content-Type': 'application/json',
+                  'HTTP-Referer': 'https://unistudy.app',
+                },
+                body: JSON.stringify({
+                  model,
+                  messages: [
+                    {
+                      role: 'user',
+                      content: [
+                        { type: 'text', text: visionPrompt },
+                        ...imageParts,
+                      ],
+                    },
+                  ],
+                  max_tokens: 3000,
+                }),
+              });
+
+              if (orRes.ok) {
+                const orData = await orRes.json();
+                const content = orData.choices?.[0]?.message?.content;
+                if (content) {
+                  const cleanText = content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+                  const start = cleanText.indexOf('{');
+                  const end = cleanText.lastIndexOf('}');
+                  if (start !== -1 && end !== -1) {
+                    const parsed = JSON.parse(cleanText.slice(start, end + 1));
+                    if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+                      return parsed.questions;
+                    }
                   }
-                ]
+                }
               }
-            ],
-            response_format: { type: 'json_object' }
-          })
+            } catch (mErr: any) {
+              console.warn(`[extract] OpenRouter model ${model} chunk ${cIdx + 1} notice:`, mErr.message);
+            }
+          }
+          return [];
         });
 
-        if (orRes.ok) {
-          const orData = await orRes.json();
-          const content = orData.choices?.[0]?.message?.content;
-          if (content) {
-            try {
-              const parsed = JSON.parse(content);
-              if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-                extractedQuestions = parsed.questions;
-              }
-            } catch (_) {}
-          }
+        const chunkResults = await Promise.all(chunkPromises);
+        const combined = chunkResults.flat();
+        if (combined.length > 0) {
+          extractedQuestions = combined;
         }
       } catch (orErr: any) {
-        console.warn('[extract] OpenRouter vision notice:', orErr?.message);
+        console.warn('[extract] OpenRouter vision pipeline error:', orErr.message);
       }
     }
 
