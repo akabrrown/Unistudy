@@ -86,6 +86,7 @@ interface CourseRecord {
   semester: number | string | null;
   year: number | null;
   is_archived?: boolean | null;
+  archived?: boolean | null;
   created_at?: string | null;
   lectures?: LectureSummary[] | null;
   past_papers?: PastPaperSummary[] | null;
@@ -254,7 +255,7 @@ export default function CoursesPage() {
     if (!data || data.length === 0) {
       const { data: dbData, error } = await supabase
         .from('courses')
-        .select('id, user_id, title, course_code, colour, semester, year, is_archived, created_at, lectures(id, title, week, slide_count, created_at, processing), past_papers(id, title, year, exam_type, status)')
+        .select('id, user_id, title, course_code, colour, semester, year, is_archived, archived, created_at, lectures(id, title, week, slide_count, created_at, processing), past_papers(id, title, year, exam_type, status)')
         .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(dbData)) {
@@ -263,7 +264,7 @@ export default function CoursesPage() {
         console.warn('Direct courses join query failed, falling back to base select:', error.message);
         const { data: baseData, error: baseErr } = await supabase
           .from('courses')
-          .select('id, user_id, title, course_code, colour, semester, year, is_archived, created_at')
+          .select('id, user_id, title, course_code, colour, semester, year, is_archived, archived, created_at')
           .order('created_at', { ascending: false });
 
         if (!baseErr && Array.isArray(baseData)) {
@@ -406,7 +407,7 @@ export default function CoursesPage() {
           const { data, error } = await supabase
             .from('courses')
             .insert({ ...newCourseData, user_id: user.id })
-            .select('id, user_id, title, course_code, colour, semester, year, is_archived, created_at, lectures(id, title, week, slide_count, created_at, processing)')
+            .select('id, user_id, title, course_code, colour, semester, year, is_archived, archived, created_at, lectures(id, title, week, slide_count, created_at, processing)')
             .single();
           if (!error && data) {
             fetchedCourse = data as CourseRecord;
@@ -475,7 +476,7 @@ export default function CoursesPage() {
           .from('courses')
           .update(updatePayload)
           .eq('id', editCourseId)
-          .select('id, user_id, title, course_code, colour, semester, year, is_archived, created_at, lectures(id, title, week, slide_count, created_at, processing)')
+          .select('id, user_id, title, course_code, colour, semester, year, is_archived, archived, created_at, lectures(id, title, week, slide_count, created_at, processing)')
           .single();
         if (!error && data) {
           updatedCourse = data as CourseRecord;
@@ -502,29 +503,46 @@ export default function CoursesPage() {
     e.preventDefault();
     e.stopPropagation();
     try {
+      const nextArchived = !isArchived;
       let updatedCourse: CourseRecord | null = null;
       try {
-        updatedCourse = (await apiFetch(`/courses/${id}`, {
+        const res = await fetch(`/api/courses/${id}`, {
           method: 'PATCH',
-          body: JSON.stringify({ is_archived: !isArchived }),
-        })) as CourseRecord;
-      } catch (apiErr) {
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_archived: nextArchived }),
+        });
+        if (res.ok) {
+          updatedCourse = (await res.json()) as CourseRecord;
+        }
+      } catch {
+        // Fall back to direct supabase client
+      }
+
+      if (!updatedCourse) {
         const { data, error } = await supabase
           .from('courses')
-          .update({ is_archived: !isArchived, archived: !isArchived })
+          .update({ is_archived: nextArchived, archived: nextArchived })
           .eq('id', id)
-          .select('id, user_id, title, course_code, colour, semester, year, is_archived, created_at, lectures(id, title, week, slide_count, created_at, processing)')
+          .select('id, user_id, title, course_code, colour, semester, year, is_archived, archived, created_at, lectures(id, title, week, slide_count, created_at, processing)')
           .single();
         if (!error && data) {
           updatedCourse = data as CourseRecord;
-        } else {
-          throw error || apiErr;
+        } else if (error) {
+          throw error;
         }
       }
 
       if (updatedCourse) {
         setCourses((prev) =>
-          prev.map((c) => (c.id === id ? normalizeCourse({ ...c, ...updatedCourse }) : c))
+          prev.map((c) =>
+            c.id === id ? normalizeCourse({ ...c, ...updatedCourse, is_archived: nextArchived, archived: nextArchived }) : c
+          )
+        );
+      } else {
+        setCourses((prev) =>
+          prev.map((c) =>
+            c.id === id ? { ...c, is_archived: nextArchived, archived: nextArchived } : c
+          )
         );
       }
       toast.success(isArchived ? 'Course restored to active modules' : 'Course moved to archive');
@@ -534,11 +552,11 @@ export default function CoursesPage() {
   };
 
   const activeCourses = useMemo(
-    () => courses.filter((c) => !c.is_archived && c.colour !== '#hidden'),
+    () => courses.filter((c) => !c.is_archived && !c.archived && c.colour !== '#hidden'),
     [courses]
   );
   const archivedCourses = useMemo(
-    () => courses.filter((c) => Boolean(c.is_archived) && c.colour !== '#hidden'),
+    () => courses.filter((c) => Boolean(c.is_archived || c.archived) && c.colour !== '#hidden'),
     [courses]
   );
 

@@ -509,7 +509,7 @@ export function DashboardCommandCenter(props: DashboardCommandCenterProps) {
 
                 <div className="flex sm:flex-row md:flex-col items-stretch sm:items-center md:items-end gap-2.5 shrink-0">
                   <Link
-                    href={`/dashboard/courses/${effectiveResumeItem.courseId}/lectures/${effectiveResumeItem.lectureId}`}
+                    href={`/dashboard/courses/${effectiveResumeItem.courseId}/lectures/${effectiveResumeItem.lectureId}?slide=${effectiveResumeItem.slideNumber}`}
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#00004E] text-white hover:bg-[#000038] dark:bg-[#D89A06] dark:text-[#00004E] dark:hover:bg-[#C28905] px-5 py-2.5 text-sm font-bold transition-all shadow-sm cursor-pointer active:scale-[0.98]"
                   >
                     Resume Deck
