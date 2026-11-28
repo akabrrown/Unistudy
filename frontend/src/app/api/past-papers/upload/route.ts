@@ -40,13 +40,6 @@ async function uploadPdfBufferToCloudinary(buffer: Buffer, publicId: string): Pr
 }
 
 async function extractQuestionsWithGemini(pdfBuffer: Buffer, courseCode: string): Promise<any[]> {
-  if (!process.env.GEMINI_API_KEY) {
-    return [];
-  }
-
-  const base64Data = pdfBuffer.toString('base64');
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
   const prompt = `You are an academic exam parser. Read this university past examination paper PDF for course ${courseCode}.
 Extract every distinct examination question, including sub-questions (e.g. 1a, 1b, 2, 3), and return strictly valid JSON matching this schema:
 [
@@ -60,33 +53,100 @@ Extract every distinct examination question, including sub-questions (e.g. 1a, 1
 Constraints:
 - Return ONLY the JSON array, with no Markdown ticks, no preamble, and no explanation.
 - If there are multiple choice questions, set extracted_topic to "MCQ|Topic Name".
-- Extract between 5 and 30 questions based on what is in the paper.`;
+- Extract between 5 and 50 questions based on what is in the paper.`;
 
-  for (const modelName of GEMINI_CANDIDATE_MODELS) {
-    try {
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent([
-        {
-          inlineData: {
-            data: base64Data,
-            mimeType: 'application/pdf',
+  // 1. Primary path: Google Gemini Vision
+  if (process.env.GEMINI_API_KEY) {
+    const base64Data = pdfBuffer.toString('base64');
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+    for (const modelName of GEMINI_CANDIDATE_MODELS) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent([
+          {
+            inlineData: {
+              data: base64Data,
+              mimeType: 'application/pdf',
+            },
           },
-        },
-        { text: prompt },
-      ]);
+          { text: prompt },
+        ]);
 
-      const text = result.response.text().trim();
-      const cleanJson = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-      const start = cleanJson.indexOf('[');
-      const end = cleanJson.lastIndexOf(']');
-      if (start !== -1 && end !== -1) {
-        const parsed = JSON.parse(cleanJson.slice(start, end + 1));
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+        const text = result.response.text().trim();
+        const cleanJson = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+        const start = cleanJson.indexOf('[');
+        const end = cleanJson.lastIndexOf(']');
+        if (start !== -1 && end !== -1) {
+          const parsed = JSON.parse(cleanJson.slice(start, end + 1));
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[extractQuestionsWithGemini] Model ${modelName} warning:`, err.message);
+      }
+    }
+  }
+
+  // 2. High-availability fallback path: OpenRouter Vision
+  if (process.env.OPENROUTER_API_KEY) {
+    try {
+      const base64Data = pdfBuffer.toString('base64');
+      const orModels = [
+        'google/gemma-4-31b-it:free',
+        'nvidia/nemotron-3.5-super-vl:free',
+        'openrouter/auto',
+      ];
+
+      for (const model of orModels) {
+        try {
+          const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+              'Content-Type': 'application/json',
+              'HTTP-Referer': 'https://unistudy.app',
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                {
+                  role: 'user',
+                  content: [
+                    { type: 'text', text: prompt },
+                    {
+                      type: 'image_url',
+                      image_url: { url: `data:application/pdf;base64,${base64Data}` },
+                    },
+                  ],
+                },
+              ],
+              max_tokens: 4000,
+            }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            const content = data.choices?.[0]?.message?.content?.trim();
+            if (content) {
+              const cleanJson = content.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+              const start = cleanJson.indexOf('[');
+              const end = cleanJson.lastIndexOf(']');
+              if (start !== -1 && end !== -1) {
+                const parsed = JSON.parse(cleanJson.slice(start, end + 1));
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  return parsed;
+                }
+              }
+            }
+          }
+        } catch (orMError: any) {
+          console.warn(`[extractQuestionsWithGemini] OpenRouter model ${model} warning:`, orMError.message);
         }
       }
-    } catch (err: any) {
-      console.warn(`[extractQuestionsWithGemini] Model ${modelName} warning:`, err.message);
+    } catch (orErr: any) {
+      console.warn('[extractQuestionsWithGemini] OpenRouter fallback notice:', orErr.message);
     }
   }
 
