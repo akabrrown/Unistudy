@@ -122,27 +122,35 @@ export default function PastPaperDetails() {
     setIsExtracting(true);
     try {
       const url = `/api/v1/past-questions/${params.id}/extract${force ? '?force=true' : ''}`;
-      const res = await fetch(url, {
-        method: 'POST',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.questions) && data.questions.length > 0) {
-          const sorted = [...data.questions].sort((a: any, b: any) => 
-            String(a.question_number || a.id).localeCompare(String(b.question_number || b.id), undefined, { numeric: true })
-          );
-          setQuestions(sorted);
-          if (!silent) {
-            toast.success(`Extracted ${sorted.length} examination questions verbatim from PDF!`);
-          }
-          setActiveTab('trial');
-          return sorted;
-        }
-      } else {
-        const errData = await res.json().catch(() => null);
+      const res = await fetch(url, { method: 'POST' });
+      // The extract route now always returns 200 (is_scanned: true) or 200 with questions.
+      // We no longer surface 422 errors to the student.
+      const data = await res.json().catch(() => null);
+
+      if (data && Array.isArray(data.questions) && data.questions.length > 0) {
+        const sorted = [...data.questions].sort((a: any, b: any) =>
+          String(a.question_number || a.id).localeCompare(
+            String(b.question_number || b.id),
+            undefined,
+            { numeric: true }
+          )
+        );
+        setQuestions(sorted);
         if (!silent) {
-          toast.error(errData?.error || 'Unable to extract questions from this paper.');
+          toast.success(`Extracted ${sorted.length} examination questions verbatim from PDF!`);
         }
+        setActiveTab('trial');
+        return sorted;
+      }
+
+      // Scanned paper — switch to PDF viewer silently, no error toast
+      if (data?.is_scanned) {
+        setActiveTab('pdf');
+        return null;
+      }
+
+      if (!silent && data?.message) {
+        toast.info(data.message);
       }
     } catch (e: any) {
       console.warn('Extraction notice:', e.message);
@@ -269,9 +277,16 @@ export default function PastPaperDetails() {
       
       setLoading(false);
 
-      // Auto-extract immediately if paper has 0 questions so it's ready for trial
-      if (foundQuestions.length === 0) {
+      // Auto-extract only for UUID papers (Cloudinary-backed) with 0 questions.
+      // KLOK papers (non-UUID base64 IDs) have no DB record — skip auto-extract
+      // to avoid triggering OCR on every open. Those go straight to PDF viewer.
+      const idStr = typeof params.id === 'string' ? params.id : '';
+      const isUuidPaper = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idStr);
+      if (foundQuestions.length === 0 && isUuidPaper) {
         void extractQuestions(true);
+      } else if (foundQuestions.length === 0 && !isUuidPaper) {
+        // KLOK paper with no questions — go directly to PDF viewer
+        setActiveTab('pdf');
       }
     };
     

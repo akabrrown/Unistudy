@@ -123,6 +123,24 @@ export async function GET(
       const cleanTitle = normalizePastPaperTitle(decodedPath || paperId);
       const detectedCode = extractCourseCode(cleanTitle);
 
+      // Check if this KLOK paper has already been ingested into the DB
+      // by matching on klok_id or normalized title+course_code
+      let ingestedPaper: any = null;
+      let ingestedQuestions: any[] = [];
+      try {
+        const { data: klokRows } = await supabase
+          .from('past_papers')
+          .select('id, title, course_code, year, file_url, past_paper_questions(id, question_number, text_content, extracted_topic, marks_available)')
+          .or(`klok_id.eq.${paperId},title.eq.${cleanTitle}`)
+          .limit(1);
+        if (klokRows && klokRows.length > 0) {
+          ingestedPaper = klokRows[0];
+          ingestedQuestions = Array.isArray(ingestedPaper.past_paper_questions)
+            ? ingestedPaper.past_paper_questions
+            : [];
+        }
+      } catch (_) {}
+
       // Attempt to link to user's registered courses if session exists
       let matchingCourse: any = null;
       try {
@@ -148,6 +166,48 @@ export async function GET(
         paperTitle: cleanTitle,
         fallback: detectedCode || 'EXAM',
       });
+
+      // If we have an ingested paper with its own UUID, redirect response
+      // to the UUID record so the UI benefits from full DB-backed paper data.
+      if (ingestedPaper && ingestedPaper.id) {
+        let directPdfUrl: string | null = null;
+        try {
+          const { data: pageRows } = await supabase
+            .from('past_paper_pages')
+            .select('image_url')
+            .eq('past_paper_id', ingestedPaper.id)
+            .limit(1);
+          if (pageRows && pageRows.length > 0 && pageRows[0].image_url) {
+            directPdfUrl = pageRows[0].image_url;
+          }
+        } catch (_) {}
+
+        return NextResponse.json({
+          id: ingestedPaper.id,
+          course_id: matchingCourse ? matchingCourse.id : null,
+          course_code: courseCode,
+          normalized_course_code: courseCode.replace(/[^A-Z0-9]/g, ''),
+          title: ingestedPaper.title || cleanTitle,
+          year: parseYear(ingestedPaper.year || cleanTitle),
+          exam_type: isMidterm ? 'mid-semester' : 'end-semester',
+          status: 'ready',
+          created_at: new Date().toISOString(),
+          download_url: ingestedPaper.file_url || directPdfUrl || `/api/v1/past-questions/download?id=${encodeURIComponent(paperId)}`,
+          source: 'klok_ingested',
+          courses: matchingCourse ? {
+            id: matchingCourse.id,
+            course_code: courseCode,
+            title: matchingCourse.title,
+            colour: matchingCourse.colour || '#00004E',
+          } : {
+            id: 'official',
+            course_code: courseCode,
+            title: cleanTitle,
+            colour: '#00004E',
+          },
+          past_paper_questions: ingestedQuestions,
+        });
+      }
 
       return NextResponse.json({
         id: paperId,

@@ -411,18 +411,24 @@ Return a valid JSON object with the exact root key "questions", containing an ar
       }
     }
 
-    // 3b. If PDF extraction yielded 0 questions, DO NOT fabricate synthetic questions!
-    // Instead return informative response allowing student to view authentic PDF.
+    // 3b. If PDF extraction yielded 0 questions, DO NOT fabricate synthetic questions.
+    // Return 200 with is_scanned: true so the UI can gracefully show the PDF viewer
+    // instead of surfacing a confusing 422 error to students.
     if (!extractedQuestions || extractedQuestions.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Unable to extract text questions automatically from this scanned examination paper. Please view or download the authentic PDF to practice.',
-          is_scanned: true,
-          questions: [],
-        },
-        { status: 422 }
-      );
+      // Resolve the best available PDF URL to pass back for the inline viewer
+      let pdfViewUrl = targetPdfUrl || '';
+      if (!pdfViewUrl && !isUuid) {
+        pdfViewUrl = `/api/v1/past-questions/download?id=${encodeURIComponent(paperId)}`;
+      }
+
+      return NextResponse.json({
+        success: false,
+        is_scanned: true,
+        questions: [],
+        pdf_url: pdfViewUrl,
+        message:
+          'This examination paper contains scanned images and cannot be automatically parsed. Use the PDF viewer below to read and practice with the authentic paper.',
+      });
     }
 
     // 4. Persist authentic extracted questions into Supabase
