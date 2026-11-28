@@ -35,6 +35,7 @@ import {
   Columns2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { deletePastPapers } from '@/app/actions/pastPapers'
 import { apiFetch } from '@/lib/api/client'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -373,19 +374,15 @@ export default function PastPaperDetails() {
     setConfirmDeleteOpen(false);
     setIsDeleting(true);
     try {
-      await apiFetch(`/past-papers/${paper.id}`, { method: 'DELETE' });
+      const res = await deletePastPapers([paper.id]);
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to delete past paper');
+      }
       toast.success('Past paper deleted successfully');
       router.push('/dashboard/past-papers');
     } catch (err: any) {
-      try {
-        const { error } = await supabase.from('past_papers').delete().eq('id', paper.id);
-        if (error) throw error;
-        toast.success('Past paper deleted successfully');
-        router.push('/dashboard/past-papers');
-      } catch (fallbackErr: any) {
-        toast.error(fallbackErr?.message || err?.message || 'Failed to delete past paper');
-        setIsDeleting(false);
-      }
+      toast.error(err?.message || 'Failed to delete past paper');
+      setIsDeleting(false);
     }
   };
 

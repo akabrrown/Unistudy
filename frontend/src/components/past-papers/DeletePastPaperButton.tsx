@@ -3,9 +3,9 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Trash2, Loader2 } from 'lucide-react';
-import { apiFetch } from '@/lib/api/client';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { deletePastPapers } from '@/app/actions/pastPapers';
 
 export function DeletePastPaperButton({
   paperId,
@@ -30,7 +30,10 @@ export function DeletePastPaperButton({
 
     setLoading(true);
     try {
-      await apiFetch(`/past-papers/${paperId}`, { method: 'DELETE' });
+      const res = await deletePastPapers([paperId]);
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to delete past paper');
+      }
       toast.success('Past paper deleted');
       if (onDeleted) {
         onDeleted();
@@ -38,7 +41,7 @@ export function DeletePastPaperButton({
         router.refresh();
       }
     } catch (err: any) {
-      toast.error(err.message || 'Failed to delete past paper');
+      toast.error(err?.message || 'Failed to delete past paper');
     } finally {
       setLoading(false);
     }

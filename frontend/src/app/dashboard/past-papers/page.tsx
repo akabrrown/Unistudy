@@ -43,6 +43,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { normalizePastPaperTitle, resolveDisplayCourseCode } from '@/lib/past-papers/titleNormalizer';
 import { getCachedPastPapers, saveCachedPastPapers } from '@/lib/offlineSync';
+import { deletePastPapers } from '@/app/actions/pastPapers';
 
 interface CourseItem {
   id: string;
@@ -406,32 +407,23 @@ export default function PastPapersDashboard() {
     setPendingDeleteIds(null);
 
     const previousPapers = [...papers];
-    setPapers((prev) => prev.filter((p) => !ids.includes(p.id)));
+    const updatedPapers = papers.filter((p) => !ids.includes(p.id));
+    setPapers(updatedPapers);
+    saveCachedPastPapers(updatedPapers);
     setSelectedPapers((prev) => prev.filter((p) => !ids.includes(p)));
     setIsDeleting(true);
 
     try {
-      if (ids.length === 1) {
-        await apiFetch(`/past-papers/${ids[0]}`, { method: 'DELETE' });
-      } else {
-        await apiFetch('/past-papers/delete-batch', {
-          method: 'POST',
-          body: JSON.stringify({ ids }),
-        });
+      const res = await deletePastPapers(ids);
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to delete past paper');
       }
       toast.success(ids.length === 1 ? 'Past paper deleted' : `${ids.length} past papers deleted`);
     } catch (err: unknown) {
-      const apiMsg = err instanceof Error ? err.message : '';
-      console.warn('Backend delete error, trying direct Supabase fallback:', apiMsg);
-      try {
-        const { error: supaErr } = await supabase.from('past_papers').delete().in('id', ids);
-        if (supaErr) throw supaErr;
-        toast.success(ids.length === 1 ? 'Past paper deleted' : `${ids.length} past papers deleted`);
-      } catch (fallbackErr: unknown) {
-        setPapers(previousPapers);
-        const fallbackMsg = fallbackErr instanceof Error ? fallbackErr.message : apiMsg;
-        toast.error(fallbackMsg || 'Failed to delete past paper');
-      }
+      setPapers(previousPapers);
+      saveCachedPastPapers(previousPapers);
+      const msg = err instanceof Error ? err.message : 'Failed to delete past paper';
+      toast.error(msg);
     } finally {
       setIsDeleting(false);
       void loadData();
