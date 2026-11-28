@@ -118,13 +118,12 @@ export default function PastPaperDetails() {
     } catch {}
   }, [trialAnswers, trialDrafts, trialStorageKey])
 
-  const extractQuestions = async (silent = false, force = false) => {
+  const extractQuestions = async (silent = false, force = false, explicit = false) => {
     setIsExtracting(true);
     try {
       const url = `/api/v1/past-questions/${params.id}/extract${force ? '?force=true' : ''}`;
       const res = await fetch(url, { method: 'POST' });
-      // The extract route now always returns 200 (is_scanned: true) or 200 with questions.
-      // We no longer surface 422 errors to the student.
+      // The extract route always returns 200 — either with questions or is_scanned: true.
       const data = await res.json().catch(() => null);
 
       if (data && Array.isArray(data.questions) && data.questions.length > 0) {
@@ -143,8 +142,16 @@ export default function PastPaperDetails() {
         return sorted;
       }
 
-      // Scanned paper — switch to PDF viewer silently, no error toast
+      // Scanned / image-only paper — OCR returned 0 questions.
       if (data?.is_scanned) {
+        if (explicit) {
+          // User clicked the button explicitly: inform them and switch to PDF tab
+          toast.info(
+            'This paper is a scanned image — questions cannot be parsed automatically. Opening the PDF viewer so you can read and practise directly.',
+            { duration: 6000 }
+          );
+        }
+        // Always redirect to PDF tab when no questions can be extracted
         setActiveTab('pdf');
         return null;
       }
@@ -557,7 +564,7 @@ export default function PastPaperDetails() {
                       </p>
                     </div>
                     <Button
-                      onClick={() => extractQuestions(false, true)}
+                      onClick={() => extractQuestions(false, true, true)}
                       size="sm"
                       className="gap-2 bg-[#00004E] dark:bg-[#D89A06] dark:text-[#00004E] text-white cursor-pointer font-semibold"
                     >
