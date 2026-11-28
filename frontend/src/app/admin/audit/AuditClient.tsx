@@ -971,7 +971,7 @@ export function AuditClient({ initialLogs = [] }: AuditClientProps) {
                   {inspectedLog.action_type}
                 </SheetTitle>
                 <SheetDescription className="text-xs">
-                  Event recorded on {format(new Date(inspectedLog.created_at), 'MMMM d, yyyy at HH:mm:ss UTC')} (
+                  Event recorded on {format(new Date(inspectedLog.created_at), 'MMMM d, yyyy HH:mm:ss')} UTC (
                   {formatDistanceToNow(new Date(inspectedLog.created_at), { addSuffix: true })})
                 </SheetDescription>
               </SheetHeader>
