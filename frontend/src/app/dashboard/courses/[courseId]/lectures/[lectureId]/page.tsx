@@ -11,6 +11,7 @@ import { UniStudyLogo } from '@/components/brand/UniStudyLogo'
 import { generateSlideExplanation } from '@/app/actions/explain'
 import { downloadLecturePack } from '@/lib/downloadPack'
 import { getFlashcards } from '@/app/actions/flashcards'
+import { updateLastPosition, submitConfidenceRating } from '@/app/actions/study'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -122,6 +123,13 @@ export default function LectureViewer() {
   useEffect(() => {
     if (!lectureId || totalSlides <= 0) return;
     saveSlideProgress(lectureId, slideIndex, totalSlides);
+
+    // Debounced sync to Supabase so the dashboard "Resume Studying" card works across devices
+    const timer = setTimeout(() => {
+      void updateLastPosition(lectureId, slideIndex + 1);
+    }, 1500);
+
+    return () => clearTimeout(timer);
   }, [slideIndex, totalSlides, lectureId]);
 
   // Auto-dismiss resume prompt if the student navigates away
@@ -2308,7 +2316,16 @@ export default function LectureViewer() {
             <p className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-4 text-center">How confident are you?</p>
             <div className="flex gap-2 justify-center">
               {[Frown, Meh, Smile, Zap, Flame].map((Icon, i) => (
-                <button key={i} onClick={() => setConfidence(i)}
+                <button
+                  key={i}
+                  onClick={() => {
+                    setConfidence(i);
+                    const targetSlide = slides[slideIndex];
+                    if (targetSlide?.id) {
+                      void submitConfidenceRating(targetSlide.id, i + 1);
+                      toast.success('Confidence logged!', { duration: 1500 });
+                    }
+                  }}
                   className={`w-12 h-12 rounded-full flex items-center justify-center transition-all
                     ${confidence === i ? 'bg-primary/10 ring-2 ring-primary scale-110 shadow-lg shadow-primary/20 text-primary' : 'bg-card border border-border hover:bg-muted hover:scale-105 text-muted-foreground hover:text-foreground'}`}>
                   <Icon size={24} />

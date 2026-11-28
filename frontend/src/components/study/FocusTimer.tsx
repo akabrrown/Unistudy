@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
+import { recordStudySession } from '@/app/actions/study';
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
@@ -99,7 +100,8 @@ export const FocusTimer = forwardRef<FocusTimerRef, FocusTimerProps>(({ isOpen, 
     if (timerRef.current) clearInterval(timerRef.current);
     if (mode === 'focus') {
       confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
-      toast.success('Focus session complete! Take a break.', { icon: '🎉', duration: 4000 });
+      toast.success('Focus session complete! Logged to your study streak.', { icon: '🎉', duration: 4000 });
+      void recordStudySession(focusMinutes);
       switchMode('break');
     } else {
       toast('Break over. Back to work!', { icon: '💪', duration: 4000 });
