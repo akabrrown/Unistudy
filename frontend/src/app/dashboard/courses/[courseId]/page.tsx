@@ -23,7 +23,10 @@ import {
   ArrowLeft,
   FileText,
   RotateCcw,
+  Archive,
+  ArchiveRestore,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import { SPRING_SNAPPY, useAppReducedMotion } from '@/lib/motion';
 import { Button } from '@/components/ui/button';
@@ -45,6 +48,8 @@ interface CourseData {
   semester?: number | string | null;
   year?: number | null;
   colour?: string | null;
+  is_archived?: boolean | null;
+  archived?: boolean | null;
   created_at?: string | null;
 }
 
@@ -182,6 +187,37 @@ export default function CanvasCourseWorkspacePage() {
           {course?.course_code || 'Course Workspace'}
         </span>
       </nav>
+
+      {/* Archived Course Notice & Quick Restore Banner */}
+      {Boolean(course?.is_archived || course?.archived) && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5 text-amber-700 dark:text-amber-300 font-medium">
+            <Archive className="w-4 h-4 shrink-0 text-amber-500" />
+            <span>This course is archived. Its lectures, flashcards, and exam papers are hidden from your main dashboard, search, and hubs.</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-amber-500/40 hover:bg-amber-500/20 text-amber-800 dark:text-amber-200 shrink-0 text-xs font-semibold gap-1.5 cursor-pointer"
+            onClick={async () => {
+              try {
+                const supabase = createClient();
+                await supabase
+                  .from('courses')
+                  .update({ is_archived: false, archived: false })
+                  .eq('id', courseId);
+                setCourse((prev) => (prev ? { ...prev, is_archived: false, archived: false } : null));
+                toast.success('Course unarchived! All materials are now visible across your dashboard and hubs.');
+              } catch {
+                toast.error('Failed to unarchive course');
+              }
+            }}
+          >
+            <ArchiveRestore className="w-3.5 h-3.5" />
+            Unarchive Course
+          </Button>
+        </div>
+      )}
 
       {/* Canvas Academic Course Banner */}
       <header className="relative overflow-hidden rounded-2xl border border-border/80 bg-card p-6 md:p-8 shadow-xs space-y-5">

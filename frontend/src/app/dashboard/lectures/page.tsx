@@ -71,6 +71,7 @@ interface CourseItem {
   year?: number | null;
   colour?: string | null;
   is_archived?: boolean | null;
+  archived?: boolean | null;
   created_at?: string | null;
   lectures?: LectureItem[];
 }
@@ -240,7 +241,7 @@ export default function LecturesHubPage() {
 
       if (Array.isArray(data)) {
         const activeOnly = data
-          .filter((c: CourseItem) => !c.is_archived)
+          .filter((c: CourseItem) => !c.is_archived && !c.archived)
           .map((c: CourseItem) => ({
             ...c,
             course_code: formatCourseCode(c.course_code),

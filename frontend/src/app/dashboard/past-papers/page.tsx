@@ -51,6 +51,8 @@ interface CourseItem {
   semester?: number | string | null;
   year?: number | null;
   colour?: string | null;
+  is_archived?: boolean | null;
+  archived?: boolean | null;
   past_papers?: PastPaperRecord[];
 }
 
@@ -213,10 +215,28 @@ export default function PastPapersDashboard() {
         .limit(30),
     ]);
 
-    const nextCourses =
+    const allFetchedCourses =
       coursesRes.status === 'fulfilled' && Array.isArray(coursesRes.value)
         ? (coursesRes.value as CourseItem[])
         : [];
+
+    // Filter out archived courses so only active courses and their papers show
+    const nextCourses = allFetchedCourses.filter(
+      (c) => !c.is_archived && !c.archived
+    );
+
+    const archivedCourseIdSet = new Set(
+      allFetchedCourses
+        .filter((c) => Boolean(c.is_archived || c.archived))
+        .map((c) => c.id)
+    );
+    const archivedCourseCodes = new Set(
+      allFetchedCourses
+        .filter((c) => Boolean(c.is_archived || c.archived))
+        .map((c) => (c.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''))
+        .filter(Boolean)
+    );
+
     const rawPapers =
       papersRes.status === 'fulfilled' && Array.isArray(papersRes.value)
         ? (papersRes.value as PastPaperRecord[])
@@ -224,7 +244,7 @@ export default function PastPapersDashboard() {
         ? ((papersRes.value as any).data as PastPaperRecord[])
         : [];
 
-    // Display papers strictly related to courses created on the user's system
+    // Display papers strictly related to active courses created on the user's system
     const userCourseIdSet = new Set(nextCourses.map((c) => c.id));
     const userCourseCodes = nextCourses
       .map((c) => (c.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''))
@@ -232,16 +252,21 @@ export default function PastPapersDashboard() {
 
     const currentUserId = session?.user?.id;
     const nextPapers = rawPapers.filter((p) => {
-      // 0. Papers uploaded by the current student: ALWAYS show!
+      // If paper is explicitly linked to an archived course, hide it!
+      if (p.course_id && archivedCourseIdSet.has(p.course_id)) return false;
+      const cId = Array.isArray(p.courses) ? p.courses[0]?.id : p.courses?.id;
+      if (cId && archivedCourseIdSet.has(cId)) return false;
+      const pCode = (p.normalized_course_code || p.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (pCode && archivedCourseCodes.has(pCode) && !userCourseCodes.includes(pCode)) return false;
+
+      // 0. Papers uploaded by the current student: show if not archived!
       if (currentUserId && p.user_id && p.user_id === currentUserId) return true;
 
-      // 1. Direct course ID match
+      // 1. Direct course ID match with active course
       if (p.course_id && userCourseIdSet.has(p.course_id)) return true;
-      const cId = Array.isArray(p.courses) ? p.courses[0]?.id : p.courses?.id;
       if (cId && userCourseIdSet.has(cId)) return true;
 
-      // 2. Strict match by course code (exact normalized code match)
-      const pCode = (p.normalized_course_code || p.course_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      // 2. Strict match by course code (exact normalized code match with active course)
       if (pCode && userCourseCodes.some((cCode) => pCode === cCode)) return true;
 
       // 3. Central bank papers with no assigned course (available in global repository)

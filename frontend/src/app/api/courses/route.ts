@@ -16,8 +16,11 @@ const CourseInsertSchema = z.object({
   is_archived: z.boolean().optional(),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const includeArchived = searchParams.get('include_archived') === 'true' || searchParams.get('all') === 'true';
+
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
@@ -25,19 +28,30 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let { data, error } = await supabase
+    let query = supabase
       .from('courses')
       .select('*, lectures(id, title, week, slide_count, created_at, processing), past_papers(id, title, year, exam_type, status)')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+      .eq('user_id', user.id);
+
+    if (!includeArchived) {
+      // Hide archived courses from regular views
+      query = query.or('is_archived.is.null,is_archived.eq.false').or('archived.is.null,archived.eq.false');
+    }
+
+    let { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       console.warn('[Next API Courses] Join query failed, falling back to direct select:', error.message);
-      const fallback = await supabase
+      let fallbackQuery = supabase
         .from('courses')
         .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .eq('user_id', user.id);
+
+      if (!includeArchived) {
+        fallbackQuery = fallbackQuery.or('is_archived.is.null,is_archived.eq.false').or('archived.is.null,archived.eq.false');
+      }
+
+      const fallback = await fallbackQuery.order('created_at', { ascending: false });
 
       if (fallback.error) {
         return NextResponse.json({ error: fallback.error.message }, { status: 500 });

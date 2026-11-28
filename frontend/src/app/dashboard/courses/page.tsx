@@ -239,7 +239,7 @@ export default function CoursesPage() {
 
     if (!data || data.length === 0) {
       try {
-        const res = await fetch('/api/courses');
+        const res = await fetch('/api/courses?include_archived=true');
         if (res.ok) {
           const nextData = await res.json();
           if (Array.isArray(nextData) && nextData.length > 0) {
@@ -511,7 +511,7 @@ export default function CoursesPage() {
       } catch (apiErr) {
         const { data, error } = await supabase
           .from('courses')
-          .update({ is_archived: !isArchived })
+          .update({ is_archived: !isArchived, archived: !isArchived })
           .eq('id', id)
           .select('id, user_id, title, course_code, colour, semester, year, is_archived, created_at, lectures(id, title, week, slide_count, created_at, processing)')
           .single();

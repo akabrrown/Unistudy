@@ -44,6 +44,7 @@ interface FlashcardHit {
 interface PaperHit {
   id: string;
   past_paper_id: string;
+  course_id?: string | null;
   text_content?: string | null;
 }
 
@@ -90,7 +91,9 @@ function SearchResultsContent() {
     setDraftQuery(urlQuery);
   }, [urlQuery]);
 
-  // Build lectureId -> courseId map so flashcard & slide links resolve directly to valid course routes
+  // Build lectureId -> courseId map and track active course IDs so results from archived courses are hidden
+  const [activeCourseIds, setActiveCourseIds] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     let active = true;
     fetch('/api/courses')
@@ -98,12 +101,15 @@ function SearchResultsContent() {
       .then((courses: Array<{ id: string; lectures?: Array<{ id: string }> }>) => {
         if (!active || !Array.isArray(courses)) return;
         const map = new Map<string, string>();
+        const courseIdSet = new Set<string>();
         for (const c of courses) {
+          if (c.id) courseIdSet.add(c.id);
           for (const lec of c.lectures || []) {
             if (lec?.id && c.id) map.set(lec.id, c.id);
           }
         }
         setLectureCourseMap(map);
+        setActiveCourseIds(courseIdSet);
       })
       .catch(() => {});
     return () => {
@@ -155,9 +161,35 @@ function SearchResultsContent() {
     router.push(`/dashboard/search?q=${encodeURIComponent(q)}`);
   };
 
-  const slides = results?.slides || [];
-  const flashcards = results?.flashcards || [];
-  const papers = results?.past_papers || [];
+  const rawSlides = results?.slides || [];
+  const rawFlashcards = results?.flashcards || [];
+  const rawPapers = results?.past_papers || [];
+
+  // Hide slides, flashcards, and past papers linked to archived courses
+  const slides = useMemo(() => {
+    if (activeCourseIds.size === 0) return rawSlides;
+    return rawSlides.filter((s) => {
+      const cId = s.course_id || (s.lecture_id ? lectureCourseMap.get(s.lecture_id) : undefined);
+      return !cId || activeCourseIds.has(cId);
+    });
+  }, [rawSlides, activeCourseIds, lectureCourseMap]);
+
+  const flashcards = useMemo(() => {
+    if (activeCourseIds.size === 0) return rawFlashcards;
+    return rawFlashcards.filter((f) => {
+      const cId = f.course_id || (f.lecture_id ? lectureCourseMap.get(f.lecture_id) : undefined);
+      return !cId || activeCourseIds.has(cId);
+    });
+  }, [rawFlashcards, activeCourseIds, lectureCourseMap]);
+
+  const papers = useMemo(() => {
+    if (activeCourseIds.size === 0) return rawPapers;
+    return rawPapers.filter((p) => {
+      const cId = p.course_id;
+      return !cId || activeCourseIds.has(cId);
+    });
+  }, [rawPapers, activeCourseIds]);
+
   const totalCount = slides.length + flashcards.length + papers.length;
 
   const tabs: Array<{ id: SearchCategoryTab; label: string; count: number }> = useMemo(

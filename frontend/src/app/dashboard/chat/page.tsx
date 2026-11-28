@@ -115,6 +115,7 @@ interface CourseItem {
   course_code?: string | null;
   colour?: string | null;
   is_archived?: boolean | null;
+  archived?: boolean | null;
   lectures?: LectureItem[];
 }
 
@@ -803,7 +804,7 @@ export default function GeneralAiChatPage() {
           const data = await res.json();
           if (isMounted && Array.isArray(data)) {
             const activeOnly = data
-              .filter((c: CourseItem) => !c.is_archived)
+              .filter((c: CourseItem) => !c.is_archived && !c.archived)
               .map((c: CourseItem) => ({
                 ...c,
                 lectures: (c.lectures || []).filter((l: LectureItem) => !l.title?.startsWith('[FAILED')),

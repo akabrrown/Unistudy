@@ -30,6 +30,7 @@ interface CourseRow {
   semester: string | null;
   year: number | null;
   archived: boolean | null;
+  is_archived?: boolean | null;
   created_at: string | null;
   lectures: LectureRow[] | null;
 }
@@ -178,7 +179,7 @@ export default async function DashboardPage() {
         .maybeSingle(),
       supabase
         .from('courses')
-        .select('id, title, course_code, colour, semester, year, archived, created_at, lectures(id, title, week, slide_count, created_at)')
+        .select('id, title, course_code, colour, semester, year, archived, is_archived, created_at, lectures(id, title, week, slide_count, created_at)')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),
       supabase
@@ -290,7 +291,7 @@ export default async function DashboardPage() {
   }
 
   // Filter active non-archived courses & map lecture metadata in memory
-  const activeCourses = rawCourses.filter((course) => !course.archived);
+  const activeCourses = rawCourses.filter((course) => !course.archived && !course.is_archived);
   const lectureLookup = new Map<
     string,
     {
@@ -333,16 +334,16 @@ export default async function DashboardPage() {
   for (const card of rawFlashcards) {
     const lid = card.lecture_id;
     const lecMeta = lid ? lectureLookup.get(lid) : undefined;
-    const isDue = !card.next_review || new Date(card.next_review).getTime() <= nowMs;
+    // Only count flashcards belonging to active (non-archived) courses
+    if (!lid || !lecMeta) continue;
 
+    const isDue = !card.next_review || new Date(card.next_review).getTime() <= nowMs;
     if (isDue) dueFlashcards += 1;
 
-    if (lid && lecMeta) {
-      totalByCourse.set(lecMeta.courseId, (totalByCourse.get(lecMeta.courseId) || 0) + 1);
-      if (isDue) {
-        dueByLecture.set(lid, (dueByLecture.get(lid) || 0) + 1);
-        dueByCourse.set(lecMeta.courseId, (dueByCourse.get(lecMeta.courseId) || 0) + 1);
-      }
+    totalByCourse.set(lecMeta.courseId, (totalByCourse.get(lecMeta.courseId) || 0) + 1);
+    if (isDue) {
+      dueByLecture.set(lid, (dueByLecture.get(lid) || 0) + 1);
+      dueByCourse.set(lecMeta.courseId, (dueByCourse.get(lecMeta.courseId) || 0) + 1);
     }
   }
 
@@ -469,41 +470,57 @@ export default async function DashboardPage() {
   }
 
   // Combine quizzes + past paper attempts for Recent Assessments & Exam Readiness average
-  const paperAssessments: DashboardAssessmentItem[] = rawPaperAttempts.map((att) => {
-    const paper = Array.isArray(att.past_papers) ? att.past_papers[0] : att.past_papers;
-    const course = paper?.course_id ? courseById.get(paper.course_id) : undefined;
-    return {
-      id: att.id,
-      kind: 'past_paper',
-      title: normalizePastPaperTitle(paper?.title) || 'Past Paper Attempt',
-      subtitle: course?.course_code || (paper?.year ? `Exam ${paper.year}` : 'Past Paper'),
-      scorePercent:
-        att.score_percentage !== null && att.score_percentage !== undefined
-          ? Number(att.score_percentage)
-          : null,
-      completedAt: att.completed_at || att.started_at,
-      href: `/dashboard/past-papers/results/${att.id}`,
-    };
-  });
+  // Hide attempts belonging to archived courses
+  const activeCourseIdSet = new Set(activeCourses.map((c) => c.id));
 
-  const quizAssessments: DashboardAssessmentItem[] = rawQuizAttempts.map((q) => {
-    const lecMeta = q.lecture_id ? lectureLookup.get(q.lecture_id) : undefined;
-    const pct =
-      q.score !== null && q.score !== undefined
-        ? q.total && q.total > 0
-          ? (q.score / q.total) * 100
-          : q.score
-        : null;
-    return {
-      id: q.id,
-      kind: 'quiz',
-      title: lecMeta ? `${lecMeta.lectureTitle} Quiz` : 'Lecture Practice Quiz',
-      subtitle: lecMeta?.courseCode || 'Quiz',
-      scorePercent: pct !== null ? Math.min(100, Math.max(0, Math.round(pct))) : null,
-      completedAt: q.completed_at,
-      href: lecMeta ? `/dashboard/courses/${lecMeta.courseId}/quiz` : '/dashboard/courses',
-    };
-  });
+  const paperAssessments: DashboardAssessmentItem[] = rawPaperAttempts
+    .filter((att) => {
+      const paper = Array.isArray(att.past_papers) ? att.past_papers[0] : att.past_papers;
+      // If paper is linked to a course, only show if that course is active
+      if (paper?.course_id && !activeCourseIdSet.has(paper.course_id)) return false;
+      return true;
+    })
+    .map((att) => {
+      const paper = Array.isArray(att.past_papers) ? att.past_papers[0] : att.past_papers;
+      const course = paper?.course_id ? courseById.get(paper.course_id) : undefined;
+      return {
+        id: att.id,
+        kind: 'past_paper',
+        title: normalizePastPaperTitle(paper?.title) || 'Past Paper Attempt',
+        subtitle: course?.course_code || (paper?.year ? `Exam ${paper.year}` : 'Past Paper'),
+        scorePercent:
+          att.score_percentage !== null && att.score_percentage !== undefined
+            ? Number(att.score_percentage)
+            : null,
+        completedAt: att.completed_at || att.started_at,
+        href: `/dashboard/past-papers/results/${att.id}`,
+      };
+    });
+
+  const quizAssessments: DashboardAssessmentItem[] = rawQuizAttempts
+    .filter((q) => {
+      // If quiz is linked to a lecture, only show if the lecture belongs to an active course
+      if (q.lecture_id && !lectureLookup.has(q.lecture_id)) return false;
+      return true;
+    })
+    .map((q) => {
+      const lecMeta = q.lecture_id ? lectureLookup.get(q.lecture_id) : undefined;
+      const pct =
+        q.score !== null && q.score !== undefined
+          ? q.total && q.total > 0
+            ? (q.score / q.total) * 100
+            : q.score
+          : null;
+      return {
+        id: q.id,
+        kind: 'quiz',
+        title: lecMeta ? `${lecMeta.lectureTitle} Quiz` : 'Lecture Practice Quiz',
+        subtitle: lecMeta?.courseCode || 'Quiz',
+        scorePercent: pct !== null ? Math.min(100, Math.max(0, Math.round(pct))) : null,
+        completedAt: q.completed_at,
+        href: lecMeta ? `/dashboard/courses/${lecMeta.courseId}/quiz` : '/dashboard/courses',
+      };
+    });
 
   const allAssessments = [...paperAssessments, ...quizAssessments].sort((a, b) => {
     const tA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
@@ -540,14 +557,20 @@ export default async function DashboardPage() {
     profile?.university,
   ].filter(Boolean);
 
-  const upcomingEvents: DashboardCalendarItem[] = rawEvents.map((e) => ({
-    id: e.id,
-    title: e.title,
-    date: e.date,
-    type: e.type,
-    time: e.time || undefined,
-    course_id: e.course_id || null,
-  }));
+  const upcomingEvents: DashboardCalendarItem[] = rawEvents
+    .filter((e) => {
+      // If event is linked to a course, only show if that course is active
+      if (e.course_id && !activeCourseIdSet.has(e.course_id)) return false;
+      return true;
+    })
+    .map((e) => ({
+      id: e.id,
+      title: e.title,
+      date: e.date,
+      type: e.type,
+      time: e.time || undefined,
+      course_id: e.course_id || null,
+    }));
 
   const pinnedVideos: DashboardPinnedVideoItem[] = rawPinnedVideos.map((v) => ({
     id: v.id,

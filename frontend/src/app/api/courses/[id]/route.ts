@@ -73,9 +73,15 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid payload', details: parsed.error.format() }, { status: 400 });
     }
 
+    const updatePayload: Record<string, any> = { ...parsed.data };
+    if (typeof parsed.data.is_archived === 'boolean') {
+      updatePayload.is_archived = parsed.data.is_archived;
+      updatePayload.archived = parsed.data.is_archived;
+    }
+
     const { data, error } = await supabase
       .from('courses')
-      .update(parsed.data)
+      .update(updatePayload)
       .eq('id', id)
       .eq('user_id', user.id)
       .select('*, lectures(id)')
